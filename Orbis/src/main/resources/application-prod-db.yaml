@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: ${POSTGRES_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    # url: ${MYSQL_URL}
+    # username: ${MYSQL_USER}      # .env의 MYSQL_USER 값
+    # password: ${MYSQL_PASSWORD}  # .env의 MYSQL_PASSWORD 값
+    # driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: ${REDIS_HOST} # docker-compose의 서비스명
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
