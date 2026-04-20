@@ -1,0 +1,92 @@
+package com.nkia.Orbis.domain.auth.controller;
+
+import com.nkia.Orbis.common.exception.errorcode.CommonErrorCode;
+import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.auth.dto.request.LoginRequest;
+import com.nkia.Orbis.domain.auth.dto.request.RefreshRequest;
+import com.nkia.Orbis.domain.auth.dto.request.SignupRequest;
+import com.nkia.Orbis.domain.auth.dto.response.LoginResponse;
+import com.nkia.Orbis.domain.auth.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/auth")
+@RequiredArgsConstructor
+@Tag(name = "Auth", description = "로그인 & 회원가입 API")
+public class AuthController {
+
+    private final AuthService authService;
+
+    @Operation(summary = "회원가입")
+    @SecurityRequirements()
+    @PostMapping("/signup")
+    public ResponseEntity<ApiResponse<String>> signup(@Valid @RequestBody SignupRequest request) {
+
+        // 서비스 계층에 비즈니스 로직 위임
+        authService.signup(request);
+
+        // 회원가입 성공 응답 반환 (성공 시 보통 데이터 본문 없이 메시지만 내려주거나 null 처리)
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("회원가입이 완료되었습니다."));
+    }
+
+    @Operation(summary = "로그인")
+    @SecurityRequirements()
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest loginRequest) {
+
+        // 1. 서비스 로직 호출 (이메일, 평문 비밀번호 전달)
+        LoginResponse loginResponse = authService.login(loginRequest.getEmail(), loginRequest.getPassword());
+
+        // 2. 작성해두신 공통 응답 객체(ApiResponse)로 access, refresh 토큰 반환
+        return ResponseEntity.ok(ApiResponse.success(loginResponse));
+    }
+
+    @Operation(summary = "로그아웃")
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<String>> logout(HttpServletRequest request) {
+
+        // 1. 헤더에서 토큰 추출 (Bearer 제외)
+        String token = resolveToken(request);
+        if (token == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(CommonErrorCode.INVALID_INPUT_VALUE));
+        }
+
+        // 2. 서비스 호출하여 블랙리스트 등록
+        authService.logout(token);
+
+        return ResponseEntity.ok(ApiResponse.success("성공적으로 로그아웃 되었습니다."));
+    }
+
+    @Operation(summary = "토큰 재발급 (Access Token 만료 시)")
+    @SecurityRequirements()
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<LoginResponse>> refresh(@Valid @RequestBody RefreshRequest refreshRequest) {
+        String refreshToken = refreshRequest.getRefreshToken();
+
+        if (refreshToken == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(CommonErrorCode.INVALID_INPUT_VALUE));
+        }
+
+        LoginResponse loginResponse = authService.refresh(refreshToken);
+        return ResponseEntity.ok(ApiResponse.success(loginResponse));
+    }
+
+    private String resolveToken(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+}
