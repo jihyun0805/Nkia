@@ -128,7 +128,7 @@ services:
     ports:
       - "${AI_SERVER_PORT:-8001}:8000"
     environment:
-      AI_DATABASE_URL: postgresql://${AI_POSTGRES_USER:-orbis_ai}:${AI_POSTGRES_PASSWORD:-orbis_ai}@orbis_ai_vector_db:5432/${AI_POSTGRES_DB:-orbis_ai_db}
+      AI_DATABASE_URL: ${AI_DATABASE_URL:-postgresql://orbis_ai:orbis_ai@orbis_ai_vector_db:5432/orbis_ai_db}
       TZ: Asia/Seoul
     networks:
       - app-network

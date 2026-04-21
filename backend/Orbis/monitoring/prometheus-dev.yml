@@ -19,6 +19,7 @@ scrape_configs:
     metrics_path: '/metrics'
     scrape_interval: 5s
     static_configs:
-      - targets: [ 'orbis_ai_api:8000' ]
+      # dev에서는 FastAPI를 로컬 uvicorn으로 실행하므로 host.docker.internal로 수집
+      - targets: [ 'host.docker.internal:8001' ]
         labels:
           application: 'Orbis-AI'
