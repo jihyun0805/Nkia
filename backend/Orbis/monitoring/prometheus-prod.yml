@@ -14,3 +14,11 @@ scrape_configs:
       - targets: [ 'Orbis-Server:8080' ]
         labels:
           application: 'Orbis'
+
+  - job_name: 'fastapi-ai'
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    static_configs:
+      - targets: [ 'orbis_ai_api:8000' ]
+        labels:
+          application: 'Orbis-AI'
