@@ -220,7 +220,7 @@ services:
     container_name: Orbis-Frontend
     build:
       # docker-compose.prod.yml 위치(Backend/~~)에서 Frontend 폴더로 가는 상대 경로
-      context: ../../Frontend
+      context: ../../frontend
       dockerfile: Dockerfile
     networks:
       - app-network
