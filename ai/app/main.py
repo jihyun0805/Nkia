@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from app.api.router import api_router
 from app.core.config import settings
 from app.core.database import close_pool, open_pool, ping_database
 
@@ -37,7 +38,6 @@ Instrumentator(
     excluded_handlers=["/health", "/health/db", "/metrics"],
 ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
-
 @app.get("/health", tags=["Health"], summary="AI API liveness check")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -47,3 +47,5 @@ def health() -> dict[str, str]:
 def health_db() -> dict[str, str]:
     ping_database()
     return {"status": "ok"}
+
+app.include_router(api_router)
