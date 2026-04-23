@@ -6,8 +6,8 @@ from app.core.config import settings
 
 pool = ConnectionPool(
     conninfo=settings.ai_database_url,
-    min_size=1,
-    max_size=5,
+    min_size=settings.ai_database_pool_min_size,
+    max_size=settings.ai_database_pool_max_size,
     kwargs={"row_factory": dict_row},
     open=False,
 )
