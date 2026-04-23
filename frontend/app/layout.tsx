@@ -11,7 +11,7 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: 'Nkia 영업관리시스템',
+  title: 'Orbis',
   description: 'B2B 소프트웨어 기업을 위한 영업관리시스템',
   generator: 'v0.app',
   icons: {
