@@ -9,7 +9,17 @@ dependencies = [
     "psycopg-pool==3.2.4",
     "pydantic-settings==2.7.1",
     "prometheus-fastapi-instrumentator==7.0.2",
+    "sentence-transformers==3.4.1",
+    "torch==2.6.0+cpu",
 ]
 
 [tool.uv]
 package = false
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }

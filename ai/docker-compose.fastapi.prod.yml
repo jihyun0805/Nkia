@@ -1,0 +1,4 @@
+services:
+  orbis_ai_api:
+    container_name: Orbis-AI-API
+    restart: always
