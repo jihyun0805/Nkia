@@ -12,7 +12,7 @@
 services:
   # PostgreSQL 서비스
   orbis_postgres:
-    image: postgres:15-alpine # 버전에 맞게 수정 가능
+    image: pgvector/pgvector:pg15 # 메인 PostgreSQL에서 ai schema + pgvector 함께 사용
     container_name: Orbis-Postgres
     ports:
       - "${POSTGRES_PORT}:5432" # 호스트:컨테이너
@@ -30,6 +30,7 @@ services:
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ../../ai/db/init:/docker-entrypoint-initdb.d:ro
     networks:
       - app-network
     restart: always
@@ -59,28 +60,7 @@ services:
   # Spring Boot 서비스
   # 개발 시에는 IntelliJ에서 Spring 서버 띄움
 
-  # AI 전용 pgvector DB
-  orbis_ai_vector_db:
-    image: pgvector/pgvector:pg15
-    container_name: Orbis-AI-Vector-DB-Dev
-    ports:
-      - "${AI_POSTGRES_PORT}:5432"
-    environment:
-      POSTGRES_USER: ${AI_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD}
-      POSTGRES_DB: ${AI_POSTGRES_DB}
-      TZ: Asia/Seoul
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${AI_POSTGRES_USER} -d ${AI_POSTGRES_DB}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - ai_pgvector_data:/var/lib/postgresql/data
-      - ../../ai/db/init:/docker-entrypoint-initdb.d:ro
-    networks:
-      - app-network
-    restart: always
+  # AI는 별도 compose로 실행하고, 메인 PostgreSQL 안의 ai schema + pgvector를 사용
 
   orbis_ai_api:
     container_name: Orbis-AI-API-Dev

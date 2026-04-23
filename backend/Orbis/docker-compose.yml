@@ -4,7 +4,6 @@
 volumes:
   mysql_data:
   postgres_data:
-  ai_pgvector_data:
   redis_data:
   prometheus_data:
   grafana_data:
@@ -14,4 +13,5 @@ volumes:
 # 네트워크 정의 (컨테이너 간 통신)
 networks:
   app-network:
+    name: orbis_app-network
     driver: bridge

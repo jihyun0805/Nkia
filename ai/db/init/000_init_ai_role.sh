@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+AI_DB_USER="${AI_DB_USER:-orbis_ai}"
+AI_DB_PASSWORD="${AI_DB_PASSWORD:-orbis_ai}"
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<SQL
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${AI_DB_USER}') THEN
+        EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', '${AI_DB_USER}', '${AI_DB_PASSWORD}');
+    ELSE
+        EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', '${AI_DB_USER}', '${AI_DB_PASSWORD}');
+    END IF;
+END
+\$\$;
+
+CREATE SCHEMA IF NOT EXISTS ai AUTHORIZATION ${POSTGRES_USER};
+GRANT USAGE ON SCHEMA ai TO ${AI_DB_USER};
+ALTER ROLE ${AI_DB_USER} IN DATABASE ${POSTGRES_DB} SET search_path TO ai, public;
+SQL

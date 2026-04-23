@@ -1,3 +1,33 @@
+\set ON_ERROR_STOP on
+
+DO $do$
+DECLARE
+    ai_db_user text := '__AI_DB_USER__';
+    ai_db_password text := '__AI_DB_PASSWORD__';
+BEGIN
+    IF ai_db_user IS NULL OR ai_db_user = '' THEN
+        RAISE EXCEPTION 'ai_db_user psql variable is required';
+    END IF;
+
+    IF ai_db_password IS NULL THEN
+        RAISE EXCEPTION 'ai_db_password psql variable is required';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ai_db_user) THEN
+        EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', ai_db_user, ai_db_password);
+    ELSE
+        EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', ai_db_user, ai_db_password);
+    END IF;
+
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), ai_db_user);
+    EXECUTE format(
+        'ALTER ROLE %I IN DATABASE %I SET search_path TO ai, public',
+        ai_db_user,
+        current_database()
+    );
+END
+$do$;
+
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE SCHEMA IF NOT EXISTS ai;
 
@@ -45,6 +75,15 @@ CREATE TABLE IF NOT EXISTS ai.ai_embedding_jobs (
     finished_at TIMESTAMPTZ
 );
 
+ALTER TABLE ai.ai_knowledge_sources
+    ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS last_event_id VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS last_event_at TIMESTAMPTZ;
+
+ALTER TABLE ai.ai_knowledge_chunks
+    ADD COLUMN IF NOT EXISTS content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
+
 CREATE INDEX IF NOT EXISTS idx_ai_knowledge_sources_type_id
     ON ai.ai_knowledge_sources (source_type, source_id);
 
@@ -71,3 +110,21 @@ CREATE INDEX IF NOT EXISTS idx_ai_knowledge_chunks_content_tsv
 CREATE INDEX IF NOT EXISTS idx_ai_knowledge_chunks_embedding_hnsw
     ON ai.ai_knowledge_chunks
     USING hnsw (embedding vector_cosine_ops);
+
+DO $do$
+DECLARE
+    ai_db_user text := '__AI_DB_USER__';
+BEGIN
+    EXECUTE format('GRANT USAGE ON SCHEMA ai TO %I', ai_db_user);
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ai TO %I', ai_db_user);
+    EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ai TO %I', ai_db_user);
+    EXECUTE format(
+        'ALTER DEFAULT PRIVILEGES IN SCHEMA ai GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I',
+        ai_db_user
+    );
+    EXECUTE format(
+        'ALTER DEFAULT PRIVILEGES IN SCHEMA ai GRANT USAGE, SELECT ON SEQUENCES TO %I',
+        ai_db_user
+    );
+END
+$do$;
