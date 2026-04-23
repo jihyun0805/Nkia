@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { Orbit, UserStar } from "lucide-react"
 
 const menuItems = [
   { 
@@ -60,11 +61,11 @@ export function Sidebar() {
       <div className="grid grid-cols-[220px_1fr_220px] items-center gap-6 px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">N</span>
+            <Orbit className="h-6 w-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight">Nkia</h1>
-            <p className="text-xs text-sidebar-foreground/60">영업관리시스템</p>
+            <h1 className="text-lg font-bold tracking-tight">Orbis</h1>
+            <p className="text-xs text-sidebar-foreground/60">오르비스</p>
           </div>
         </Link>
 
@@ -94,10 +95,10 @@ export function Sidebar() {
 
         <div className="flex items-center justify-end gap-3 border-l border-sidebar-border pl-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent">
-            <span className="text-xs font-medium">관리</span>
+            <UserStar className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">Nkia</p>
+            <p className="truncate text-sm font-medium">관리자</p>
             <p className="truncate text-xs text-sidebar-foreground/60">admin@Nkia.com</p>
           </div>
         </div>
