@@ -7,5 +7,4 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=None, extra="ignore")
 
-
 settings = Settings()
