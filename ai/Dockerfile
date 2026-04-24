@@ -14,8 +14,17 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml uv.lock .
-RUN uv sync --frozen --no-cache --no-dev
+RUN uv sync --no-cache --no-dev
 
 COPY app ./app
 COPY db ./db
