@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.salesactivity.salesactivity.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
+import com.nkia.Orbis.domain.salesactivity.salesactivityrequest.entity.SalesActivityRequest;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;

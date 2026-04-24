@@ -8,4 +8,5 @@ import lombok.NoArgsConstructor;
 @Embeddable
 @NoArgsConstructor
 public class PersonnelExpense {
+    private int price;
 }
