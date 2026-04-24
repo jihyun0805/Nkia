@@ -13,7 +13,7 @@ from app.repositories.index_repository import (
     replace_chunks,
     upsert_source,
 )
-from app.schemas.indexing import BatchIndexDocumentsResponse, IndexDocumentRequest, IndexDocumentResult
+from app.schemas.indexing import BatchIndexDocumentsResponse, IndexAttachmentRequest, IndexDocumentRequest, IndexDocumentResult
 from app.services.document_builder import build_document_text
 
 ATTACHMENT_SOURCE_TYPES = {"ATTACHMENT"}
@@ -51,6 +51,68 @@ def index_documents(
     embedder: EmbeddingModel,
 ) -> BatchIndexDocumentsResponse:
     return BatchIndexDocumentsResponse(results=[index_document(document=document, embedder=embedder) for document in documents])
+
+
+def map_attachment_to_document(attachment: IndexAttachmentRequest) -> IndexDocumentRequest:
+    parent_source_type = normalize_source_type(attachment.parent_source_type)
+    parent_source_id = attachment.parent_source_id.strip()
+    file_id = attachment.file_id.strip()
+
+    metadata = dict(attachment.metadata)
+    metadata.setdefault("fileId", file_id)
+    metadata.setdefault("fileName", attachment.file_name)
+    metadata.setdefault("extension", attachment.extension)
+    metadata.setdefault("fileType", attachment.file_type)
+    metadata.setdefault("pageCount", attachment.page_count)
+    metadata.setdefault("parentSourceType", parent_source_type)
+    metadata.setdefault("parentSourceId", parent_source_id)
+    if attachment.root_source_type:
+        metadata.setdefault("rootSourceType", normalize_source_type(attachment.root_source_type))
+    if attachment.root_source_id:
+        metadata.setdefault("rootSourceId", attachment.root_source_id.strip())
+    if attachment.document_stage:
+        metadata.setdefault("documentStage", attachment.document_stage.strip())
+    if attachment.business_domain:
+        metadata.setdefault("businessDomain", attachment.business_domain.strip())
+    if attachment.evidence_group_key:
+        metadata.setdefault("evidenceGroupKey", attachment.evidence_group_key.strip())
+    else:
+        metadata.setdefault("evidenceGroupKey", f"{parent_source_type}:{parent_source_id}")
+
+    payload: dict[str, Any] = {
+        "fileId": file_id,
+        "fileName": attachment.file_name,
+        "extension": attachment.extension,
+        "fileType": attachment.file_type,
+        "pageCount": attachment.page_count,
+        "parentSourceType": parent_source_type,
+        "parentSourceId": parent_source_id,
+        "rootSourceType": metadata.get("rootSourceType"),
+        "rootSourceId": metadata.get("rootSourceId"),
+        "documentStage": metadata.get("documentStage"),
+        "businessDomain": metadata.get("businessDomain"),
+        "evidenceGroupKey": metadata.get("evidenceGroupKey"),
+        "extractedText": attachment.extracted_text,
+    }
+
+    return IndexDocumentRequest(
+        sourceType="ATTACHMENT",
+        sourceId=build_attachment_source_id(
+            parent_source_type=parent_source_type,
+            parent_source_id=parent_source_id,
+            file_id=file_id,
+        ),
+        operation=attachment.operation,
+        title=attachment.file_name,
+        sourcePath=attachment.source_path,
+        content=attachment.extracted_text,
+        payload=payload,
+        metadata={key: value for key, value in metadata.items() if value not in (None, "")},
+        deleted=attachment.deleted,
+        deletedAt=attachment.deleted_at,
+        eventId=attachment.event_id,
+        occurredAt=attachment.occurred_at,
+    )
 
 
 def index_document(*, document: IndexDocumentRequest, embedder: EmbeddingModel) -> IndexDocumentResult:
@@ -197,6 +259,14 @@ def detect_duplicate_or_stale_event(
 
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def build_attachment_source_id(*, parent_source_type: str, parent_source_id: str, file_id: str) -> str:
+    source_id = f"{parent_source_type}:{parent_source_id}:{file_id}"
+    if len(source_id) <= 100:
+        return source_id
+    digest = sha256_text(source_id)[:16]
+    return f"{parent_source_type}:{digest}"[:100]
 
 
 def apply_attachment_metadata_defaults(*, metadata: dict[str, Any], source_type: str, payload: dict[str, Any]) -> None:

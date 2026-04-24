@@ -28,6 +28,35 @@ class BatchIndexDocumentsRequest(BaseModel):
     documents: list[IndexDocumentRequest] = Field(..., min_length=1, max_length=100)
 
 
+class IndexAttachmentRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    file_id: str = Field(..., alias="fileId", min_length=1, max_length=100)
+    parent_source_type: str = Field(..., alias="parentSourceType", min_length=1, max_length=50)
+    parent_source_id: str = Field(..., alias="parentSourceId", min_length=1, max_length=100)
+    operation: IndexOperation = "UPSERT"
+    file_name: str | None = Field(default=None, alias="fileName", max_length=500)
+    source_path: str | None = Field(default=None, alias="sourcePath")
+    extracted_text: str | None = Field(default=None, alias="extractedText")
+    extension: str | None = Field(default=None, max_length=30)
+    file_type: str | None = Field(default=None, alias="fileType", max_length=200)
+    page_count: int | None = Field(default=None, alias="pageCount", ge=0)
+    root_source_type: str | None = Field(default=None, alias="rootSourceType", max_length=50)
+    root_source_id: str | None = Field(default=None, alias="rootSourceId", max_length=100)
+    document_stage: str | None = Field(default=None, alias="documentStage", max_length=100)
+    business_domain: str | None = Field(default=None, alias="businessDomain", max_length=100)
+    evidence_group_key: str | None = Field(default=None, alias="evidenceGroupKey", max_length=150)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    deleted: bool = False
+    deleted_at: datetime | None = Field(default=None, alias="deletedAt")
+    event_id: str | None = Field(default=None, alias="eventId", max_length=120)
+    occurred_at: datetime | None = Field(default=None, alias="occurredAt")
+
+
+class BatchIndexAttachmentsRequest(BaseModel):
+    attachments: list[IndexAttachmentRequest] = Field(..., min_length=1, max_length=100)
+
+
 class IndexDocumentResult(BaseModel):
     sourceType: str
     sourceId: str
