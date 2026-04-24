@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -25,7 +26,7 @@ public class ProjectOpportunityProductModule extends BaseEntity {
     @JoinColumn(name = "project_opportunity_id")
     private ProjectOpportunity projectOpportunity;
 
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "product_module_id")
-//    private ProductModule productModule;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_module_id")
+    private ProductModule productModule;
 }
