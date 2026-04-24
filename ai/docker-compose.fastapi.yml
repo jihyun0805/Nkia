@@ -17,17 +17,26 @@ services:
       AI_DATABASE_URL: ${AI_DATABASE_URL}
       AI_DATABASE_POOL_MIN_SIZE: ${AI_DATABASE_POOL_MIN_SIZE:-1}
       AI_DATABASE_POOL_MAX_SIZE: ${AI_DATABASE_POOL_MAX_SIZE:-10}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      AI_DB_USER: ${AI_DB_USER:-orbis_ai}
+      AI_DB_PASSWORD: ${AI_DB_PASSWORD:-orbis_ai}
+      AI_DB_WAIT_TIMEOUT: ${AI_DB_WAIT_TIMEOUT:-180}
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-intfloat/multilingual-e5-base}
       AI_EMBEDDING_DIMENSION: ${AI_EMBEDDING_DIMENSION:-768}
       AI_EMBEDDING_DEVICE: ${AI_EMBEDDING_DEVICE:-cpu}
       AI_EMBEDDING_BATCH_SIZE: ${AI_EMBEDDING_BATCH_SIZE:-4}
       AI_EMBEDDING_MAX_LENGTH: ${AI_EMBEDDING_MAX_LENGTH:-512}
-      AI_UVICORN_WORKERS: ${AI_UVICORN_WORKERS:-2}
+      AI_UVICORN_WORKERS: ${AI_UVICORN_WORKERS:-1}
       GMS_KEY: ${GMS_KEY}
       TZ: Asia/Seoul
     volumes:
       - ai_model_cache:/models
+      - ai_ocr_cache:/root/.paddleocr
     networks:
       - app-network
     healthcheck:
@@ -35,7 +44,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 180s
     restart: unless-stopped
 
 networks:
@@ -45,3 +54,4 @@ networks:
 
 volumes:
   ai_model_cache:
+  ai_ocr_cache:
