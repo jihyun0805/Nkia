@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Bell, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,35 +12,28 @@ import {
 } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { currentUser } from "@/lib/current-user"
+import {
+  dismissWorkflowNotification,
+  getWorkflowNotifications,
+  subscribeWorkflowUpdates,
+  type WorkflowNotification,
+} from "@/lib/activity-request-workflow"
 
 interface HeaderProps {
   title: string
   description?: string
 }
 
-const initialNotifications = [
-  {
-    id: "notice-1",
-    title: "견적서 수정 요청",
-    category: "활동",
-    description: "LG CNS 견적서에 수정 요청이 등록되었습니다.",
-  },
-  {
-    id: "notice-2",
-    title: "PRB 검토 대기",
-    category: "입찰",
-    description: "국방부 ITSM 도입 건이 본부장 검토 대기 상태입니다.",
-  },
-  {
-    id: "notice-3",
-    title: "유지보수 종료 예정",
-    category: "유지보수",
-    description: "삼성SDS EMS 유상유지보수 계약이 종료 예정입니다.",
-  },
-] as const
-
 export function Header({ title, description }: HeaderProps) {
-  const [notifications, setNotifications] = useState([...initialNotifications])
+  const [notifications, setNotifications] = useState<WorkflowNotification[]>([])
+
+  useEffect(() => {
+    const sync = () => setNotifications(getWorkflowNotifications(currentUser.name))
+
+    sync()
+    return subscribeWorkflowUpdates(sync)
+  }, [])
 
   return (
     <header className="bg-card border-b border-border px-6 py-4">
@@ -91,15 +85,14 @@ export function Header({ title, description }: HeaderProps) {
                         <Badge variant="outline">{notification.category}</Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{notification.description}</p>
-                      <div className="mt-3 flex justify-end">
+                      <div className="mt-3 flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" asChild>
+                          <Link href={notification.href}>열기</Link>
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() =>
-                            setNotifications((prev) =>
-                              prev.filter((item) => item.id !== notification.id),
-                            )
-                          }
+                          onClick={() => dismissWorkflowNotification(notification.id)}
                         >
                           확인
                         </Button>

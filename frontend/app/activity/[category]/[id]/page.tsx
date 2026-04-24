@@ -1,5 +1,8 @@
+"use client"
+
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { useParams } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Button } from "@/components/ui/button"
@@ -14,26 +17,65 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { type ActivityCategory, getActivityItem, getActivityItemFields, getCategoryLabel } from "@/lib/activity-data"
+import { toast } from "@/hooks/use-toast"
+import {
+  type ActivityCategory,
+  activities,
+  getActivityItemFields,
+  getCategoryLabel,
+  quotations,
+  type ActivityRequestRecord,
+} from "@/lib/activity-data"
+import {
+  approveActivityRequest,
+  getActivityRequests,
+  subscribeWorkflowUpdates,
+} from "@/lib/activity-request-workflow"
+import { currentUser } from "@/lib/current-user"
 
-type PageProps = {
-  params: Promise<{
-    category: ActivityCategory
-    id: string
-  }>
-}
+const fullWidthFieldLabels = ["주요 내용", "고객 관심 사항 / 이슈", "다음 할 일", "견적 비고", "요청 내용"]
 
-export default async function ActivityDetailPage({ params }: PageProps) {
-  const { category, id } = await params
-  const item = getActivityItem(category, id)
+export default function ActivityDetailPage() {
+  const params = useParams<{ category: ActivityCategory; id: string }>()
+  const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
+
+  useEffect(() => {
+    const sync = () => setRequests(getActivityRequests())
+
+    sync()
+    return subscribeWorkflowUpdates(sync)
+  }, [])
+
+  const category = params.category
+  const id = params.id
+
+  const item = useMemo(() => {
+    if (category === "activities") return activities.find((entry) => entry.id === id) ?? null
+    if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
+    return requests.find((entry) => entry.id === id) ?? null
+  }, [category, id, requests])
 
   if (!item) {
-    notFound()
+    return null
   }
 
   const categoryLabel = getCategoryLabel(category)
   const fields = getActivityItemFields(category, item)
-  const fullWidthFieldLabels = ["주요 내용", "고객 관심 사항 / 이슈", "다음 할 일", "견적 비고", "요청 내용"]
+  const isRequest = category === "requests"
+  const requestItem = isRequest ? (item as ActivityRequestRecord) : null
+  const canEditRequest = !requestItem || requestItem.requester === currentUser.name
+
+  const handleApprove = () => {
+    const approved = approveActivityRequest(id)
+    if (!approved) return
+
+    const approvedRequest = approved as ActivityRequestRecord
+
+    toast({
+      title: "접수 완료",
+      description: `${approvedRequest.requester} 요청자에게 승인 알림을 전송했습니다.`,
+    })
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -76,6 +118,12 @@ export default async function ActivityDetailPage({ params }: PageProps) {
                       <Input readOnly value={field.value || "-"} />
                     </div>
                   ))}
+                  {requestItem?.approvedAt && (
+                    <div className="space-y-2">
+                      <Label>승인일</Label>
+                      <Input readOnly value={requestItem.approvedAt} />
+                    </div>
+                  )}
                   <div className="space-y-2 md:col-span-2">
                     <Label>첨부파일</Label>
                     <Input readOnly value="등록된 첨부파일이 없습니다." />
@@ -85,9 +133,16 @@ export default async function ActivityDetailPage({ params }: PageProps) {
                   <Button variant="outline" asChild>
                     <Link href="/activity">목록</Link>
                   </Button>
-                  <Button asChild className="bg-primary hover:bg-primary/90">
-                    <Link href={`/activity/${category}/${id}/edit`}>수정</Link>
-                  </Button>
+                  {requestItem && requestItem.status !== "접수완료" && requestItem.receiver === currentUser.name && (
+                    <Button onClick={handleApprove} className="bg-green-600 hover:bg-green-700">
+                      승인(접수)
+                    </Button>
+                  )}
+                  {canEditRequest && (
+                    <Button asChild className="bg-primary hover:bg-primary/90">
+                      <Link href={`/activity/${category}/${id}/edit`}>수정</Link>
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

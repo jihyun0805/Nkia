@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { StatCard } from "@/components/erp/stat-card"
@@ -7,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { currentUser } from "@/lib/current-user"
+import { getWorkflowTasks, subscribeWorkflowUpdates, type WorkflowTask } from "@/lib/activity-request-workflow"
 import {
   Search,
   Activity,
@@ -40,14 +43,6 @@ const recentActivities = [
   { id: 5, type: "support", customer: "카카오", content: "고객 지원 요청 접수", date: "2026-03-17", status: "in-progress" },
 ]
 
-// 나의 업무
-const myTasks = [
-  { id: 1, title: "삼성전자 PRB 보고서 작성", dueDate: "2026-03-18", priority: "high" },
-  { id: 2, title: "LG CNS 견적서 수정", dueDate: "2026-03-19", priority: "medium" },
-  { id: 3, title: "현대차 계약서 최종 검토", dueDate: "2026-03-20", priority: "high" },
-  { id: 4, title: "SK텔레콤 데모 준비", dueDate: "2026-03-18", priority: "medium" },
-]
-
 // 알림
 const alerts = [
   { id: 1, type: "warning", message: "삼성SDS 유지보수 종료 D-30", href: "/maintenance" },
@@ -56,6 +51,15 @@ const alerts = [
 ]
 
 export default function DashboardPage() {
+  const [myTasks, setMyTasks] = useState<WorkflowTask[]>([])
+
+  useEffect(() => {
+    const sync = () => setMyTasks(getWorkflowTasks(currentUser.name))
+
+    sync()
+    return subscribeWorkflowUpdates(sync)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -223,26 +227,36 @@ export default function DashboardPage() {
               <CardContent>
                 <div className="space-y-3">
                   {myTasks.map((task) => (
-                    <div 
+                    <Link
                       key={task.id}
+                      href={task.href}
                       className="flex items-center gap-4 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
                     >
                       <div className={`
                         w-2 h-2 rounded-full flex-shrink-0
-                        ${task.priority === 'high' ? 'bg-red-500' : 'bg-amber-500'}
+                        ${task.statusLabel === '승인 필요' ? 'bg-red-500' : 'bg-green-500'}
                       `} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{task.title}</p>
-                        <p className="text-xs text-muted-foreground">마감: {task.dueDate}</p>
+                        <p className="text-xs text-muted-foreground">활동일: {task.dueDate}</p>
                       </div>
                       <Badge 
-                        variant={task.priority === 'high' ? 'destructive' : 'secondary'}
-                        className="text-xs"
+                        variant={task.statusLabel === '승인 필요' ? 'destructive' : 'secondary'}
+                        className={`text-xs ${
+                          task.statusLabel === '승인 필요'
+                            ? ''
+                            : 'bg-green-100 text-green-700 hover:bg-green-100'
+                        }`}
                       >
-                        {task.priority === 'high' ? '긴급' : '보통'}
+                        {task.statusLabel}
                       </Badge>
-                    </div>
+                    </Link>
                   ))}
+                  {myTasks.length === 0 && (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      표시할 업무가 없습니다.
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

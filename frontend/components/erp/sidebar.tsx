@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { currentUser } from "@/lib/current-user"
 import { Orbit, UserStar } from "lucide-react"
 
 const menuItems = [
@@ -98,8 +99,8 @@ export function Sidebar() {
             <UserStar className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">관리자</p>
-            <p className="truncate text-xs text-sidebar-foreground/60">admin@Nkia.com</p>
+            <p className="truncate text-sm font-medium">{currentUser.name}</p>
+            <p className="truncate text-xs text-sidebar-foreground/60">{currentUser.email}</p>
           </div>
         </div>
       </div>

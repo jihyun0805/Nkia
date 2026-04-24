@@ -1,5 +1,8 @@
+"use client"
+
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Button } from "@/components/ui/button"
@@ -18,34 +21,106 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import {
-  activityRequestTypeOptions,
-  type ActivityRecord,
   type ActivityCategory,
-  getActivityItem,
-  getActivityItemFields,
+  type ActivityRecord,
+  activities,
+  activityRequestTypeOptions,
   getCategoryLabel,
+  quotations,
+  type ActivityRequestRecord,
 } from "@/lib/activity-data"
-import { getStatusOptions, isStatusField } from "@/lib/status-options"
+import { toast } from "@/hooks/use-toast"
+import {
+  getActivityRequests,
+  subscribeWorkflowUpdates,
+  updateActivityRequest,
+} from "@/lib/activity-request-workflow"
+import { getPresalesUsers } from "@/lib/admin-data"
+import { currentUser } from "@/lib/current-user"
+import { getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 
-type PageProps = {
-  params: Promise<{
-    category: ActivityCategory
-    id: string
-  }>
-}
+const fullWidthFieldLabels = ["요청 내용"]
 
-export default async function ActivityEditPage({ params }: PageProps) {
-  const { category, id } = await params
-  const item = getActivityItem(category, id)
+export default function ActivityEditPage() {
+  const params = useParams<{ category: ActivityCategory; id: string }>()
+  const router = useRouter()
+  const category = params.category
+  const id = params.id
+  const presalesUsers = getPresalesUsers()
+  const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
+  const [requestForm, setRequestForm] = useState({
+    date: "",
+    type: "",
+    requester: "",
+    receiver: "",
+    customerCode: "",
+    customer: "",
+    opportunityCode: "",
+    opportunity: "",
+    dueDate: "",
+    content: "",
+  })
+
+  useEffect(() => {
+    const sync = () => setRequests(getActivityRequests())
+
+    sync()
+    return subscribeWorkflowUpdates(sync)
+  }, [])
+
+  const item = useMemo(() => {
+    if (category === "activities") return activities.find((entry) => entry.id === id) ?? null
+    if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
+    return requests.find((entry) => entry.id === id) ?? null
+  }, [category, id, requests])
+
+  useEffect(() => {
+    if (category !== "requests" || !item) return
+
+    const request = item as ActivityRequestRecord
+    setRequestForm({
+      date: request.date,
+      type: request.type,
+      requester: request.requester,
+      receiver: request.receiver,
+      customerCode: request.customerCode ?? "",
+      customer: request.customer,
+      opportunityCode: request.opportunityCode ?? "",
+      opportunity: request.opportunity,
+      dueDate: request.dueDate,
+      content: request.content,
+    })
+  }, [category, item])
 
   if (!item) {
-    notFound()
+    return null
   }
 
   const categoryLabel = getCategoryLabel(category)
-  const fields = getActivityItemFields(category, item)
-  const fullWidthFieldLabels = ["주요 내용", "고객 관심 사항 / 이슈", "다음 할 일", "견적 비고", "요청 내용"]
-  const dateFieldLabels = ["활동일", "견적일", "유효기간", "요청일"]
+  const requestItem = category === "requests" ? (item as ActivityRequestRecord) : null
+  const canEditRequest = !requestItem || requestItem.requester === currentUser.name
+  const matchedCustomer = category === "requests" ? getCustomerByName(requestForm.customer) : null
+  const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(requestForm.customer) : []
+
+  const handleSubmit = () => {
+    if (category !== "requests") {
+      router.push(`/activity/${category}/${id}`)
+      return
+    }
+
+    if (!canEditRequest) return
+
+    const updated = updateActivityRequest(id, requestForm)
+    if (!updated) return
+
+    const updatedRequest = updated as ActivityRequestRecord
+
+    toast({
+      title: "활동 요청 수정 완료",
+      description: `${updatedRequest.receiver} 담당자에게 수정 알림을 전송했습니다.`,
+    })
+    router.push(`/activity/${category}/${id}`)
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -78,7 +153,11 @@ export default async function ActivityEditPage({ params }: PageProps) {
                 <CardTitle>{categoryLabel} 수정</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {category === "activities" ? (
+                {!canEditRequest && category === "requests" ? (
+                  <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                    본인이 요청한 활동 요청만 수정할 수 있습니다.
+                  </div>
+                ) : category === "activities" ? (
                   <>
                     <ActivityFormFields defaultValues={item as ActivityRecord} />
                     <div className="space-y-2">
@@ -86,19 +165,36 @@ export default async function ActivityEditPage({ params }: PageProps) {
                       <Input type="file" multiple />
                     </div>
                   </>
-                ) : (
+                ) : category === "requests" ? (
                   <div className="grid gap-4 md:grid-cols-2">
-                    {fields.map((field) => (
+                    {[
+                      { label: "요청일", key: "date", type: "date" },
+                      { label: "요청 유형", key: "type" },
+                      { label: "요청자", key: "requester" },
+                      { label: "담당자", key: "receiver" },
+                      { label: "고객사", key: "customer" },
+                      { label: "고객사 코드", key: "customerCode" },
+                      { label: "사업기회", key: "opportunity" },
+                      { label: "사업기회 코드", key: "opportunityCode" },
+                      { label: "활동일", key: "dueDate", type: "date" },
+                      { label: "요청 내용", key: "content" },
+                    ].map((field) => (
                       <div
-                        key={field.label}
+                        key={field.key}
                         className={`space-y-2 ${fullWidthFieldLabels.includes(field.label) ? "md:col-span-2" : ""}`}
                       >
                         <Label>{field.label}</Label>
-                        {fullWidthFieldLabels.includes(field.label) ? (
-                          <Textarea defaultValue={field.value} rows={4} />
-                        ) : category === "requests" && field.label === "요청 유형" ? (
-                          <Select defaultValue={field.value}>
-                            <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
+                        {field.key === "content" ? (
+                          <Textarea
+                            rows={4}
+                            value={requestForm.content}
+                            onChange={(event) => setRequestForm((prev) => ({ ...prev, content: event.target.value }))}
+                          />
+                        ) : field.key === "type" ? (
+                          <Select value={requestForm.type} onValueChange={(value) => setRequestForm((prev) => ({ ...prev, type: value }))}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="요청 유형을 선택하세요" />
+                            </SelectTrigger>
                             <SelectContent>
                               {activityRequestTypeOptions.map((option) => (
                                 <SelectItem key={option} value={option}>
@@ -107,18 +203,108 @@ export default async function ActivityEditPage({ params }: PageProps) {
                               ))}
                             </SelectContent>
                           </Select>
-                        ) : isStatusField(field.label) ? (
-                          <Select defaultValue={field.value}>
-                            <SelectTrigger><SelectValue placeholder="상태 선택" /></SelectTrigger>
-                            <SelectContent>{getStatusOptions(field.value).map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+                        ) : field.key === "requester" ? (
+                          <Input value={requestForm.requester} readOnly />
+                        ) : field.key === "receiver" ? (
+                          <Select value={requestForm.receiver} onValueChange={(value) => setRequestForm((prev) => ({ ...prev, receiver: value }))}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="담당자를 선택하세요" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {presalesUsers.map((user) => (
+                                <SelectItem key={user.id} value={user.name}>
+                                  {user.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
                           </Select>
-                        ) : dateFieldLabels.includes(field.label) ? (
-                          <Input type="date" defaultValue={field.value} />
+                        ) : field.key === "customerCode" ? (
+                          <Input value={matchedCustomer?.id ?? "-"} readOnly />
+                        ) : field.key === "customer" ? (
+                          <Input
+                            value={requestForm.customer}
+                            onChange={(event) => {
+                              const nextCustomer = event.target.value
+                              const customer = getCustomerByName(nextCustomer)
+
+                              setRequestForm((prev) => ({
+                                ...prev,
+                                customer: nextCustomer,
+                                customerCode: customer?.id ?? "",
+                                opportunity: customer ? "미확인" : "",
+                                opportunityCode: "",
+                              }))
+                            }}
+                          />
+                        ) : field.key === "opportunityCode" ? (
+                          <Input value={requestForm.opportunity === "미확인" ? "-" : requestForm.opportunityCode || "-"} readOnly />
+                        ) : field.key === "opportunity" ? (
+                          <Select
+                            value={requestForm.opportunity}
+                            onValueChange={(value) => {
+                              const opportunity = opportunityOptions.find((item) => item.name === value)
+                              setRequestForm((prev) => ({
+                                ...prev,
+                                opportunity: value,
+                                opportunityCode: opportunity?.id ?? "",
+                              }))
+                            }}
+                            disabled={!matchedCustomer}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={matchedCustomer ? "사업기회를 선택하세요" : "고객사를 먼저 입력하세요"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {opportunityOptions.map((option) => (
+                                <SelectItem key={option.id} value={option.name}>
+                                  {option.name}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="미확인">미확인</SelectItem>
+                            </SelectContent>
+                          </Select>
                         ) : (
-                          <Input defaultValue={field.value} />
+                          <Input
+                            type={field.type === "date" ? "date" : "text"}
+                            value={requestForm[field.key as keyof typeof requestForm]}
+                            onChange={(event) =>
+                              setRequestForm((prev) => ({ ...prev, [field.key]: event.target.value }))
+                            }
+                          />
                         )}
                       </div>
                     ))}
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>첨부파일</Label>
+                      <Input type="file" multiple />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>작성일</Label>
+                      <Input defaultValue={(item as { date: string }).date} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>고객사</Label>
+                      <Input defaultValue={(item as { customer: string }).customer} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>사업기회</Label>
+                      <Input defaultValue={(item as { opportunity: string }).opportunity} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>제품</Label>
+                      <Input defaultValue={(item as { product: string }).product} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>금액</Label>
+                      <Input defaultValue={(item as { amount: string }).amount} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>유효기간</Label>
+                      <Input type="date" defaultValue={(item as { validity: string }).validity} />
+                    </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label>첨부파일</Label>
                       <Input type="file" multiple />
@@ -129,9 +315,11 @@ export default async function ActivityEditPage({ params }: PageProps) {
                   <Button variant="outline" asChild>
                     <Link href={`/activity/${category}/${id}`}>취소</Link>
                   </Button>
-                  <Button asChild className="bg-primary hover:bg-primary/90">
-                    <Link href={`/activity/${category}/${id}`}>수정</Link>
-                  </Button>
+                  {canEditRequest && (
+                    <Button onClick={handleSubmit} className="bg-primary hover:bg-primary/90">
+                      수정
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
