@@ -11,9 +11,11 @@ const automaticLocationTypes = ["이메일", "전화", "영상회의"]
 
 type ActivityFormFieldsProps = {
   defaultValues?: Partial<ActivityRecord>
+  customerValue?: string
+  onCustomerChange?: (value: string) => void
 }
 
-export function ActivityFormFields({ defaultValues }: ActivityFormFieldsProps) {
+export function ActivityFormFields({ defaultValues, customerValue, onCustomerChange }: ActivityFormFieldsProps) {
   const [activityType, setActivityType] = useState(defaultValues?.type ?? "")
   const [location, setLocation] = useState(defaultValues?.location ?? "")
   const isAutomaticLocation = automaticLocationTypes.includes(activityType)
@@ -36,7 +38,15 @@ export function ActivityFormFields({ defaultValues }: ActivityFormFieldsProps) {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>고객사 *</Label>
-          <Input defaultValue={defaultValues?.customer} placeholder="고객사를 입력하세요" />
+          {typeof customerValue === "string" && onCustomerChange ? (
+            <Input
+              value={customerValue}
+              onChange={(event) => onCustomerChange(event.target.value)}
+              placeholder="고객사를 입력하세요"
+            />
+          ) : (
+            <Input defaultValue={defaultValues?.customer} placeholder="고객사를 입력하세요" />
+          )}
         </div>
         <div className="space-y-2">
           <Label>사업기회</Label>

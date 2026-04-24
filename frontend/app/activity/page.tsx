@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Calendar as MonthCalendar } from "@/components/ui/calendar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Table,
   TableBody,
@@ -19,9 +21,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { activityRequestStatusOptions, activityRequestTypeOptions, activityRequests, activities, activityStatuses, quotations } from "@/lib/activity-data"
-import { useState } from "react"
+import { activityRequestStatusOptions, activityRequestTypeOptions, activities, activityStatuses, quotations } from "@/lib/activity-data"
+import { useEffect, useMemo, useState } from "react"
+import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import {
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
   Plus,
   Search,
   Mail,
@@ -31,11 +37,52 @@ import {
   Calendar,
 } from "lucide-react"
 
+const REQUEST_CALENDAR_OPEN_KEY = "orbis.activity.requests.calendar.open"
+const ACTIVITY_ACTIVE_TAB_KEY = "orbis.activity.activeTab"
+const REQUESTS_STORAGE_KEY = "orbis.activityRequests"
+const NOTIFICATIONS_STORAGE_KEY = "orbis.workflowNotifications"
+
 export default function ActivityPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
+  const [activityRequests, setActivityRequests] = useState(getActivityRequests())
+  const [month, setMonth] = useState(new Date())
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
+  const [isPreferenceReady, setIsPreferenceReady] = useState(false)
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | undefined>(undefined)
+
+  useEffect(() => {
+    const savedTab = window.localStorage.getItem(ACTIVITY_ACTIVE_TAB_KEY)
+    if (savedTab === "activities" || savedTab === "quotations" || savedTab === "requests") {
+      setActiveTab(savedTab)
+    }
+
+    const saved = window.localStorage.getItem(REQUEST_CALENDAR_OPEN_KEY)
+    if (saved) {
+      setIsCalendarOpen(saved === "true")
+    }
+
+    setIsPreferenceReady(true)
+  }, [])
+
+  useEffect(() => {
+    const sync = () => setActivityRequests(getActivityRequests())
+
+    sync()
+    return subscribeWorkflowUpdates(sync)
+  }, [])
+
+  useEffect(() => {
+    if (!isPreferenceReady) return
+    window.localStorage.setItem(REQUEST_CALENDAR_OPEN_KEY, String(isCalendarOpen))
+  }, [isCalendarOpen, isPreferenceReady])
+
+  useEffect(() => {
+    if (!isPreferenceReady) return
+    window.localStorage.setItem(ACTIVITY_ACTIVE_TAB_KEY, activeTab)
+  }, [activeTab, isPreferenceReady])
   const activityFieldOptions = activeTab === "activities"
     ? [
       { key: "customer", label: "고객사", options: uniqueOptions(activities, (item) => item.customer) },
@@ -87,11 +134,50 @@ export default function ActivityPage() {
     date: (item) => item.date,
     fields: { type: (item) => item.type, requester: (item) => item.requester, customer: (item) => item.customer },
   }).filter((item) =>
-    [item.id, item.requester, item.receiver, item.customer, item.content]
+    [item.id, item.requester, item.receiver, item.customer, item.opportunity, item.content]
       .join(" ")
       .toLowerCase()
       .includes(searchTerm.toLowerCase()),
+  ).sort((a, b) => b.date.localeCompare(a.date))
+
+  const completedActivityRequests = useMemo(
+    () =>
+      activityRequests
+        .filter((item) => item.status === "접수완료")
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    [activityRequests],
   )
+
+  const monthlyCompletedRequests = useMemo(
+    () =>
+      completedActivityRequests.filter((item) => {
+        const activityDate = new Date(`${item.dueDate}T00:00:00`)
+        return (
+          activityDate.getFullYear() === month.getFullYear() &&
+          activityDate.getMonth() === month.getMonth()
+        )
+      }),
+    [completedActivityRequests, month],
+  )
+
+  useEffect(() => {
+    if (!selectedCalendarDate && monthlyCompletedRequests.length > 0) {
+      setSelectedCalendarDate(new Date(`${monthlyCompletedRequests[0].dueDate}T00:00:00`))
+    }
+  }, [monthlyCompletedRequests, selectedCalendarDate])
+
+  const completedRequestDates = useMemo(
+    () => completedActivityRequests.map((item) => new Date(`${item.dueDate}T00:00:00`)),
+    [completedActivityRequests],
+  )
+
+  const handleResetRequests = () => {
+    window.localStorage.removeItem(REQUESTS_STORAGE_KEY)
+    window.localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY)
+    window.localStorage.removeItem(REQUEST_CALENDAR_OPEN_KEY)
+    window.localStorage.removeItem(ACTIVITY_ACTIVE_TAB_KEY)
+    window.location.reload()
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -140,6 +226,11 @@ export default function ActivityPage() {
                   fieldOptions={activityFieldOptions}
                   showStatusFilter={activeTab !== "activities"}
                 />
+                {activeTab === "requests" && (
+                  <Button variant="outline" onClick={handleResetRequests}>
+                    초기화
+                  </Button>
+                )}
                 <Button asChild className="bg-primary hover:bg-primary/90">
                   <Link href={`/activity/new/${activeTab}`}>
                     <Plus className="mr-2 w-4 h-4" />
@@ -257,6 +348,88 @@ export default function ActivityPage() {
             </TabsContent>
 
             <TabsContent value="requests">
+              <div className="space-y-6">
+              <Collapsible open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-lg">월 단위 캘린더</CardTitle>
+                        <p className="text-sm text-muted-foreground">접수완료된 영업 활동요청을 활동일 기준으로 표시합니다</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="gap-1">
+                          <CalendarDays className="w-4 h-4" />
+                          {monthlyCompletedRequests.length}건
+                        </Badge>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="outline" size="sm" className="gap-2">
+                            {isCalendarOpen ? "캘린더 숨기기" : "캘린더 보기"}
+                            {isCalendarOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </Button>
+                        </CollapsibleTrigger>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CollapsibleContent>
+                    <CardContent>
+                      <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+                        <div className="overflow-x-auto">
+                          <MonthCalendar
+                            month={month}
+                            onMonthChange={setMonth}
+                            modifiers={{
+                              completedRequestDate: completedRequestDates,
+                              ...(selectedCalendarDate ? { activeRequestDate: [selectedCalendarDate] } : {}),
+                            }}
+                            modifiersClassNames={{
+                              completedRequestDate:
+                                "bg-primary text-primary-foreground rounded-md hover:bg-primary hover:text-primary-foreground",
+                              activeRequestDate: "ring-2 ring-primary ring-offset-2",
+                            }}
+                            onDayClick={(day, modifiers, event) => {
+                              event.preventDefault()
+                            }}
+                            className="rounded-lg border"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          {monthlyCompletedRequests.map((request) => (
+                            <button
+                              key={request.id}
+                              type="button"
+                              className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                                selectedCalendarDate?.toISOString().slice(0, 10) === request.dueDate
+                                  ? "border-primary bg-primary/5"
+                                  : "hover:bg-muted/50"
+                              }`}
+                              onClick={() => {
+                                setSelectedCalendarDate(new Date(`${request.dueDate}T00:00:00`))
+                                setMonth(new Date(`${request.dueDate}T00:00:00`))
+                              }}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="font-medium">{request.customer}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {request.dueDate} | {request.type} | 요청자 {request.requester} | 담당자 {request.receiver}
+                                  </p>
+                                </div>
+                                <Badge className="bg-green-100 text-green-700 hover:bg-green-100">접수완료</Badge>
+                              </div>
+                            </button>
+                          ))}
+                          {monthlyCompletedRequests.length === 0 && (
+                            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                              선택한 월에 접수완료된 영업 활동요청이 없습니다.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
@@ -306,6 +479,7 @@ export default function ActivityPage() {
                   </Table>
                 </CardContent>
               </Card>
+              </div>
             </TabsContent>
           </Tabs>
         </main>

@@ -33,10 +33,16 @@ export type ActivityRequestRecord = {
   requester: string
   receiver: string
   type: string
+  customerCode?: string
   customer: string
+  opportunityCode?: string
+  opportunity: string
   content: string
   dueDate: string
   status: string
+  approvedAt?: string
+  lastAction?: "created" | "updated" | "approved"
+  lastActionAt?: string
 }
 
 export const activityTypeOptions = [
@@ -185,10 +191,15 @@ export const activityRequests: ActivityRequestRecord[] = [
     requester: "김영업",
     receiver: "박기술",
     type: "데모",
+    customerCode: "CUS-006",
     customer: "카카오",
+    opportunityCode: "",
+    opportunity: "미확인",
     content: "EMS 제품 데모 지원 요청",
     dueDate: "2026-03-25",
     status: "요청",
+    lastAction: "created",
+    lastActionAt: "2026-03-17",
   },
   {
     id: "REQ-2026-002",
@@ -196,10 +207,16 @@ export const activityRequests: ActivityRequestRecord[] = [
     requester: "이대리",
     receiver: "최PM",
     type: "PoC",
+    customerCode: "CUS-007",
     customer: "네이버",
+    opportunityCode: "",
+    opportunity: "미확인",
     content: "ITSM PoC 환경 구성 지원",
     dueDate: "2026-03-22",
     status: "접수완료",
+    approvedAt: "2026-03-16",
+    lastAction: "approved",
+    lastActionAt: "2026-03-16",
   },
   {
     id: "REQ-2026-003",
@@ -207,10 +224,16 @@ export const activityRequests: ActivityRequestRecord[] = [
     requester: "박과장",
     receiver: "김기술",
     type: "기타",
+    customerCode: "CUS-003",
     customer: "현대자동차",
+    opportunityCode: "OPP-2026-003",
+    opportunity: "현대차 Automation 확장",
     content: "기술 문의 대응",
     dueDate: "2026-03-18",
     status: "접수완료",
+    approvedAt: "2026-03-15",
+    lastAction: "approved",
+    lastActionAt: "2026-03-15",
   },
 ]
 
@@ -277,6 +300,9 @@ export function getActivityItemFields(category: ActivityCategory, item: any) {
         { label: "요청자", value: item.requester },
         { label: "담당자", value: item.receiver },
         { label: "고객사", value: item.customer },
+        { label: "고객사 코드", value: item.customerCode ?? "-" },
+        { label: "사업기회", value: item.opportunity || "미확인" },
+        { label: "사업기회 코드", value: item.opportunityCode || "-" },
         { label: "활동일", value: item.dueDate },
         { label: "상태", value: item.status },
         { label: "요청 내용", value: item.content },

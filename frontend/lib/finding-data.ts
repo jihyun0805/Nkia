@@ -145,3 +145,24 @@ export function getFindingCategoryLabel(category: FindingCategory) {
   if (category === "customers") return "고객사"
   return "협력사"
 }
+
+export function hasRegisteredCustomer(customerName: string) {
+  const normalized = customerName.trim().toLowerCase()
+  if (!normalized) return false
+
+  return customers.some((item) => item.name.trim().toLowerCase() === normalized)
+}
+
+export function getCustomerByName(customerName: string) {
+  const normalized = customerName.trim().toLowerCase()
+  if (!normalized) return null
+
+  return customers.find((item) => item.name.trim().toLowerCase() === normalized) ?? null
+}
+
+export function getOpportunitiesByCustomerName(customerName: string) {
+  const customer = getCustomerByName(customerName)
+  if (!customer) return []
+
+  return opportunities.filter((item) => item.customerCode === customer.id)
+}

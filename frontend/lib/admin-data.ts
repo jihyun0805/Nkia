@@ -1,8 +1,23 @@
 export type AdminCategory = "users" | "permissions" | "workflow"
 
-export const users = [
-  { id: "USR-001", name: "김영업", email: "kim.sales@Nkia.com", department: "영업본부", role: "영업대표", permissions: ["발굴", "활동", "입찰", "계약"], status: "활성", lastLogin: "2026-03-17 14:30" },
-  { id: "USR-002", name: "이대리", email: "lee.manager@Nkia.com", department: "영업본부", role: "영업담당", permissions: ["발굴", "활동", "입찰"], status: "활성", lastLogin: "2026-03-17 10:15" },
+export type AdminUser = {
+  id: string
+  name: string
+  email: string
+  department: string
+  role: string
+  permissions: string[]
+  status: string
+  lastLogin: string
+  isPresales: boolean
+}
+
+export const users: AdminUser[] = [
+  { id: "USR-001", name: "김영업", email: "kim.sales@Nkia.com", department: "영업본부", role: "영업대표", permissions: ["발굴", "활동", "입찰", "계약"], status: "활성", lastLogin: "2026-03-17 14:30", isPresales: false },
+  { id: "USR-002", name: "이대리", email: "lee.manager@Nkia.com", department: "영업본부", role: "영업담당", permissions: ["발굴", "활동", "입찰"], status: "활성", lastLogin: "2026-03-17 10:15", isPresales: false },
+  { id: "USR-003", name: "박기술", email: "park.presales@Nkia.com", department: "프리세일즈팀", role: "프리세일즈 담당", permissions: ["활동", "입찰", "데모"], status: "활성", lastLogin: "2026-03-17 09:40", isPresales: true },
+  { id: "USR-004", name: "최PM", email: "choi.presales@Nkia.com", department: "프리세일즈팀", role: "프리세일즈 담당", permissions: ["활동", "PoC", "제안"], status: "활성", lastLogin: "2026-03-17 08:55", isPresales: true },
+  { id: "USR-005", name: "김기술", email: "kim.tech@Nkia.com", department: "프리세일즈팀", role: "프리세일즈 담당", permissions: ["활동", "기술지원", "제안"], status: "활성", lastLogin: "2026-03-16 18:20", isPresales: true },
 ]
 
 export const permissionGroups = [
@@ -32,6 +47,7 @@ export function getAdminFields(category: AdminCategory, item: any) {
     { label: "이메일", value: item.email },
     { label: "부서", value: item.department },
     { label: "역할", value: item.role },
+    { label: "프리세일즈 담당", value: item.isPresales ? "예" : "아니오" },
     { label: "권한", value: item.permissions.join(", ") },
     { label: "상태", value: item.status },
     { label: "최종 로그인", value: item.lastLogin },
@@ -50,4 +66,8 @@ export function getAdminFields(category: AdminCategory, item: any) {
     { label: "상태", value: item.status },
     { label: "최종 수정일", value: item.lastModified },
   ]
+}
+
+export function getPresalesUsers() {
+  return users.filter((item) => item.isPresales && item.status === "활성")
 }
