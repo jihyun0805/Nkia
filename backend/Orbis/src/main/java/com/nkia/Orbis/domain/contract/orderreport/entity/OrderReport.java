@@ -10,6 +10,7 @@ import com.nkia.Orbis.domain.contract.orderreportmaintenanceamount.entity.OrderR
 import com.nkia.Orbis.domain.contract.orderreportother.entity.OrderReportOther;
 import com.nkia.Orbis.domain.contract.orderreportpurchase.entity.OrderReportPurchase;
 import com.nkia.Orbis.domain.contract.orderreportservice.entity.OrderReportService;
+import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.user.entity.User;
 import jakarta.persistence.CascadeType;
@@ -79,6 +80,6 @@ public class OrderReport extends BaseEntity {
     @OneToOne(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private Contract contract;
 
-//    @OneToOne(mappedBy = "orderReport")
-//    private Project project;
+    @OneToOne(mappedBy = "orderReport")
+    private Project project;
 }
