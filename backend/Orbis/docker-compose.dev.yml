@@ -62,6 +62,28 @@ services:
 
   # AI는 별도 compose로 실행하고, 메인 PostgreSQL 안의 ai schema + pgvector를 사용
 
+  orbis_ai_vector_db:
+    image: pgvector/pgvector:pg15
+    container_name: Orbis-AI-Vector-DB-Dev
+    ports:
+      - "${AI_POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${AI_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${AI_POSTGRES_DB}
+      TZ: Asia/Seoul
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${AI_POSTGRES_USER} -d ${AI_POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ai_pgvector_data:/var/lib/postgresql/data
+      - ../../ai/db/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - app-network
+    restart: always
+
   orbis_ai_api:
     container_name: Orbis-AI-API-Dev
     build:
