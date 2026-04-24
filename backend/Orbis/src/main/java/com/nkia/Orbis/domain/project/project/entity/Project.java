@@ -2,6 +2,8 @@ package com.nkia.Orbis.domain.project.project.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
+import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
 import com.nkia.Orbis.domain.user.entity.User;
@@ -44,9 +46,9 @@ public class Project extends BaseEntity {
     @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private ProjectResultReport projectResultReport;
 
-//    @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-//    private Maintenance maintenance;
-//
-//    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-//    private List<MaintenanceQuotation> maintenanceQuotations = new ArrayList<>();
+    @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Maintenance maintenance;
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MaintenanceQuotation> maintenanceQuotations = new ArrayList<>();
 }
