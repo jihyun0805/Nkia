@@ -4,7 +4,6 @@
 volumes:
   mysql_data:
   postgres_data:
-  ai_pgvector_data:
   redis_data:
   prometheus_data:
   grafana_data:
