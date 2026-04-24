@@ -13,8 +13,36 @@ from app.repositories.index_repository import (
     replace_chunks,
     upsert_source,
 )
-from app.schemas.indexing import BatchIndexDocumentsResponse, IndexDocumentRequest, IndexDocumentResult
+from app.schemas.indexing import BatchIndexDocumentsResponse, IndexAttachmentRequest, IndexDocumentRequest, IndexDocumentResult
 from app.services.document_builder import build_document_text
+
+ATTACHMENT_SOURCE_TYPES = {"ATTACHMENT"}
+ATTACHMENT_METADATA_FIELDS: dict[str, tuple[str, ...]] = {
+    "fileId": ("fileId", "id"),
+    "fileName": ("fileName", "filename", "originalFilename", "originalFileName", "name"),
+    "extension": ("extension", "ext", "fileExtension"),
+    "fileType": ("fileType", "mimeType", "contentType", "mediaType"),
+    "parentSourceType": ("parentSourceType", "ownerSourceType", "domainSourceType"),
+    "parentSourceId": ("parentSourceId", "ownerSourceId", "domainSourceId"),
+    "pageCount": ("pageCount", "pages", "sheetCount", "slideCount"),
+}
+ATTACHMENT_PARENT_ENTITY_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("PROJECT_OPPORTUNITY", ("projectOpportunityId",)),
+    ("SALES_ACTIVITY", ("salesActivityId",)),
+    ("QUOTATION", ("quotationId",)),
+    ("RFP_ANALYSIS", ("rfpAnalyzeResultId", "rfpAnalysisId")),
+    ("PRB", ("prbId",)),
+    ("BID_RESULT", ("bidResultId",)),
+    ("ORDER_REPORT", ("orderReportId",)),
+    ("CONTRACT", ("contractId",)),
+    ("PROJECT", ("projectId",)),
+    ("PROJECT_RESULT_REPORT", ("projectResultReportId",)),
+    ("MAINTENANCE", ("maintenanceId",)),
+    ("MAINTENANCE_QUOTE", ("maintenanceQuotationId",)),
+    ("CUSTOMER_SUPPORT", ("customerSupportId",)),
+    ("LICENSE", ("licenseId",)),
+    ("BILLING", ("billingId",)),
+)
 
 
 def index_documents(
@@ -23,6 +51,68 @@ def index_documents(
     embedder: EmbeddingModel,
 ) -> BatchIndexDocumentsResponse:
     return BatchIndexDocumentsResponse(results=[index_document(document=document, embedder=embedder) for document in documents])
+
+
+def map_attachment_to_document(attachment: IndexAttachmentRequest) -> IndexDocumentRequest:
+    parent_source_type = normalize_source_type(attachment.parent_source_type)
+    parent_source_id = attachment.parent_source_id.strip()
+    file_id = attachment.file_id.strip()
+
+    metadata = dict(attachment.metadata)
+    metadata.setdefault("fileId", file_id)
+    metadata.setdefault("fileName", attachment.file_name)
+    metadata.setdefault("extension", attachment.extension)
+    metadata.setdefault("fileType", attachment.file_type)
+    metadata.setdefault("pageCount", attachment.page_count)
+    metadata.setdefault("parentSourceType", parent_source_type)
+    metadata.setdefault("parentSourceId", parent_source_id)
+    if attachment.root_source_type:
+        metadata.setdefault("rootSourceType", normalize_source_type(attachment.root_source_type))
+    if attachment.root_source_id:
+        metadata.setdefault("rootSourceId", attachment.root_source_id.strip())
+    if attachment.document_stage:
+        metadata.setdefault("documentStage", attachment.document_stage.strip())
+    if attachment.business_domain:
+        metadata.setdefault("businessDomain", attachment.business_domain.strip())
+    if attachment.evidence_group_key:
+        metadata.setdefault("evidenceGroupKey", attachment.evidence_group_key.strip())
+    else:
+        metadata.setdefault("evidenceGroupKey", f"{parent_source_type}:{parent_source_id}")
+
+    payload: dict[str, Any] = {
+        "fileId": file_id,
+        "fileName": attachment.file_name,
+        "extension": attachment.extension,
+        "fileType": attachment.file_type,
+        "pageCount": attachment.page_count,
+        "parentSourceType": parent_source_type,
+        "parentSourceId": parent_source_id,
+        "rootSourceType": metadata.get("rootSourceType"),
+        "rootSourceId": metadata.get("rootSourceId"),
+        "documentStage": metadata.get("documentStage"),
+        "businessDomain": metadata.get("businessDomain"),
+        "evidenceGroupKey": metadata.get("evidenceGroupKey"),
+        "extractedText": attachment.extracted_text,
+    }
+
+    return IndexDocumentRequest(
+        sourceType="ATTACHMENT",
+        sourceId=build_attachment_source_id(
+            parent_source_type=parent_source_type,
+            parent_source_id=parent_source_id,
+            file_id=file_id,
+        ),
+        operation=attachment.operation,
+        title=attachment.file_name,
+        sourcePath=attachment.source_path,
+        content=attachment.extracted_text,
+        payload=payload,
+        metadata={key: value for key, value in metadata.items() if value not in (None, "")},
+        deleted=attachment.deleted,
+        deletedAt=attachment.deleted_at,
+        eventId=attachment.event_id,
+        occurredAt=attachment.occurred_at,
+    )
 
 
 def index_document(*, document: IndexDocumentRequest, embedder: EmbeddingModel) -> IndexDocumentResult:
@@ -64,7 +154,12 @@ def index_document(*, document: IndexDocumentRequest, embedder: EmbeddingModel) 
                     message="검색 대상에서 제외했습니다.",
                 )
 
-            document_text = build_document_text(title=document.title, content=document.content, payload=document.payload)
+            document_text = build_document_text(
+                source_type=source_type,
+                title=document.title,
+                content=document.content,
+                payload=document.payload,
+            )
             if not document_text:
                 return IndexDocumentResult(
                     sourceType=source_type,
@@ -135,6 +230,7 @@ def build_source_metadata(*, document: IndexDocumentRequest, source_type: str) -
     metadata = dict(document.metadata)
     metadata.setdefault("sourceType", source_type)
     metadata.setdefault("origin", "crud")
+    apply_attachment_metadata_defaults(metadata=metadata, source_type=source_type, payload=document.payload)
     if document.event_id:
         metadata["eventId"] = document.event_id
     if document.occurred_at:
@@ -163,3 +259,42 @@ def detect_duplicate_or_stale_event(
 
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def build_attachment_source_id(*, parent_source_type: str, parent_source_id: str, file_id: str) -> str:
+    source_id = f"{parent_source_type}:{parent_source_id}:{file_id}"
+    if len(source_id) <= 100:
+        return source_id
+    digest = sha256_text(source_id)[:16]
+    return f"{parent_source_type}:{digest}"[:100]
+
+
+def apply_attachment_metadata_defaults(*, metadata: dict[str, Any], source_type: str, payload: dict[str, Any]) -> None:
+    if source_type not in ATTACHMENT_SOURCE_TYPES:
+        return
+
+    for target_key, candidate_keys in ATTACHMENT_METADATA_FIELDS.items():
+        value = lookup_first_payload_value(payload, candidate_keys)
+        if value not in (None, ""):
+            metadata.setdefault(target_key, value)
+
+    if "parentSourceType" not in metadata or "parentSourceId" not in metadata:
+        inferred_parent_type, inferred_parent_id = infer_attachment_parent(payload)
+        if inferred_parent_type and inferred_parent_id not in (None, ""):
+            metadata.setdefault("parentSourceType", inferred_parent_type)
+            metadata.setdefault("parentSourceId", inferred_parent_id)
+
+
+def lookup_first_payload_value(payload: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        if key in payload and payload[key] is not None:
+            return payload[key]
+    return None
+
+
+def infer_attachment_parent(payload: dict[str, Any]) -> tuple[str | None, Any]:
+    for source_type, candidate_keys in ATTACHMENT_PARENT_ENTITY_FIELDS:
+        value = lookup_first_payload_value(payload, candidate_keys)
+        if value not in (None, ""):
+            return source_type, value
+    return None, None

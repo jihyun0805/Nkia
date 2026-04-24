@@ -14,17 +14,30 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml uv.lock .
-RUN uv sync --frozen --no-cache --no-dev
+RUN uv sync --no-cache --no-dev
 
 COPY app ./app
 COPY db ./db
+COPY scripts ./scripts
 
 ENV PATH="/app/.venv/bin:$PATH"
+
+RUN chmod +x ./scripts/start-ai.sh ./db/migrate_existing_db.sh
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${AI_UVICORN_WORKERS:-2}"]
+CMD ["sh", "./scripts/start-ai.sh"]
