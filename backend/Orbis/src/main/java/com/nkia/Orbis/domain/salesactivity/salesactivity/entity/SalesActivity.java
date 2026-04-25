@@ -4,9 +4,10 @@ import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.salesactivity.salesactivityrequest.entity.SalesActivityRequest;
 import jakarta.persistence.CascadeType;
-import jakarta.persistence.CollectionTable;
-import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,6 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
@@ -34,12 +36,36 @@ public class SalesActivity extends BaseEntity {
     @JoinColumn(name = "project_opportunity_id")
     private ProjectOpportunity projectOpportunity;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ActivityType activityType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ActivityPurpose activityPurpose;
+
+    @Column(columnDefinition = "TEXT")
+    private String activityContent;
+
+    private String location;
+
+    private LocalDateTime activityDateTime;
+
+    @Column(columnDefinition = "TEXT")
+    private String issue;
+
+    @Column(columnDefinition = "TEXT")
+    private String nextActivity;
+
     @OneToMany(mappedBy = "salesActivity", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SalesActivityAttendee> attendees = new ArrayList<>();
 
-    @ElementCollection
-    @CollectionTable(name = "sales_activity_work", joinColumns = @JoinColumn(name = "sales_activity_id"))
-    private List<Work> works = new ArrayList<>();
+    @Column(columnDefinition = "TEXT")
+    private String customerInterest;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ActivityStatus status = ActivityStatus.PLANNED;
 
     @OneToOne(mappedBy = "salesActivity", cascade = CascadeType.ALL, orphanRemoval = true)
     private SalesActivityRequest salesActivityRequest;
