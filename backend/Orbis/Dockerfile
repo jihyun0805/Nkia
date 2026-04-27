@@ -19,6 +19,6 @@ FROM amazoncorretto:17
 WORKDIR /app
 
 # 1단계(builder)에서 만든 JAR 파일만 쏙 가져옵니다.
-COPY --from=builder /build/build/libs/*.jar app.jar
+COPY --from=builder /build/build/libs/*SNAPSHOT.jar app.jar
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
