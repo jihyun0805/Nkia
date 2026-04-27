@@ -1,6 +1,6 @@
 # ---------- (1단계: 빌드 환경) ----------
 # Gradle과 Java가 이미 깔려있는 이미지를 불러옵니다.
-FROM gradle:7.6-jdk17-alpine AS builder
+FROM gradle:8.7-jdk21 AS builder
 
 # 작업 폴더 설정
 WORKDIR /build
