@@ -64,6 +64,10 @@ export default function ActivityDetailPage() {
   const isRequest = category === "requests"
   const requestItem = isRequest ? (item as ActivityRequestRecord) : null
   const canEditRequest = !requestItem || requestItem.requester === currentUser.name
+  const listHref =
+    category === "activities"
+      ? `/activity/customers/${(item as { customerCode?: string }).customerCode ?? ""}`
+      : "/activity"
 
   const handleApprove = () => {
     const approved = approveActivityRequest(id)
@@ -131,7 +135,7 @@ export default function ActivityDetailPage() {
                 </div>
                 <div className="flex justify-end gap-2 border-t pt-6">
                   <Button variant="outline" asChild>
-                    <Link href="/activity">목록</Link>
+                    <Link href={listHref}>목록</Link>
                   </Button>
                   {requestItem && (
                     <Button variant="outline" asChild>
