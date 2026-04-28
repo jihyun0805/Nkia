@@ -42,25 +42,35 @@ export function OrderContractSection() {
             유형
           </th>
           <td className="border-r border-black p-0" colSpan={2}>
-            <select className={`${cellInput} text-center`} {...register("type")}>
+            <select className={`${cellInput} text-center [text-align-last:center]`} {...register("type")}>
               <option value="" hidden>
-                선택해주세요
+                선택
               </option>
-              <option value="SOLUTION">솔루션</option>
-              <option value="MAINTENANCE">유지보수</option>
-              <option value="SERVICE">용역</option>
+              <option value="SOLUTION" className="text-left">
+                솔루션
+              </option>
+              <option value="MAINTENANCE" className="text-left">
+                유지보수
+              </option>
+              <option value="SERVICE" className="text-left">
+                용역
+              </option>
             </select>
           </td>
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
             채널유무
           </th>
           <td className="border-r border-black p-0" colSpan={2}>
-            <select className={`${cellInput} text-center`} {...register("hasChannel")}>
+            <select className={`${cellInput} text-center [text-align-last:center]`} {...register("hasChannel")}>
               <option value="" hidden>
-                선택해주세요
+                선택
               </option>
-              <option value="Y">O</option>
-              <option value="N">X</option>
+              <option value="Y" className="text-left">
+                O
+              </option>
+              <option value="N" className="text-left">
+                X
+              </option>
             </select>
           </td>
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
@@ -69,7 +79,7 @@ export function OrderContractSection() {
           <td className="p-0" colSpan={3}>
             <select className={`${cellInput} text-left cursor-pointer`} {...register("codeClassification")}>
               <option value="" hidden>
-                선택해주세요
+                선택
               </option>
               <option value="GN">공공신규: GN</option>
               <option value="GA">공공증설: GA</option>
