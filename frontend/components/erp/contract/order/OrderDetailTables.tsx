@@ -5,13 +5,23 @@ import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { Plus, Trash2 } from "lucide-react";
 
 export function OrderDetailTables() {
-  const { control, register } = useFormContext();
+  const { control, register, setValue } = useFormContext();
 
   const license = useFieldArray({ control, name: "licenseDetails" });
   const service = useFieldArray({ control, name: "serviceDetails" });
   const maintenance = useFieldArray({ control, name: "maintenanceDetails" });
   const otherSales = useFieldArray({ control, name: "otherSalesDetails" });
   const purchase = useFieldArray({ control, name: "purchaseDetails" });
+
+  const licenseData = useWatch({ control, name: "licenseDetails" }) || [];
+  const serviceData = useWatch({ control, name: "serviceDetails" }) || [];
+  const maintenanceData = useWatch({ control, name: "maintenanceDetails" }) || [];
+  const otherSalesData = useWatch({ control, name: "otherSalesDetails" }) || [];
+  const purchaseData = useWatch({ control, name: "purchaseDetails" }) || [];
+
+  const licenseDiscount = useWatch({ control, name: "licenseDiscount" });
+  const serviceDiscount = useWatch({ control, name: "serviceDiscount" });
+  const maintenanceDiscount = useWatch({ control, name: "maintenanceDiscount" });
 
   // 기본 1줄 자동추가
   useEffect(() => {
@@ -24,14 +34,36 @@ export function OrderDetailTables() {
   }, []);
 
   // 합계 자동 계산 로직
-  const purchaseData = useWatch({ control, name: "purchaseDetails" }) || [];
   const parseNumber = (val: string | number) => {
     if (!val) return 0;
     const num = Number(val.toString().replace(/,/g, ""));
     return isNaN(num) ? 0 : num;
   };
-  const purchaseTotal = purchaseData.reduce((acc: number, curr: any) => acc + parseNumber(curr.subtotal), 0);
   const formatTotal = (num: number) => (num === 0 ? "" : num.toLocaleString());
+ 
+  useEffect(() => {
+    const updateSubtotals = (data: any[], name: string, qtyKey: string, priceKey: string) => {
+      data.forEach((item, i) => {
+        const sub = parseNumber(item[qtyKey]) * parseNumber(item[priceKey]);
+        if (parseNumber(item.subtotal) !== sub) {
+          setValue(`${name}.${i}.subtotal`, formatTotal(sub));
+        }
+      });
+    };
+
+    updateSubtotals(licenseData, "licenseDetails", "quantity", "unitPrice");
+    updateSubtotals(serviceData, "serviceDetails", "mm", "unitPrice");
+    updateSubtotals(maintenanceData, "maintenanceDetails", "months", "monthlyAmount");
+    updateSubtotals(otherSalesData, "otherSalesDetails", "quantity", "unitPrice");
+    updateSubtotals(purchaseData, "purchaseDetails", "quantity", "unitPrice");
+  }, [licenseData, serviceData, maintenanceData, otherSalesData, purchaseData, setValue]);
+
+  // 총 합계(Total) 계산 (소계 합산 + 특별할인 반영)
+  const licenseTotal = licenseData.reduce((acc: number, curr: any) => acc + parseNumber(curr.subtotal), 0) + parseNumber(licenseDiscount);
+  const serviceTotal = serviceData.reduce((acc: number, curr: any) => acc + parseNumber(curr.subtotal), 0) + parseNumber(serviceDiscount);
+  const maintenanceTotal = maintenanceData.reduce((acc: number, curr: any) => acc + parseNumber(curr.subtotal), 0) + parseNumber(maintenanceDiscount);
+  const otherSalesTotal = otherSalesData.reduce((acc: number, curr: any) => acc + parseNumber(curr.subtotal), 0);
+  const purchaseTotal = purchaseData.reduce((acc: number, curr: any) => acc + parseNumber(curr.subtotal), 0);
 
   const cellInput = "w-full h-full min-h-[32px] border-0 bg-transparent px-2 text-sm focus:ring-2 focus:ring-blue-600 outline-none";
 
@@ -137,7 +169,7 @@ export function OrderDetailTables() {
                   합계
                 </td>
                 <td className="p-0" colSpan={2}>
-                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(purchaseTotal)} tabIndex={-1} />
+                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(licenseTotal)} tabIndex={-1} />
                 </td>
               </tr>
             </tbody>
@@ -204,7 +236,7 @@ export function OrderDetailTables() {
                   합계
                 </td>
                 <td className="p-0" colSpan={2}>
-                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(purchaseTotal)} tabIndex={-1} />
+                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(serviceTotal)} tabIndex={-1} />
                 </td>
               </tr>
             </tbody>
@@ -281,7 +313,7 @@ export function OrderDetailTables() {
                   합계
                 </td>
                 <td className="p-0" colSpan={2}>
-                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(purchaseTotal)} tabIndex={-1} />
+                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(maintenanceTotal)} tabIndex={-1} />
                 </td>
               </tr>
             </tbody>
@@ -340,7 +372,7 @@ export function OrderDetailTables() {
                   합계
                 </td>
                 <td className="p-0" colSpan={2}>
-                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(purchaseTotal)} tabIndex={-1} />
+                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(otherSalesTotal)} tabIndex={-1} />
                 </td>
               </tr>
             </tbody>

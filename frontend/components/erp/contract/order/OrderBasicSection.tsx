@@ -22,41 +22,65 @@ export function OrderBasicSection() {
     };
   };
 
-  // 계산에 필요한 필드 실시간 감지
-  const [totalAmount, ems, emsMaintenance, itg, itgMaintenance, dashboard, ito, aiotion, others] = useWatch({
-    control,
-    name: [
-      "totalAmount",
-      "salesClassification.ems",
-      "salesClassification.emsMaintenance",
-      "salesClassification.itg",
-      "salesClassification.itgMaintenance",
-      "salesClassification.dashboard",
-      "salesClassification.ito",
-      "salesClassification.aiotion",
-      "salesClassification.others",
-    ],
-  });
+  const parseNum = (val: string | number | undefined) => {
+    if (!val) return 0;
+    const num = Number(val.toString().replace(/,/g, ""));
+    return isNaN(num) ? 0 : num;
+  };
+
+  const licenseData = useWatch({ control, name: "licenseDetails" }) || [];
+  const serviceData = useWatch({ control, name: "serviceDetails" }) || [];
+  const maintenanceData = useWatch({ control, name: "maintenanceDetails" }) || [];
+  const otherSalesData = useWatch({ control, name: "otherSalesDetails" }) || [];
+
+  const licenseDiscount = useWatch({ control, name: "licenseDiscount" });
+  const serviceDiscount = useWatch({ control, name: "serviceDiscount" });
+  const maintenanceDiscount = useWatch({ control, name: "maintenanceDiscount" });
+
+  const totalAmount = useWatch({ control, name: "totalAmount" });
+
+  useEffect(() => {
+    const getSum = (arr: any[]) => arr.reduce((acc, curr) => acc + parseNum(curr.subtotal), 0);
+
+    const licenseTotal = getSum(licenseData) + parseNum(licenseDiscount);
+    const serviceTotal = getSum(serviceData) + parseNum(serviceDiscount);
+    const maintenanceTotal = getSum(maintenanceData) + parseNum(maintenanceDiscount);
+    const otherSalesTotal = getSum(otherSalesData);
+
+    const grandTotal = licenseTotal + serviceTotal + maintenanceTotal + otherSalesTotal;
+
+    // 무한 렌더링 방지 (값이 다를 때만 업데이트)
+    if (parseNum(totalAmount) !== grandTotal) {
+      setValue("totalAmount", grandTotal === 0 ? "" : grandTotal.toLocaleString());
+    }
+  }, [licenseData, serviceData, maintenanceData, otherSalesData, licenseDiscount, serviceDiscount, maintenanceDiscount, totalAmount, setValue]);
+
+  const salesClassificationValues =
+    useWatch({
+      control,
+      name: [
+        "salesClassification.ems",
+        "salesClassification.emsMaintenance",
+        "salesClassification.itg",
+        "salesClassification.itgMaintenance",
+        "salesClassification.dashboard",
+        "salesClassification.ito",
+        "salesClassification.aiotion",
+        "salesClassification.others",
+      ],
+    }) || [];
 
   // 값이 변경될 때마다 검증(Verification) 값 자동계산
   useEffect(() => {
-    const parseNum = (val: string | number | undefined) => {
-      if (!val) return 0;
-      const num = Number(val.toString().replace(/,/g, ""));
-      return isNaN(num) ? 0 : num;
-    };
-
+    const salesSum = salesClassificationValues.reduce((acc, curr) => acc + parseNum(curr), 0);
     const total = parseNum(totalAmount);
-    const salesSum = parseNum(ems) + parseNum(emsMaintenance) + parseNum(itg) + parseNum(itgMaintenance) + parseNum(dashboard) + parseNum(ito) + parseNum(aiotion) + parseNum(others);
 
     const verification = salesSum - total;
 
-    // 포맷팅하여 폼 상태에 자동 반영
     setValue("salesClassification.verification", verification.toLocaleString());
-  }, [totalAmount, ems, emsMaintenance, itg, itgMaintenance, dashboard, ito, aiotion, others, setValue]);
+  }, [salesClassificationValues, totalAmount, setValue]);
 
   return (
-    
     <div className="w-full">
       <div className="text-sm font-bold text-yellow-600 mb-1">※ 노랑색 채워진 부분 자동계산 (별도수정X)</div>
       {/* 기본 정보 표 */}
