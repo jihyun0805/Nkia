@@ -65,7 +65,7 @@ public class SalesActivity extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ActivityStatus status = ActivityStatus.PLANNED;
+    private ActivityStatus status;
 
     @OneToOne(mappedBy = "salesActivity", cascade = CascadeType.ALL, orphanRemoval = true)
     private SalesActivityRequest salesActivityRequest;
