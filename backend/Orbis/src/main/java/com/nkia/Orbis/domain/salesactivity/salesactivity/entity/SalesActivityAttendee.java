@@ -29,4 +29,12 @@ public class SalesActivityAttendee extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
+
+    public SalesActivityAttendee(User user) {
+        this.user = user;
+    }
+
+    public void setSalesActivity(SalesActivity salesActivity) {
+        this.salesActivity = salesActivity;
+    }
 }
