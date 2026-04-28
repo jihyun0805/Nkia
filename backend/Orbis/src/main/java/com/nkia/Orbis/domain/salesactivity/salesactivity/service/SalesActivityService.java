@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.salesactivity.salesactivity.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.request.SalesActivityCreateRequest;
+import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.response.SalesActivityResponse;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivityAttendee;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.repository.SalesActivityRepository;
@@ -24,7 +25,7 @@ public class SalesActivityService {
     private final UserRepository userRepository;
 
     @Transactional
-    public Long create(SalesActivityCreateRequest request) {
+    public SalesActivityResponse create(SalesActivityCreateRequest request) {
 //        ProjectOpportunity projectOpportunity = projectOpportunityRepository
 //                .findById(request.getProjectOpportunityId())
 //                .orElseThrow(() -> new ApiException(ErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
@@ -50,8 +51,9 @@ public class SalesActivityService {
                 .build();
 
         addAttendees(salesActivity, request.getAttendeeUserIds());
+        SalesActivity saved = salesActivityRepository.save(salesActivity);
 
-        return salesActivityRepository.save(salesActivity).getId();
+        return SalesActivityResponse.from(saved);
     }
 
 //    private SalesActivityRequest findSalesActivityRequestOrNull(Long salesActivityRequestId) {
