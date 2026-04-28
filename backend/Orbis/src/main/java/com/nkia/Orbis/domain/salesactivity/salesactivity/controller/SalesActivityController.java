@@ -38,10 +38,10 @@ public class SalesActivityController {
     @Operation(summary = "영업 활동 수정")
     @PatchMapping("/{salesActivityId}")
     public ResponseEntity<ApiResponse<SalesActivityResponse>> updateSalesActivity(
-            @PathVariable Long salesActivityId,
+            @PathVariable("salesActivityId") Long salesActivityId,
             @RequestBody SalesActivityUpdateRequest request
     ) {
-        SalesActivityResponse response = salesActivityService.updateSalesActivity(salesActivityId, request);
+        SalesActivityResponse response = salesActivityService.update(salesActivityId, request);
         return ResponseEntity.ok(ApiResponse.success(response));
 
     }

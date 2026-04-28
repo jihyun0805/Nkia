@@ -1,8 +1,10 @@
 package com.nkia.Orbis.domain.salesactivity.salesactivity.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.SalesActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.request.SalesActivityCreateRequest;
+import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.request.SalesActivityUpdateRequest;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.response.SalesActivityResponse;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivityAttendee;
@@ -80,5 +82,33 @@ public class SalesActivityService {
             SalesActivityAttendee attendee = new SalesActivityAttendee(user);
             salesActivity.addAttendee(attendee);
         }
+    }
+
+    @Transactional
+    public SalesActivityResponse update(
+            Long salesActivityId,
+            SalesActivityUpdateRequest request
+    ) {
+        SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
+                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
+
+        salesActivity.update(
+                request.getActivityType(),
+                request.getActivityPurpose(),
+                request.getActivityContent(),
+                request.getLocation(),
+                request.getActivityDateTime(),
+                request.getIssue(),
+                request.getNextActivity(),
+                request.getCustomerInterest(),
+                request.getStatus()
+        );
+
+        if (request.getAttendeeUserIds() != null) {
+            salesActivity.clearAttendees();
+            addAttendees(salesActivity, request.getAttendeeUserIds());
+        }
+
+        return SalesActivityResponse.from(salesActivity);
     }
 }

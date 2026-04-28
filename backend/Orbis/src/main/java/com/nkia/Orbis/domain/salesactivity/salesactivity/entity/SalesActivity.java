@@ -110,4 +110,48 @@ public class SalesActivity extends BaseEntity {
         this.attendees.add(attendee);
         attendee.setSalesActivity(this);
     }
+
+    public void update(
+            ActivityType activityType,
+            ActivityPurpose activityPurpose,
+            String activityContent,
+            String location,
+            LocalDateTime activityDateTime,
+            String issue,
+            String nextActivity,
+            String customerInterest,
+            ActivityStatus status
+    ) {
+        if (activityType != null) {
+            this.activityType = activityType;
+        }
+        if (activityPurpose != null) {
+            this.activityPurpose = activityPurpose;
+        }
+        if (activityContent != null) {
+            this.activityContent = activityContent;
+        }
+        if (location != null) {
+            this.location = location;
+        }
+        if (activityDateTime != null) {
+            this.activityDateTime = activityDateTime;
+        }
+        if (issue != null) {
+            this.issue = issue;
+        }
+        if (nextActivity != null) {
+            this.nextActivity = nextActivity;
+        }
+        if (customerInterest != null) {
+            this.customerInterest = customerInterest;
+        }
+        if (status != null) {
+            this.status = status;
+        }
+    }
+
+    public void clearAttendees() {
+        this.attendees.clear();
+    }
 }
