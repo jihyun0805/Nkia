@@ -115,25 +115,65 @@ export function OrderScopeSection() {
               견적서
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-center`} maxLength={1} {...register("attachments.quotation")} />
+              <select className={`${cellInput} text-center [text-align-last:center]`} {...register("attachments.quotation")}>
+                <option value="" hidden>
+                  선택
+                </option>
+                <option value="Y" className="text-left">
+                  O
+                </option>
+                <option value="N" className="text-left">
+                  X
+                </option>
+              </select>
             </td>
             <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>
               계약서
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-center`} maxLength={1} {...register("attachments.contract")} />
+              <select className={`${cellInput} text-center [text-align-last:center]`} {...register("attachments.contract")}>
+                <option value="" hidden>
+                  선택
+                </option>
+                <option value="Y" className="text-left">
+                  O
+                </option>
+                <option value="N" className="text-left">
+                  X
+                </option>
+              </select>
             </td>
             <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>
               발주서
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-center`} maxLength={1} {...register("attachments.purchaseOrder")} />
+              <select className={`${cellInput} text-center [text-align-last:center]`} {...register("attachments.purchaseOrder")}>
+                <option value="" hidden>
+                  선택
+                </option>
+                <option value="Y" className="text-left">
+                  O
+                </option>
+                <option value="N" className="text-left">
+                  X
+                </option>
+              </select>
             </td>
             <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>
               PRB보고서
             </th>
             <td className="p-0" colSpan={1}>
-              <input className={`${cellInput} text-center`} maxLength={1} {...register("attachments.prbReport")} />
+              <select className={`${cellInput} text-center [text-align-last:center]`} {...register("attachments.prbReport")}>
+                <option value="" hidden>
+                  선택
+                </option>
+                <option value="Y" className="text-left">
+                  O
+                </option>
+                <option value="N" className="text-left">
+                  X
+                </option>
+              </select>
             </td>
           </tr>
           <tr className="border-b border-black">
