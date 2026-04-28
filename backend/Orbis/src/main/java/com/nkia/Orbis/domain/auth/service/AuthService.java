@@ -6,6 +6,7 @@ import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.JwtProvider;
 import com.nkia.Orbis.domain.auth.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.auth.dto.response.LoginResponse;
+import com.nkia.Orbis.domain.user.entity.Role;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
 import java.util.UUID;
@@ -28,9 +29,17 @@ public class AuthService {
     public static final String REFRESH_TOKEN = "RefreshToken:";
     public static final String LOGOUT = "logout";
 
-    // 회원 가입 로직 추가
-    @Transactional // DB 쓰기 작업이므로 트랜잭션 보장
-    public void signup(SignupRequest request) {
+    @Transactional
+    public void signupAdmin(SignupRequest request) {
+        signup(request, Role.ADMIN);
+    }
+
+    @Transactional
+    public void signupUser(SignupRequest request) {
+        signup(request, Role.USER);
+    }
+
+    public void signup(SignupRequest request, Role role) {
         // 1. 이메일 중복 검증
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ApiException(UserErrorCode.EXIST_EMAIL);
@@ -40,7 +49,7 @@ public class AuthService {
         String encodedPassword = passwordEncoder.encode(request.getPassword());
 
         // 3. User 엔티티 생성
-        User newUser = User.createUser(request.getEmail(), encodedPassword);
+        User newUser = User.createUser(request.getEmail(), encodedPassword, role);
 
         // 4. DB에 저장
         userRepository.save(newUser);
