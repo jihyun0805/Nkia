@@ -92,10 +92,28 @@ pipeline {
     post {
         success {
             echo '배포 성공'
+            script {
+                def Author_ID = sh(script: "git show -s --pretty=%an", returnStdout: true).trim()
+                def Author_Name = sh(script: "git show -s --pretty=%ae", returnStdout: true).trim()
+                mattermostSend(color: 'good',
+                    message: "빌드 성공: ${env.JOB_NAME} #${env.BUILD_NUMBER} by ${Author_ID}(${Author_Name})\n(<${env.BUILD_URL}|Details>)",
+                    endpoint: 'https://meeting.ssafy.com/hooks/jmehrjcirtyomqe9wzkyfgo1uo',
+                    channel: 'S106_Jenkins_Build'
+                )
+            }
         }
 
         failure {
             echo '배포 실패. Jenkins Console Output 확인 필요'
+            script {
+                def Author_ID = sh(script: "git show -s --pretty=%an", returnStdout: true).trim()
+                def Author_Name = sh(script: "git show -s --pretty=%ae", returnStdout: true).trim()
+                mattermostSend(color: 'danger',
+                    message: "빌드 실패: ${env.JOB_NAME} #${env.BUILD_NUMBER} by ${Author_ID}(${Author_Name})\n(<${env.BUILD_URL}|Details>)",
+                    endpoint: 'https://meeting.ssafy.com/hooks/jmehrjcirtyomqe9wzkyfgo1uo',
+                    channel: 'S106_Jenkins_Build'
+                )
+            }
         }
     }
 }
