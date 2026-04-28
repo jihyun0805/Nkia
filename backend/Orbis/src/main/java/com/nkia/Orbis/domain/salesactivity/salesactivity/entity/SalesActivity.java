@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -69,4 +70,44 @@ public class SalesActivity extends BaseEntity {
 
     @OneToOne(mappedBy = "salesActivity", cascade = CascadeType.ALL, orphanRemoval = true)
     private SalesActivityRequest salesActivityRequest;
+
+    @Builder
+    private SalesActivity(
+
+            ProjectOpportunity projectOpportunity,
+            ActivityType activityType,
+            ActivityPurpose activityPurpose,
+            String activityContent,
+            String location,
+            LocalDateTime activityDateTime,
+            String issue,
+            String nextActivity,
+            String customerInterest,
+            ActivityStatus status,
+            SalesActivityRequest salesActivityRequest
+    ) {
+        this.projectOpportunity = projectOpportunity;
+        this.activityType = activityType;
+        this.activityPurpose = activityPurpose;
+        this.activityContent = activityContent;
+        this.location = location;
+        this.activityDateTime = activityDateTime;
+        this.issue = issue;
+        this.nextActivity = nextActivity;
+        this.customerInterest = customerInterest;
+        this.status = status;
+        if (salesActivityRequest != null) {
+            connectRequest(salesActivityRequest);
+        }
+    }
+
+    public void connectRequest(SalesActivityRequest request) {
+        this.salesActivityRequest = request;
+        request.setSalesActivity(this);
+    }
+
+    public void addAttendee(SalesActivityAttendee attendee) {
+        this.attendees.add(attendee);
+        attendee.setSalesActivity(this);
+    }
 }

@@ -26,9 +26,11 @@ public class SalesActivityCreateRequest {
 
     private String nextActivity;
 
-    private List<Long> attendees;
+    private List<Long> attendeeUserIds;
 
     private String customerInterest;
 
     private ActivityStatus status;
+
+    private Long salesActivityRequestId;
 }

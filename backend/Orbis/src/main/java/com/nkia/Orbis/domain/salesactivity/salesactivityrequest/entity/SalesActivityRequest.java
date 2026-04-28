@@ -31,4 +31,8 @@ public class SalesActivityRequest extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "request_user_id")
     private User requestUser;
+
+    public void setSalesActivity(SalesActivity salesActivity) {
+        this.salesActivity = salesActivity;
+    }
 }
