@@ -54,7 +54,23 @@ export function OrderContractSection() {
             코드분류
           </th>
           <td className="p-0" colSpan={3}>
-            <input className={`${cellInput} text-center`} {...register("codeClassification")} />
+            <select className={`${cellInput} text-left cursor-pointer`} {...register("codeClassification")}>
+              <option value="" disabled selected>
+                선택해주세요
+              </option>
+              <option value="GN">공공신규: GN</option>
+              <option value="GA">공공증설: GA</option>
+              <option value="JN">3자단가신규: JN</option>
+              <option value="JA">3자단가증설: JA</option>
+              <option value="MN">민간신규: MN</option>
+              <option value="MA">민간증설: MA</option>
+              <option value="GN-MA">[공공]신규 고객사 유지보수: GN-MA</option>
+              <option value="GE-MA">[공공]기존 유지보수(연장): GE-MA</option>
+              <option value="GL-MA">[공공]추가 라이선스 유상전환: GL-MA</option>
+              <option value="MN-MA">[민간]신규 고객사 유지보수: MN-MA</option>
+              <option value="ME-MA">[민간]기존 유지보수(연장): ME-MA</option>
+              <option value="ML-MA">[민간]추가 라이선스 유상전환: ML-MA</option>
+            </select>
           </td>
         </tr>
         <tr className="border-b border-black">
