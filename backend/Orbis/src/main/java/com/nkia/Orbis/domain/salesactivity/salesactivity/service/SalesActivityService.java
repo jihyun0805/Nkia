@@ -1,8 +1,11 @@
 package com.nkia.Orbis.domain.salesactivity.salesactivity.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.SalesActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.request.SalesActivityCreateRequest;
+import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.request.SalesActivityUpdateRequest;
+import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.response.SalesActivityResponse;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivityAttendee;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.repository.SalesActivityRepository;
@@ -24,7 +27,7 @@ public class SalesActivityService {
     private final UserRepository userRepository;
 
     @Transactional
-    public Long create(SalesActivityCreateRequest request) {
+    public SalesActivityResponse create(SalesActivityCreateRequest request) {
 //        ProjectOpportunity projectOpportunity = projectOpportunityRepository
 //                .findById(request.getProjectOpportunityId())
 //                .orElseThrow(() -> new ApiException(ErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
@@ -50,8 +53,9 @@ public class SalesActivityService {
                 .build();
 
         addAttendees(salesActivity, request.getAttendeeUserIds());
+        SalesActivity saved = salesActivityRepository.save(salesActivity);
 
-        return salesActivityRepository.save(salesActivity).getId();
+        return SalesActivityResponse.from(saved);
     }
 
 //    private SalesActivityRequest findSalesActivityRequestOrNull(Long salesActivityRequestId) {
@@ -78,5 +82,33 @@ public class SalesActivityService {
             SalesActivityAttendee attendee = new SalesActivityAttendee(user);
             salesActivity.addAttendee(attendee);
         }
+    }
+
+    @Transactional
+    public SalesActivityResponse update(
+            Long salesActivityId,
+            SalesActivityUpdateRequest request
+    ) {
+        SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
+                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
+
+        salesActivity.update(
+                request.getActivityType(),
+                request.getActivityPurpose(),
+                request.getActivityContent(),
+                request.getLocation(),
+                request.getActivityDateTime(),
+                request.getIssue(),
+                request.getNextActivity(),
+                request.getCustomerInterest(),
+                request.getStatus()
+        );
+
+        if (request.getAttendeeUserIds() != null) {
+            salesActivity.clearAttendees();
+            addAttendees(salesActivity, request.getAttendeeUserIds());
+        }
+
+        return SalesActivityResponse.from(salesActivity);
     }
 }
