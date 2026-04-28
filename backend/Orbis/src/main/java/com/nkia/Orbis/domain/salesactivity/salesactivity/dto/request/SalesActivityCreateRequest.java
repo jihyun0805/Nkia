@@ -5,12 +5,13 @@ import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.ActivityStatus;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.ActivityType;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import lombok.Getter;
 
 @Getter
 public class SalesActivityCreateRequest {
 
-    private Long projectOpportunity;
+    private Long projectOpportunityId;
 
     private ActivityType activityType;
 
@@ -26,7 +27,7 @@ public class SalesActivityCreateRequest {
 
     private String nextActivity;
 
-    private List<Long> attendeeUserIds;
+    private List<UUID> attendeeUserIds;
 
     private String customerInterest;
 
