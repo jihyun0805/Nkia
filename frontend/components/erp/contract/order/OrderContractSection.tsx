@@ -48,14 +48,20 @@ export function OrderContractSection() {
             채널유무
           </th>
           <td className="border-r border-black p-0" colSpan={2}>
-            <input className={`${cellInput} text-center`} {...register("hasChannel")} />
+            <select className={`${cellInput} text-center`} {...register("hasChannel")}>
+              <option value="" hidden>
+                선택해주세요
+              </option>
+              <option value="Y">O</option>
+              <option value="N">X</option>
+            </select>
           </td>
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
             코드분류
           </th>
           <td className="p-0" colSpan={3}>
             <select className={`${cellInput} text-left cursor-pointer`} {...register("codeClassification")}>
-              <option value="" disabled selected>
+              <option value="" hidden>
                 선택해주세요
               </option>
               <option value="GN">공공신규: GN</option>
