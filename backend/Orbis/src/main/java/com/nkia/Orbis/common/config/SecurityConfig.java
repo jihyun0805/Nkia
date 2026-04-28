@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Swagger 허용
                         .requestMatchers("/images/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("sales-activity/**").permitAll()
                         .anyRequest().authenticated() // 그 외 모든 API는 인증 필요
                 )
                 // JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가
