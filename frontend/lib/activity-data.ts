@@ -3,9 +3,14 @@ export type ActivityCategory = "activities" | "quotations" | "requests"
 export type ActivityRecord = {
   id: string
   date: string
+  requestId?: string
+  registrant?: string
+  requester?: string
   customerCode: string
   businessCode: string
-  type: string
+  activityMode: string
+  activityContent: string
+  type?: string
   customer: string
   opportunity: string
   location: string
@@ -45,15 +50,25 @@ export type ActivityRequestRecord = {
   lastActionAt?: string
 }
 
-export const activityTypeOptions = [
+export const activityModeOptions = [
   "이메일",
   "전화",
-  "영상회의",
   "대면미팅",
+  "영상회의",
+  "기타",
+]
+
+export const activityContentOptions = [
+  "상담",
   "제품소개",
   "데모",
   "PoC",
   "BMT",
+  "자료 전달",
+  "RFP 분석",
+  "제안서 작성",
+  "SI 제안서 작성",
+  "기타",
 ]
 
 export const activityRequestTypeOptions = [
@@ -61,12 +76,14 @@ export const activityRequestTypeOptions = [
   "데모",
   "PoC",
   "BMT",
-  "자료",
+  "자료 전달",
   "RFP 분석",
   "제안서 작성",
   "SI 제안서 작성",
   "기타",
 ]
+
+export const requestOptionalActivityContents = ["상담", "기타"]
 
 export const activityRequestStatusOptions = [
   "요청",
@@ -77,9 +94,12 @@ export const activities: ActivityRecord[] = [
   {
     id: "ACT-2026-001",
     date: "2026-03-17",
+    registrant: "김영업",
+    requester: "김영업",
     customerCode: "CUS-001",
     businessCode: "OPP-2026-001",
-    type: "대면미팅",
+    activityMode: "대면미팅",
+    activityContent: "제품소개",
     customer: "삼성전자",
     opportunity: "삼성전자 EMS 구축",
     location: "삼성전자 수원캠퍼스",
@@ -92,9 +112,12 @@ export const activities: ActivityRecord[] = [
   {
     id: "ACT-2026-002",
     date: "2026-03-16",
+    registrant: "이대리",
+    requester: "이대리",
     customerCode: "CUS-002",
     businessCode: "OPP-2026-002",
-    type: "이메일",
+    activityMode: "이메일",
+    activityContent: "자료 전달",
     customer: "LG CNS",
     opportunity: "국방부 ITSM 도입",
     location: "이메일",
@@ -107,9 +130,12 @@ export const activities: ActivityRecord[] = [
   {
     id: "ACT-2026-003",
     date: "2026-03-18",
+    registrant: "김영업",
+    requester: "김영업",
     customerCode: "CUS-004",
     businessCode: "OPP-2026-004",
-    type: "데모",
+    activityMode: "대면미팅",
+    activityContent: "데모",
     customer: "SK텔레콤",
     opportunity: "SK텔레콤 NMS 업그레이드",
     location: "SK텔레콤 본사",
@@ -122,9 +148,12 @@ export const activities: ActivityRecord[] = [
   {
     id: "ACT-2026-004",
     date: "2026-03-15",
+    registrant: "박기술",
+    requester: "박기술",
     customerCode: "CUS-003",
     businessCode: "OPP-2026-003",
-    type: "PoC",
+    activityMode: "대면미팅",
+    activityContent: "PoC",
     customer: "현대자동차",
     opportunity: "현대차 Automation 확장",
     location: "현대차 기술연구소",
@@ -137,9 +166,12 @@ export const activities: ActivityRecord[] = [
   {
     id: "ACT-2026-005",
     date: "2026-03-14",
+    registrant: "최PM",
+    requester: "최PM",
     customerCode: "CUS-005",
     businessCode: "OPP-2026-005",
-    type: "전화",
+    activityMode: "전화",
+    activityContent: "상담",
     customer: "NTT DoCoMo",
     opportunity: "일본 NTT DoCoMo WSS",
     location: "전화",
@@ -274,9 +306,15 @@ export function getActivityItemFields(category: ActivityCategory, item: any) {
     case "activities":
       return [
         { label: "고객사", value: item.customer },
+        { label: "고객사 코드", value: item.customerCode ?? "-" },
         { label: "사업기회", value: item.opportunity },
+        { label: "사업기회 코드", value: item.businessCode ?? "-" },
         { label: "활동일", value: item.date },
-        { label: "활동 구분", value: item.type },
+        { label: "활동형태", value: item.activityMode ?? "-" },
+        { label: "활동내용", value: item.activityContent ?? "-" },
+        { label: "요청자", value: item.requester ?? "-" },
+        { label: "등록자", value: item.registrant ?? "-" },
+        { label: "활동요청ID", value: item.requestId ?? "-" },
         { label: "장소", value: item.location },
         { label: "참석자", value: item.attendees },
         { label: "주요 내용", value: item.content },
@@ -308,4 +346,12 @@ export function getActivityItemFields(category: ActivityCategory, item: any) {
         { label: "요청 내용", value: item.content },
       ]
   }
+}
+
+export function getActivityDisplayType(item: Pick<ActivityRecord, "activityMode" | "activityContent" | "type">) {
+  const mode = item.activityMode?.trim()
+  const content = item.activityContent?.trim()
+
+  if (mode && content) return `${mode} / ${content}`
+  return content || mode || item.type || "-"
 }

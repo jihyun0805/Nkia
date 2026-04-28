@@ -21,7 +21,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { activityRequestStatusOptions, activityRequestTypeOptions, activities, activityStatuses, quotations } from "@/lib/activity-data"
+import {
+  activityRequestStatusOptions,
+  activityRequestTypeOptions,
+  activities,
+  activityStatuses,
+  getActivityDisplayType,
+  quotations,
+} from "@/lib/activity-data"
 import { useEffect, useMemo, useState } from "react"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import {
@@ -87,7 +94,8 @@ export default function ActivityPage() {
     ? [
       { key: "customer", label: "고객사", options: uniqueOptions(activities, (item) => item.customer) },
       { key: "opportunity", label: "사업기회", options: uniqueOptions(activities, (item) => item.opportunity) },
-      { key: "type", label: "활동구분", options: uniqueOptions(activities, (item) => item.type) },
+      { key: "activityMode", label: "활동형태", options: uniqueOptions(activities, (item) => item.activityMode) },
+      { key: "activityContent", label: "활동내용", options: uniqueOptions(activities, (item) => item.activityContent) },
       { key: "location", label: "장소", options: uniqueOptions(activities, (item) => item.location) },
     ]
     : activeTab === "quotations"
@@ -107,11 +115,12 @@ export default function ActivityPage() {
     fields: {
       customer: (item) => item.customer,
       opportunity: (item) => item.opportunity,
-      type: (item) => item.type,
+      activityMode: (item) => item.activityMode,
+      activityContent: (item) => item.activityContent,
       location: (item) => item.location,
     },
   }).filter((item) =>
-    [item.customer, item.opportunity, item.type, item.location, item.attendees, item.content, item.issues, item.nextAction]
+    [item.customer, item.opportunity, item.activityMode, item.activityContent, item.location, item.attendees, item.content, item.issues, item.nextAction]
       .join(" ")
       .toLowerCase()
       .includes(searchTerm.toLowerCase()),
@@ -255,7 +264,7 @@ export default function ActivityPage() {
                         <TableHead className="w-[15%]">고객사</TableHead>
                         <TableHead className="w-[22%]">사업기회</TableHead>
                         <TableHead className="w-[100px]">활동일</TableHead>
-                        <TableHead className="w-[120px]">활동구분</TableHead>
+                        <TableHead className="w-[180px]">활동형태 / 내용</TableHead>
                         <TableHead className="w-[15%]">장소</TableHead>
                         <TableHead className="w-[14%]">참석자</TableHead>
                         <TableHead>주요내용</TableHead>
@@ -273,10 +282,11 @@ export default function ActivityPage() {
                           <TableCell>{activity.date}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="gap-1">
-                              {activity.type === "이메일" && <Mail className="w-3 h-3" />}
-                              {activity.type === "전화" && <Phone className="w-3 h-3" />}
-                              {activity.type === "대면미팅" && <Users className="w-3 h-3" />}
-                              {activity.type}
+                              {activity.activityMode === "이메일" && <Mail className="w-3 h-3" />}
+                              {activity.activityMode === "전화" && <Phone className="w-3 h-3" />}
+                              {activity.activityMode === "대면미팅" && <Users className="w-3 h-3" />}
+                              {activity.activityMode === "영상회의" && <Users className="w-3 h-3" />}
+                              {getActivityDisplayType(activity)}
                             </Badge>
                           </TableCell>
                           <TableCell className="max-w-[150px] truncate">{activity.location}</TableCell>

@@ -69,7 +69,7 @@ function createCurrentUserApprovalSeed(): ActivityRequestRecord {
     receiver: currentUser.name,
     type: "제품소개",
     customerCode: "CUS-008",
-    customer: "LG CNS",
+    customer: "엘지씨엔에스",
     opportunityCode: "OPP-2026-008",
     opportunity: "공공 ITSM 고도화",
     content: "고객사 대상 제품소개 지원 요청",

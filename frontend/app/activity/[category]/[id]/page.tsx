@@ -133,6 +133,11 @@ export default function ActivityDetailPage() {
                   <Button variant="outline" asChild>
                     <Link href="/activity">목록</Link>
                   </Button>
+                  {requestItem && (
+                    <Button variant="outline" asChild>
+                      <Link href={`/activity/new/activities?requestId=${id}`}>활동 등록</Link>
+                    </Button>
+                  )}
                   {requestItem && requestItem.status !== "접수완료" && requestItem.receiver === currentUser.name && (
                     <Button onClick={handleApprove} className="bg-green-600 hover:bg-green-700">
                       승인(접수)
