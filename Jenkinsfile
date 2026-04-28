@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    options {
+        disableConcurrentBuilds()
+    }
+
     environment {
         BACKEND_DIR = "backend/Orbis"
         AI_DIR = "ai"
@@ -53,6 +57,11 @@ pipeline {
                         docker compose --env-file .env.prod \
                           -f docker-compose.yml \
                           -f docker-compose.prod.yml \
+                          down || true
+
+                        docker compose --env-file .env.prod \
+                          -f docker-compose.yml \
+                          -f docker-compose.prod.yml \
                           up -d --build
                     '''
                 }
@@ -65,6 +74,11 @@ pipeline {
 
                 dir("${AI_DIR}") {
                     sh '''
+                        docker compose --env-file .env.prod \
+                          -f docker-compose.fastapi.yml \
+                          -f docker-compose.fastapi.prod.yml \
+                          down || true
+
                         docker compose --env-file .env.prod \
                           -f docker-compose.fastapi.yml \
                           -f docker-compose.fastapi.prod.yml \
