@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
-import { useState } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Button } from "@/components/ui/button"
@@ -23,11 +23,18 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { ActivityFormFields } from "@/components/erp/activity-form-fields"
-import { activityRequestTypeOptions, type ActivityCategory, getCategoryLabel } from "@/lib/activity-data"
-import { createActivityRequest } from "@/lib/activity-request-workflow"
+import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
+import { createActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
 import { getPresalesUsers } from "@/lib/admin-data"
-import { getCustomerByName, getOpportunitiesByCustomerName, hasRegisteredCustomer } from "@/lib/finding-data"
+import {
+  type CustomerRecord,
+  getCustomerByCode,
+  getCustomerByName,
+  getOpportunitiesByCustomerName,
+  hasRegisteredCustomer,
+} from "@/lib/finding-data"
 import { toast } from "@/hooks/use-toast"
 import { X } from "lucide-react"
 
@@ -36,9 +43,16 @@ const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
 export default function ActivityCategoryNewPage() {
   const params = useParams<{ category: ActivityCategory }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const category = params.category
   const presalesUsers = getPresalesUsers()
+  const linkedRequestId = searchParams.get("requestId") ?? ""
   const [activityCustomer, setActivityCustomer] = useState("")
+  const [activityCustomerCode, setActivityCustomerCode] = useState("")
+  const [activityOpportunity, setActivityOpportunity] = useState("")
+  const [activityOpportunityCode, setActivityOpportunityCode] = useState("")
+  const [activityRequester, setActivityRequester] = useState("")
+  const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
   const [quotationCustomer, setQuotationCustomer] = useState("")
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
   const [form, setForm] = useState({
@@ -54,6 +68,37 @@ export default function ActivityCategoryNewPage() {
     content: "",
   })
 
+  useEffect(() => {
+    if (category !== "activities") return
+
+    const sync = () => {
+      if (!linkedRequestId) {
+        setLinkedRequest(null)
+        setActivityCustomerCode("")
+        setActivityOpportunity("")
+        setActivityOpportunityCode("")
+        setActivityRequester("")
+        return
+      }
+
+      const request = getActivityRequests().find((item) => item.id === linkedRequestId) ?? null
+      const normalizedCustomer =
+        (request?.customerCode ? getCustomerByCode(request.customerCode) : null) ??
+        (request?.customer ? getCustomerByName(request.customer) : null)
+      setLinkedRequest(request)
+      setActivityRequester(request?.requester ?? "")
+      if (request?.customer) {
+        setActivityCustomer(normalizedCustomer?.name ?? request.customer)
+      }
+      setActivityCustomerCode(normalizedCustomer?.id ?? request?.customerCode ?? "")
+      setActivityOpportunity(request?.opportunity ?? "")
+      setActivityOpportunityCode(request?.opportunityCode ?? "")
+    }
+
+    sync()
+    return subscribeWorkflowUpdates(sync)
+  }, [category, linkedRequestId])
+
   if (!categories.includes(category)) {
     return null
   }
@@ -65,6 +110,7 @@ export default function ActivityCategoryNewPage() {
     category === "activities" ? activityCustomer : category === "quotations" ? quotationCustomer : form.customer
   const matchedCustomer = category === "requests" ? getCustomerByName(form.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(form.customer) : []
+  const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
 
   const ensureRegisteredCustomer = () => {
     if (hasRegisteredCustomer(targetCustomer)) return true
@@ -87,6 +133,19 @@ export default function ActivityCategoryNewPage() {
       description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
     })
     router.push(`/activity/requests/${created.id}`)
+  }
+
+  const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
+    setActivityCustomer(customer?.name ?? "")
+    setActivityCustomerCode(customer?.id ?? "")
+    setActivityOpportunity(customer ? "미확인" : "")
+    setActivityOpportunityCode("")
+  }
+
+  const handleActivityOpportunityChange = (value: string) => {
+    const opportunity = activityOpportunityOptions.find((item) => item.name === value)
+    setActivityOpportunity(value)
+    setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
   }
 
   return (
@@ -116,7 +175,26 @@ export default function ActivityCategoryNewPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {category === "activities" && (
-                  <ActivityFormFields customerValue={activityCustomer} onCustomerChange={setActivityCustomer} />
+                  <ActivityFormFields
+                    defaultValues={{
+                      registrant: currentUser.name,
+                      requester: linkedRequest?.requester ?? "",
+                      requestId: linkedRequest?.id ?? linkedRequestId,
+                      activityContent: linkedRequest?.type ?? "",
+                      opportunity: linkedRequest?.opportunity ?? "",
+                    }}
+                    customerValue={activityCustomer}
+                    customerCodeValue={activityCustomerCode}
+                    onCustomerSelect={handleActivityCustomerSelect}
+                    onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
+                    opportunityValue={activityOpportunity}
+                    opportunityCodeValue={activityOpportunity === "미확인" ? "-" : activityOpportunityCode || "-"}
+                    opportunityOptions={activityOpportunityOptions}
+                    onOpportunityChange={handleActivityOpportunityChange}
+                    requesterValue={activityRequester}
+                    onRequesterChange={setActivityRequester}
+                    requestIdValue={linkedRequest?.id ?? linkedRequestId}
+                  />
                 )}
 
                 {category === "quotations" && (
@@ -205,21 +283,19 @@ export default function ActivityCategoryNewPage() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>고객사 *</Label>
-                        <Input
+                        <CustomerAutocomplete
                           value={form.customer}
-                          onChange={(event) => {
-                            const nextCustomer = event.target.value
-                            const customer = getCustomerByName(nextCustomer)
-
+                          onSelect={(customer) => {
                             setForm((prev) => ({
                               ...prev,
-                              customer: nextCustomer,
+                              customer: customer?.name ?? "",
                               customerCode: customer?.id ?? "",
                               opportunity: customer ? "미확인" : "",
                               opportunityCode: "",
                             }))
                           }}
                           placeholder="고객사를 입력하세요"
+                          onUnregisteredAttempt={() => setIsCustomerAlertOpen(true)}
                         />
                       </div>
                       <div className="space-y-2">

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ActivityFormFields } from "@/components/erp/activity-form-fields"
+import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -37,7 +38,7 @@ import {
 } from "@/lib/activity-request-workflow"
 import { getPresalesUsers } from "@/lib/admin-data"
 import { currentUser } from "@/lib/current-user"
-import { getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
+import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 
 const fullWidthFieldLabels = ["요청 내용"]
 
@@ -48,6 +49,10 @@ export default function ActivityEditPage() {
   const id = params.id
   const presalesUsers = getPresalesUsers()
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
+  const [activityCustomer, setActivityCustomer] = useState("")
+  const [activityCustomerCode, setActivityCustomerCode] = useState("")
+  const [activityOpportunity, setActivityOpportunity] = useState("")
+  const [activityOpportunityCode, setActivityOpportunityCode] = useState("")
   const [requestForm, setRequestForm] = useState({
     date: "",
     type: "",
@@ -75,16 +80,33 @@ export default function ActivityEditPage() {
   }, [category, id, requests])
 
   useEffect(() => {
+    if (category !== "activities" || !item) return
+
+    const activity = item as ActivityRecord
+    const normalizedCustomer =
+      (activity.customerCode ? getCustomerByCode(activity.customerCode) : null) ??
+      getCustomerByName(activity.customer)
+
+    setActivityCustomer(normalizedCustomer?.name ?? activity.customer)
+    setActivityCustomerCode(normalizedCustomer?.id ?? activity.customerCode ?? "")
+    setActivityOpportunity(activity.opportunity ?? "")
+    setActivityOpportunityCode(activity.businessCode ?? "")
+  }, [category, item])
+
+  useEffect(() => {
     if (category !== "requests" || !item) return
 
     const request = item as ActivityRequestRecord
+    const normalizedCustomer =
+      (request.customerCode ? getCustomerByCode(request.customerCode) : null) ??
+      getCustomerByName(request.customer)
     setRequestForm({
       date: request.date,
       type: request.type,
       requester: request.requester,
       receiver: request.receiver,
-      customerCode: request.customerCode ?? "",
-      customer: request.customer,
+      customerCode: normalizedCustomer?.id ?? request.customerCode ?? "",
+      customer: normalizedCustomer?.name ?? request.customer,
       opportunityCode: request.opportunityCode ?? "",
       opportunity: request.opportunity,
       dueDate: request.dueDate,
@@ -101,6 +123,20 @@ export default function ActivityEditPage() {
   const canEditRequest = !requestItem || requestItem.requester === currentUser.name
   const matchedCustomer = category === "requests" ? getCustomerByName(requestForm.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(requestForm.customer) : []
+  const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
+
+  const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
+    setActivityCustomer(customer?.name ?? "")
+    setActivityCustomerCode(customer?.id ?? "")
+    setActivityOpportunity(customer ? "미확인" : "")
+    setActivityOpportunityCode("")
+  }
+
+  const handleActivityOpportunityChange = (value: string) => {
+    const opportunity = activityOpportunityOptions.find((item) => item.name === value)
+    setActivityOpportunity(value)
+    setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
+  }
 
   const handleSubmit = () => {
     if (category !== "requests") {
@@ -159,7 +195,16 @@ export default function ActivityEditPage() {
                   </div>
                 ) : category === "activities" ? (
                   <>
-                    <ActivityFormFields defaultValues={item as ActivityRecord} />
+                    <ActivityFormFields
+                      defaultValues={item as ActivityRecord}
+                      customerValue={activityCustomer}
+                      customerCodeValue={activityCustomerCode}
+                      onCustomerSelect={handleActivityCustomerSelect}
+                      opportunityValue={activityOpportunity}
+                      opportunityCodeValue={activityOpportunity === "미확인" ? "-" : activityOpportunityCode || "-"}
+                      opportunityOptions={activityOpportunityOptions}
+                      onOpportunityChange={handleActivityOpportunityChange}
+                    />
                     <div className="space-y-2">
                       <Label>첨부파일</Label>
                       <Input type="file" multiple />
@@ -221,15 +266,12 @@ export default function ActivityEditPage() {
                         ) : field.key === "customerCode" ? (
                           <Input value={matchedCustomer?.id ?? "-"} readOnly />
                         ) : field.key === "customer" ? (
-                          <Input
+                          <CustomerAutocomplete
                             value={requestForm.customer}
-                            onChange={(event) => {
-                              const nextCustomer = event.target.value
-                              const customer = getCustomerByName(nextCustomer)
-
+                            onSelect={(customer) => {
                               setRequestForm((prev) => ({
                                 ...prev,
-                                customer: nextCustomer,
+                                customer: customer?.name ?? "",
                                 customerCode: customer?.id ?? "",
                                 opportunity: customer ? "미확인" : "",
                                 opportunityCode: "",
