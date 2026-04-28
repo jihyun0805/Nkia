@@ -1,80 +1,82 @@
-import Link from "next/link"
-import { notFound } from "next/navigation"
-import { Sidebar } from "@/components/erp/sidebar"
-import { Header } from "@/components/erp/header"
-import { Button } from "@/components/ui/button"
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { type ContractCategory, getContractCategoryLabel } from "@/lib/contract-data"
+"use client";
 
-const categories: ContractCategory[] = ["orders", "contracts", "licenses"]
+import { use } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 
-export default async function ContractCategoryNewPage({ params }: { params: Promise<{ category: ContractCategory }> }) {
-  const { category } = await params
-  if (!categories.includes(category)) notFound()
+import { Form } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-  const title = getContractCategoryLabel(category)
+import { orderReportSchema, type OrderReportValues } from "@/lib/validations/order-report";
+import { OrderBasicSection } from "@/components/erp/contract/order/OrderBasicSection";
+import { OrderContractSection } from "@/components/erp/contract/order/OrderContractSection";
+import { OrderScopeSection } from "@/components/erp/contract/order/OrderScopeSection";
+import { OrderDetailTables } from "@/components/erp/contract/order/OrderDetailTables";
+
+export default function ContractCategoryNewPage({ params }: { params: Promise<{ category: string }> }) {
+  const router = useRouter();
+  const unwrappedParams = use(params);
+  const category = unwrappedParams.category;
+
+  const form = useForm<OrderReportValues>({
+    resolver: zodResolver(orderReportSchema),
+    defaultValues: {
+      projectName: "",
+      totalAmount: "",
+    },
+  });
+
+  // 프론트엔드 제출 핸들러 (콘솔 확인용 - 백엔드 로직 없음)
+  const onSubmit = (data: OrderReportValues) => {
+    console.log("제출된 수주보고서 데이터:", data);
+    alert("프론트엔드 검증 완료! 콘솔(F12)을 확인하세요.");
+  };
+
+  // category가 'orders' (수주보고서)일 때만 해당 폼 보여줌
+  const isOrderReport = category === "orders";
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Header title={`${title} 등록`} description={`${title} 정보를 페이지에서 등록합니다`} />
-        <main className="flex-1 overflow-auto p-6">
-          <div className="mx-auto max-w-5xl space-y-6">
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link href="/contract">계약</Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{title} 등록</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-            <Card>
-              <CardHeader>
-                <CardTitle>{title} 등록</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {category === "orders" && (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>사업명 *</Label><Input /></div><div className="space-y-2"><Label>고객사 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>수주일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>계약금액 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>제품 *</Label><Input /></div><div className="space-y-2"><Label>납품 모듈</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>사업 시작일</Label><Input type="date" /></div><div className="space-y-2"><Label>사업 종료일</Label><Input type="date" /></div></div>
-                    <div className="space-y-2"><Label>비고</Label><Textarea rows={4} /></div>
-                  </>
-                )}
-                {category === "contracts" && (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>수주번호 *</Label><Input /></div><div className="space-y-2"><Label>계약번호 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>계약일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>계약금액 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>사업 시작일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>사업 종료일 *</Label><Input type="date" /></div></div>
-                    <div className="space-y-2"><Label>유지보수 종료일</Label><Input type="date" /></div>
-                  </>
-                )}
-                {category === "licenses" && (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>계약번호</Label><Input /></div><div className="space-y-2"><Label>고객사 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>제품 *</Label><Input /></div><div className="space-y-2"><Label>모듈 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>수량 *</Label><Input /></div><div className="space-y-2"><Label>유형 *</Label><Input placeholder="예: 영구" /></div><div className="space-y-2"><Label>발급일 *</Label><Input type="date" /></div></div>
-                    <div className="space-y-2"><Label>만료일</Label><Input type="date" /></div>
-                  </>
-                )}
-                <div className="space-y-2"><Label>첨부파일</Label><Input type="file" multiple /></div>
-                <div className="flex justify-end gap-2 border-t pt-6"><Button variant="outline" asChild><Link href="/contract">취소</Link></Button><Button asChild><Link href="/contract">등록</Link></Button></div>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
-      </div>
+    <div className="flex-1 p-6 bg-slate-50 min-h-screen">
+      <Card className="max-w-5xl mx-auto shadow-md border-0">
+        <CardHeader className="border-b bg-white rounded-t-xl pb-6">
+          <CardTitle className="text-2xl font-bold">{isOrderReport ? "수주보고서 등록" : "계약 등록"}</CardTitle>
+          <p className="text-sm text-muted-foreground mt-2"></p>
+        </CardHeader>
+
+        <CardContent className="pt-8 bg-white rounded-b-xl">
+          {isOrderReport ? (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
+                {/* 기본 정보 및 매출분류 */}
+                <OrderBasicSection />
+
+                {/* 계약 및 담당자 일정 정보 */}
+                <OrderContractSection />
+
+                {/* 사업범위 및 첨부 */}
+                <OrderScopeSection />
+
+                {/* 세부 내역 테이블 (라이선스, 용역 등) */}
+                <OrderDetailTables />
+
+                {/* 하단 버튼 영역 */}
+                <div className="flex justify-end gap-3 border-t pt-8 mt-12">
+                  <Button type="button" variant="outline" className="w-24" onClick={() => router.back()}>
+                    취소
+                  </Button>
+                  <Button type="submit" className="w-24">
+                    등록
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          ) : (
+            <div className="text-center py-20 text-muted-foreground">수주보고서(orders) 외의 다른 계약 카테고리 폼 영역입니다.</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
-  )
+  );
 }
