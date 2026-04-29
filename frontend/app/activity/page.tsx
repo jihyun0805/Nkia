@@ -21,7 +21,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { activityRequestStatusOptions, activityRequestTypeOptions, activities, activityStatuses, quotations } from "@/lib/activity-data"
+import {
+  activityRequestStatusOptions,
+  activityRequestTypeOptions,
+  activities,
+  activityStatuses,
+  quotations,
+} from "@/lib/activity-data"
 import { useEffect, useMemo, useState } from "react"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import {
@@ -30,8 +36,6 @@ import {
   ChevronUp,
   Plus,
   Search,
-  Mail,
-  Phone,
   Users,
   FileText,
   Calendar,
@@ -87,7 +91,8 @@ export default function ActivityPage() {
     ? [
       { key: "customer", label: "고객사", options: uniqueOptions(activities, (item) => item.customer) },
       { key: "opportunity", label: "사업기회", options: uniqueOptions(activities, (item) => item.opportunity) },
-      { key: "type", label: "활동구분", options: uniqueOptions(activities, (item) => item.type) },
+      { key: "activityMode", label: "활동형태", options: uniqueOptions(activities, (item) => item.activityMode) },
+      { key: "activityContent", label: "활동내용", options: uniqueOptions(activities, (item) => item.activityContent) },
       { key: "location", label: "장소", options: uniqueOptions(activities, (item) => item.location) },
     ]
     : activeTab === "quotations"
@@ -107,11 +112,12 @@ export default function ActivityPage() {
     fields: {
       customer: (item) => item.customer,
       opportunity: (item) => item.opportunity,
-      type: (item) => item.type,
+      activityMode: (item) => item.activityMode,
+      activityContent: (item) => item.activityContent,
       location: (item) => item.location,
     },
   }).filter((item) =>
-    [item.customer, item.opportunity, item.type, item.location, item.attendees, item.content, item.issues, item.nextAction]
+    [item.customer, item.opportunity, item.activityMode, item.activityContent, item.location, item.attendees, item.content, item.issues, item.nextAction]
       .join(" ")
       .toLowerCase()
       .includes(searchTerm.toLowerCase()),
@@ -169,6 +175,47 @@ export default function ActivityPage() {
   const completedRequestDates = useMemo(
     () => completedActivityRequests.map((item) => new Date(`${item.dueDate}T00:00:00`)),
     [completedActivityRequests],
+  )
+
+  const activityCustomerCards = useMemo(() => {
+    const today = new Date()
+    const recentThreshold = new Date(today)
+    recentThreshold.setMonth(recentThreshold.getMonth() - 1)
+
+    return Array.from(
+      filteredActivities.reduce((map, activity) => {
+        const existing = map.get(activity.customer) ?? {
+          customer: activity.customer,
+          customerCode: activity.customerCode,
+          count: 0,
+          recentCount: 0,
+          latestActivityDate: "",
+        }
+
+        existing.count += 1
+        if (new Date(`${activity.date}T00:00:00`) >= recentThreshold) {
+          existing.recentCount += 1
+        }
+        if (!existing.latestActivityDate || activity.date > existing.latestActivityDate) {
+          existing.latestActivityDate = activity.date
+        }
+
+        map.set(activity.customer, existing)
+        return map
+      }, new Map<string, { customer: string; customerCode: string; count: number; recentCount: number; latestActivityDate: string }>()),
+    )
+      .map(([, value]) => value)
+      .sort((a, b) => {
+        if (a.latestActivityDate !== b.latestActivityDate) {
+          return b.latestActivityDate.localeCompare(a.latestActivityDate)
+        }
+        return a.customer.localeCompare(b.customer)
+      })
+  }, [filteredActivities])
+
+  const previewActivityCustomerCards = useMemo(
+    () => activityCustomerCards.slice(0, 12),
+    [activityCustomerCards],
   )
 
   const handleResetRequests = () => {
@@ -241,53 +288,51 @@ export default function ActivityPage() {
             </div>
 
             <TabsContent value="activities">
-              <Card>
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">활동 현황</CardTitle>
-                    <Badge variant="secondary">{filteredActivities.length}건</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[15%]">고객사</TableHead>
-                        <TableHead className="w-[22%]">사업기회</TableHead>
-                        <TableHead className="w-[100px]">활동일</TableHead>
-                        <TableHead className="w-[120px]">활동구분</TableHead>
-                        <TableHead className="w-[15%]">장소</TableHead>
-                        <TableHead className="w-[14%]">참석자</TableHead>
-                        <TableHead>주요내용</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredActivities.map((activity) => (
-                        <TableRow
-                          key={activity.id}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => router.push(`/activity/activities/${activity.id}`)}
-                        >
-                          <TableCell className="font-medium">{activity.customer}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{activity.opportunity}</TableCell>
-                          <TableCell>{activity.date}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="gap-1">
-                              {activity.type === "이메일" && <Mail className="w-3 h-3" />}
-                              {activity.type === "전화" && <Phone className="w-3 h-3" />}
-                              {activity.type === "대면미팅" && <Users className="w-3 h-3" />}
-                              {activity.type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="max-w-[150px] truncate">{activity.location}</TableCell>
-                          <TableCell className="max-w-[140px] truncate">{activity.attendees}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{activity.content}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">고객사별 활동 현황</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{activityCustomerCards.length}개 고객사</Badge>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href="/activity/customers">전체 보기</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {previewActivityCustomerCards.length > 0 ? (
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+                        {previewActivityCustomerCards.map((customer) => (
+                          <Link
+                            key={customer.customer}
+                            className={`min-h-[168px] rounded-xl border p-5 text-left transition-colors ${
+                              "hover:bg-muted/50"
+                            }`}
+                            href={`/activity/customers/${customer.customerCode}`}
+                          >
+                            <div className="flex h-full flex-col justify-between">
+                              <div>
+                                <p className="line-clamp-2 text-lg font-semibold">{customer.customer}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{customer.customerCode}</p>
+                              </div>
+                              <div className="mt-5 text-sm text-muted-foreground">
+                                <p>최근1개월활동건수 {customer.recentCount}건</p>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                        조건에 맞는 고객사 활동이 없습니다.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+              </div>
             </TabsContent>
 
             <TabsContent value="quotations">
@@ -442,7 +487,7 @@ export default function ActivityPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[100px]">요청일</TableHead>
-                        <TableHead>요청유형</TableHead>
+                        <TableHead className="text-center">요청유형</TableHead>
                         <TableHead>요청자</TableHead>
                         <TableHead>담당자</TableHead>
                         <TableHead>고객사</TableHead>
@@ -458,7 +503,7 @@ export default function ActivityPage() {
                           onClick={() => router.push(`/activity/requests/${req.id}`)}
                         >
                           <TableCell>{req.date}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-center">
                             <Badge variant="outline">{req.type}</Badge>
                           </TableCell>
                           <TableCell>{req.requester}</TableCell>

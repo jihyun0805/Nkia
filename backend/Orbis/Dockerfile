@@ -1,6 +1,6 @@
 # ---------- (1단계: 빌드 환경) ----------
 # Gradle과 Java가 이미 깔려있는 이미지를 불러옵니다.
-FROM gradle:7.6-jdk17-alpine AS builder
+FROM gradle:8.7-jdk21 AS builder
 
 # 작업 폴더 설정
 WORKDIR /build
@@ -14,11 +14,11 @@ RUN gradle clean build -x test --no-daemon
 
 # ---------- (2단계: 실행 환경) ----------
 # 실제 실행할 가벼운 이미지를 불러옵니다.
-FROM amazoncorretto:17
+FROM amazoncorretto:21
 
 WORKDIR /app
 
 # 1단계(builder)에서 만든 JAR 파일만 쏙 가져옵니다.
-COPY --from=builder /build/build/libs/*.jar app.jar
+COPY --from=builder /build/build/libs/*SNAPSHOT.jar app.jar
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

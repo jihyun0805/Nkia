@@ -24,8 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml uv.lock .
-RUN uv sync --no-cache --no-dev
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-dev
 
 COPY app ./app
 COPY db ./db
@@ -41,3 +41,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"
 
 CMD ["sh", "./scripts/start-ai.sh"]
+

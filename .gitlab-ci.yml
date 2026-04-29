@@ -1,0 +1,15 @@
+stages:
+  - review
+
+ai_code_review:
+  stage: review
+  image: python:3.10-slim
+  tags:                      # <--- 이 섹션을 수정
+    - ai code review runner
+  rules:
+    # Merge Request가 생성되거나 업데이트될 때만 이 Job이 실행되도록 설정
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - pip install requests openai
+  script:
+    - python ai_reviewer.py

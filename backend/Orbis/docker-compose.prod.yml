@@ -139,7 +139,7 @@ services:
     image: grafana/promtail:2.9.0
     container_name: Orbis-Promtail
     volumes:
-      - ./monitoring/promtail-config.yaml:/etc/promtail/config.yaml
+      - ./promtail/config.yaml:/etc/promtail/config.yaml
       - /var/run/docker.sock:/var/run/docker.sock # 도커 컨테이너 정보 읽기
       - /var/lib/docker/containers:/var/lib/docker/containers # 컨테이너 로그 파일 읽기
     command: -config.file=/etc/promtail/config.yaml
@@ -199,7 +199,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf
-      - ./certbot/conf:/etc/letsencrypt
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot
     networks:
       - app-network
