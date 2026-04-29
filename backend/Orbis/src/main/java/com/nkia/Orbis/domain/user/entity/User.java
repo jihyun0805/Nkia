@@ -119,11 +119,27 @@ public class User extends BaseEntity {
     @OneToMany(mappedBy = "receiver")
     private List<Alarm> receivedAlarms = new ArrayList<>();
 
-    public static User createUser(String email, String password) {
+    public static User createUser(
+            String employeeNumber,
+            Position position,
+            String name,
+            String phone,
+            String email,
+            String password,
+            Role role,
+            Status status,
+            Department department
+    ) {
         return User.builder()
+                .employeeNumber(employeeNumber)
+                .position(position)
+                .name(name)
+                .phone(phone)
                 .email(email)
                 .password(password)
-                .role(Role.USER)
+                .role(role)
+                .status(status)
+                .department(department)
                 .build();
     }
 }

@@ -6,6 +6,7 @@ import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.JwtProvider;
 import com.nkia.Orbis.domain.auth.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.auth.dto.response.LoginResponse;
+import com.nkia.Orbis.domain.department.entity.Department;
 import com.nkia.Orbis.domain.user.entity.Role;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
@@ -45,11 +46,28 @@ public class AuthService {
             throw new ApiException(UserErrorCode.EXIST_EMAIL);
         }
 
+        // Todo: Department 기능 구현 후 임시 코드 변경 예정
+//        Department department = departmentRepository.findById(request.getDepartmentId())
+//                .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
+        Department department = Department.builder()
+                .id(request.getDepartmentId())
+                .build();
+
         // 2. 비밀번호 단방향 암호화 (Bcrypt)
         String encodedPassword = passwordEncoder.encode(request.getPassword());
 
         // 3. User 엔티티 생성
-        User newUser = User.createUser(request.getEmail(), encodedPassword, role);
+        User newUser = User.createUser(
+                request.getEmployeeNumber(),
+                request.getPosition(),
+                request.getName(),
+                request.getPhone(),
+                request.getEmail(),
+                encodedPassword,
+                role,
+                request.getStatus(),
+                department
+        );
 
         // 4. DB에 저장
         userRepository.save(newUser);
