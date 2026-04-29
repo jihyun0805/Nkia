@@ -48,9 +48,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // URL 권한 설정
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/signup/admin/**").permitAll() // 로그인, 관리자 회원가입, refresh는 접근 허용
-                        .requestMatchers("/auth/login/**").permitAll()
-                        .requestMatchers("/auth/refresh/**").permitAll()
+                        .requestMatchers("/auth/**").permitAll() // 로그인, refresh는 접근 허용
+                        .requestMatchers("/user/signup/admin/**").permitAll() // 관리자 계정 생성만 임시 허용
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Swagger 허용
                         .requestMatchers("/images/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
