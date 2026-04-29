@@ -39,6 +39,7 @@ import {
   Users,
   FileText,
   Calendar,
+  Trash2,
 } from "lucide-react"
 
 const REQUEST_CALENDAR_OPEN_KEY = "orbis.activity.requests.calendar.open"
@@ -276,6 +277,14 @@ export default function ActivityPage() {
                 {activeTab === "requests" && (
                   <Button variant="outline" onClick={handleResetRequests}>
                     초기화
+                  </Button>
+                )}
+                {activeTab === "quotations" && (
+                  <Button asChild className="bg-primary hover:bg-primary/90">
+                    <Link href="/activity/standard-pricing">
+                      <Plus className="mr-2 w-4 h-4" />
+                      표준가격표 등록
+                    </Link>
                   </Button>
                 )}
                 <Button asChild className="bg-primary hover:bg-primary/90">

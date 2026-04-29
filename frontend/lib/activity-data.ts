@@ -32,6 +32,19 @@ export type QuotationRecord = {
   status: string
 }
 
+export type StandardPriceRecord = {
+  id: string
+  productClass: string
+  productGroup: string
+  productNumber: string
+  productName: string
+  licenseBase: string
+  licenseUnit: string
+  unitPrice: string
+  discountRate: string
+  proposalPrice: string
+}
+
 export type ActivityRequestRecord = {
   id: string
   date: string
@@ -214,6 +227,51 @@ export const quotations: QuotationRecord[] = [
     validity: "2026-04-08",
     status: "수정요청",
   },
+]
+
+export const standardPriceRecords: StandardPriceRecord[] = [
+  {
+    id: "SPR-001",
+    productClass: "EMS",
+    productGroup: "Framework",
+    productNumber: "PSE0101",
+    productName: "POLESTAR Framework",
+    licenseBase: "개수",
+    licenseUnit: "1",
+    unitPrice: "50000",
+    discountRate: "70",
+    proposalPrice: "15000",
+  },
+  {
+    id: "SPR-002",
+    productClass: "",
+    productGroup: "Server Management",
+    productNumber: "PSE0201",
+    productName: "POLESTAR Server Management for Unix",
+    licenseBase: "Node 수 및 CPU",
+    licenseUnit: "1",
+    unitPrice: "8000",
+    discountRate: "70",
+    proposalPrice: "2400",
+  },
+  {
+    id: "SPR-003",
+    productClass: "",
+    productGroup: "",
+    productNumber: "PSE0202",
+    productName: "POLESTAR Server Management for Windows/Linux",
+    licenseBase: "Node 수 및 CPU",
+    licenseUnit: "1",
+    unitPrice: "4000",
+    discountRate: "70",
+    proposalPrice: "1200",
+  },
+]
+
+export const standardPriceNotes = [
+  "주1) 12개월간 제품 하자에 대해 무상 유지 보수 합니다.",
+  "주2) 하자 외의 추가 요구 사항에 대해서는 Man/Day 50만원으로 산정 합니다.",
+  "주3) 유상 유지보수는 계약 금액 대비 연간 12%입니다.",
 ]
 
 export const activityRequests: ActivityRequestRecord[] = [
