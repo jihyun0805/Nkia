@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.project.project.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
+//import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.entity.ProjectCode;
@@ -19,42 +19,51 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ProjectService {
     private final ProjectRepository projectRepository;
-    private final OrderReportRepository orderReportRepository;
+//    private final OrderReportRepository orderReportRepository;
 
     @Transactional
     public void registerProject(ProjectCreateRequest dto) {
-        OrderReport report = validateAndGetOrderReport(dto.getOrderReportId());
+//        OrderReport report = validateAndGetOrderReport(dto.getOrderReportId());
 
-        ProjectCode code = determineProjectCode(report);
-
-        Project project = createProject(code, report);
-        projectRepository.save(project);
+//        ProjectCode code = determineProjectCode(report);
+//
+//        Project project = createProject(code, report);
+//
+//        projectRepository.save(project);
     }
 
     /**
      * 수주보고서 조회 및 중복 검증
      */
-    private OrderReport validateAndGetOrderReport(Long orderReportId) {
-        OrderReport report = orderReportRepository.findById(orderReportId)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.ORDER_REPORT_NOT_FOUND));
-
-        if (projectRepository.existsByOrderReport(report)) {
-            throw new ApiException(ProjectErrorCode.PROJECT_ALREADY_REGISTERED);
-        }
-        return report;
-    }
+//    private OrderReport validateAndGetOrderReport(Long orderReportId) {
+//        OrderReport report = orderReportRepository.findById(orderReportId)
+//                .orElseThrow(() -> new ApiException(ProjectErrorCode.ORDER_REPORT_NOT_FOUND));
+//
+//        if (projectRepository.existsByOrderReport(report)) {
+//            throw new ApiException(ProjectErrorCode.PROJECT_ALREADY_REGISTERED);
+//        }
+//        return report;
+//    }
 
     /**
      * 수주보고서 정보로부터 사업 코드 결정
      */
     private ProjectCode determineProjectCode(OrderReport report) {
         // 용역 타입이면 SERVICE 코드 사용
-        if ("용역".equals(report.getProjectType())) {
+//        if ("용역".equals(report.getProjectType())) {
+//            return ProjectCode.SERVICE;
+//        }
+//
+//        // TODO: 추후 변경 필요
+//        String codeValue = extractCode(report.getSalesCategory());
+
+        if ("용역".equals("용역")) {
             return ProjectCode.SERVICE;
         }
 
         // TODO: 추후 변경 필요
-        String codeValue = extractCode(report.getSalesCategory());
+        String codeValue = extractCode("코드: JA");
+
 
         return ProjectCode.fromValue(codeValue);
     }
