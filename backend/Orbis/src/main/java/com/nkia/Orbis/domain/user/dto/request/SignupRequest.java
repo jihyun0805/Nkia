@@ -1,4 +1,4 @@
-package com.nkia.Orbis.domain.auth.dto.request;
+package com.nkia.Orbis.domain.user.dto.request;
 
 import com.nkia.Orbis.domain.user.entity.Position;
 import jakarta.validation.constraints.Email;
