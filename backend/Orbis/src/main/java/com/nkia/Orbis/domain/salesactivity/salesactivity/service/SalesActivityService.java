@@ -9,6 +9,8 @@ import com.nkia.Orbis.domain.salesactivity.salesactivity.dto.response.SalesActiv
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivityAttendee;
 import com.nkia.Orbis.domain.salesactivity.salesactivity.repository.SalesActivityRepository;
+import com.nkia.Orbis.domain.salesactivity.salesactivityrequest.entity.SalesActivityRequest;
+import com.nkia.Orbis.domain.salesactivity.salesactivityrequest.repository.SalesActivityRequestRepository;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
 import java.util.List;
@@ -23,7 +25,7 @@ public class SalesActivityService {
     // Todo: ProjectOpportunity, SalesActivityRequest 연결
     private final SalesActivityRepository salesActivityRepository;
     //    private final ProjectOpportunityRepository projectOpportunityRepository;
-//    private final SalesActivityRequestRepository salesActivityRequestRepository;
+    private final SalesActivityRequestRepository salesActivityRequestRepository;
     private final UserRepository userRepository;
 
     @Transactional
@@ -32,9 +34,9 @@ public class SalesActivityService {
 //                .findById(request.getProjectOpportunityId())
 //                .orElseThrow(() -> new ApiException(ErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
 
-//        SalesActivityRequest salesActivityRequest = findSalesActivityRequestOrNull(
-//                request.getSalesActivityRequestId()
-//        );
+        SalesActivityRequest salesActivityRequest = findSalesActivityRequestOrNull(
+                request.getSalesActivityRequestId()
+        );
 
         SalesActivity salesActivity = SalesActivity.builder()
 //                .projectOpportunity(projectOpportunity)
@@ -48,9 +50,12 @@ public class SalesActivityService {
                 .nextActivity(request.getNextActivity())
                 .customerInterest(request.getCustomerInterest())
                 .status(request.getStatus())
-                .salesActivityRequest(null)
-//                .salesActivityRequest(salesActivityRequest)
+                .salesActivityRequest(salesActivityRequest)
                 .build();
+
+        if (salesActivityRequest != null) {
+            salesActivityRequest.setSalesActivity(salesActivity);
+        }
 
         addAttendees(salesActivity, request.getAttendeeUserIds());
         SalesActivity saved = salesActivityRepository.save(salesActivity);
@@ -58,14 +63,14 @@ public class SalesActivityService {
         return SalesActivityResponse.from(saved);
     }
 
-//    private SalesActivityRequest findSalesActivityRequestOrNull(Long salesActivityRequestId) {
-//        if (salesActivityRequestId == null) {
-//            return null;
-//        }
-//
-//        return salesActivityRequestRepository.findById(salesActivityRequestId)
-//                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
-//    }
+    private SalesActivityRequest findSalesActivityRequestOrNull(Long salesActivityRequestId) {
+        if (salesActivityRequestId == null) {
+            return null;
+        }
+
+        return salesActivityRequestRepository.findById(salesActivityRequestId)
+                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
+    }
 
     private void addAttendees(SalesActivity salesActivity, List<UUID> attendeeUserIds) {
         if (attendeeUserIds == null || attendeeUserIds.isEmpty()) {
