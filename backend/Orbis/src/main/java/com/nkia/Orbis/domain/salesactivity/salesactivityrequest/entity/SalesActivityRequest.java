@@ -17,6 +17,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -45,20 +46,19 @@ public class SalesActivityRequest extends BaseEntity {
 
     private String requestContent;
 
-    public static SalesActivityRequest create(
+    @Builder
+    private SalesActivityRequest(
             SalesActivity salesActivity,
             User targetUser,
             ActivityPurpose activityPurpose,
             LocalDateTime activityDateTime,
             String requestContent
     ) {
-        SalesActivityRequest request = new SalesActivityRequest();
-        request.salesActivity = salesActivity;
-        request.targetUser = targetUser;
-        request.activityPurpose = activityPurpose;
-        request.activityDateTime = activityDateTime;
-        request.requestContent = requestContent;
-        return request;
+        this.salesActivity = salesActivity;
+        this.targetUser = targetUser;
+        this.activityPurpose = activityPurpose;
+        this.activityDateTime = activityDateTime;
+        this.requestContent = requestContent;
     }
 
     public void setSalesActivity(SalesActivity salesActivity) {
