@@ -85,6 +85,14 @@ public class JwtProvider {
         return expiration.getTime() - now;
     }
 
+    // 토큰에서 role 꺼냄
+    public String getRole(String token) {
+        return Jwts.parser().verifyWith(key).build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("role", String.class);
+    }
+
     // Refresh Token의 만료 시간을 외부(Service)에서 쓸 수 있도록 Getter 제공
     public long getRefreshExpiration() {
         return refreshExpiration;

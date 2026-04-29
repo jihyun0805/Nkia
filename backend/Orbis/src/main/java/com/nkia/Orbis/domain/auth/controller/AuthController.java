@@ -42,7 +42,6 @@ public class AuthController {
     }
 
     @Operation(summary = "User 계정 생성")
-    @SecurityRequirements()
     @PostMapping("/signup/user")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> signupUser(@Valid @RequestBody SignupRequest request) {
