@@ -282,7 +282,12 @@ export function OrderDetailTables() {
                     <input className={cellInput} {...register(`maintenanceDetails.${i}.content`)} />
                   </td>
                   <td className="border-r border-black p-0" colSpan={1}>
-                    <input className={`${cellInput} text-center`} {...register(`maintenanceDetails.${i}.cycle`)} />
+                    <select className={`${cellInput} text-left [text-align-last:center]`} {...register(`maintenanceDetails.${i}.cycle`)} >
+                      <option value="" hidden>선택</option>
+                      <option value="월">월</option>
+                      <option value="분기">분기</option>
+                      <option value="반기">반기</option>
+                    </select>
                   </td>
                   <td className="border-r border-black p-0" colSpan={1}>
                     <input className={`${cellInput} text-center`} {...registerNumber(`maintenanceDetails.${i}.months`)} />
