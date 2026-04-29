@@ -80,7 +80,7 @@ public class User extends BaseEntity {
     private List<SalesActivityAttendee> salesActivityAttendances = new ArrayList<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "requestUser")
+    @OneToMany(mappedBy = "targetUser")
     private List<SalesActivityRequest> salesActivityRequests = new ArrayList<>();
 
     @Builder.Default
