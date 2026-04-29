@@ -6,11 +6,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
@@ -37,12 +38,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 2. 로그아웃 상태가 아닐 때만 인증 처리
             if (ObjectUtils.isEmpty(isLogout)) {
                 UUID userId = jwtProvider.getUserId(token);
+                String role = jwtProvider.getRole(token);
 
                 // SecurityContext에는 보통 유저를 식별할 수 있는 값을 넣습니다.
                 // 여기서는 PK를 String으로 변환하거나, Custom UserDetails 객체를 만들어 넣는 것이 좋습니다.
                 // 실제 상용 앱에서는 UserDetailsService를 통해 DB에서 유저를 조회 후 권한을 부여하는 것이 좋습니다.
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
+                        new UsernamePasswordAuthenticationToken(userId, null,
+                                List.of(new SimpleGrantedAuthority("ROLE_" + role)));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }

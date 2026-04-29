@@ -45,6 +45,19 @@ public class User extends BaseEntity {
     private UUID id;
 
     @Column(nullable = false, unique = true)
+    private String employeeNumber;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Position position;
+
+    @Column(nullable = false)
+    private String name;
+
+    private String phone;
+
+
+    @Column(nullable = false, unique = true)
     private String email;
 
     @Column(nullable = false)
@@ -54,48 +67,79 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private Role role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Status status;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;
 
+    @Builder.Default
     @OneToMany(mappedBy = "user")
     private List<SalesActivityAttendee> salesActivityAttendances = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "requestUser")
     private List<SalesActivityRequest> salesActivityRequests = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "salesRepresentative")
     private List<Prb> prbs = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "pm")
     private List<OrderReport> pmOrderReports = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "manager")
     private List<Project> projects = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "manager")
     private List<ProjectResultReport> projectResultReports = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "primaryManager")
     private List<CustomerSupport> primaryCustomerSupports = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "secondaryManager")
     private List<CustomerSupport> secondaryCustomerSupports = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "user")
     private List<CustomerSupportOtherDepartmentUser> involvedCustomerSupports = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "sender")
     private List<Alarm> sentAlarms = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "receiver")
     private List<Alarm> receivedAlarms = new ArrayList<>();
 
-    public static User createUser(String email, String password) {
+    public static User createUser(
+            String employeeNumber,
+            Position position,
+            String name,
+            String phone,
+            String email,
+            String password,
+            Role role,
+            Status status,
+            Department department
+    ) {
         return User.builder()
+                .employeeNumber(employeeNumber)
+                .position(position)
+                .name(name)
+                .phone(phone)
                 .email(email)
                 .password(password)
-                .role(Role.USER)
+                .role(role)
+                .status(status)
+                .department(department)
                 .build();
     }
 }

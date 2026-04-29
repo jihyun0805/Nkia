@@ -4,7 +4,6 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.AuthErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.JwtProvider;
-import com.nkia.Orbis.domain.auth.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.auth.dto.response.LoginResponse;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
@@ -14,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 
 @Service
@@ -27,24 +25,6 @@ public class AuthService {
 
     public static final String REFRESH_TOKEN = "RefreshToken:";
     public static final String LOGOUT = "logout";
-
-    // 회원 가입 로직 추가
-    @Transactional // DB 쓰기 작업이므로 트랜잭션 보장
-    public void signup(SignupRequest request) {
-        // 1. 이메일 중복 검증
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ApiException(UserErrorCode.EXIST_EMAIL);
-        }
-
-        // 2. 비밀번호 단방향 암호화 (Bcrypt)
-        String encodedPassword = passwordEncoder.encode(request.getPassword());
-
-        // 3. User 엔티티 생성
-        User newUser = User.createUser(request.getEmail(), encodedPassword);
-
-        // 4. DB에 저장
-        userRepository.save(newUser);
-    }
 
     // 로그인 로직
     public LoginResponse login(String email, String rawPassword) {
