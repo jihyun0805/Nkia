@@ -45,6 +45,10 @@ public class AuthService {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ApiException(UserErrorCode.EXIST_EMAIL);
         }
+        // 사번 중복 검증
+        if (userRepository.existsByEmployeeNumber(request.getEmployeeNumber())) {
+            throw new ApiException(UserErrorCode.EXIST_EMPLOYEE_NUMBER);
+        }
 
         // Todo: Department 기능 구현 후 임시 코드 변경 예정
 //        Department department = departmentRepository.findById(request.getDepartmentId())
