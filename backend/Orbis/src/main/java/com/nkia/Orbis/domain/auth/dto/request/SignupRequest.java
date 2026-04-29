@@ -1,8 +1,6 @@
 package com.nkia.Orbis.domain.auth.dto.request;
 
 import com.nkia.Orbis.domain.user.entity.Position;
-import com.nkia.Orbis.domain.user.entity.Role;
-import com.nkia.Orbis.domain.user.entity.Status;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -32,12 +30,6 @@ public class SignupRequest {
     private String name;
 
     private String phone;
-
-    @NotNull(message = "권한은 필수 입력값입니다.")
-    private Role role;
-
-    @NotNull(message = "상태값은 필수 입력값입니다.")
-    private Status status;
 
     @NotNull(message = "부서는 필수 입력값입니다.")
     private Long departmentId;

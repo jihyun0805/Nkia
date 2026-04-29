@@ -8,6 +8,7 @@ import com.nkia.Orbis.domain.auth.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.auth.dto.response.LoginResponse;
 import com.nkia.Orbis.domain.department.entity.Department;
 import com.nkia.Orbis.domain.user.entity.Role;
+import com.nkia.Orbis.domain.user.entity.Status;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
 import java.util.UUID;
@@ -69,7 +70,7 @@ public class AuthService {
                 request.getEmail(),
                 encodedPassword,
                 role,
-                request.getStatus(),
+                Status.ACTIVE,
                 department
         );
 
