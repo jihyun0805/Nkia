@@ -9,5 +9,6 @@ public enum ActivityPurpose {
     DOCUMENT_DELIVERY,
     RFP_ANALYSIS,
     PROPOSAL_WRITING,
-    SI_PROPOSAL_WRITING
+    SI_PROPOSAL_WRITING,
+    ETC
 }
