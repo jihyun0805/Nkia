@@ -1,6 +1,8 @@
 package com.nkia.Orbis.domain.user.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivityAttendee;
+import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityRequest;
 import com.nkia.Orbis.domain.alarm.entity.Alarm;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
@@ -9,8 +11,6 @@ import com.nkia.Orbis.domain.maintenance.customersupport.entity.CustomerSupport;
 import com.nkia.Orbis.domain.maintenance.customersupport.entity.CustomerSupportOtherDepartmentUser;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
-import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivityAttendee;
-import com.nkia.Orbis.domain.salesactivity.salesactivityrequest.entity.SalesActivityRequest;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -80,7 +80,7 @@ public class User extends BaseEntity {
     private List<SalesActivityAttendee> salesActivityAttendances = new ArrayList<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "requestUser")
+    @OneToMany(mappedBy = "targetUser")
     private List<SalesActivityRequest> salesActivityRequests = new ArrayList<>();
 
     @Builder.Default

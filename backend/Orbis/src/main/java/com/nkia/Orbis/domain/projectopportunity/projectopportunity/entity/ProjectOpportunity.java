@@ -1,13 +1,13 @@
 package com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
+import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.bid.bidresult.entity.BidResult;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.RfpAnalyzeResult;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.salesactivity.quotation.entity.Quotation;
-import com.nkia.Orbis.domain.salesactivity.salesactivity.entity.SalesActivity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
