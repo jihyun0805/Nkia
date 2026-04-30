@@ -1,11 +1,11 @@
 package com.nkia.Orbis.domain.activity.quotation.dto.request;
 
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItem;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItem;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
+import lombok.Getter;
 
+@Getter
 public class QuotationCreateRequest {
 
     private Long projectOpportunityId;
@@ -17,9 +17,9 @@ public class QuotationCreateRequest {
     private String note;
 
     @Valid
-    private List<QuotationSolutionItem> quotationSolutionItems;
+    private List<SolutionItemCreateRequest> quotationSolutionItems;
 
     @Valid
-    private List<QuotationLaborItem> quotationLaborItems;
+    private List<LaborItemCreateRequest> quotationLaborItems;
 
 }

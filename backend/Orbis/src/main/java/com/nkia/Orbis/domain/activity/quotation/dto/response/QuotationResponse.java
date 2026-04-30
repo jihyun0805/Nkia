@@ -1,17 +1,19 @@
 package com.nkia.Orbis.domain.activity.quotation.dto.response;
 
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItem;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItem;
-import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
+import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import java.time.LocalDate;
 import java.util.List;
+import lombok.Builder;
+import lombok.Getter;
 
+@Getter
+@Builder
 public class QuotationResponse {
     private Long id;
 
     private String quotationCode;
 
-    private ProjectOpportunity projectOpportunity;
+    private Long projectOpportunityId;
 
     private LocalDate quotationDate;
 
@@ -27,8 +29,36 @@ public class QuotationResponse {
 
     private String note;
 
-    private List<QuotationSolutionItem> quotationSolutionItems;
+    private List<SolutionItemResponse> quotationSolutionItems;
 
-    private List<QuotationLaborItem> quotationLaborItems;
+    private List<LaborItemResponse> quotationLaborItems;
 
+    public static QuotationResponse from(Quotation quotation) { // 수정됨
+        return QuotationResponse.builder()
+                .id(quotation.getId())
+                .quotationCode(quotation.getQuotationCode())
+                .projectOpportunityId(
+                        quotation.getProjectOpportunity() == null
+                                ? null
+                                : quotation.getProjectOpportunity().getId()
+                )
+                .quotationDate(quotation.getQuotationDate())
+                .paymentCondition(quotation.getPaymentCondition())
+                .consumerTotalPrice(quotation.getConsumerTotalPrice())
+                .supplyTotalPrice(quotation.getSupplyTotalPrice())
+                .laborTotalPrice(quotation.getLaborTotalPrice())
+                .totalPrice(quotation.getTotalPrice())
+                .note(quotation.getNote())
+                .quotationSolutionItems(
+                        quotation.getQuotationSolutionItems().stream()
+                                .map(SolutionItemResponse::from)
+                                .toList()
+                )
+                .quotationLaborItems(
+                        quotation.getQuotationLaborItems().stream()
+                                .map(LaborItemResponse::from)
+                                .toList()
+                )
+                .build();
+    }
 }

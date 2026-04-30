@@ -1,7 +1,9 @@
 package com.nkia.Orbis.domain.activity.quotation.dto.request;
 
 import com.nkia.Orbis.domain.activity.quotation.entity.LaborType;
+import lombok.Getter;
 
+@Getter
 public class LaborItemCreateRequest {
 
     private LaborType laborType;
