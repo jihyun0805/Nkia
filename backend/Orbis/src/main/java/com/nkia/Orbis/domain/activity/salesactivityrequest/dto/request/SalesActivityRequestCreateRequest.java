@@ -10,8 +10,6 @@ public class SalesActivityRequestCreateRequest {
 
     UUID targetUserId;
 
-    Long salesActivityId;
-
     ActivityPurpose activityPurpose;
 
     LocalDateTime activityDateTime;

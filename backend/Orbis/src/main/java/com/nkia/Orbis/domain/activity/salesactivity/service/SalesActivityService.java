@@ -53,11 +53,8 @@ public class SalesActivityService {
                 .salesActivityRequest(salesActivityRequest)
                 .build();
 
-        if (salesActivityRequest != null) {
-            salesActivityRequest.setSalesActivity(salesActivity);
-        }
-
         addAttendees(salesActivity, request.getAttendeeUserIds());
+        
         SalesActivity saved = salesActivityRepository.save(salesActivity);
 
         return SalesActivityResponse.from(saved);
