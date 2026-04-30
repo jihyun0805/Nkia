@@ -338,7 +338,7 @@ export function OrderDetailTables() {
                     <td className="border-r border-black p-0" colSpan={2}>
                       <input className={`${cellInput} text-right`} {...registerNumber(`licenseDetails.${i}.unitPrice`)} />
                     </td>
-                    <td className="p-0" colSpan={2}>
+                    <td className="bg-orange-100 border-r border-black p-0" colSpan={2}>
                       <input className={`${cellInput} text-right text-slate-600 font-semibold`} readOnly tabIndex={-1} {...registerNumber(`licenseDetails.${i}.subtotal`)} />
                     </td>
                     <td className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -357,7 +357,7 @@ export function OrderDetailTables() {
                   <input className={`${cellInput} text-right text-red-600 font-semibold`} {...registerNumber("licenseDiscount")} />
                 </td>
               </tr>
-              <tr className="bg-slate-50 font-bold border-b border-black">
+              <tr className="bg-yellow-200 font-bold border-b border-black">
                 <td className="border-r border-black p-2 text-center text-slate-700" colSpan={8}>
                   합계
                 </td>
@@ -406,7 +406,7 @@ export function OrderDetailTables() {
                   <td className="border-r border-black p-0" colSpan={2}>
                     <input className={`${cellInput} text-right`} {...registerNumber(`serviceDetails.${i}.unitPrice`)} />
                   </td>
-                  <td className="p-0" colSpan={2}>
+                  <td className="bg-orange-100 border-r border-black p-0" colSpan={2}>
                     <input className={`${cellInput} text-right`} {...registerNumber(`serviceDetails.${i}.subtotal`)} />
                   </td>
                   <td className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -490,7 +490,7 @@ export function OrderDetailTables() {
                   <td className="border-r border-black p-0" colSpan={2}>
                     <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceDetails.${i}.monthlyAmount`)} />
                   </td>
-                  <td className="p-0" colSpan={2}>
+                  <td className="bg-orange-100 border-r border-black p-0" colSpan={2}>
                     <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceDetails.${i}.subtotal`)} />
                   </td>
                   <td className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -557,7 +557,7 @@ export function OrderDetailTables() {
                   <td className="border-r border-black p-0" colSpan={2}>
                     <input className={`${cellInput} text-right`} {...registerNumber(`otherSalesDetails.${i}.unitPrice`)} />
                   </td>
-                  <td className="p-0" colSpan={2}>
+                  <td className="bg-orange-100 border-r border-black p-0" colSpan={2}>
                     <input className={`${cellInput} text-right`} {...registerNumber(`otherSalesDetails.${i}.subtotal`)} />
                   </td>
                   <td className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -619,7 +619,7 @@ export function OrderDetailTables() {
                   <td className="border-r border-black p-0" colSpan={2}>
                     <input className={`${cellInput} text-right`} {...registerNumber(`purchaseDetails.${i}.unitPrice`)} />
                   </td>
-                  <td className="p-0" colSpan={2}>
+                  <td className="bg-orange-100 border-r border-black p-0" colSpan={2}>
                     <input className={`${cellInput} text-right`} {...registerNumber(`purchaseDetails.${i}.subtotal`)} />
                   </td>
                   <td className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
