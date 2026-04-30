@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.activity.quotation.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -26,8 +27,56 @@ public class QuotationSolutionItem extends BaseEntity {
     @JoinColumn(name = "quotation_id")
     private Quotation quotation;
 
-    @Column(nullable = false)
-    private String name;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_module_id")
+    private ProductModule productModule;
 
-    
+    @Column(nullable = false)
+    private Integer quantity;
+
+    private Long consumerPrice;
+
+    private Long consumerTotalPrice;
+
+    @Column(nullable = false)
+    private Long supplyPrice;
+
+    private Long supplyTotalPrice;
+
+    @Column(nullable = false)
+    private Double discountRate;
+
+    private Boolean freeSupply;
+
+    public static QuotationSolutionItem create( // 수정됨
+                                                ProductModule productModule,
+                                                Integer quantity,
+                                                Long supplyPrice,
+                                                Double discountRate,
+                                                Boolean freeSupply
+    ) {
+        QuotationSolutionItem item = new QuotationSolutionItem();
+        item.productModule = productModule;
+        item.quantity = quantity;
+        item.consumerPrice = productModule.getUnitPrice(); // 수정됨
+        item.consumerTotalPrice = item.consumerPrice * quantity; // 수정됨
+        item.supplyPrice = supplyPrice;
+        item.discountRate = discountRate == null ? 0.0 : discountRate;
+        item.freeSupply = Boolean.TRUE.equals(freeSupply);
+        item.supplyTotalPrice = item.calculateSupplyTotalPrice(); // 수정됨
+        return item;
+    }
+
+    public void setQuotation(Quotation quotation) {
+        this.quotation = quotation;
+    }
+
+    //
+    private Long calculateSupplyTotalPrice() { // 수정됨
+        if (Boolean.TRUE.equals(this.freeSupply)) {
+            return 0L;
+        }
+
+        return this.supplyPrice * this.quantity;
+    }
 }

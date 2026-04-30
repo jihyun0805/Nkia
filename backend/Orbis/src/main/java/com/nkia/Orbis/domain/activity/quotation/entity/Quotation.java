@@ -39,11 +39,13 @@ public class Quotation extends BaseEntity {
 
     private String paymentCondition;
 
-    private Long solutionTotalAmount;
+    private Long consumerTotalPrice;
 
-    private Long laborTotalAmount;
+    private Long supplyTotalPrice;
 
-    private Long totalAmount;
+    private Long laborTotalPrice;
+
+    private Long totalPrice;
 
     private String note;
 
@@ -53,7 +55,7 @@ public class Quotation extends BaseEntity {
     @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<QuotationLaborItem> quotationLaborItems = new ArrayList<>();
 
-    private static Quotation create(
+    public static Quotation create(
             String quotationCode,
             ProjectOpportunity projectOpportunity,
             LocalDate quotationDate,
@@ -66,9 +68,10 @@ public class Quotation extends BaseEntity {
         quotation.quotationDate = quotationDate;
         quotation.paymentCondition = paymentCondition;
         quotation.note = note;
-        quotation.solutionTotalAmount = 0L;
-        quotation.laborTotalAmount = 0L;
-        quotation.totalAmount = 0L;
+        quotation.consumerTotalPrice = 0L;
+        quotation.supplyTotalPrice = 0L;
+        quotation.laborTotalPrice = 0L;
+        quotation.totalPrice = 0L;
         return quotation;
     }
 
@@ -82,16 +85,21 @@ public class Quotation extends BaseEntity {
         item.setQuotation(this);
     }
 
+
     public void calculateTotalAmount() {
-        this.solutionTotalAmount = quotationSolutionItems.stream()
-                .mapToLong(QuotationSolutionItem::getSupplyAmount)
+        this.consumerTotalPrice = quotationSolutionItems.stream()
+                .mapToLong(QuotationSolutionItem::getConsumerPrice)
                 .sum();
 
-        this.laborTotalAmount = quotationLaborItems.stream()
-                .mapToLong(QuotationLaborItem::getSupplyAmount)
+        this.supplyTotalPrice = quotationSolutionItems.stream()
+                .mapToLong(QuotationSolutionItem::getSupplyPrice)
                 .sum();
 
-        this.totalAmount = this.solutionTotalAmount + this.laborTotalAmount;
+        this.laborTotalPrice = quotationLaborItems.stream()
+                .mapToLong(QuotationLaborItem::getSupplyPrice)
+                .sum();
+
+        this.totalPrice = this.supplyTotalPrice + this.laborTotalPrice;
     }
 
 }
