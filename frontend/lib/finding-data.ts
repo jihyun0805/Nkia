@@ -7,7 +7,27 @@ export type CustomerRecord = {
   contracts: number
   contact: string
   phone: string
+  contacts?: CustomerContact[]
+  contactName?: string
+  position?: string
+  department?: string
+  email?: string
+  mobilePhone?: string
+  landlinePhone?: string
+  duty?: string
+  address?: string
+  memo?: string
   aliases?: string[]
+}
+export type CustomerContact = {
+  name: string
+  position?: string
+  department?: string
+  email?: string
+  mobilePhone?: string
+  landlinePhone?: string
+  duty?: string
+  memo?: string
 }
 export type OpportunityRecord = {
   id: string
@@ -42,6 +62,25 @@ export type FindingFormSection = {
   fields: FindingFormField[]
 }
 
+type CustomerRegistrationInput = {
+  name: string
+  category: string
+  contacts: CustomerContact[]
+  address?: string
+  memo?: string
+  aliases?: string[]
+}
+
+type CustomerUpdateInput = {
+  name: string
+  category: string
+  contacts: CustomerContact[]
+  address?: string
+  memo?: string
+  aliases?: string[]
+}
+
+const customerStorageKey = "orbis.customers"
 const customerGroupOptions = ["공공", "민간", "해외"]
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 
@@ -75,7 +114,7 @@ export const opportunities: OpportunityRecord[] = [
   { id: "OPP-2026-005", customerCode: "CUS-005", partnerCode: "PTN-003", name: "일본 NTT DoCoMo WSS", customer: "NTT DoCoMo", partner: "NTT DATA", category: "해외", product: "WSS", module: "WSS", expectedAmount: "10억", expectedDate: "2026년 4분기", issue: "해외 통신사 WSS 신규 도입", competition: "현지 벤더와 가격 경쟁", decisionInfo: "서비스기획 Tanaka / NTT DATA 협업", partnerType: "파트너", partnerContact: "Yamamoto", partnerPhone: "+81-90-2345-6789", status: "발굴", salesRep: "최부장" },
 ]
 
-export const customers: CustomerRecord[] = [
+const baseCustomers: CustomerRecord[] = [
   { id: "CUS-001", name: "삼성전자", category: "민간", opportunities: 3, contracts: 5, contact: "홍길동", phone: "010-1234-5678", aliases: ["samsung", "samsungelectronics"] },
   { id: "CUS-002", name: "국방부", category: "공공", opportunities: 2, contracts: 1, contact: "김철수", phone: "010-2345-6789", aliases: ["mnd"] },
   { id: "CUS-003", name: "현대자동차", category: "민간", opportunities: 2, contracts: 3, contact: "이영희", phone: "010-3456-7890", aliases: ["현대차", "hyundai", "hyundaimotor"] },
@@ -83,6 +122,8 @@ export const customers: CustomerRecord[] = [
   { id: "CUS-005", name: "NTT DoCoMo", category: "해외", opportunities: 1, contracts: 0, contact: "Tanaka", phone: "+81-90-1234-5678", aliases: ["nttdocomo", "docomo"] },
   { id: "CUS-008", name: "엘지씨엔에스", category: "민간", opportunities: 1, contracts: 2, contact: "강대표", phone: "010-5678-9012", aliases: ["lg cns", "lgcns", "lgc", "엘지씨", "엘지씨엔에스", "lg 씨엔에스"] },
 ]
+
+export const customers: CustomerRecord[] = baseCustomers
 
 export const partners = [
   { id: "PTN-001", name: "LG CNS", type: "SI", opportunities: 2, projects: 3, contact: "강대표", phone: "010-5678-9012" },
@@ -95,7 +136,7 @@ export const findingStatuses = ["진행중", "발굴", "유망"]
 
 export function getFindingItem(category: FindingCategory, id: string) {
   if (category === "opportunities") return opportunities.find((item) => item.id === id) ?? null
-  if (category === "customers") return customers.find((item) => item.id === id) ?? null
+  if (category === "customers") return getCustomers().find((item) => item.id === id) ?? null
   return partners.find((item) => item.id === id) ?? null
 }
 
@@ -120,14 +161,24 @@ export function getFindingFields(category: FindingCategory, item: any) {
     ]
   }
   if (category === "customers") {
+    const contacts = Array.isArray(item.contacts) && item.contacts.length > 0 ? item.contacts : [{
+      name: item.contactName ?? item.contact ?? "-",
+      position: item.position ?? "",
+      department: item.department ?? "",
+      email: item.email ?? "",
+      mobilePhone: item.mobilePhone ?? item.phone ?? "",
+      landlinePhone: item.landlinePhone ?? "",
+      duty: item.duty ?? "",
+      memo: item.memo ?? "",
+    }]
     return [
       { label: "고객사코드", value: item.id },
       { label: "고객사명", value: item.name },
       { label: "고객군", value: item.category },
-      { label: "담당자", value: item.contact },
-      { label: "연락처", value: item.phone },
-      { label: "주소", value: "-" },
-      { label: "메모", value: `진행중 사업기회 ${item.opportunities}건 / 계약 ${item.contracts}건` },
+      { label: "담당자 수", value: `${contacts.length}명` },
+      { label: "담당자 요약", value: contacts.map((contact: CustomerContact, index: number) => `${index + 1}. ${contact.name}${contact.position ? ` / ${contact.position}` : ""}`).join(" | ") },
+      { label: "주소", value: item.address ?? "-" },
+      { label: "메모", value: item.memo ?? `진행중 사업기회 ${item.opportunities}건 / 계약 ${item.contracts}건` },
     ]
   }
   return [
@@ -161,7 +212,9 @@ export function getFindingFormFieldValue(category: FindingCategory, item: any, l
     const values: Record<string, string> = {
       "사업명": item.name,
       "고객군": item.category,
-      "고객사 의사결정구조 및 담당자 정보": `${item.contact} / ${item.phone}`,
+      "고객사 의사결정구조 및 담당자 정보": `${item.contactName ?? item.contact} / ${item.mobilePhone ?? item.phone}`,
+      "주소": item.address ?? "",
+      "메모": item.memo ?? "",
     }
     return values[label] ?? ""
   }
@@ -182,7 +235,7 @@ export function hasRegisteredCustomer(customerName: string) {
   const normalized = customerName.trim().toLowerCase()
   if (!normalized) return false
 
-  return customers.some((item) => item.name.trim().toLowerCase() === normalized)
+  return getCustomers().some((item) => item.name.trim().toLowerCase() === normalized)
 }
 
 export function getCustomerByName(customerName: string) {
@@ -190,7 +243,7 @@ export function getCustomerByName(customerName: string) {
   if (!normalized) return null
 
   return (
-    customers.find((item) => {
+    getCustomers().find((item) => {
       if (normalizeCustomerKeyword(item.name) === normalized) return true
       return item.aliases?.some((alias) => normalizeCustomerKeyword(alias) === normalized)
     }) ?? null
@@ -201,7 +254,7 @@ export function getCustomerByCode(customerCode: string) {
   const normalized = customerCode.trim().toLowerCase()
   if (!normalized) return null
 
-  return customers.find((item) => item.id.trim().toLowerCase() === normalized) ?? null
+  return getCustomers().find((item) => item.id.trim().toLowerCase() === normalized) ?? null
 }
 
 export function getOpportunitiesByCustomerName(customerName: string) {
@@ -217,9 +270,9 @@ export function normalizeCustomerKeyword(value: string) {
 
 export function searchCustomers(query: string) {
   const normalized = normalizeCustomerKeyword(query)
-  if (!normalized) return customers
+  if (!normalized) return getCustomers()
 
-  return [...customers]
+  return [...getCustomers()]
     .map((customer) => {
       const keywords = [customer.name, ...(customer.aliases ?? [])].map(normalizeCustomerKeyword)
       const startsWith = keywords.some((keyword) => keyword.startsWith(normalized))
@@ -232,4 +285,127 @@ export function searchCustomers(query: string) {
       return a.customer.name.localeCompare(b.customer.name)
     })
     .map((item) => item.customer)
+}
+
+function getStoredCustomers() {
+  if (typeof window === "undefined") return []
+
+  const stored = window.localStorage.getItem(customerStorageKey)
+  if (!stored) return []
+
+  try {
+    const parsed = JSON.parse(stored) as CustomerRecord[]
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((item) => item && typeof item.id === "string" && typeof item.name === "string")
+          .map((item) => ({
+            ...item,
+            aliases: Array.isArray(item.aliases) ? item.aliases.filter((alias) => typeof alias === "string") : [],
+          }))
+      : []
+  } catch {
+    return []
+  }
+}
+
+function setStoredCustomers(value: CustomerRecord[]) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(customerStorageKey, JSON.stringify(value))
+}
+
+function parseCustomerCode(customerId: string) {
+  const match = customerId.match(/^CUS-(\d+)$/i)
+  return match ? Number.parseInt(match[1], 10) : 0
+}
+
+export function getCustomers() {
+  const merged = new Map<string, CustomerRecord>()
+  for (const customer of baseCustomers) merged.set(customer.id, customer)
+  for (const customer of getStoredCustomers()) merged.set(customer.id, customer)
+  return [...merged.values()]
+}
+
+export function getNextCustomerCode() {
+  const nextNumber = getCustomers().reduce((max, customer) => Math.max(max, parseCustomerCode(customer.id)), 0) + 1
+  return `CUS-${String(nextNumber).padStart(3, "0")}`
+}
+
+export function registerCustomer(input: CustomerRegistrationInput) {
+  const name = input.name.trim()
+  const existing = getCustomerByName(name)
+  if (existing) {
+    return { status: "duplicate" as const, customer: existing }
+  }
+
+  const created: CustomerRecord = {
+    id: getNextCustomerCode(),
+    name,
+    category: input.category,
+    opportunities: 0,
+    contracts: 0,
+    contact: input.contacts[0]?.name?.trim() ?? "",
+    phone: input.contacts[0]?.mobilePhone?.trim() ?? "",
+    contacts: input.contacts
+      .map((contact) => ({
+        name: contact.name.trim(),
+        position: contact.position?.trim() ?? "",
+        department: contact.department?.trim() ?? "",
+        email: contact.email?.trim() ?? "",
+        mobilePhone: contact.mobilePhone?.trim() ?? "",
+        landlinePhone: contact.landlinePhone?.trim() ?? "",
+        duty: contact.duty?.trim() ?? "",
+        memo: contact.memo?.trim() ?? "",
+      }))
+      .filter((contact) => contact.name || contact.mobilePhone || contact.landlinePhone || contact.email || contact.memo || contact.position || contact.department || contact.duty),
+    address: input.address?.trim() ?? "",
+    memo: input.memo?.trim() ?? "",
+    aliases: input.aliases?.filter(Boolean) ?? [],
+  }
+
+  const storedCustomers = getStoredCustomers()
+  setStoredCustomers([...storedCustomers, created])
+
+  return { status: "created" as const, customer: created }
+}
+
+export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
+  const normalizedId = customerId.trim()
+  const existing = getCustomers().find((item) => item.id === normalizedId)
+  if (!existing) return { status: "not_found" as const }
+
+  const storedCustomers = getStoredCustomers().filter((item) => item.id !== normalizedId)
+  const contacts = input.contacts
+    .map((contact) => ({
+      name: contact.name.trim(),
+      position: contact.position?.trim() ?? "",
+      department: contact.department?.trim() ?? "",
+      email: contact.email?.trim() ?? "",
+      mobilePhone: contact.mobilePhone?.trim() ?? "",
+      landlinePhone: contact.landlinePhone?.trim() ?? "",
+      duty: contact.duty?.trim() ?? "",
+      memo: contact.memo?.trim() ?? "",
+    }))
+    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.duty || contact.memo)
+
+  const nextRecord: CustomerRecord = {
+    ...existing,
+    name: input.name.trim(),
+    category: input.category,
+    address: input.address?.trim() ?? "",
+    memo: input.memo?.trim() ?? "",
+    contacts,
+    contact: contacts[0]?.name ?? existing.contact,
+    phone: contacts[0]?.mobilePhone ?? existing.phone,
+    contactName: contacts[0]?.name ?? existing.contactName,
+    position: contacts[0]?.position ?? existing.position,
+    department: contacts[0]?.department ?? existing.department,
+    email: contacts[0]?.email ?? existing.email,
+    mobilePhone: contacts[0]?.mobilePhone ?? existing.mobilePhone,
+    landlinePhone: contacts[0]?.landlinePhone ?? existing.landlinePhone,
+    duty: contacts[0]?.duty ?? existing.duty,
+    aliases: input.aliases?.filter(Boolean) ?? existing.aliases ?? [],
+  }
+
+  setStoredCustomers([...storedCustomers, nextRecord])
+  return { status: "updated" as const, customer: nextRecord }
 }
