@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Sales Activity Request", description = "영업 활동 요청 관리 API")
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/sales-activity/request")
+@RequestMapping("/activity/sales-activity-requests")
 public class SalesActivityRequestController {
 
     private final SalesActivityRequestService salesActivityRequestService;

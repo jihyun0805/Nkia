@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Sales Activity", description = "영업 활동 관리 API")
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/sales-activities")
+@RequestMapping("/activity/sales-activities")
 public class SalesActivityController {
     private final SalesActivityService salesActivityService;
 
@@ -36,7 +36,7 @@ public class SalesActivityController {
     }
 
     @Operation(summary = "영업 활동 수정")
-    @PatchMapping("/{salesActivityId}")
+    @PatchMapping("/activity/{salesActivityId}")
     public ResponseEntity<ApiResponse<SalesActivityResponse>> updateSalesActivity(
             @PathVariable("salesActivityId") Long salesActivityId,
             @RequestBody SalesActivityUpdateRequest request
