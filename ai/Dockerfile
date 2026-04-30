@@ -16,9 +16,7 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     libgl1 \
     libglib2.0-0 \
@@ -29,8 +27,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    uv sync --no-dev --frozen
+RUN uv sync --no-dev --frozen
 
 COPY app ./app
 COPY db ./db
