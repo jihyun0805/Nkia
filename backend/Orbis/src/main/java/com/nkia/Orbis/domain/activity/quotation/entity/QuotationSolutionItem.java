@@ -1,7 +1,7 @@
-package com.nkia.Orbis.domain.activity.laborcostadjustment.entity;
+package com.nkia.Orbis.domain.activity.quotation.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -13,11 +13,10 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LaborCostAdjustment extends BaseEntity {
+public class QuotationSolutionItem extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,4 +25,9 @@ public class LaborCostAdjustment extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quotation_id")
     private Quotation quotation;
+
+    @Column(nullable = false)
+    private String name;
+
+    
 }

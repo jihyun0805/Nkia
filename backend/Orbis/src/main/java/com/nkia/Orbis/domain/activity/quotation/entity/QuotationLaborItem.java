@@ -1,7 +1,6 @@
-package com.nkia.Orbis.domain.activity.solutionpackage.entity;
+package com.nkia.Orbis.domain.activity.quotation.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -13,10 +12,11 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class SolutionPackage extends BaseEntity {
+public class QuotationLaborItem extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
