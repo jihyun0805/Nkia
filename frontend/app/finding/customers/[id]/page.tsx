@@ -1,17 +1,28 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
-import { Sidebar } from "@/components/erp/sidebar"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { Header } from "@/components/erp/header"
+import { Sidebar } from "@/components/erp/sidebar"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getCustomers, type CustomerRecord } from "@/lib/finding-data"
+import { toast } from "@/hooks/use-toast"
+import { deleteCustomer, getCustomers, type CustomerRecord } from "@/lib/finding-data"
 
 function CustomerDetailControl({ label, value }: { label: string; value: string }) {
   if (label === "메모") return <Textarea readOnly rows={4} value={value || "-"} />
@@ -33,11 +44,13 @@ function getContactRows(customer: CustomerRecord) {
     }]
 }
 
-export default function CustomerDetailPage() {
+function CustomerDetailPageContent() {
   const params = useParams<{ id?: string | string[] }>()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const id = Array.isArray(params.id) ? params.id[0] : params.id ?? ""
   const [customer, setCustomer] = useState<CustomerRecord | null>(null)
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
 
   useEffect(() => {
     const sync = () => {
@@ -51,6 +64,26 @@ export default function CustomerDetailPage() {
 
   const contacts = useMemo(() => (customer ? getContactRows(customer) : []), [customer])
   const backHref = `/finding?tab=${searchParams.get("tab") ?? "customers"}`
+  const editHref = `/finding/customers/${id}/edit?tab=${searchParams.get("tab") ?? "customers"}`
+
+  const handleDelete = () => {
+    const result = deleteCustomer(id)
+    if (result.status === "not_found") {
+      toast({
+        title: "고객사 삭제 실패",
+        description: "삭제할 고객사를 찾지 못했습니다.",
+      })
+      setIsDeleteAlertOpen(false)
+      return
+    }
+
+    toast({
+      title: "고객사 삭제 완료",
+      description: `${result.customer.name} 고객사가 삭제되었습니다.`,
+    })
+    setIsDeleteAlertOpen(false)
+    router.push(backHref)
+  }
 
   if (!customer) {
     return (
@@ -178,8 +211,11 @@ export default function CustomerDetailPage() {
                   <Button variant="outline" asChild>
                     <Link href={backHref}>목록</Link>
                   </Button>
+                  <Button variant="destructive" onClick={() => setIsDeleteAlertOpen(true)}>
+                    삭제
+                  </Button>
                   <Button asChild>
-                    <Link href={`/finding/customers/${customer.id}/edit?tab=${searchParams.get("tab") ?? "customers"}`}>수정</Link>
+                    <Link href={editHref}>수정</Link>
                   </Button>
                 </div>
               </CardContent>
@@ -187,6 +223,29 @@ export default function CustomerDetailPage() {
           </div>
         </main>
       </div>
+
+      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>고객사를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 고객사 상세 정보와 담당자 정보를 이 화면에서 다시 복구할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  )
+}
+
+export default function CustomerDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <CustomerDetailPageContent />
+    </Suspense>
   )
 }

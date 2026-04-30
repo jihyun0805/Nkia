@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Button } from "@/components/ui/button"
@@ -42,7 +42,7 @@ import { X } from "lucide-react"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
 
-export default function ActivityCategoryNewPage() {
+function ActivityCategoryNewPageContent() {
   const params = useParams<{ category: ActivityCategory }>()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -376,5 +376,13 @@ export default function ActivityCategoryNewPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+export default function ActivityCategoryNewPage() {
+  return (
+    <Suspense fallback={null}>
+      <ActivityCategoryNewPageContent />
+    </Suspense>
   )
 }
