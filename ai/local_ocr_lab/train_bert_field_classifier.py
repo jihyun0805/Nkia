@@ -75,31 +75,16 @@ def match_line_to_field(line: str, label_payload: dict[str, object | None]) -> s
     if PHONE_REGEX.search(line):
         line_digits = digits_only(line)
         for field in ("mobile", "phone", "fax"):
-            value = get_label_value(label_payload, field)
+            value = label_payload.get(field)
             if isinstance(value, str) and digits_only(value) and digits_only(value) in line_digits:
                 return field
 
     for field in FIELD_NAMES[:-1]:
-        value = get_label_value(label_payload, field)
+        value = label_payload.get(field)
         if isinstance(value, str) and fuzzy_match(line_normalized, normalize(value)):
             return field
 
     return "none"
-
-
-def get_label_value(label_payload: dict[str, object | None], field: str) -> object | None:
-    aliases = {
-        "mobile": ("mobile", "mobile_phone"),
-        "phone": ("phone", "office_phone"),
-        "fax": ("fax", "fax_phone"),
-        "role": ("role", "responsibility"),
-        "department": ("department", "department_name"),
-    }
-    for key in aliases.get(field, (field,)):
-        value = label_payload.get(key)
-        if value is not None:
-            return value
-    return None
 
 
 def extract_features(text: str, position: float, total_lines: float) -> torch.Tensor:

@@ -3,7 +3,14 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from app.services.business_card_ocr import OCRLine, _normalize_model_phone, analyze_business_card
+from app.services.business_card_ocr import (
+    OCRLine,
+    _normalize_department,
+    _normalize_model_email,
+    _normalize_model_phone,
+    _normalize_role,
+    analyze_business_card,
+)
 
 
 class AnalyzeBusinessCardTests(unittest.TestCase):
@@ -29,10 +36,10 @@ class AnalyzeBusinessCardTests(unittest.TestCase):
         mock_predict_business_card_fields.return_value = {
             "company_name": "ACME Corp.",
             "contact_name": "Kim Minsoo",
-            "department_name": "Sales Division",
-            "responsibility": "Cloud Business",
-            "mobile_phone": "mobile 010-1234-5678",
-            "office_phone": "tel 02-345-6789",
+            "department": "Sales Division",
+            "role": "Cloud Business",
+            "mobile": "mobile 010-1234-5678",
+            "phone": "tel 02-345-6789",
             "email": "mail minsoo.kim@acme.co.kr",
         }
 
@@ -96,15 +103,38 @@ class AnalyzeBusinessCardTests(unittest.TestCase):
     def test_normalize_model_phone_handles_common_phone_patterns(self) -> None:
         mobile_parts = ("010", "1234", "5678")
         seoul_parts = ("02", "1234", "5678")
+        grouped_parts = ("0000", "1111", "2222")
         cases = [
             (f"M ({mobile_parts[0]}) {mobile_parts[1]} {mobile_parts[2]}", "010-1234-5678"),
             (f"TEL {seoul_parts[0]} {seoul_parts[1]} {seoul_parts[2]}", "02-1234-5678"),
             (f"FAX +82-{seoul_parts[0][1:]}-{seoul_parts[1]}-{seoul_parts[2]}", "02-1234-5678"),
+            (f"F. {grouped_parts[0]}-{grouped_parts[1]}-{grouped_parts[2]}", "0000-1111-2222"),
         ]
 
         for raw_value, expected in cases:
             with self.subTest(raw_value=raw_value):
                 self.assertEqual(_normalize_model_phone(raw_value), expected)
+
+    def test_normalize_model_email_removes_email_label_noise(self) -> None:
+        cases = [
+            ("e user.name@sample-test.kr", "user.name@sample-test.kr"),
+            ("E. user.name@sample-test.kr", "user.name@sample-test.kr"),
+            ("mail user.name@sample-test.kr", "user.name@sample-test.kr"),
+            ("email user.name@sample-test.kr", "user.name@sample-test.kr"),
+            ("user.name@sample-test.kr", "user.name@sample-test.kr"),
+        ]
+
+        for raw_value, expected in cases:
+            with self.subTest(raw_value=raw_value):
+                self.assertEqual(_normalize_model_email(raw_value), expected)
+
+    def test_normalize_department_rejects_wrapped_address_detail(self) -> None:
+        self.assertIsNone(_normalize_department("(샘플동,더미-타워센터)"))
+        self.assertEqual(_normalize_department("Digital & Innovation"), "Digital & Innovation")
+
+    def test_normalize_role_rejects_marketing_phrase(self) -> None:
+        self.assertIsNone(_normalize_role("AI Service Provider"))
+        self.assertEqual(_normalize_role("플랫폼 개발"), "플랫폼 개발")
 
     def test_normalize_model_phone_rejects_values_without_phone_length_digits(self) -> None:
         cases = [

@@ -8,6 +8,8 @@ pipeline {
     environment {
         BACKEND_DIR = "backend/Orbis"
         AI_DIR = "ai"
+        DOCKER_BUILDKIT = "1"
+        COMPOSE_DOCKER_CLI_BUILD = "1"
     }
 
     stages {
@@ -48,7 +50,46 @@ pipeline {
             }
         }
 
+        stage('3.5. Detect Changed Areas') {
+            steps {
+                script {
+                    def previousCommit = env.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: env.GIT_PREVIOUS_COMMIT
+                    if (!previousCommit?.trim()) {
+                        env.AI_CHANGED = "true"
+                        env.BACKEND_CHANGED = "true"
+                        echo '이전 커밋 정보가 없어 AI/Backend를 모두 배포 대상으로 간주합니다.'
+                    } else {
+                        env.AI_CHANGED = sh(
+                            script: """
+                                if git diff --name-only ${previousCommit} ${env.GIT_COMMIT} | grep -q '^ai/'; then
+                                  echo true
+                                else
+                                  echo false
+                                fi
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        env.BACKEND_CHANGED = sh(
+                            script: """
+                                if git diff --name-only ${previousCommit} ${env.GIT_COMMIT} | grep -qE '^(backend/|frontend/|Jenkinsfile)'; then
+                                  echo true
+                                else
+                                  echo false
+                                fi
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        echo "AI changed: ${env.AI_CHANGED}"
+                        echo "Backend/Frontend changed: ${env.BACKEND_CHANGED}"
+                    }
+                }
+            }
+        }
+
         stage('4. Deploy Backend Stack') {
+            when {
+                expression { env.BACKEND_CHANGED == 'true' }
+            }
             steps {
                 echo 'Backend, Frontend, DB, Redis, Nginx, Monitoring 배포'
 
@@ -79,10 +120,19 @@ pipeline {
                           -f docker-compose.fastapi.prod.yml \
                           down || true
 
-                        docker compose --env-file .env.prod \
-                          -f docker-compose.fastapi.yml \
-                          -f docker-compose.fastapi.prod.yml \
-                          up -d --build
+                        if [ "${AI_CHANGED}" = "true" ]; then
+                          echo "AI 변경 감지: rebuild 수행"
+                          docker compose --env-file .env.prod \
+                            -f docker-compose.fastapi.yml \
+                            -f docker-compose.fastapi.prod.yml \
+                            up -d --build
+                        else
+                          echo "AI 변경 없음: 기존 이미지 재사용"
+                          docker compose --env-file .env.prod \
+                            -f docker-compose.fastapi.yml \
+                            -f docker-compose.fastapi.prod.yml \
+                            up -d
+                        fi
                     '''
                 }
             }

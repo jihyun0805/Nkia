@@ -26,10 +26,10 @@ import {
   activityRequestTypeOptions,
   activities,
   activityStatuses,
-  quotations,
 } from "@/lib/activity-data"
 import { useEffect, useMemo, useState } from "react"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
+import { getQuotations, getQuotationDisplayStatus, subscribeQuotationUpdates } from "@/lib/quotation-workflow"
 import {
   CalendarDays,
   ChevronDown,
@@ -39,7 +39,6 @@ import {
   Users,
   FileText,
   Calendar,
-  Trash2,
 } from "lucide-react"
 
 const REQUEST_CALENDAR_OPEN_KEY = "orbis.activity.requests.calendar.open"
@@ -53,6 +52,7 @@ export default function ActivityPage() {
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
   const [activityRequests, setActivityRequests] = useState(getActivityRequests())
+  const [quotationRecords, setQuotationRecords] = useState(getQuotations())
   const [month, setMonth] = useState(new Date())
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [isPreferenceReady, setIsPreferenceReady] = useState(false)
@@ -72,11 +72,23 @@ export default function ActivityPage() {
     setIsPreferenceReady(true)
   }, [])
 
+  const activeQuotationRecords = useMemo(
+    () => quotationRecords.filter((item) => !item.deletedAt),
+    [quotationRecords],
+  )
+
   useEffect(() => {
     const sync = () => setActivityRequests(getActivityRequests())
 
     sync()
     return subscribeWorkflowUpdates(sync)
+  }, [])
+
+  useEffect(() => {
+    const sync = () => setQuotationRecords(getQuotations())
+
+    sync()
+    return subscribeQuotationUpdates(sync)
   }, [])
 
   useEffect(() => {
@@ -98,8 +110,8 @@ export default function ActivityPage() {
     ]
     : activeTab === "quotations"
       ? [
-        { key: "product", label: "제품", options: uniqueOptions(quotations, (item) => item.product) },
-        { key: "customer", label: "고객사", options: uniqueOptions(quotations, (item) => item.customer) },
+        { key: "product", label: "제품", options: uniqueOptions(activeQuotationRecords, (item) => item.items.map((entry) => entry.name).join(", ")) },
+        { key: "customer", label: "고객사", options: uniqueOptions(activeQuotationRecords, (item) => item.customer) },
       ]
       : [
         { key: "type", label: "요청유형", options: activityRequestTypeOptions },
@@ -124,12 +136,12 @@ export default function ActivityPage() {
       .includes(searchTerm.toLowerCase()),
   )
 
-  const filteredQuotations = filterRecords(quotations, filters, {
-    status: (item) => item.status,
+  const filteredQuotations = filterRecords(activeQuotationRecords, filters, {
+    status: (item) => getQuotationDisplayStatus(item),
     date: (item) => item.date,
-    fields: { product: (item) => item.product, customer: (item) => item.customer },
+    fields: { product: (item) => item.items.map((entry) => entry.name).join(", "), customer: (item) => item.customer },
   }).filter((item) =>
-    [item.id, item.customer, item.opportunity, item.product]
+    [item.id, item.customer, item.opportunity, item.items.map((entry) => entry.name).join(" ")]
       .join(" ")
       .toLowerCase()
       .includes(searchTerm.toLowerCase()),
@@ -226,6 +238,8 @@ export default function ActivityPage() {
     window.localStorage.removeItem(ACTIVITY_ACTIVE_TAB_KEY)
     window.location.reload()
   }
+
+  const formatAmount = (value: string) => Number.parseInt(value.replace(/[^\d]/g, "") || "0", 10).toLocaleString("ko-KR")
 
   return (
     <div className="min-h-screen bg-background">
@@ -375,23 +389,30 @@ export default function ActivityPage() {
                           <TableCell>{quote.date}</TableCell>
                           <TableCell className="font-medium">{quote.customer}</TableCell>
                           <TableCell>{quote.opportunity}</TableCell>
-                          <TableCell>{quote.product}</TableCell>
-                          <TableCell className="text-right font-medium">₩{quote.amount}</TableCell>
+                          <TableCell>{quote.items.map((entry) => entry.name).join(", ")}</TableCell>
+                          <TableCell className="text-right font-medium">₩{formatAmount(quote.amount)}</TableCell>
                           <TableCell>{quote.validity}</TableCell>
                           <TableCell>
+                            {(() => {
+                              const displayStatus = getQuotationDisplayStatus(quote)
+                              return (
                             <Badge
                               variant={
-                                quote.status === "전달완료" ? "default" :
-                                quote.status === "검토중" ? "secondary" : "outline"
+                                displayStatus === "전달완료" ? "default" :
+                                displayStatus === "검토중" ? "secondary" :
+                                displayStatus === "삭제" ? "destructive" : "outline"
                               }
                               className={
-                                quote.status === "전달완료" ? "bg-green-100 text-green-700 hover:bg-green-100" :
-                                quote.status === "검토중" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" :
+                                displayStatus === "전달완료" ? "bg-green-100 text-green-700 hover:bg-green-100" :
+                                displayStatus === "검토중" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" :
+                                displayStatus === "삭제" ? "bg-red-100 text-red-700 hover:bg-red-100" :
                                 "bg-amber-100 text-amber-700 hover:bg-amber-100"
                               }
                             >
-                              {quote.status}
+                              {displayStatus}
                             </Badge>
+                              )
+                            })()}
                           </TableCell>
                         </TableRow>
                       ))}

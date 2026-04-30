@@ -20,7 +20,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,11 +63,6 @@ public class Project extends BaseEntity {
     @JoinColumn(name = "manager_id")
     private User manager;
 
-    // 영업대표
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sales_rep_id")
-    private User salesRep;
-
     // 청구 내역
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Billing> billings = new ArrayList<>();
@@ -99,10 +93,9 @@ public class Project extends BaseEntity {
         this.pjtNumber = pjtNumber;
     }
 
-    public void updateResultInfo(LocalDate startDate, LocalDate endDate, User manager, User salesRep) {
+    public void updateResultInfo(User manager, LocalDate startDate, LocalDate endDate) {
+        this.manager = manager;
         this.startDate = startDate;
         this.endDate = endDate;
-        this.manager = manager;
-        this.salesRep = salesRep;
     }
 }

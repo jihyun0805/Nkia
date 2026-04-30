@@ -23,7 +23,10 @@ EMAIL_FALLBACK_PATTERN = re.compile(
     r"(?P<local>[a-z0-9._%+-]+)(?P<domain>naver|gmail|daum|kakao|hotmail|outlook|yahoo|korea)(?P<tld>com|net|org|co\.kr|kr)$",
     re.IGNORECASE,
 )
-EMAIL_LABEL_PATTERN = re.compile(r"^(?:e-?mail|mail)\s*[:：]?\s*", re.IGNORECASE)
+EMAIL_LABEL_PATTERN = re.compile(
+    r"^(?:(?:e-?mail|mail)\s*[.:：]?\s*|e\s*[.:：]\s*|e\s+(?=[a-z0-9._%+-]+\s*@?))",
+    re.IGNORECASE,
+)
 PHONE_LABEL_PATTERN = re.compile(
     r"^(?:mobile|cell|m|phone|tel|t|office|direct|fax)\s*[:：]?\s*",
     re.IGNORECASE,
@@ -73,6 +76,25 @@ DEPARTMENT_KEYWORDS = (
     "부",
     "과",
     "계",
+)
+ADDRESS_DETAIL_KEYWORDS = (
+    "동",
+    "로",
+    "길",
+    "빌딩",
+    "타워",
+    "층",
+    "호",
+    "센터",
+    "단지",
+)
+ROLE_MARKETING_KEYWORDS = (
+    "provider",
+    "partner",
+    "planner",
+    "planners",
+    "trustable",
+    "global",
 )
 
 
@@ -145,30 +167,24 @@ def analyze_business_card(_: str | None, __: str | None, image_bytes: bytes) -> 
     )
 
     step_started_at = time.perf_counter()
+    contact_name = _normalize_contact_name(model_fields.get("contact_name")) or _infer_contact_name(ocr_lines, model_fields)
+    department = _normalize_department(model_fields.get("department")) or _infer_department(ocr_lines, model_fields)
     response = BusinessCardOcrResponse(
         company_name=model_fields.get("company_name"),
-        contact_name=_normalize_contact_name(model_fields.get("contact_name")),
-        department=_first_model_field(model_fields, "department", "department_name") or _infer_department(ocr_lines, model_fields),
-        role=_first_model_field(model_fields, "role", "responsibility"),
-        position=model_fields.get("position") or _infer_position(ocr_lines, model_fields),
+        contact_name=contact_name,
+        department=department,
+        role=_normalize_role(model_fields.get("role")),
+        position=model_fields.get("position") or _infer_position(ocr_lines, model_fields, contact_name),
         address=model_fields.get("address"),
         email=_normalize_model_email(model_fields.get("email")),
-        mobile=_normalize_model_phone(_first_model_field(model_fields, "mobile", "mobile_phone")),
-        phone=_normalize_model_phone(_first_model_field(model_fields, "phone", "office_phone")),
-        fax=_normalize_model_phone(_first_model_field(model_fields, "fax", "fax_phone")),
+        mobile=_normalize_model_phone(model_fields.get("mobile")),
+        phone=_normalize_model_phone(model_fields.get("phone")),
+        fax=_normalize_model_phone(model_fields.get("fax")) or _extract_labeled_phone(ocr_lines, labels=("fax", "f")),
         raw_text=paddle_output.raw_text,
     )
     logger.info("business_card_ocr.timing postprocess elapsed=%.3fs", time.perf_counter() - step_started_at)
     logger.info("business_card_ocr.timing analyze_total lines=%s elapsed=%.3fs", len(ocr_lines), time.perf_counter() - started_at)
     return response
-
-
-def _first_model_field(model_fields: dict[str, str], *field_names: str) -> str | None:
-    for field_name in field_names:
-        value = model_fields.get(field_name)
-        if value:
-            return value
-    return None
 
 
 def _normalize_model_email(value: str | None) -> str | None:
@@ -190,21 +206,28 @@ def _normalize_contact_name(value: str | None) -> str | None:
 
 
 def _strip_position_from_name(value: str) -> str:
-    compact_value = re.sub(r"\s+", "", value)
-    for title in sorted(KOREAN_POSITION_TITLES, key=len, reverse=True):
-        if compact_value.startswith(title):
-            remainder = compact_value[len(title) :]
-            if HANGUL_NAME_PATTERN.fullmatch(remainder):
-                return remainder
-        if compact_value.endswith(title):
-            remainder = compact_value[: -len(title)]
-            if HANGUL_NAME_PATTERN.fullmatch(remainder):
-                return remainder
+    name, _ = _split_korean_name_position(value)
+    if name is not None:
+        return name
     return value
 
 
-def _infer_position(lines: list[str], model_fields: dict[str, str]) -> str | None:
-    contact_name = _normalize_contact_name(model_fields.get("contact_name"))
+def _infer_contact_name(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    for line in lines:
+        candidate = _clean_text(line)
+        if _is_selected_model_value(candidate, model_fields, exclude_fields={"contact_name", "position"}):
+            continue
+        name, _ = _split_korean_name_position(candidate)
+        if name is not None:
+            return name
+        compact_candidate = re.sub(r"\s+", "", candidate)
+        if HANGUL_NAME_PATTERN.fullmatch(compact_candidate) and not _extract_position_title(compact_candidate):
+            return compact_candidate
+    return None
+
+
+def _infer_position(lines: list[str], model_fields: dict[str, str], contact_name: str | None = None) -> str | None:
+    contact_name = contact_name or _normalize_contact_name(model_fields.get("contact_name"))
     for line in lines:
         candidate = _clean_text(line)
         if _is_selected_model_value(candidate, model_fields, exclude_fields={"position"}):
@@ -217,12 +240,33 @@ def _infer_position(lines: list[str], model_fields: dict[str, str]) -> str | Non
 
 def _extract_position_title(value: str, contact_name: str | None = None) -> str | None:
     compact_value = re.sub(r"\s+", "", value)
+    _, split_position = _split_korean_name_position(value)
+    if split_position is not None:
+        return split_position
     for title in sorted(KOREAN_POSITION_TITLES, key=len, reverse=True):
         if compact_value == title:
             return title
+        if compact_value.endswith(title) and len(compact_value) > len(title):
+            prefix = compact_value[: -len(title)]
+            if prefix and not HANGUL_NAME_PATTERN.fullmatch(prefix):
+                return title
         if contact_name and compact_value in {f"{contact_name}{title}", f"{title}{contact_name}"}:
             return title
     return None
+
+
+def _split_korean_name_position(value: str) -> tuple[str | None, str | None]:
+    compact_value = re.sub(r"\s+", "", value)
+    for title in sorted(KOREAN_POSITION_TITLES, key=len, reverse=True):
+        if compact_value.startswith(title):
+            remainder = compact_value[len(title) :]
+            if HANGUL_NAME_PATTERN.fullmatch(remainder):
+                return remainder, title
+        if compact_value.endswith(title):
+            remainder = compact_value[: -len(title)]
+            if HANGUL_NAME_PATTERN.fullmatch(remainder):
+                return remainder, title
+    return None, None
 
 
 def _infer_department(lines: list[str], model_fields: dict[str, str]) -> str | None:
@@ -230,10 +274,36 @@ def _infer_department(lines: list[str], model_fields: dict[str, str]) -> str | N
         candidate = _clean_text(line)
         if not _looks_like_department(candidate):
             continue
-        if _is_selected_model_value(candidate, model_fields, exclude_fields={"department", "department_name"}):
+        if _is_selected_model_value(candidate, model_fields, exclude_fields={"department"}):
             continue
         return candidate
     return None
+
+
+def _normalize_department(value: str | None) -> str | None:
+    if value is None:
+        return None
+    candidate = _clean_text(value)
+    if not _looks_like_department(candidate):
+        return None
+    return candidate
+
+
+def _normalize_role(value: str | None) -> str | None:
+    if value is None:
+        return None
+    candidate = _clean_text(value)
+    if not candidate:
+        return None
+    if _extract_email([candidate]) or _normalize_model_phone(candidate) is not None:
+        return None
+    if _looks_like_address_detail(candidate):
+        return None
+    if _looks_like_marketing_phrase(candidate):
+        return None
+    if _extract_position_title(candidate) is not None:
+        return None
+    return candidate
 
 
 def _looks_like_department(value: str) -> bool:
@@ -241,6 +311,8 @@ def _looks_like_department(value: str) -> bool:
     if _extract_email([value]) or _normalize_model_phone(value) is not None:
         return False
     if lowered.startswith("www.") or "://" in lowered:
+        return False
+    if _looks_like_address_detail(value):
         return False
     if re.search(r"\d", value):
         return False
@@ -254,6 +326,25 @@ def _looks_like_department(value: str) -> bool:
         return True
     alpha_count = sum(char.isalpha() for char in value)
     return bool(alpha_count >= 5 and re.search(r"[&/]", value))
+
+
+def _looks_like_address_detail(value: str) -> bool:
+    candidate = value.strip()
+    compact = re.sub(r"\s+", "", candidate)
+    is_wrapped = (
+        (candidate.startswith("(") and candidate.endswith(")"))
+        or (candidate.startswith("[") and candidate.endswith("]"))
+    )
+    has_address_marker = any(keyword in compact for keyword in ADDRESS_DETAIL_KEYWORDS)
+    return bool(is_wrapped and has_address_marker and ("," in candidate or "·" in candidate or "-" in candidate))
+
+
+def _looks_like_marketing_phrase(value: str) -> bool:
+    lowered = value.lower()
+    if not re.fullmatch(r"[a-z0-9&/+\-\s.]+", value, re.IGNORECASE):
+        return False
+    words = re.findall(r"[a-z]+", lowered)
+    return bool(len(words) >= 2 and any(keyword in words for keyword in ROLE_MARKETING_KEYWORDS))
 
 
 def _is_selected_model_value(value: str, model_fields: dict[str, str], *, exclude_fields: set[str]) -> bool:
@@ -277,6 +368,19 @@ def _normalize_model_phone(value: str | None) -> str | None:
 
     for match in PHONE_PATTERN.findall(normalized_candidate):
         normalized = _normalize_phone(match)
+        if normalized is not None:
+            return normalized
+    return None
+
+
+def _extract_labeled_phone(lines: list[str], *, labels: tuple[str, ...]) -> str | None:
+    label_pattern = "|".join(re.escape(label) for label in labels)
+    pattern = re.compile(rf"(?:^|[^A-Za-z가-힣])(?:{label_pattern})\s*[.:：]?\s*({PHONE_PATTERN.pattern})", re.IGNORECASE)
+    for line in lines:
+        match = pattern.search(line)
+        if not match:
+            continue
+        normalized = _normalize_model_phone(match.group(1))
         if normalized is not None:
             return normalized
     return None
@@ -638,6 +742,8 @@ def _normalize_phone(value: str) -> str | None:
         digits = "0" + digits[2:]
 
     if len(digits) < 9 or len(digits) > 11:
+        if len(digits) == 12 and re.search(r"(?<!\d)\d{4}[-.\s]\d{4}[-.\s]\d{4}(?!\d)", value):
+            return f"{digits[:4]}-{digits[4:8]}-{digits[8:]}"
         return None
 
     if len(digits) == 11:
