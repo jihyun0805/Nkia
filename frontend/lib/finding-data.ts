@@ -81,6 +81,7 @@ type CustomerUpdateInput = {
 }
 
 const customerStorageKey = "orbis.customers"
+const deletedCustomerIdsStorageKey = "orbis.deleted-customer-ids"
 const customerGroupOptions = ["공공", "민간", "해외"]
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 
@@ -125,14 +126,22 @@ const baseCustomers: CustomerRecord[] = [
 
 export const customers: CustomerRecord[] = baseCustomers
 
-export const partners = [
+export const partners: {
+  id: string
+  name: string
+  type: string
+  opportunities: number
+  projects: number
+  contact: string
+  phone: string
+}[] = [
   { id: "PTN-001", name: "LG CNS", type: "SI", opportunities: 2, projects: 3, contact: "강대표", phone: "010-5678-9012" },
   { id: "PTN-002", name: "SK C&C", type: "SI", opportunities: 1, projects: 2, contact: "윤실장", phone: "010-6789-0123" },
   { id: "PTN-003", name: "NTT DATA", type: "파트너", opportunities: 1, projects: 1, contact: "Yamamoto", phone: "+81-90-2345-6789" },
   { id: "PTN-004", name: "삼성SDS", type: "SI", opportunities: 0, projects: 4, contact: "정팀장", phone: "010-7890-1234" },
 ]
 
-export const findingStatuses = ["진행중", "발굴", "유망"]
+export const findingStatuses: string[] = ["진행중", "발굴", "유망"]
 
 export function getFindingItem(category: FindingCategory, id: string) {
   if (category === "opportunities") return opportunities.find((item) => item.id === id) ?? null
@@ -287,7 +296,7 @@ export function searchCustomers(query: string) {
     .map((item) => item.customer)
 }
 
-function getStoredCustomers() {
+function getStoredCustomers(): CustomerRecord[] {
   if (typeof window === "undefined") return []
 
   const stored = window.localStorage.getItem(customerStorageKey)
@@ -308,9 +317,28 @@ function getStoredCustomers() {
   }
 }
 
+function getDeletedCustomerIds(): string[] {
+  if (typeof window === "undefined") return []
+
+  const stored = window.localStorage.getItem(deletedCustomerIdsStorageKey)
+  if (!stored) return []
+
+  try {
+    const parsed = JSON.parse(stored) as string[]
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+  } catch {
+    return []
+  }
+}
+
 function setStoredCustomers(value: CustomerRecord[]) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(customerStorageKey, JSON.stringify(value))
+}
+
+function setDeletedCustomerIds(value: string[]) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(deletedCustomerIdsStorageKey, JSON.stringify(value))
 }
 
 function parseCustomerCode(customerId: string) {
@@ -318,9 +346,14 @@ function parseCustomerCode(customerId: string) {
   return match ? Number.parseInt(match[1], 10) : 0
 }
 
-export function getCustomers() {
+export function getCustomers(): CustomerRecord[] {
   const merged = new Map<string, CustomerRecord>()
-  for (const customer of baseCustomers) merged.set(customer.id, customer)
+  const deletedIds = new Set(getDeletedCustomerIds())
+  for (const customer of baseCustomers) {
+    if (!deletedIds.has(customer.id)) {
+      merged.set(customer.id, customer)
+    }
+  }
   for (const customer of getStoredCustomers()) merged.set(customer.id, customer)
   return [...merged.values()]
 }
@@ -364,6 +397,7 @@ export function registerCustomer(input: CustomerRegistrationInput) {
 
   const storedCustomers = getStoredCustomers()
   setStoredCustomers([...storedCustomers, created])
+  setDeletedCustomerIds(getDeletedCustomerIds().filter((item) => item !== created.id))
 
   return { status: "created" as const, customer: created }
 }
@@ -407,5 +441,21 @@ export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
   }
 
   setStoredCustomers([...storedCustomers, nextRecord])
+  setDeletedCustomerIds(getDeletedCustomerIds().filter((item) => item !== normalizedId))
   return { status: "updated" as const, customer: nextRecord }
+}
+
+export function deleteCustomer(customerId: string) {
+  const normalizedId = customerId.trim()
+  const existing = getCustomers().find((item) => item.id === normalizedId)
+  if (!existing) return { status: "not_found" as const }
+
+  const filteredStoredCustomers = getStoredCustomers().filter((item) => item.id !== normalizedId)
+  const deletedIds = new Set(getDeletedCustomerIds())
+  deletedIds.add(normalizedId)
+
+  setStoredCustomers(filteredStoredCustomers)
+  setDeletedCustomerIds([...deletedIds])
+
+  return { status: "deleted" as const, customer: existing }
 }

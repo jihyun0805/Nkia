@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
@@ -70,7 +70,7 @@ function hasContactValue(contact: ContactDraft) {
   )
 }
 
-export default function CustomerEditPage() {
+function CustomerEditPageContent() {
   const params = useParams<{ id?: string | string[] }>()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -390,5 +390,13 @@ export default function CustomerEditPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+export default function CustomerEditPage() {
+  return (
+    <Suspense fallback={null}>
+      <CustomerEditPageContent />
+    </Suspense>
   )
 }
