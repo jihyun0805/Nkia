@@ -33,11 +33,19 @@ function FindingEditControl({ field, value }: { field: FindingFormField; value: 
   return <Input defaultValue={value} placeholder={`${field.label}을 입력하세요`} />
 }
 
-export default async function FindingEditPage({ params }: { params: Promise<{ category: FindingCategory; id: string }> }) {
+export default async function FindingEditPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ category: FindingCategory; id: string }>
+  searchParams?: Promise<{ tab?: string }>
+}) {
   const { category, id } = await params
+  const { tab } = (await searchParams) ?? {}
   const item = getFindingItem(category, id)
   if (!item) notFound()
   const label = getFindingCategoryLabel(category)
+  const backHref = `/finding?tab=${tab ?? category}`
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,7 +58,7 @@ export default async function FindingEditPage({ params }: { params: Promise<{ ca
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link href="/finding">발굴</Link>
+                    <Link href={backHref}>발굴</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
@@ -87,10 +95,10 @@ export default async function FindingEditPage({ params }: { params: Promise<{ ca
 
                 <div className="flex justify-end gap-2 border-t pt-6">
                   <Button variant="outline" asChild>
-                    <Link href={`/finding/${category}/${id}`}>취소</Link>
+                    <Link href={`/finding/${category}/${id}?tab=${tab ?? category}`}>취소</Link>
                   </Button>
                   <Button asChild>
-                    <Link href={`/finding/${category}/${id}`}>수정</Link>
+                    <Link href={`/finding/${category}/${id}?tab=${tab ?? category}`}>수정</Link>
                   </Button>
                 </div>
               </CardContent>
