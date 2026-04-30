@@ -24,6 +24,7 @@ import {
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { ActivityFormFields } from "@/components/erp/activity-form-fields"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { createActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
@@ -36,6 +37,7 @@ import {
   hasRegisteredCustomer,
 } from "@/lib/finding-data"
 import { toast } from "@/hooks/use-toast"
+import { createQuotation } from "@/lib/quotation-workflow"
 import { X } from "lucide-react"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
@@ -53,7 +55,7 @@ export default function ActivityCategoryNewPage() {
   const [activityOpportunityCode, setActivityOpportunityCode] = useState("")
   const [activityRequester, setActivityRequester] = useState("")
   const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
-  const [quotationCustomer, setQuotationCustomer] = useState("")
+  const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
   const [form, setForm] = useState({
     date: "",
@@ -107,7 +109,7 @@ export default function ActivityCategoryNewPage() {
   const registrationTitle = category === "activities" ? "활동" : title
 
   const targetCustomer =
-    category === "activities" ? activityCustomer : category === "quotations" ? quotationCustomer : form.customer
+    category === "activities" ? activityCustomer : category === "quotations" ? quotationForm.customer : form.customer
   const matchedCustomer = category === "requests" ? getCustomerByName(form.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(form.customer) : []
   const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
@@ -121,6 +123,27 @@ export default function ActivityCategoryNewPage() {
 
   const handleSubmit = () => {
     if (!ensureRegisteredCustomer()) return
+
+    if (category === "quotations") {
+      const normalized = normalizeQuotationForm(quotationForm)
+      const hasValidItem = normalized.items.some((item) => item.name && Number.parseInt(item.amount || "0", 10) > 0)
+
+      if (!normalized.customer || !normalized.opportunity || !normalized.validity || !normalized.salesRep || !hasValidItem) {
+        toast({
+          title: "견적 필수값 확인",
+          description: "고객사, 사업기회, 유효기간, 영업대표와 1개 이상의 제품 금액을 입력해주십시오.",
+        })
+        return
+      }
+
+      const created = createQuotation(normalized)
+      toast({
+        title: "견적 등록 완료",
+        description: `${created.customer} 견적서가 등록되었습니다.`,
+      })
+      router.push(`/activity/quotations/${created.id}`)
+      return
+    }
 
     if (category !== "requests") {
       router.push("/activity")
@@ -154,7 +177,7 @@ export default function ActivityCategoryNewPage() {
       <div className="flex-1 flex flex-col">
         <Header title={`${registrationTitle} 등록`} description={`${registrationTitle} 정보를 등록합니다`} />
         <main className="flex-1 overflow-auto p-6">
-          <div className="mx-auto max-w-5xl space-y-6">
+          <div className={`mx-auto space-y-6 ${category === "quotations" ? "max-w-[1440px]" : "max-w-5xl"}`}>
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -198,42 +221,7 @@ export default function ActivityCategoryNewPage() {
                 )}
 
                 {category === "quotations" && (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>견적일 *</Label>
-                        <Input type="date" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>고객사 *</Label>
-                        <Input value={quotationCustomer} onChange={(event) => setQuotationCustomer(event.target.value)} placeholder="고객사를 입력하세요" />
-                      </div>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>사업기회 *</Label>
-                        <Input placeholder="사업기회를 입력하세요" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>제품 *</Label>
-                        <Input placeholder="제품명을 입력하세요" />
-                      </div>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>견적 금액 *</Label>
-                        <Input placeholder="금액을 입력하세요" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>유효기간 *</Label>
-                        <Input type="date" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>견적 비고</Label>
-                      <Textarea rows={4} />
-                    </div>
-                  </>
+                  <QuotationSheet mode="create" form={quotationForm} onChange={setQuotationForm} />
                 )}
 
                 {category === "requests" && (
@@ -349,10 +337,12 @@ export default function ActivityCategoryNewPage() {
                   </>
                 )}
 
-                <div className="space-y-2">
-                  <Label>첨부파일</Label>
-                  <Input type="file" multiple />
-                </div>
+                {category !== "quotations" && (
+                  <div className="space-y-2">
+                    <Label>첨부파일</Label>
+                    <Input type="file" multiple />
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2 border-t pt-6">
                   <Button variant="outline" asChild>
