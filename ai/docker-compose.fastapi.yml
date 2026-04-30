@@ -31,12 +31,15 @@ services:
       AI_EMBEDDING_DEVICE: ${AI_EMBEDDING_DEVICE:-cpu}
       AI_EMBEDDING_BATCH_SIZE: ${AI_EMBEDDING_BATCH_SIZE:-4}
       AI_EMBEDDING_MAX_LENGTH: ${AI_EMBEDDING_MAX_LENGTH:-512}
+      AI_BUSINESS_CARD_MODEL_DIR: ${AI_BUSINESS_CARD_MODEL_DIR:-/models/business-card}
+      AI_HF_CACHE_DIR: ${AI_HF_CACHE_DIR:-/models/huggingface}
       AI_UVICORN_WORKERS: ${AI_UVICORN_WORKERS:-1}
       GMS_KEY: ${GMS_KEY}
       TZ: Asia/Seoul
     volumes:
       - ai_model_cache:/models
       - ai_ocr_cache:/root/.paddleocr
+      - ${AI_BUSINESS_CARD_MODEL_HOST_DIR:-/opt/orbis-ai/business-card-model}:/models/business-card:ro
     networks:
       - app-network
     healthcheck:

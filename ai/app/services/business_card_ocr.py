@@ -1,7 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
+import logging
 import re
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -12,6 +14,8 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from app.schemas.ocr import BusinessCardOcrLine, BusinessCardOcrResponse, BusinessCardPaddleOutput
 from app.services.business_card_field_classifier import predict_business_card_fields
 
+
+logger = logging.getLogger(__name__)
 
 EMAIL_PATTERN = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 PHONE_PATTERN = re.compile(r"(?:\+?\d{1,3}[-.\s]?)?(?:\d{2,4}[-.\s]?)?\d{3,4}[-.\s]?\d{4}")
@@ -26,6 +30,50 @@ PHONE_LABEL_PATTERN = re.compile(
 )
 CORPORATE_MARKER_PATTERN = re.compile(r"[\(\[]?\s*주\s*[\)\]]?")
 HANGUL_NAME_PATTERN = re.compile(r"^[가-힣]{2,4}$")
+KOREAN_POSITION_TITLES = (
+    "대표이사",
+    "부사장",
+    "전무",
+    "상무",
+    "이사",
+    "본부장",
+    "센터장",
+    "실장",
+    "부장",
+    "차장",
+    "과장",
+    "팀장",
+    "계장",
+    "대리",
+    "주임",
+    "선임",
+    "책임",
+    "연구원",
+    "사원",
+    "대표",
+    "원장",
+    "소장",
+    "매니저",
+    "PM",
+)
+DEPARTMENT_KEYWORDS = (
+    "department",
+    "division",
+    "team",
+    "center",
+    "centre",
+    "office",
+    "lab",
+    "본부",
+    "센터",
+    "부서",
+    "사업부",
+    "팀",
+    "실",
+    "부",
+    "과",
+    "계",
+)
 
 
 @dataclass(frozen=True)
@@ -39,13 +87,26 @@ class OCRLine:
 
 
 def extract_business_card_paddle_output(_: str | None, __: str | None, image_bytes: bytes) -> BusinessCardPaddleOutput:
+    started_at = time.perf_counter()
+    step_started_at = time.perf_counter()
     images = _load_image_variants(image_bytes)
+    logger.info("business_card_ocr.timing image_variants count=%s elapsed=%.3fs", len(images), time.perf_counter() - step_started_at)
+
+    step_started_at = time.perf_counter()
     ocr_candidates = _extract_line_candidates(images)
+    logger.info("business_card_ocr.timing paddle_ocr lines=%s elapsed=%.3fs", len(ocr_candidates), time.perf_counter() - step_started_at)
+
+    step_started_at = time.perf_counter()
     ocr_candidates = _consolidate_similar_candidates(ocr_candidates)
+    logger.info(
+        "business_card_ocr.timing consolidate lines=%s elapsed=%.3fs",
+        len(ocr_candidates),
+        time.perf_counter() - step_started_at,
+    )
     ocr_lines = [candidate.text for candidate in ocr_candidates]
     raw_text = "\n".join(ocr_lines).strip() or None
 
-    return BusinessCardPaddleOutput(
+    output = BusinessCardPaddleOutput(
         raw_text=raw_text,
         lines=[
             BusinessCardOcrLine(
@@ -59,30 +120,55 @@ def extract_business_card_paddle_output(_: str | None, __: str | None, image_byt
             for index, candidate in enumerate(ocr_candidates)
         ],
     )
+    logger.info("business_card_ocr.timing paddle_output_total elapsed=%.3fs", time.perf_counter() - started_at)
+    return output
 
 
 def analyze_business_card(_: str | None, __: str | None, image_bytes: bytes) -> BusinessCardOcrResponse:
+    started_at = time.perf_counter()
+    step_started_at = time.perf_counter()
     paddle_output = extract_business_card_paddle_output(_, __, image_bytes)
+    logger.info("business_card_ocr.timing extract_paddle_output elapsed=%.3fs", time.perf_counter() - step_started_at)
     ocr_lines = [line.text for line in paddle_output.lines]
 
     if not ocr_lines:
+        logger.info("business_card_ocr.timing analyze_total lines=0 elapsed=%.3fs", time.perf_counter() - started_at)
         return BusinessCardOcrResponse(raw_text=paddle_output.raw_text)
 
+    step_started_at = time.perf_counter()
     model_fields = predict_business_card_fields(ocr_lines)
+    logger.info(
+        "business_card_ocr.timing field_classifier input_lines=%s output_fields=%s elapsed=%.3fs",
+        len(ocr_lines),
+        len(model_fields),
+        time.perf_counter() - step_started_at,
+    )
 
-    return BusinessCardOcrResponse(
+    step_started_at = time.perf_counter()
+    response = BusinessCardOcrResponse(
         company_name=model_fields.get("company_name"),
-        contact_name=model_fields.get("contact_name"),
-        position=model_fields.get("position"),
+        contact_name=_normalize_contact_name(model_fields.get("contact_name")),
+        department=_first_model_field(model_fields, "department", "department_name") or _infer_department(ocr_lines, model_fields),
+        role=_first_model_field(model_fields, "role", "responsibility"),
+        position=model_fields.get("position") or _infer_position(ocr_lines, model_fields),
         address=model_fields.get("address"),
         email=_normalize_model_email(model_fields.get("email")),
-        mobile_phone=_normalize_model_phone(model_fields.get("mobile_phone")),
-        office_phone=_normalize_model_phone(model_fields.get("office_phone")),
-        fax_phone=_normalize_model_phone(model_fields.get("fax_phone")),
-        responsibility=model_fields.get("responsibility"),
-        department_name=model_fields.get("department_name"),
+        mobile=_normalize_model_phone(_first_model_field(model_fields, "mobile", "mobile_phone")),
+        phone=_normalize_model_phone(_first_model_field(model_fields, "phone", "office_phone")),
+        fax=_normalize_model_phone(_first_model_field(model_fields, "fax", "fax_phone")),
         raw_text=paddle_output.raw_text,
     )
+    logger.info("business_card_ocr.timing postprocess elapsed=%.3fs", time.perf_counter() - step_started_at)
+    logger.info("business_card_ocr.timing analyze_total lines=%s elapsed=%.3fs", len(ocr_lines), time.perf_counter() - started_at)
+    return response
+
+
+def _first_model_field(model_fields: dict[str, str], *field_names: str) -> str | None:
+    for field_name in field_names:
+        value = model_fields.get(field_name)
+        if value:
+            return value
+    return None
 
 
 def _normalize_model_email(value: str | None) -> str | None:
@@ -91,24 +177,121 @@ def _normalize_model_email(value: str | None) -> str | None:
     return _extract_email([value]) or value
 
 
+def _normalize_contact_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    candidate = re.sub(r"\s+", " ", value).strip()
+    candidate = _strip_position_from_name(candidate)
+    hangul_only = re.sub(r"\s+", "", candidate)
+    if HANGUL_NAME_PATTERN.fullmatch(hangul_only):
+        return hangul_only
+    return candidate or None
+
+
+def _strip_position_from_name(value: str) -> str:
+    compact_value = re.sub(r"\s+", "", value)
+    for title in sorted(KOREAN_POSITION_TITLES, key=len, reverse=True):
+        if compact_value.startswith(title):
+            remainder = compact_value[len(title) :]
+            if HANGUL_NAME_PATTERN.fullmatch(remainder):
+                return remainder
+        if compact_value.endswith(title):
+            remainder = compact_value[: -len(title)]
+            if HANGUL_NAME_PATTERN.fullmatch(remainder):
+                return remainder
+    return value
+
+
+def _infer_position(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    contact_name = _normalize_contact_name(model_fields.get("contact_name"))
+    for line in lines:
+        candidate = _clean_text(line)
+        if _is_selected_model_value(candidate, model_fields, exclude_fields={"position"}):
+            continue
+        position = _extract_position_title(candidate, contact_name)
+        if position is not None:
+            return position
+    return None
+
+
+def _extract_position_title(value: str, contact_name: str | None = None) -> str | None:
+    compact_value = re.sub(r"\s+", "", value)
+    for title in sorted(KOREAN_POSITION_TITLES, key=len, reverse=True):
+        if compact_value == title:
+            return title
+        if contact_name and compact_value in {f"{contact_name}{title}", f"{title}{contact_name}"}:
+            return title
+    return None
+
+
+def _infer_department(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    for line in lines:
+        candidate = _clean_text(line)
+        if not _looks_like_department(candidate):
+            continue
+        if _is_selected_model_value(candidate, model_fields, exclude_fields={"department", "department_name"}):
+            continue
+        return candidate
+    return None
+
+
+def _looks_like_department(value: str) -> bool:
+    lowered = value.lower()
+    if _extract_email([value]) or _normalize_model_phone(value) is not None:
+        return False
+    if lowered.startswith("www.") or "://" in lowered:
+        return False
+    if re.search(r"\d", value):
+        return False
+    if _extract_position_title(value) is not None:
+        return False
+    if HANGUL_NAME_PATTERN.fullmatch(re.sub(r"\s+", "", value)):
+        return False
+    if any(keyword in lowered for keyword in DEPARTMENT_KEYWORDS[:6]):
+        return True
+    if any(keyword in value for keyword in DEPARTMENT_KEYWORDS[6:]):
+        return True
+    alpha_count = sum(char.isalpha() for char in value)
+    return bool(alpha_count >= 5 and re.search(r"[&/]", value))
+
+
+def _is_selected_model_value(value: str, model_fields: dict[str, str], *, exclude_fields: set[str]) -> bool:
+    normalized_value = _normalize_similarity_text(value)
+    for field_name, field_value in model_fields.items():
+        if field_name in exclude_fields:
+            continue
+        if normalized_value and normalized_value == _normalize_similarity_text(field_value):
+            return True
+    return False
+
+
 def _normalize_model_phone(value: str | None) -> str | None:
     if value is None:
         return None
 
     normalized_candidate = _normalize_phone_candidate(value)
+    normalized = _normalize_phone(normalized_candidate)
+    if normalized is not None:
+        return normalized
+
     for match in PHONE_PATTERN.findall(normalized_candidate):
         normalized = _normalize_phone(match)
         if normalized is not None:
             return normalized
-    return value
+    return None
 
 
 def _load_image_variants(image_bytes: bytes) -> list[np.ndarray]:
     with Image.open(io.BytesIO(image_bytes)) as image:
         normalized = ImageOps.exif_transpose(image).convert("RGB")
         width, height = normalized.size
-        if max(width, height) < 1200:
-            scale = 1200 / max(width, height)
+        max_side = max(width, height)
+        if max_side > 960:
+            scale = 960 / max_side
+            normalized = normalized.resize((int(width * scale), int(height * scale)))
+        elif max_side < 720:
+            scale = 720 / max_side
             normalized = normalized.resize((int(width * scale), int(height * scale)))
 
         grayscale = ImageOps.grayscale(normalized)
@@ -120,8 +303,6 @@ def _load_image_variants(image_bytes: bytes) -> list[np.ndarray]:
         variants = [
             normalized,
             high_contrast.convert("RGB"),
-            sharpened.convert("RGB"),
-            thresholded.convert("RGB"),
         ]
         return [np.array(variant) for variant in variants]
 
@@ -138,24 +319,36 @@ def _get_ocr_engine() -> Any:
 
     try:
         return PaddleOCR(
-            lang="korean",
+            text_detection_model_name="PP-OCRv5_mobile_det",
+            text_recognition_model_name="korean_PP-OCRv5_mobile_rec",
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
+            text_recognition_batch_size=6,
         )
     except TypeError:
         return PaddleOCR(lang="korean", use_angle_cls=True)
 
 
 def _extract_line_candidates(images: list[np.ndarray]) -> list[OCRLine]:
+    started_at = time.perf_counter()
     ocr_engine = _get_ocr_engine()
+    logger.info("business_card_ocr.timing get_ocr_engine elapsed=%.3fs", time.perf_counter() - started_at)
     merged_lines: list[OCRLine] = []
     failures: list[str] = []
 
-    for image in images:
+    for index, image in enumerate(images):
+        variant_started_at = time.perf_counter()
         try:
             results = ocr_engine.predict(image)
-            merged_lines.extend(_parse_predict_results(results))
+            parsed_lines = _parse_predict_results(results)
+            merged_lines.extend(parsed_lines)
+            logger.info(
+                "business_card_ocr.timing paddle_variant index=%s method=predict lines=%s elapsed=%.3fs",
+                index,
+                len(parsed_lines),
+                time.perf_counter() - variant_started_at,
+            )
             continue
         except AttributeError:
             pass
@@ -164,11 +357,25 @@ def _extract_line_candidates(images: list[np.ndarray]) -> list[OCRLine]:
 
         try:
             legacy_results = ocr_engine.ocr(image, cls=True)
-            merged_lines.extend(_parse_legacy_results(legacy_results))
+            parsed_lines = _parse_legacy_results(legacy_results)
+            merged_lines.extend(parsed_lines)
+            logger.info(
+                "business_card_ocr.timing paddle_variant index=%s method=ocr lines=%s elapsed=%.3fs",
+                index,
+                len(parsed_lines),
+                time.perf_counter() - variant_started_at,
+            )
         except Exception as exc:
             failures.append(f"ocr(): {exc}")
 
+    normalize_started_at = time.perf_counter()
     lines = _normalize_candidates(merged_lines)
+    logger.info(
+        "business_card_ocr.timing normalize_candidates before=%s after=%s elapsed=%.3fs",
+        len(merged_lines),
+        len(lines),
+        time.perf_counter() - normalize_started_at,
+    )
     if lines:
         return lines
 
@@ -266,6 +473,7 @@ def _normalize_candidates(lines: list[OCRLine]) -> list[OCRLine]:
     return normalized
 
 
+
 def _consolidate_similar_candidates(candidates: list[OCRLine]) -> list[OCRLine]:
     consolidated: list[OCRLine] = []
 
@@ -319,7 +527,6 @@ def _looks_like_phone_like_text(value: str) -> bool:
 
 def _normalize_similarity_text(value: str) -> str:
     text = re.sub(r"[\s\[\]\(\)'`:.,\-_/]", "", value.lower())
-    text = text.replace("주", "주")
     return text
 
 
@@ -424,11 +631,14 @@ def _extract_email(lines: list[str]) -> str | None:
 
 def _normalize_phone(value: str) -> str | None:
     digits = re.sub(r"\D", "", value)
-    if len(digits) < 9 or len(digits) > 12:
-        return None
 
-    if digits.startswith("82") and len(digits) in {11, 12}:
+    if digits.startswith("820") and len(digits) in {12, 13}:
+        digits = "0" + digits[3:]
+    elif digits.startswith("82") and len(digits) in {11, 12, 13}:
         digits = "0" + digits[2:]
+
+    if len(digits) < 9 or len(digits) > 11:
+        return None
 
     if len(digits) == 11:
         return f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
@@ -444,7 +654,7 @@ def _normalize_phone(value: str) -> str | None:
 def _normalize_email_candidate(value: str) -> str:
     candidate = EMAIL_LABEL_PATTERN.sub("", value.strip())
     candidate = candidate.replace(" ", "")
-    candidate = candidate.replace("©", "@").replace("(a)", "@")
+    candidate = candidate.replace("짤", "@").replace("(a)", "@")
     candidate = candidate.replace("co,kr", "co.kr").replace("cokr", "co.kr").replace("co kr", "co.kr")
     candidate = candidate.replace("[", "").replace("]", "").replace("|", "").replace("!", "")
     candidate = re.sub(
@@ -474,7 +684,8 @@ def _normalize_email_candidate(value: str) -> str:
 def _normalize_phone_candidate(value: str) -> str:
     candidate = PHONE_LABEL_PATTERN.sub("", value.strip())
     candidate = candidate.replace("O", "0").replace("o", "0")
-    candidate = candidate.replace("[", "").replace("]", "").replace("|", "1")
+    candidate = candidate.replace("[", "").replace("]", "").replace("(", "").replace(")", "")
+    candidate = candidate.replace("|", "1")
     return candidate
 
 

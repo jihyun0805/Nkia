@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from app.services.business_card_ocr import OCRLine, analyze_business_card
+from app.services.business_card_ocr import OCRLine, _normalize_model_phone, analyze_business_card
 
 
 class AnalyzeBusinessCardTests(unittest.TestCase):
@@ -55,10 +55,10 @@ class AnalyzeBusinessCardTests(unittest.TestCase):
         )
         self.assertEqual(response.company_name, "ACME Corp.")
         self.assertEqual(response.contact_name, "Kim Minsoo")
-        self.assertEqual(response.department_name, "Sales Division")
-        self.assertEqual(response.responsibility, "Cloud Business")
-        self.assertEqual(response.mobile_phone, "010-1234-5678")
-        self.assertEqual(response.office_phone, "02-345-6789")
+        self.assertEqual(response.department, "Sales Division")
+        self.assertEqual(response.role, "Cloud Business")
+        self.assertEqual(response.mobile, "010-1234-5678")
+        self.assertEqual(response.phone, "02-345-6789")
         self.assertEqual(response.email, "minsoo.kim@acme.co.kr")
         self.assertEqual(set(response.raw_text.splitlines()), {line.text for line in mock_extract_line_candidates.return_value})
 
@@ -86,12 +86,36 @@ class AnalyzeBusinessCardTests(unittest.TestCase):
         self.assertIsNone(response.position)
         self.assertIsNone(response.address)
         self.assertIsNone(response.email)
-        self.assertIsNone(response.mobile_phone)
-        self.assertIsNone(response.office_phone)
-        self.assertIsNone(response.fax_phone)
-        self.assertIsNone(response.responsibility)
-        self.assertIsNone(response.department_name)
+        self.assertIsNone(response.mobile)
+        self.assertIsNone(response.phone)
+        self.assertIsNone(response.fax)
+        self.assertIsNone(response.role)
+        self.assertIsNone(response.department)
         self.assertIsNone(response.raw_text)
+
+    def test_normalize_model_phone_handles_common_phone_patterns(self) -> None:
+        mobile_parts = ("010", "1234", "5678")
+        seoul_parts = ("02", "1234", "5678")
+        cases = [
+            (f"M ({mobile_parts[0]}) {mobile_parts[1]} {mobile_parts[2]}", "010-1234-5678"),
+            (f"TEL {seoul_parts[0]} {seoul_parts[1]} {seoul_parts[2]}", "02-1234-5678"),
+            (f"FAX +82-{seoul_parts[0][1:]}-{seoul_parts[1]}-{seoul_parts[2]}", "02-1234-5678"),
+        ]
+
+        for raw_value, expected in cases:
+            with self.subTest(raw_value=raw_value):
+                self.assertEqual(_normalize_model_phone(raw_value), expected)
+
+    def test_normalize_model_phone_rejects_values_without_phone_length_digits(self) -> None:
+        cases = [
+            "1" * 5,
+            "1" * 8,
+            "text without digits",
+        ]
+
+        for raw_value in cases:
+            with self.subTest(raw_value=raw_value):
+                self.assertIsNone(_normalize_model_phone(raw_value))
 
 
 if __name__ == "__main__":

@@ -18,12 +18,12 @@ class BusinessCardPaddleOutput(BaseModel):
 class BusinessCardOcrResponse(BaseModel):
     company_name: str | None = None
     contact_name: str | None = None
+    department: str | None = None
+    role: str | None = None
     position: str | None = None
     address: str | None = None
     email: str | None = None
-    mobile_phone: str | None = None
-    office_phone: str | None = None
-    fax_phone: str | None = None
-    responsibility: str | None = None
-    department_name: str | None = None
+    mobile: str | None = None
+    phone: str | None = None
+    fax: str | None = None
     raw_text: str | None = None

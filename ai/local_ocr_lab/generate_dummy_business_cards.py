@@ -17,15 +17,14 @@ GMS_CHAT_COMPLETIONS_URL = "https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/c
 FIELD_NAMES = (
     "company_name",
     "contact_name",
+    "department",
+    "role",
     "position",
     "address",
     "email",
-    "mobile_phone",
-    "office_phone",
-    "fax_phone",
-    "responsibility",
-    "department_name",
-    "raw_text",
+    "mobile",
+    "phone",
+    "fax",
 )
 
 
@@ -59,10 +58,9 @@ def load_env_value(path: Path, key: str) -> str:
 
 def build_prompt(count: int, start_index: int) -> str:
     return f"""
-한국 명함 OCR 후처리 모델 학습용 합성 데이터를 {count}개 생성해줘.
+한국어 명함 OCR 후처리 모델 학습용 합성 데이터를 {count}개 생성해줘.
 
-반드시 유효한 JSON 배열만 출력해. 마크다운 코드블록, 설명 문장, 주석은 쓰지 마.
-
+반드시 유효한 JSON 배열만 출력해. 마크다운 코드블록, 설명 문장, 주석은 출력하지 마.
 각 배열 원소는 반드시 아래 구조를 따른다.
 
 {{
@@ -70,45 +68,177 @@ def build_prompt(count: int, start_index: int) -> str:
   "label": {{
     "company_name": "...",
     "contact_name": "...",
+    "department": "...",
+    "role": "...",
     "position": "...",
     "address": "...",
     "email": "...",
-    "mobile_phone": "...",
-    "office_phone": "...",
-    "fax_phone": "...",
-    "responsibility": "...",
-    "department_name": "...",
-    "raw_text": null
+    "mobile": "...",
+    "phone": "...",
+    "fax": "..."
   }},
   "ocr_lines": [
-    "PaddleOCR이 읽은 것처럼 보이는 줄 단위 텍스트"
+    "PaddleOCR가 반환한 것처럼 보이는 줄 단위 raw text"
   ]
 }}
 
+필드 의미:
+- company_name: 기업명, 기관명, 병원명, 매장명, 단체명.
+- contact_name: 담당자명 또는 명함 소유자 이름.
+- department: 부서명, 팀명, 본부명, 센터명, 연구소명.
+- role: 담당업무 또는 업무 영역. 예: 플랫폼 개발, 전략영업, 고객 기술지원.
+- position: 직책 또는 직급. 예: 대표, 원장, 팀장, 상무, 대리.
+- address: 주소.
+- email: 이메일.
+- mobile: 개인 휴대전화번호.
+- phone: 기업/사무실 대표 전화번호.
+- fax: 팩스번호.
+
 생성 규칙:
 - card_id는 "card_synth_{start_index:04d}"부터 순서대로 만든다.
-- label은 원본 명함 기준 정답이다.
-- ocr_lines는 PaddleOCR 결과처럼 보이는 줄 단위 raw text만 담는다.
+- label은 원본 명함 기준의 정답이다.
+- label key 순서는 company_name, contact_name, department, role, position, address, email, mobile, phone, fax 순서를 지킨다.
+- ocr_lines는 구조화 결과가 아니라 PaddleOCR 인식 결과처럼 보이는 줄 단위 raw text다.
 - ocr_lines 안에는 company_name, contact_name 같은 필드명을 쓰지 않는다.
-- ocr_lines는 구조화 결과가 아니라 OCR 인식 결과다.
-- ocr_lines만 보고 label의 정답을 사람이 대략 추론할 수 있어야 한다.
-- label.raw_text는 항상 null이다.
-- null 가능한 필드는 실제 명함처럼 일부 비워둔다. 특히 fax_phone, responsibility, department_name은 자주 null이어도 된다.
-- 전화번호 label은 "010-1234-5678", "02-123-4567"처럼 정규화한다.
-- 이메일 label은 소문자 정상 이메일로 쓴다.
-- 한국어 문자열은 반드시 정상 유니코드 한글로 출력한다. 깨진 문자(예: �, 媛, ?쒖슱, 留)를 절대 쓰지 않는다.
-- 명함 유형은 다양하게 섞는다: 스타트업, 공공기관, 병원, 학원, 제조업, 영업 대리점, 컨설턴트, IT 회사, 연구소.
-- ocr_lines에는 약한 OCR 노이즈를 일부 섞는다:
-  - 하이픈이 빠진 전화번호
-  - 전화번호가 여러 줄로 나뉨
-  - E-mail, Mail, TEL, FAX, M 같은 라벨 포함
-  - @가 a 또는 at처럼 보임
-  - co.kr의 점이 빠짐
-  - 대소문자 혼합
-  - 회사명/부서/직책/이름 순서가 명함마다 다름
-- 단, ocr_lines에 지나치게 심한 깨짐 문자는 넣지 않는다.
-""".strip()
+- ocr_lines만 보고 label 정답을 사람이 대략 추론할 수 있어야 한다.
+- 줄 순서는 명함마다 다르게 섞는다.
+- null 값은 명함마다 랜덤하게 발생한다.
+- company_name, contact_name은 대부분 존재하게 한다.
+- address, phone, fax, role, department는 일부 명함에서 null일 수 있다.
+- 전화번호 label은 "010-1234-5678", "02-1234-5678"처럼 정규화한다.
+- email label은 정상 이메일 형식으로 둔다.
+- 예시에는 실제 개인 또는 실제 회사로 보일 수 있는 식별 정보를 쓰지 말고 홍길동, 김민수, 010-1234-5678, example.com 같은 더미 값을 사용한다.
 
+현재 PaddleOCR 출력 특성:
+- 서비스는 PP-OCRv5_mobile_det와 korean_PP-OCRv5_mobile_rec를 사용한다.
+- 이미지는 긴 변이 보통 720~960px 범위가 되도록 리사이즈된다.
+- 심하게 깨진 문자보다 가벼운 OCR 노이즈가 주로 발생한다고 가정한다.
+- 읽을 수 없는 깨진 문자나 mojibake를 과하게 넣지 않는다.
+- 한글 이름 표기는 다양해야 한다. 공백 없는 이름, 음절 공백 이름, 직책+이름, 이름+직책, 이름과 직책이 분리된 줄을 골고루 섞는다.
+- 이름 표기 예: "홍길동", "홍 길 동", "팀장 홍길동", "홍길동 팀장", "홍 길 동 대표".
+- 라벨 문자가 값에 붙을 수 있다. 예: "m (010) 1234 5678", "e hong.gildong@example.com", "TEL 02 1234 5678".
+- 전화번호는 중복 또는 근사 중복 라인이 생길 수 있다. 예: "m (010) 1234 5678"와 "m(010) 1234 5678".
+- 주소는 1~2줄로 분리될 수 있다.
+- OCR lines에는 짧은 로고 텍스트, 웹사이트, 우편번호, 슬로건, 건물명/층 정보가 포함될 수 있다.
+
+어려운 케이스 생성 규칙:
+- 이름과 직책 형태는 한 가지 패턴으로 고정하지 않는다.
+- 전체 생성 데이터 중 일부만 이름+직책을 한 줄에 결합한다.
+- 나머지는 이름만 한 줄에 있거나, 직책만 별도 줄에 있거나, 직책이 이름 앞에 오는 형태를 섞는다.
+- 예시:
+  - "홍길동" + 별도 줄 "대표" -> label.contact_name: "홍길동", label.position: "대표"
+  - "홍 길 동" + 별도 줄 "대표" -> label.contact_name: "홍길동", label.position: "대표"
+  - "홍길동 대표" -> label.contact_name: "홍길동", label.position: "대표"
+  - "홍 길 동 대표" -> label.contact_name: "홍길동", label.position: "대표"
+  - "팀장 김민수" -> label.contact_name: "김민수", label.position: "팀장"
+  - "김 민 수 팀장" -> label.contact_name: "김민수", label.position: "팀장"
+  - "원장 이영희" -> label.contact_name: "이영희", label.position: "원장"
+- 일부 명함에는 한 줄에 여러 연락처 값을 넣는다.
+  예: "M 010-1234-5678 TEL 02-1234-5678"
+  예: "T 02 1234 5678 F 02 1234 5679"
+  label에서는 mobile, phone, fax, email을 분리해서 저장한다.
+- 일부 명함에는 이메일 라벨 노이즈를 넣는다.
+  예: "e hong.gildong@example.com", "E-mail hong.gildong@example com", "mail hong.gildong at example.com"
+  label에는 정규화된 이메일을 저장한다.
+- 일부 명함에는 주소가 여러 OCR 줄로 분리되게 한다.
+  예: "서울특별시 강남구 테헤란로", "123 8층"
+  label에는 완성된 주소를 저장한다.
+- department, role, position을 헷갈리기 쉬운 케이스를 포함한다.
+  department 예: "AI플랫폼팀", "전략영업팀", "디지털혁신센터"
+  role 예: "플랫폼 개발", "전략영업", "고객 기술지원"
+  position 예: "팀장", "대표", "상무", "원장", "대리"
+- none/noise 줄을 일부 포함한다. 예: "ABC", "NK", "D-Lab", "www.example.com", "(우)06234", "Global Business Partner", "Since 2012"
+- 어려운 케이스만 과하게 만들지 말고 쉬운 명함, 중간 난이도 명함, 어려운 명함을 섞는다.
+
+Few-shot examples:
+
+예시 1:
+{{
+  "card_id": "card_synth_EXAMPLE_0001",
+  "label": {{
+    "company_name": "한국소프트웨어개발",
+    "contact_name": "김민수",
+    "department": "AI플랫폼팀",
+    "role": "플랫폼 개발",
+    "position": "팀장",
+    "address": "서울특별시 강남구 테헤란로 123 8층",
+    "email": "minsu.kim@example.com",
+    "mobile": "010-1234-5678",
+    "phone": "02-1234-5678",
+    "fax": null
+  }},
+  "ocr_lines": [
+    "한국소프트웨어개발",
+    "팀장 김민수 / AI플랫폼팀",
+    "플랫폼 개발",
+    "M 010 1234 5678 TEL. 02-1234-5678",
+    "E-mail minsu.kim@example com",
+    "서울특별시 강남구 테헤란로 123",
+    "8층",
+    "www.example.com"
+  ]
+}}
+
+예시 2:
+{{
+  "card_id": "card_synth_EXAMPLE_0002",
+  "label": {{
+    "company_name": "더미메디컬센터",
+    "contact_name": "이영희",
+    "department": "진료지원팀",
+    "role": null,
+    "position": "원장",
+    "address": "경기도 성남시 분당구 중앙로 45",
+    "email": "younghee.lee@example.com",
+    "mobile": "010-1234-5678",
+    "phone": "031-123-4567",
+    "fax": "031-123-4568"
+  }},
+  "ocr_lines": [
+    "더미메디컬센터",
+    "이영희",
+    "원장",
+    "진료지원팀",
+    "031-123-4567",
+    "FAX 031 123 4568",
+    "01012345678 younghee.lee at example.com",
+    "경기도 성남시 분당구 중앙로",
+    "45",
+    "Global Care Partner"
+  ]
+}}
+
+예시 3:
+{{
+  "card_id": "card_synth_EXAMPLE_0003",
+  "label": {{
+    "company_name": "더미플래너스",
+    "contact_name": "홍길동",
+    "department": null,
+    "role": "전략영업",
+    "position": "대표",
+    "address": "서울특별시 강남구 테헤란로 123",
+    "email": "hong.gildong@example.com",
+    "mobile": "010-1234-5678",
+    "phone": "02-1234-5678",
+    "fax": null
+  }},
+  "ocr_lines": [
+    "더미플래너스",
+    "홍 길 동 대표",
+    "전략영업",
+    "M 010-1234-5678",
+    "m(010) 1234 5678",
+    "TEL 02 1234 5678",
+    "e hong.gildong@example.com",
+    "서울특별시 강남구 테헤란로",
+    "123",
+    "Since 2012"
+  ]
+}}
+
+위 예시는 형식과 다양성 참고용이다. 실제 출력에는 EXAMPLE card_id를 쓰지 말고 요청된 card_synth 번호만 사용한다.
+""".strip()
 
 def call_gms(*, api_key: str, model: str, prompt: str) -> str:
     payload = {
@@ -116,7 +246,7 @@ def call_gms(*, api_key: str, model: str, prompt: str) -> str:
         "messages": [
             {
                 "role": "developer",
-                "content": "You generate strict JSON synthetic OCR datasets. Output JSON only.",
+                "content": "너는 엄격한 JSON 형식의 합성 OCR 학습 데이터를 생성한다. JSON만 출력한다.",
             },
             {
                 "role": "user",
@@ -195,10 +325,24 @@ def normalize_label(raw_label: object) -> dict[str, object | None]:
     label = raw_label if isinstance(raw_label, dict) else {}
     normalized: dict[str, object | None] = {}
     for field in FIELD_NAMES:
-        value = label.get(field)
+        value = _read_label_value(label, field)
         normalized[field] = value if isinstance(value, str) and value.strip() else None
-    normalized["raw_text"] = None
     return normalized
+
+
+def _read_label_value(label: dict[str, Any], field: str) -> object | None:
+    aliases = {
+        "mobile": ("mobile", "mobile_phone"),
+        "phone": ("phone", "office_phone"),
+        "fax": ("fax", "fax_phone"),
+        "role": ("role", "responsibility"),
+        "department": ("department", "department_name"),
+    }
+    for key in aliases.get(field, (field,)):
+        value = label.get(key)
+        if value is not None:
+            return value
+    return None
 
 
 def normalize_ocr_lines(value: object) -> list[str]:
@@ -261,15 +405,15 @@ def write_card_set(
 def build_raw_text_from_label(label: dict[str, object | None]) -> list[str]:
     lines = [
         label.get("company_name"),
-        label.get("department_name"),
-        label.get("position"),
         label.get("contact_name"),
-        label.get("responsibility"),
-        label.get("mobile_phone"),
-        label.get("office_phone"),
-        label.get("fax_phone"),
-        label.get("email"),
+        label.get("department"),
+        label.get("role"),
+        label.get("position"),
         label.get("address"),
+        label.get("email"),
+        label.get("mobile"),
+        label.get("phone"),
+        label.get("fax"),
     ]
     return [str(line) for line in lines if line]
 
