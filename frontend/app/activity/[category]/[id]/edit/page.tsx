@@ -13,6 +13,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { ActivityFormFields } from "@/components/erp/activity-form-fields"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { QuotationSheet, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -24,21 +35,18 @@ import {
 import {
   type ActivityCategory,
   type ActivityRecord,
+  type ActivityRequestRecord,
+  type QuotationRecord,
   activities,
   activityRequestTypeOptions,
   getCategoryLabel,
-  quotations,
-  type ActivityRequestRecord,
 } from "@/lib/activity-data"
 import { toast } from "@/hooks/use-toast"
-import {
-  getActivityRequests,
-  subscribeWorkflowUpdates,
-  updateActivityRequest,
-} from "@/lib/activity-request-workflow"
+import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } from "@/lib/activity-request-workflow"
 import { getPresalesUsers } from "@/lib/admin-data"
 import { currentUser } from "@/lib/current-user"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
+import { deleteQuotation, getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
 
 const fullWidthFieldLabels = ["요청 내용"]
 
@@ -49,10 +57,13 @@ export default function ActivityEditPage() {
   const id = params.id
   const presalesUsers = getPresalesUsers()
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
+  const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [activityCustomer, setActivityCustomer] = useState("")
   const [activityCustomerCode, setActivityCustomerCode] = useState("")
   const [activityOpportunity, setActivityOpportunity] = useState("")
   const [activityOpportunityCode, setActivityOpportunityCode] = useState("")
+  const [quotationForm, setQuotationForm] = useState<QuotationFormState | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [requestForm, setRequestForm] = useState({
     date: "",
     type: "",
@@ -66,6 +77,14 @@ export default function ActivityEditPage() {
     content: "",
   })
 
+  const scrollToTop = () => {
+    window.scrollTo(0, 0)
+    const scrollContainer = document.querySelector("main")
+    if (scrollContainer) {
+      scrollContainer.scrollTo(0, 0)
+    }
+  }
+
   useEffect(() => {
     const sync = () => setRequests(getActivityRequests())
 
@@ -73,11 +92,18 @@ export default function ActivityEditPage() {
     return subscribeWorkflowUpdates(sync)
   }, [])
 
+  useEffect(() => {
+    const sync = () => setQuotations(getQuotations())
+
+    sync()
+    return subscribeQuotationUpdates(sync)
+  }, [])
+
   const item = useMemo(() => {
     if (category === "activities") return activities.find((entry) => entry.id === id) ?? null
     if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
     return requests.find((entry) => entry.id === id) ?? null
-  }, [category, id, requests])
+  }, [category, id, quotations, requests])
 
   useEffect(() => {
     if (category !== "activities" || !item) return
@@ -91,6 +117,37 @@ export default function ActivityEditPage() {
     setActivityCustomerCode(normalizedCustomer?.id ?? activity.customerCode ?? "")
     setActivityOpportunity(activity.opportunity ?? "")
     setActivityOpportunityCode(activity.businessCode ?? "")
+  }, [category, item])
+
+  useEffect(() => {
+    if (category !== "quotations" || !item) return
+
+    const quotation = item as QuotationRecord
+    setQuotationForm({
+      refNumber: quotation.refNumber ?? quotation.id,
+      date: quotation.date,
+      customerCode: quotation.customerCode ?? "",
+      opportunityCode: quotation.opportunityCode ?? "",
+      customer: quotation.customer,
+      opportunity: quotation.opportunity,
+      proposalType: quotation.proposalType,
+      productGroup: quotation.productGroup,
+      salesRep: quotation.salesRep,
+      paymentTerms: quotation.paymentTerms ?? "현금",
+      contactName: quotation.contactName ?? quotation.salesRep,
+      items: quotation.items.map((entry) => ({ ...entry })),
+      solutionSectionTitle: quotation.solutionSectionTitle ?? quotation.items[0]?.name ?? "1) Solution Package",
+      solutionRows: quotation.solutionRows?.map((entry) => ({ ...entry })) ?? [],
+      customizingSectionTitle: quotation.customizingSectionTitle ?? quotation.items[1]?.name ?? "2) 인건비-커스터마이징",
+      customizingRows: quotation.customizingRows?.map((entry) => ({ ...entry })) ?? [],
+      templateText: quotation.templateText,
+      approvalFlow: quotation.approvalFlow,
+      changeHistory: quotation.changeHistory?.map((entry) => ({ ...entry })) ?? [],
+      remarks: quotation.remarks ?? "",
+      amount: quotation.amount,
+      validity: quotation.validity,
+      status: quotation.status,
+    })
   }, [category, item])
 
   useEffect(() => {
@@ -133,12 +190,37 @@ export default function ActivityEditPage() {
   }
 
   const handleActivityOpportunityChange = (value: string) => {
-    const opportunity = activityOpportunityOptions.find((item) => item.name === value)
+    const opportunity = activityOpportunityOptions.find((entry) => entry.name === value)
     setActivityOpportunity(value)
     setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
   }
 
   const handleSubmit = () => {
+    if (category === "quotations") {
+      if (!quotationForm) return
+      const normalized = normalizeQuotationForm(quotationForm)
+      const hasValidItem = normalized.items.some((item) => item.name && Number.parseInt(item.amount || "0", 10) > 0)
+
+      if (!normalized.customer || !normalized.opportunity || !normalized.validity || !normalized.salesRep || !hasValidItem) {
+        toast({
+          title: "견적 필수값 확인",
+          description: "고객사, 사업기회, 유효기간, 영업대표와 1개 이상의 제품 금액을 입력해주십시오.",
+        })
+        return
+      }
+
+      const updatedQuotation: QuotationRecord | null = updateQuotation(id, normalized)
+      if (!updatedQuotation) return
+
+      scrollToTop()
+      toast({
+        title: "견적 수정 완료",
+        description: `${normalized.customer} 견적서가 수정되었습니다.`,
+      })
+      router.push(`/activity/${category}/${id}`)
+      return
+    }
+
     if (category !== "requests") {
       router.push(`/activity/${category}/${id}`)
       return
@@ -151,11 +233,26 @@ export default function ActivityEditPage() {
 
     const updatedRequest = updated as ActivityRequestRecord
 
+    scrollToTop()
     toast({
       title: "활동 요청 수정 완료",
       description: `${updatedRequest.receiver} 담당자에게 수정 알림을 전송했습니다.`,
     })
     router.push(`/activity/${category}/${id}`)
+  }
+
+  const handleDeleteQuotation = () => {
+    if (category !== "quotations") return
+
+    const deleted = deleteQuotation(id)
+    if (!deleted) return
+
+    scrollToTop()
+    toast({
+      title: "견적 삭제 완료",
+      description: `${id} 견적서가 삭제되었습니다.`,
+    })
+    router.push("/activity")
   }
 
   return (
@@ -169,7 +266,7 @@ export default function ActivityEditPage() {
         />
 
         <main className="flex-1 overflow-auto p-6">
-          <div className="mx-auto max-w-5xl space-y-6">
+          <div className={`mx-auto space-y-6 ${category === "quotations" ? "max-w-[1440px]" : "max-w-6xl"}`}>
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -284,7 +381,7 @@ export default function ActivityEditPage() {
                           <Select
                             value={requestForm.opportunity}
                             onValueChange={(value) => {
-                              const opportunity = opportunityOptions.find((item) => item.name === value)
+                              const opportunity = opportunityOptions.find((entry) => entry.name === value)
                               setRequestForm((prev) => ({
                                 ...prev,
                                 opportunity: value,
@@ -309,9 +406,7 @@ export default function ActivityEditPage() {
                           <Input
                             type={field.type === "date" ? "date" : "text"}
                             value={requestForm[field.key as keyof typeof requestForm]}
-                            onChange={(event) =>
-                              setRequestForm((prev) => ({ ...prev, [field.key]: event.target.value }))
-                            }
+                            onChange={(event) => setRequestForm((prev) => ({ ...prev, [field.key]: event.target.value }))}
                           />
                         )}
                       </div>
@@ -321,42 +416,24 @@ export default function ActivityEditPage() {
                       <Input type="file" multiple />
                     </div>
                   </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>작성일</Label>
-                      <Input defaultValue={(item as { date: string }).date} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>고객사</Label>
-                      <Input defaultValue={(item as { customer: string }).customer} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>사업기회</Label>
-                      <Input defaultValue={(item as { opportunity: string }).opportunity} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>제품</Label>
-                      <Input defaultValue={(item as { product: string }).product} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>금액</Label>
-                      <Input defaultValue={(item as { amount: string }).amount} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>유효기간</Label>
-                      <Input type="date" defaultValue={(item as { validity: string }).validity} />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>첨부파일</Label>
-                      <Input type="file" multiple />
-                    </div>
-                  </div>
-                )}
+                ) : quotationForm ? (
+                  <QuotationSheet
+                    mode="edit"
+                    form={quotationForm}
+                    referenceId={id}
+                    onChange={(updater) => setQuotationForm((prev) => (prev ? updater(prev) : prev))}
+                  />
+                ) : null}
+
                 <div className="flex justify-end gap-2 border-t pt-6">
                   <Button variant="outline" asChild>
                     <Link href={`/activity/${category}/${id}`}>취소</Link>
                   </Button>
+                  {category === "quotations" && (
+                    <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+                      삭제
+                    </Button>
+                  )}
                   {canEditRequest && (
                     <Button onClick={handleSubmit} className="bg-primary hover:bg-primary/90">
                       수정
@@ -368,6 +445,21 @@ export default function ActivityEditPage() {
           </div>
         </main>
       </div>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>견적서를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 되돌릴 수 없습니다. 견적 상세와 목록에서 모두 제거됩니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteQuotation}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

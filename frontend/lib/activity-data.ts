@@ -23,10 +23,107 @@ export type ActivityRecord = {
 
 export type QuotationRecord = {
   id: string
+  refNumber?: string
   date: string
+  customerCode?: string
+  opportunityCode?: string
   customer: string
   opportunity: string
-  product: string
+  proposalType: "자체 제안" | "SI 제안"
+  productGroup: "EMS" | "ITSM" | "Automation" | "WSS"
+  salesRep: string
+  paymentTerms?: string
+  contactName?: string
+  items: {
+    id: string
+    name: string
+    amount: string
+  }[]
+  solutionSectionTitle?: string
+  solutionRows?: {
+    id: string
+    rowNo: string
+    category: string
+    module: string
+    quantity: string
+    consumerUnitPrice: string
+    consumerTotal: string
+    supplyUnitPrice: string
+    supplyTotal: string
+    discountRate: string
+    note: string
+  }[]
+  customizingSectionTitle?: string
+  customizingRows?: {
+    id: string
+    rowNo: string
+    item: string
+    laborRate: string
+    manMonth: string
+    supplyAmount: string
+  }[]
+  templateText?: {
+    headerBrand: string
+    headerCompanyName: string
+    documentTitle: string
+    refLabel: string
+    recipientSuffix: string
+    introText: string
+    quoteDateLabel: string
+    paymentTermsLabel: string
+    businessNameLabel: string
+    totalAmountLabel: string
+    totalAmountSuffix: string
+    unitNote: string
+    remarksTitle: string
+    evidenceTitle: string
+    supplierName: string
+    addressLine1: string
+    addressLine2: string
+    ceoLabel: string
+    ceoName: string
+    telLabel: string
+    tel: string
+    faxLabel: string
+    fax: string
+    contactLabel: string
+  }
+  approvalFlow?: {
+    drafter: string
+    firstApprover: string
+    secondApprover: string
+    secondApproverOptional: boolean
+    distributor: string
+    sharedWith: string
+  }
+  approvalProcess?: {
+    overallStatus: "진행중" | "승인완료" | "반려"
+    currentStepIndex: number
+    steps: {
+      label: string
+      assignee: string
+      status: "pending" | "approved" | "rejected"
+      actedAt?: string
+      actedBy?: string
+      note?: string
+    }[]
+  }
+  deletedAt?: string
+  deletedBy?: string
+  deletedVersions?: string[]
+  changeHistory?: {
+    version: string
+    changedAt: string
+    changedBy: string
+    action: "created" | "updated" | "deleted"
+    summary: string
+  }[]
+  versionSnapshots?: {
+    version: string
+    capturedAt: string
+    form: Omit<QuotationRecord, "id" | "changeHistory" | "versionSnapshots">
+  }[]
+  remarks?: string
   amount: string
   validity: string
   status: string
@@ -199,30 +296,177 @@ export const activities: ActivityRecord[] = [
 export const quotations: QuotationRecord[] = [
   {
     id: "QT-2026-001",
+    refNumber: "NKIA-20090120-022-01",
     date: "2026-03-15",
+    customerCode: "CUS-001",
+    opportunityCode: "OPP-2026-001",
     customer: "삼성전자",
     opportunity: "삼성전자 EMS 구축",
-    product: "EMS Enterprise",
-    amount: "500,000,000",
+    proposalType: "자체 제안",
+    productGroup: "EMS",
+    salesRep: "김영업",
+    paymentTerms: "현금",
+    contactName: "진원경",
+    items: [
+      { id: "QT-2026-001-1", name: "1) Solution Package", amount: "" },
+      { id: "QT-2026-001-2", name: "2) 인건비-커스터마이징", amount: "345,375" },
+    ],
+    solutionSectionTitle: "1) Solution Package",
+    solutionRows: [
+      { id: "QT-2026-001-S1", rowNo: "1", category: "Framework", module: "POLESTAR for Framework", quantity: "1", consumerUnitPrice: "50,000,000", consumerTotal: "50,000,000", supplyUnitPrice: "50,000,000", supplyTotal: "50,000,000", discountRate: "", note: "" },
+      { id: "QT-2026-001-S2", rowNo: "2", category: "SMS", module: "POLESTAR Server Management for Unix", quantity: "10", consumerUnitPrice: "8,000,000", consumerTotal: "80,000,000", supplyUnitPrice: "2,400,000", supplyTotal: "24,000,000", discountRate: "", note: "" },
+      { id: "QT-2026-001-S3", rowNo: "3", category: "SMS", module: "POLESTAR Server Management for Unix", quantity: "10", consumerUnitPrice: "8,000,000", consumerTotal: "80,000,000", supplyUnitPrice: "0", supplyTotal: "0", discountRate: "", note: "무상공급" },
+      { id: "QT-2026-001-S4", rowNo: "4", category: "SMS", module: "POLESTAR Server Management for for Windows/Linux", quantity: "10", consumerUnitPrice: "4,000,000", consumerTotal: "40,000,000", supplyUnitPrice: "1,200,000", supplyTotal: "12,000,000", discountRate: "", note: "" },
+      { id: "QT-2026-001-S5", rowNo: "5", category: "SMS", module: "POLESTAR Server Management for for Windows/Linux", quantity: "10", consumerUnitPrice: "4,000,000", consumerTotal: "40,000,000", supplyUnitPrice: "0", supplyTotal: "0", discountRate: "", note: "무상공급" },
+      { id: "QT-2026-001-S6", rowNo: "6", category: "NMS", module: "POLESTAR Network Management", quantity: "10", consumerUnitPrice: "1,500,000", consumerTotal: "15,000,000", supplyUnitPrice: "450,000", supplyTotal: "4,500,000", discountRate: "", note: "" },
+      { id: "QT-2026-001-S7", rowNo: "7", category: "NMS", module: "POLESTAR Network Management", quantity: "10", consumerUnitPrice: "1,500,000", consumerTotal: "15,000,000", supplyUnitPrice: "0", supplyTotal: "0", discountRate: "", note: "" },
+      { id: "QT-2026-001-S8", rowNo: "8", category: "DPM", module: "DB Management", quantity: "3", consumerUnitPrice: "20,000,000", consumerTotal: "60,000,000", supplyUnitPrice: "3,000,000", supplyTotal: "9,000,000", discountRate: "", note: "" },
+      { id: "QT-2026-001-S9", rowNo: "9", category: "DPM", module: "DB Management", quantity: "5", consumerUnitPrice: "20,000,000", consumerTotal: "100,000,000", supplyUnitPrice: "0", supplyTotal: "0", discountRate: "", note: "무상공급" },
+      { id: "QT-2026-001-S10", rowNo: "10", category: "WPM", module: "WAS Management", quantity: "3", consumerUnitPrice: "20,000,000", consumerTotal: "60,000,000", supplyUnitPrice: "3,000,000", supplyTotal: "9,000,000", discountRate: "", note: "무상공급" },
+      { id: "QT-2026-001-S11", rowNo: "11", category: "WPM", module: "DB Management", quantity: "5", consumerUnitPrice: "20,000,000", consumerTotal: "100,000,000", supplyUnitPrice: "0", supplyTotal: "0", discountRate: "", note: "무상공급" },
+      { id: "QT-2026-001-S12", rowNo: "12", category: "Reporting Tool", module: "POLESTAR Report Manager", quantity: "1", consumerUnitPrice: "30,000,000", consumerTotal: "30,000,000", supplyUnitPrice: "9,000,000", supplyTotal: "9,000,000", discountRate: "", note: "" },
+    ],
+    customizingSectionTitle: "2) 인건비-커스터마이징",
+    customizingRows: [
+      { id: "QT-2026-001-C1", rowNo: "1", item: "인건비 (특급)", laborRate: "273,664", manMonth: "", supplyAmount: "-" },
+      { id: "QT-2026-001-C2", rowNo: "2", item: "인건비 (고급)", laborRate: "215,166", manMonth: "", supplyAmount: "-" },
+      { id: "QT-2026-001-C3", rowNo: "3", item: "인건비 (중급)", laborRate: "174,432", manMonth: "1.0", supplyAmount: "174,432" },
+      { id: "QT-2026-001-C4", rowNo: "4", item: "인건비 (초급)", laborRate: "136,290", manMonth: "", supplyAmount: "-" },
+      { id: "QT-2026-001-C5", rowNo: "5", item: "제 경 비", laborRate: "", manMonth: "", supplyAmount: "209,318" },
+      { id: "QT-2026-001-C6", rowNo: "6", item: "기 술 료", laborRate: "", manMonth: "", supplyAmount: "76,750" },
+    ],
+    remarks:
+      "1. 무상유지보수 기간은 1년이며, 무상유지보수 기간 종료 후 유지보수 요율은 12%입니다.\n2. 무상유지보수 활동에는 하자보수와 장애처리가 포함되며, 정기점검은 포함되어 있지 않습니다.",
+    templateText: {
+      headerBrand: "NKIA",
+      headerCompanyName: "주식회사 엔키아",
+      documentTitle: "見 積 書",
+      refLabel: "Ref No :",
+      recipientSuffix: "귀중",
+      introText: "아래와 같이 견적합니다(견적일로부터 30일간 유효)",
+      quoteDateLabel: "견적일자:",
+      paymentTermsLabel: "대금결제조건:",
+      businessNameLabel: "사업명:",
+      totalAmountLabel: "합계금액:",
+      totalAmountSuffix: "원정 (부가세별도)",
+      unitNote: "(단위 : 원 , VAT별도)",
+      remarksTitle: "특기사항",
+      evidenceTitle: "금액산출근거표",
+      supplierName: "(주) 엔키아",
+      addressLine1: "서울특별시 서초구 양재동 60",
+      addressLine2: "일동제약 빌딩 3층",
+      ceoLabel: "대표이사 :",
+      ceoName: "이선우",
+      telLabel: "TEL :",
+      tel: "02-2057-8724",
+      faxLabel: "FAX :",
+      fax: "02-2057-8725",
+      contactLabel: "담당자:",
+    },
+    amount: "345,375",
     validity: "2026-04-15",
     status: "전달완료",
   },
   {
     id: "QT-2026-002",
+    refNumber: "NKIA-20260310-002-01",
     date: "2026-03-10",
+    customerCode: "CUS-004",
+    opportunityCode: "OPP-2026-004",
     customer: "SK텔레콤",
     opportunity: "SK텔레콤 NMS 업그레이드",
-    product: "NMS Pro",
+    proposalType: "SI 제안",
+    productGroup: "EMS",
+    salesRep: "김영업",
+    paymentTerms: "현금",
+    contactName: "진원경",
+    items: [
+      { id: "QT-2026-002-1", name: "1) Solution Package", amount: "150,000,000" },
+      { id: "QT-2026-002-2", name: "2) 인건비-커스터마이징", amount: "50,000,000" },
+    ],
+    solutionSectionTitle: "1) Solution Package",
+    solutionRows: [],
+    customizingSectionTitle: "2) 인건비-커스터마이징",
+    customizingRows: [],
+    templateText: {
+      headerBrand: "NKIA",
+      headerCompanyName: "주식회사 엔키아",
+      documentTitle: "見 積 書",
+      refLabel: "Ref No :",
+      recipientSuffix: "귀중",
+      introText: "아래와 같이 견적합니다(견적일로부터 30일간 유효)",
+      quoteDateLabel: "견적일자:",
+      paymentTermsLabel: "대금결제조건:",
+      businessNameLabel: "사업명:",
+      totalAmountLabel: "합계금액:",
+      totalAmountSuffix: "원정 (부가세별도)",
+      unitNote: "(단위 : 원 , VAT별도)",
+      remarksTitle: "특기사항",
+      evidenceTitle: "금액산출근거표",
+      supplierName: "(주) 엔키아",
+      addressLine1: "서울특별시 서초구 양재동 60",
+      addressLine2: "일동제약 빌딩 3층",
+      ceoLabel: "대표이사 :",
+      ceoName: "이선우",
+      telLabel: "TEL :",
+      tel: "02-2057-8724",
+      faxLabel: "FAX :",
+      fax: "02-2057-8725",
+      contactLabel: "담당자:",
+    },
+    remarks: "파트너 협업 제안",
     amount: "200,000,000",
     validity: "2026-04-10",
     status: "검토중",
   },
   {
     id: "QT-2026-003",
+    refNumber: "NKIA-20260308-003-01",
     date: "2026-03-08",
+    customerCode: "CUS-003",
+    opportunityCode: "OPP-2026-003",
     customer: "현대자동차",
     opportunity: "현대차 Automation 확장",
-    product: "Automation Suite",
+    proposalType: "자체 제안",
+    productGroup: "Automation",
+    salesRep: "박과장",
+    paymentTerms: "현금",
+    contactName: "진원경",
+    items: [
+      { id: "QT-2026-003-1", name: "1) Solution Package", amount: "240,000,000" },
+      { id: "QT-2026-003-2", name: "2) 인건비-커스터마이징", amount: "60,000,000" },
+    ],
+    solutionSectionTitle: "1) Solution Package",
+    solutionRows: [],
+    customizingSectionTitle: "2) 인건비-커스터마이징",
+    customizingRows: [],
+    templateText: {
+      headerBrand: "NKIA",
+      headerCompanyName: "주식회사 엔키아",
+      documentTitle: "見 積 書",
+      refLabel: "Ref No :",
+      recipientSuffix: "귀중",
+      introText: "아래와 같이 견적합니다(견적일로부터 30일간 유효)",
+      quoteDateLabel: "견적일자:",
+      paymentTermsLabel: "대금결제조건:",
+      businessNameLabel: "사업명:",
+      totalAmountLabel: "합계금액:",
+      totalAmountSuffix: "원정 (부가세별도)",
+      unitNote: "(단위 : 원 , VAT별도)",
+      remarksTitle: "특기사항",
+      evidenceTitle: "금액산출근거표",
+      supplierName: "(주) 엔키아",
+      addressLine1: "서울특별시 서초구 양재동 60",
+      addressLine2: "일동제약 빌딩 3층",
+      ceoLabel: "대표이사 :",
+      ceoName: "이선우",
+      telLabel: "TEL :",
+      tel: "02-2057-8724",
+      faxLabel: "FAX :",
+      fax: "02-2057-8725",
+      contactLabel: "담당자:",
+    },
+    remarks: "고객 수정 요청 반영 필요",
     amount: "300,000,000",
     validity: "2026-04-08",
     status: "수정요청",
@@ -335,6 +579,7 @@ export const activityStatuses = [
   "검토중",
   "수정요청",
   "접수대기",
+  "삭제",
 ]
 
 export function getCategoryLabel(category: ActivityCategory) {
@@ -383,11 +628,16 @@ export function getActivityItemFields(category: ActivityCategory, item: any) {
       return [
         { label: "견적일", value: item.date },
         { label: "고객사", value: item.customer },
+        { label: "고객사 코드", value: item.customerCode ?? "-" },
         { label: "사업기회", value: item.opportunity },
-        { label: "제품", value: item.product },
+        { label: "사업기회 코드", value: item.opportunityCode ?? "-" },
+        { label: "제안 유형", value: item.proposalType },
+        { label: "제품군", value: item.productGroup },
+        { label: "영업대표", value: item.salesRep },
+        { label: "제품", value: item.items?.map((entry: { name: string }) => entry.name).join(", ") || "-" },
         { label: "견적 금액", value: item.amount },
         { label: "유효기간", value: item.validity },
-        { label: "견적 비고", value: "-" },
+        { label: "견적 비고", value: item.remarks ?? "-" },
       ]
     case "requests":
       return [
