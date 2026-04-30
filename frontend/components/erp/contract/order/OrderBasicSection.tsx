@@ -106,9 +106,15 @@ export function OrderBasicSection() {
             <td className="bg-yellow-200 border-r border-black p-0" colSpan={8}>
               <input className={`${cellInput} text-right`} {...registerNumber("totalAmount")} />
             </td>
-            <th className="text-center font-medium" colSpan={1}>
-              (VAT별도)
-            </th>
+            <td className="text-center font-medium" colSpan={1}>
+              <select className={`${cellInput} text-left [text-align-last:center]`} {...register("vatType")}>
+                <option value="" hidden>
+                  선택
+                </option>
+                <option value="VAT별도">(VAT별도)</option>
+                <option value="VAT포함">(VAT포함)</option>
+              </select>
+            </td>
           </tr>
           <tr className="border-b border-black">
             <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>
