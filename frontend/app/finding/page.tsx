@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { Header } from "@/components/erp/header"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { Sidebar } from "@/components/erp/sidebar"
@@ -10,13 +10,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { findingStatuses, getCustomers, opportunities, partners } from "@/lib/finding-data"
 import { Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
+const PREVIEW_CARD_COUNT = 10
 
 function FindingPageContent() {
   const router = useRouter()
@@ -39,10 +39,6 @@ function FindingPageContent() {
       setActiveTab(tab)
     }
   }, [searchParams])
-
-  if (!isMounted) {
-    return null
-  }
 
   const handleTabChange = (value: FindingTab) => {
     setActiveTab(value)
@@ -94,6 +90,39 @@ function FindingPageContent() {
     },
   }).filter((item) => [item.id, item.name, item.type, item.contact, item.phone].join(" ").toLowerCase().includes(q))
 
+  const customerCards = useMemo(
+    () =>
+      [...filteredCustomers].sort((a, b) => {
+        const nameCompare = a.name.localeCompare(b.name, "ko")
+        if (nameCompare !== 0) return nameCompare
+        return a.id.localeCompare(b.id)
+      }),
+    [filteredCustomers],
+  )
+
+  const opportunityCards = useMemo(
+    () =>
+      [...filteredOpportunities].sort((a, b) => {
+        const nameCompare = a.name.localeCompare(b.name, "ko")
+        if (nameCompare !== 0) return nameCompare
+        return a.id.localeCompare(b.id)
+      }),
+    [filteredOpportunities],
+  )
+
+  const partnerCards = useMemo(
+    () =>
+      [...filteredPartners].sort((a, b) => {
+        const nameCompare = a.name.localeCompare(b.name, "ko")
+        if (nameCompare !== 0) return nameCompare
+        return a.id.localeCompare(b.id)
+      }),
+    [filteredPartners],
+  )
+  const previewOpportunityCards = useMemo(() => opportunityCards.slice(0, PREVIEW_CARD_COUNT), [opportunityCards])
+  const previewCustomerCards = useMemo(() => customerCards.slice(0, PREVIEW_CARD_COUNT), [customerCards])
+  const previewPartnerCards = useMemo(() => partnerCards.slice(0, PREVIEW_CARD_COUNT), [partnerCards])
+
   const registerHref =
     activeTab === "customers"
       ? "/finding/new/customers"
@@ -103,6 +132,10 @@ function FindingPageContent() {
 
   const registerLabel =
     activeTab === "customers" ? "고객사 등록" : activeTab === "partners" ? "협력사 등록" : "사업기회 등록"
+
+  if (!isMounted) {
+    return null
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -165,72 +198,43 @@ function FindingPageContent() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">사업기회 목록</CardTitle>
-                    <Badge variant="secondary">{filteredOpportunities.length}건</Badge>
+                    <CardTitle className="text-lg">사업기회 현황</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{filteredOpportunities.length}건</Badge>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/finding/opportunities">전체 보기</Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[110px]">고객코드</TableHead>
-                        <TableHead className="w-[120px]">사업코드</TableHead>
-                        <TableHead>사업명</TableHead>
-                        <TableHead>고객사</TableHead>
-                        <TableHead>협력사</TableHead>
-                        <TableHead>고객군</TableHead>
-                        <TableHead>제품</TableHead>
-                        <TableHead className="text-right">예상 예산/매출</TableHead>
-                        <TableHead>예상시점</TableHead>
-                        <TableHead>상태</TableHead>
-                        <TableHead>담당자</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredOpportunities.map((opp) => (
-                        <TableRow
+                  {previewOpportunityCards.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                      {previewOpportunityCards.map((opp) => (
+                        <button
                           key={opp.id}
-                          className="cursor-pointer hover:bg-muted/50"
+                          type="button"
+                          className="min-h-[168px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
                           onClick={() => router.push(`/finding/opportunities/${opp.id}?tab=${activeTab}`)}
                         >
-                          <TableCell className="font-mono text-sm">{opp.customerCode}</TableCell>
-                          <TableCell className="font-mono text-sm">{opp.id}</TableCell>
-                          <TableCell className="font-medium">{opp.name}</TableCell>
-                          <TableCell>{opp.customer}</TableCell>
-                          <TableCell>{opp.partner}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                opp.category === "공공" ? "default" : opp.category === "해외" ? "secondary" : "outline"
-                              }
-                            >
-                              {opp.category}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{opp.product}</TableCell>
-                          <TableCell className="text-right font-medium">{opp.expectedAmount}</TableCell>
-                          <TableCell>{opp.expectedDate}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                opp.status === "진행중" ? "default" : opp.status === "유망" ? "secondary" : "outline"
-                              }
-                              className={
-                                opp.status === "진행중"
-                                  ? "bg-green-100 text-green-700 hover:bg-green-100"
-                                  : opp.status === "유망"
-                                    ? "bg-blue-100 text-blue-700 hover:bg-blue-100"
-                                    : ""
-                              }
-                            >
-                              {opp.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{opp.salesRep}</TableCell>
-                        </TableRow>
+                          <div className="flex h-full flex-col justify-between">
+                            <div>
+                              <p className="line-clamp-2 text-lg font-semibold">{opp.name}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{opp.id}</p>
+                            </div>
+                            <div className="mt-5 text-sm text-muted-foreground">
+                              <p>{opp.customer}</p>
+                              <p>상태 {opp.status}</p>
+                            </div>
+                          </div>
+                        </button>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      조건에 맞는 사업기회가 없습니다.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -239,53 +243,42 @@ function FindingPageContent() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">고객사 목록</CardTitle>
-                    <Badge variant="secondary">{filteredCustomers.length}건</Badge>
+                    <CardTitle className="text-lg">고객사 현황</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{filteredCustomers.length}개 고객사</Badge>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/finding/customers">전체 보기</Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[100px]">고객사코드</TableHead>
-                        <TableHead>고객사명</TableHead>
-                        <TableHead>고객군</TableHead>
-                        <TableHead className="text-center">진행중 사업기회</TableHead>
-                        <TableHead className="text-center">계약 수</TableHead>
-                        <TableHead>담당자</TableHead>
-                        <TableHead>연락처</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCustomers.map((customer) => (
-                        <TableRow
+                  {previewCustomerCards.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                      {previewCustomerCards.map((customer) => (
+                        <button
                           key={customer.id}
-                          className="cursor-pointer hover:bg-muted/50"
+                          type="button"
+                          className="min-h-[168px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
                           onClick={() => router.push(`/finding/customers/${customer.id}?tab=${activeTab}`)}
                         >
-                          <TableCell className="font-mono text-sm">{customer.id}</TableCell>
-                          <TableCell className="font-medium">{customer.name}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                customer.category === "공공"
-                                  ? "default"
-                                  : customer.category === "해외"
-                                    ? "secondary"
-                                    : "outline"
-                              }
-                            >
-                              {customer.category}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">{customer.opportunities}</TableCell>
-                          <TableCell className="text-center">{customer.contracts}</TableCell>
-                          <TableCell>{customer.contact}</TableCell>
-                          <TableCell>{customer.phone}</TableCell>
-                        </TableRow>
+                          <div className="flex h-full flex-col justify-between">
+                            <div>
+                              <p className="line-clamp-2 text-lg font-semibold">{customer.name}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{customer.id}</p>
+                            </div>
+                            <div className="mt-5 text-sm text-muted-foreground">
+                              <p>누적계약건수 {customer.contracts}건</p>
+                            </div>
+                          </div>
+                        </button>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      조건에 맞는 고객사가 없습니다.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -294,43 +287,42 @@ function FindingPageContent() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">협력사 목록</CardTitle>
-                    <Badge variant="secondary">{filteredPartners.length}건</Badge>
+                    <CardTitle className="text-lg">협력사 현황</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{filteredPartners.length}개 협력사</Badge>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/finding/partners">전체 보기</Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[100px]">협력사코드</TableHead>
-                        <TableHead>협력사명</TableHead>
-                        <TableHead>유형</TableHead>
-                        <TableHead className="text-center">진행중 사업기회</TableHead>
-                        <TableHead className="text-center">진행중 프로젝트</TableHead>
-                        <TableHead>담당자</TableHead>
-                        <TableHead>연락처</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredPartners.map((partner) => (
-                        <TableRow
+                  {previewPartnerCards.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                      {previewPartnerCards.map((partner) => (
+                        <button
                           key={partner.id}
-                          className="cursor-pointer hover:bg-muted/50"
+                          type="button"
+                          className="min-h-[168px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
                           onClick={() => router.push(`/finding/partners/${partner.id}?tab=${activeTab}`)}
                         >
-                          <TableCell className="font-mono text-sm">{partner.id}</TableCell>
-                          <TableCell className="font-medium">{partner.name}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{partner.type}</Badge>
-                          </TableCell>
-                          <TableCell className="text-center">{partner.opportunities}</TableCell>
-                          <TableCell className="text-center">{partner.projects}</TableCell>
-                          <TableCell>{partner.contact}</TableCell>
-                          <TableCell>{partner.phone}</TableCell>
-                        </TableRow>
+                          <div className="flex h-full flex-col justify-between">
+                            <div>
+                              <p className="line-clamp-2 text-lg font-semibold">{partner.name}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{partner.id}</p>
+                            </div>
+                            <div className="mt-5 text-sm text-muted-foreground">
+                              <p>누적프로젝트건수 {partner.projects}건</p>
+                            </div>
+                          </div>
+                        </button>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      조건에 맞는 협력사가 없습니다.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

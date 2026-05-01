@@ -30,23 +30,6 @@ import { Plus, Trash2, X } from "lucide-react"
 const customerGroupOptions = ["공공", "민간", "해외"]
 const partnerTypeOptions = ["SI", "파트너", "기타"]
 
-const partnerFormSections = [
-  {
-    title: "등록정보",
-    fields: [
-      { label: "협력사명", required: true },
-      { label: "유형", required: true, type: "select", options: partnerTypeOptions },
-      { label: "담당자" },
-      { label: "연락처" },
-      { label: "주요 협업 분야", type: "textarea" },
-    ] as FindingFormField[],
-  },
-  {
-    title: "첨부파일",
-    fields: [{ label: "첨부파일", type: "file" }] as FindingFormField[],
-  },
-]
-
 type ContactDraft = {
   name: string
   position: string
@@ -108,6 +91,8 @@ export function FindingCategoryNewPageView({
   const label = getFindingCategoryLabel(category)
   const [customerName, setCustomerName] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
+  const [partnerName, setPartnerName] = useState("")
+  const [partnerType, setPartnerType] = useState("SI")
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
@@ -154,13 +139,223 @@ export function FindingCategoryNewPageView({
     router.push("/finding?tab=customers")
   }
 
+  const handlePartnerSubmit = () => {
+    const normalizedName = partnerName.trim()
+    const filledContacts = contacts.filter(hasContactValue)
+    const primaryContact = filledContacts[0]
+
+    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+      toast({
+        title: "협력사 등록 확인",
+        description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+      })
+      return
+    }
+
+    toast({
+      title: "협력사 등록 완료",
+      description: `${normalizedName} 협력사가 등록되었습니다.`,
+    })
+    router.push("/finding?tab=partners")
+  }
+
+  if (category === "partners") {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title={`${label} 등록`} description="협력사 기본정보와 담당자 정보를 등록합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl space-y-6">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href="/finding?tab=partners">발굴</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{label} 등록</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{label} 등록</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                  <section className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>협력사명 *</Label>
+                        <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>유형 *</Label>
+                        <Select value={partnerType} onValueChange={setPartnerType}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="선택하세요" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {partnerTypeOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>주소</Label>
+                        <Input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="주소를 입력하세요" />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>메모</Label>
+                        <Textarea value={memo} onChange={(event) => setMemo(event.target.value)} rows={4} placeholder="메모를 입력하세요" />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-base font-semibold">협력사 담당자 정보</h2>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => setContacts((prev) => [...prev, createEmptyContactDraft()])}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        담당자 추가
+                      </Button>
+                    </div>
+
+                    <div className="space-y-6">
+                      {contacts.map((contact, index) => (
+                        <section key={index} className="space-y-4 border border-border p-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">{`담당자 ${index + 1}`}</h3>
+                            <Button type="button" variant="outline" size="sm" onClick={() => setDeleteIndex(index)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              담당자 삭제
+                            </Button>
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <div className="space-y-2">
+                              <Label>담당자명</Label>
+                              <Input
+                                value={contact.name}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item)))
+                                }
+                                placeholder="담당자 이름을 입력하세요."
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>직급/직책</Label>
+                              <Input
+                                value={contact.position}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, position: event.target.value } : item)))
+                                }
+                                placeholder="직급/직책을 입력하세요."
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>소속부서</Label>
+                              <Input
+                                value={contact.department}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, department: event.target.value } : item)))
+                                }
+                                placeholder="소속부서명을 입력하세요."
+                              />
+                            </div>
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <div className="space-y-2">
+                              <Label>이메일</Label>
+                              <Input
+                                value={contact.email}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
+                                }
+                                placeholder="0000@000.co.kr"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>무선전화번호</Label>
+                              <Input
+                                value={contact.mobilePhone}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
+                                }
+                                placeholder="000-000-0000"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>유선전화번호</Label>
+                              <Input
+                                value={contact.landlinePhone}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
+                                }
+                                placeholder="02-0000-0000"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>담당 직무</Label>
+                            <Input
+                              value={contact.duty}
+                              onChange={(event) =>
+                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
+                              }
+                              placeholder="담당 직무를 입력하세요."
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>비고</Label>
+                            <Textarea
+                              value={contact.memo}
+                              onChange={(event) =>
+                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
+                              }
+                              rows={3}
+                              placeholder="담당자 관련 특기사항을 입력하세요."
+                            />
+                          </div>
+                        </section>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="space-y-2">
+                    <Label>첨부파일</Label>
+                    <Input type="file" multiple />
+                  </section>
+
+                  <div className="flex justify-end gap-2 border-t pt-6">
+                    <Button variant="outline" asChild>
+                      <Link href="/finding?tab=partners">취소</Link>
+                    </Button>
+                    <Button onClick={handlePartnerSubmit}>등록</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
   if (category !== "customers") {
-    const pageSections = category === "partners" ? partnerFormSections : findingFormSections
+    const pageSections = findingFormSections
     const backHref = `/finding?tab=${category}`
-    const pageDescription =
-      category === "partners"
-        ? "협력사 기본정보를 등록합니다"
-        : "신규 사업기회 등록정보를 입력합니다"
+    const pageDescription = "신규 사업기회 등록정보를 입력합니다"
 
     return (
       <div className="min-h-screen bg-background">

@@ -227,7 +227,7 @@ export default function ActivityPage() {
   }, [filteredActivities])
 
   const previewActivityCustomerCards = useMemo(
-    () => activityCustomerCards.slice(0, 12),
+    () => activityCustomerCards.slice(0, 10),
     [activityCustomerCards],
   )
 
@@ -326,7 +326,7 @@ export default function ActivityPage() {
                   </CardHeader>
                   <CardContent>
                     {previewActivityCustomerCards.length > 0 ? (
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
                         {previewActivityCustomerCards.map((customer) => (
                           <Link
                             key={customer.customer}
