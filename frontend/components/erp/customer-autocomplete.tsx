@@ -11,17 +11,21 @@ import { type CustomerRecord, getCustomerByName, normalizeCustomerKeyword, searc
 type CustomerAutocompleteProps = {
   value: string
   onSelect: (customer: CustomerRecord | null) => void
+  onValueChange?: (value: string) => void
   placeholder?: string
   disabled?: boolean
   onUnregisteredAttempt?: () => void
+  allowCustomValue?: boolean
 }
 
 export function CustomerAutocomplete({
   value,
   onSelect,
+  onValueChange,
   placeholder = "고객사를 선택하세요",
   disabled = false,
   onUnregisteredAttempt,
+  allowCustomValue = false,
 }: CustomerAutocompleteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
@@ -34,6 +38,7 @@ export function CustomerAutocomplete({
 
   const commitSelection = (customer: CustomerRecord | null) => {
     onSelect(customer)
+    onValueChange?.(customer?.name ?? "")
     setQuery(customer?.name ?? "")
     setOpen(false)
   }
@@ -45,10 +50,20 @@ export function CustomerAutocomplete({
     }
 
     const exactMatch = getCustomerByName(query)
-    if (!exactMatch && normalizeCustomerKeyword(query)) {
+    if (!exactMatch && normalizeCustomerKeyword(query) && !allowCustomValue) {
       onUnregisteredAttempt?.()
     }
-    commitSelection(exactMatch)
+    if (exactMatch) {
+      commitSelection(exactMatch)
+      return
+    }
+
+    if (allowCustomValue) {
+      setOpen(false)
+      return
+    }
+
+    commitSelection(null)
   }
 
   return (
@@ -60,9 +75,11 @@ export function CustomerAutocomplete({
           placeholder={placeholder}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
-            setQuery(event.target.value)
+            const nextValue = event.target.value
+            setQuery(nextValue)
+            onValueChange?.(nextValue)
             setOpen(true)
-            if (normalizeCustomerKeyword(event.target.value) !== normalizeCustomerKeyword(value)) {
+            if (!allowCustomValue && normalizeCustomerKeyword(event.target.value) !== normalizeCustomerKeyword(value)) {
               onSelect(null)
             }
           }}
@@ -75,11 +92,16 @@ export function CustomerAutocomplete({
           onBlur={() => {
             window.setTimeout(() => {
               const exactMatch = getCustomerByName(query)
-              if (!exactMatch && normalizeCustomerKeyword(query)) {
+              if (!exactMatch && normalizeCustomerKeyword(query) && !allowCustomValue) {
                 onUnregisteredAttempt?.()
               }
               if (exactMatch) {
                 commitSelection(exactMatch)
+                return
+              }
+
+              if (allowCustomValue) {
+                setOpen(false)
                 return
               }
 

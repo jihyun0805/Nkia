@@ -533,13 +533,13 @@ export default function ActivityDetailPage() {
                       승인(접수)
                     </Button>
                   )}
-                  {isQuotation && !selectedQuotationVersionDeleted && !isDeletedQuotation && (
+                  {isQuotation && quotationDetailTab === "document" && !selectedQuotationVersionDeleted && !isDeletedQuotation && (
                     <Button variant="destructive" onClick={handleOpenQuotationDelete}>
                       삭제
                     </Button>
                   )}
                   {canEditRequest &&
-                    (!isQuotation || (!selectedQuotationVersionDeleted && !isDeletedQuotation)) && (
+                    (!isQuotation || (quotationDetailTab === "document" && !selectedQuotationVersionDeleted && !isDeletedQuotation)) && (
                     <Button asChild className="bg-primary hover:bg-primary/90">
                       <Link href={`/activity/${category}/${id}/edit`} onClick={scrollToTop}>
                         수정

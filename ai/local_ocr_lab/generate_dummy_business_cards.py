@@ -140,10 +140,10 @@ PaddleOCR 출력 특성:
   - 이 경우 department가 아니라 role과 position에 나누어 저장한다.
   - 단 이런 케이스만 반복하지 말고 전체의 일부로만 섞는다.
 - 영어 직급과 영어/혼합 부서명이 한 줄에 같이 나오는 케이스를 일부 포함한다.
-  - 예: "Manager | AI Product2팀", "Director / Cloud Platform Team", "Lead Engineer · Data Lab", "Senior Consultant | DX Strategy팀".
+  - 예: "Manager | Sample Platform Team 2", "Director / Demo Cloud Team", "Lead Engineer · Sample Data Lab", "Senior Consultant | Demo Strategy Unit".
   - 이 경우 label.position에는 영어 직급 또는 직무 타이틀을 저장하고, label.department에는 팀/본부/랩/디비전/그룹명을 저장한다.
   - position 후보는 다양하게 만든다: Manager, Senior Manager, Director, Lead, Lead Engineer, Staff Engineer, Principal Engineer, Product Manager, Project Manager, Consultant, Senior Consultant, Specialist, Analyst, Coordinator, Head, VP.
-  - department 후보도 다양하게 만든다: AI Product팀, AI Product2팀, Cloud Platform Team, Data Platform Lab, DX Strategy팀, AX Innovation Group, Global Sales Team, Digital Innovation Division, Product Experience Team, Customer Success Team, R&D Center, Security Lab, Mobility Service Team.
+  - department 후보도 다양하게 만든다: Sample Platform Team, Sample Platform Team 2, Demo Cloud Team, Sample Data Lab, Demo Strategy Unit, Demo Innovation Group, Sample Sales Team, Demo Digital Division, Sample Experience Team, Demo Success Team, R&D Center, Security Lab, Sample Service Team.
   - 구분자는 "|", "/", "·", "-", 줄바꿈을 섞는다. 직급이 앞에 올 수도 있고 부서가 앞에 올 수도 있다.
   - 단, 이런 영어 케이스만 반복하지 말고 전체의 일부로만 섞는다.
 - department, role, position이 헷갈리는 케이스를 포함하되 균형 있게 만든다.

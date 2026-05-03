@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 from app.services.business_card_ocr import (
     OCRLine,
+    _normalize_company_name,
+    _normalize_contact_phones,
     _normalize_department,
     _normalize_model_email,
     _normalize_model_phone,
@@ -100,6 +102,35 @@ class AnalyzeBusinessCardTests(unittest.TestCase):
         self.assertIsNone(response.department)
         self.assertIsNone(response.raw_text)
 
+    @patch("app.services.business_card_ocr.predict_business_card_fields")
+    @patch("app.services.business_card_ocr._extract_line_candidates")
+    @patch("app.services.business_card_ocr._load_image_variants")
+    def test_analyze_business_card_splits_english_position_and_department(
+        self,
+        mock_load_image_variants,
+        mock_extract_line_candidates,
+        mock_predict_business_card_fields,
+    ) -> None:
+        mock_load_image_variants.return_value = ["variant"]
+        mock_extract_line_candidates.return_value = [
+            OCRLine(text="sample.user@sample-test.kr", order=0),
+            OCRLine(text="010 1111 2222", order=1),
+            OCRLine(text="Manager | Sample Platform Team 2", order=2),
+            OCRLine(text="Sample User", order=3),
+            OCRLine(text="Sample Inc.", order=4),
+        ]
+        mock_predict_business_card_fields.return_value = {
+            "company_name": "Sample Inc.",
+            "contact_name": "Sample User",
+            "email": "sample.user@sample-test.kr",
+            "mobile": "010 1111 2222",
+        }
+
+        response = analyze_business_card("business-card.png", "image/png", b"image-bytes")
+
+        self.assertEqual(response.position, "Manager")
+        self.assertEqual(response.department, "Sample Platform Team 2")
+
     def test_normalize_model_phone_handles_common_phone_patterns(self) -> None:
         mobile_parts = ("010", "1234", "5678")
         seoul_parts = ("02", "1234", "5678")
@@ -128,9 +159,26 @@ class AnalyzeBusinessCardTests(unittest.TestCase):
             with self.subTest(raw_value=raw_value):
                 self.assertEqual(_normalize_model_email(raw_value), expected)
 
+    def test_normalize_company_name_rejects_short_symbol_noise(self) -> None:
+        self.assertIsNone(_normalize_company_name("S√"))
+        self.assertIsNone(_normalize_company_name("V"))
+        self.assertEqual(_normalize_company_name("Sample Inc."), "Sample Inc.")
+        self.assertEqual(_normalize_company_name("Sample 주식회사"), "Sample 주식회사")
+
+    def test_normalize_contact_phones_moves_mobile_number_from_phone(self) -> None:
+        mobile, phone = _normalize_contact_phones(mobile_value=None, phone_value="+82 10 1111 2222")
+
+        self.assertEqual(mobile, "010-1111-2222")
+        self.assertIsNone(phone)
+
     def test_normalize_department_rejects_wrapped_address_detail(self) -> None:
         self.assertIsNone(_normalize_department("(샘플동,더미-타워센터)"))
         self.assertEqual(_normalize_department("Digital & Innovation"), "Digital & Innovation")
+
+    def test_normalize_department_rejects_marketing_phrase(self) -> None:
+        self.assertIsNone(_normalize_department("The Most Trustable Service Planners"))
+        self.assertIsNone(_normalize_department("AI Service Provider"))
+        self.assertEqual(_normalize_department("Customer Success Team"), "Customer Success Team")
 
     def test_normalize_role_rejects_marketing_phrase(self) -> None:
         self.assertIsNone(_normalize_role("AI Service Provider"))

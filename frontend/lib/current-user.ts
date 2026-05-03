@@ -13,3 +13,7 @@ export const currentUser: CurrentUser = {
   department: "영업본부",
   role: "영업대표",
 }
+
+export function isSalesUser(user: CurrentUser) {
+  return user.department.includes("영업") || user.role.includes("영업")
+}
