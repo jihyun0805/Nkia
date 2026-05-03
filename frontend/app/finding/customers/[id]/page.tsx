@@ -127,33 +127,24 @@ function CustomerDetailPageContent() {
             </Breadcrumb>
 
             <Card>
-              <CardHeader>
-                <CardTitle>고객사 상세</CardTitle>
+              <CardHeader className="border-b pb-6">
+                <div className="space-y-1">
+                  <CardTitle className="text-2xl font-semibold tracking-tight">{customer.name}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{customer.id}</p>
+                </div>
               </CardHeader>
               <CardContent className="space-y-8">
                 <section className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>고객사코드</Label>
-                      <Input readOnly value={customer.id} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>고객사명</Label>
-                      <Input readOnly value={customer.name} />
-                    </div>
-                    <div className="space-y-2">
                       <Label>고객군</Label>
                       <Input readOnly value={customer.category} />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label>주소</Label>
                       <Input readOnly value={customer.address ?? "-"} />
                     </div>
-                    <div className="space-y-2">
-                      <Label>담당자 수</Label>
-                      <Input readOnly value={`${contacts.length}명`} />
-                    </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label>메모</Label>
                       <Textarea readOnly rows={4} value={customer.memo ?? `진행중 사업기회 ${customer.opportunities}건 / 계약 ${customer.contracts}건`} />
                     </div>
@@ -161,7 +152,7 @@ function CustomerDetailPageContent() {
                 </section>
 
                 <section className="space-y-4">
-                  <h2 className="text-base font-semibold">담당자 정보</h2>
+                  <h2 className="text-base font-semibold">고객사 담당자 정보</h2>
                   <div className="space-y-6">
                     {contacts.map((contact, index) => (
                       <section key={index} className="space-y-4 border border-border p-4">
@@ -205,6 +196,11 @@ function CustomerDetailPageContent() {
                       </section>
                     ))}
                   </div>
+                </section>
+
+                <section className="space-y-2">
+                  <Label>첨부파일</Label>
+                  <Input readOnly value="등록된 첨부파일이 없습니다." />
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">

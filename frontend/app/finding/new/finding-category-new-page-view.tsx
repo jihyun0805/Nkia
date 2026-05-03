@@ -23,29 +23,14 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { findingFormSections, getCustomerByName, getFindingCategoryLabel, registerCustomer, type FindingFormField } from "@/lib/finding-data"
+import { findingStatuses, getCustomerByName, getFindingCategoryLabel, registerCustomer, registerOpportunity, type CustomerRecord } from "@/lib/finding-data"
+import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
 import { Plus, Trash2, X } from "lucide-react"
 
 const customerGroupOptions = ["공공", "민간", "해외"]
 const partnerTypeOptions = ["SI", "파트너", "기타"]
-
-const partnerFormSections = [
-  {
-    title: "등록정보",
-    fields: [
-      { label: "협력사명", required: true },
-      { label: "유형", required: true, type: "select", options: partnerTypeOptions },
-      { label: "담당자" },
-      { label: "연락처" },
-      { label: "주요 협업 분야", type: "textarea" },
-    ] as FindingFormField[],
-  },
-  {
-    title: "첨부파일",
-    fields: [{ label: "첨부파일", type: "file" }] as FindingFormField[],
-  },
-]
+const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 
 type ContactDraft = {
   name: string
@@ -77,28 +62,6 @@ function hasContactValue(contact: ContactDraft) {
   )
 }
 
-function FindingFormControl({ field }: { field: FindingFormField }) {
-  if (field.type === "file") return <Input type="file" multiple />
-  if (field.type === "textarea") return <Textarea rows={4} placeholder={`${field.label}을 입력하세요`} />
-  if (field.type === "select") {
-    return (
-      <Select>
-        <SelectTrigger>
-          <SelectValue placeholder="선택하세요" />
-        </SelectTrigger>
-        <SelectContent>
-          {field.options?.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    )
-  }
-  return <Input placeholder={`${field.label}을 입력하세요`} />
-}
-
 export function FindingCategoryNewPageView({
   category,
 }: {
@@ -108,9 +71,27 @@ export function FindingCategoryNewPageView({
   const label = getFindingCategoryLabel(category)
   const [customerName, setCustomerName] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
+  const [partnerName, setPartnerName] = useState("")
+  const [partnerType, setPartnerType] = useState("SI")
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
+  const [selectedOpportunityCustomer, setSelectedOpportunityCustomer] = useState<CustomerRecord | null>(null)
+  const [opportunityCustomerName, setOpportunityCustomerName] = useState("")
+  const [opportunityName, setOpportunityName] = useState("")
+  const [opportunityPartnerName, setOpportunityPartnerName] = useState("")
+  const [expectedDate, setExpectedDate] = useState("")
+  const [expectedAmount, setExpectedAmount] = useState("")
+  const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
+  const [opportunityRegistrant] = useState(currentUser.name)
+  const [opportunitySalesRep, setOpportunitySalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
+  const [businessType, setBusinessType] = useState("")
+  const [moduleName, setModuleName] = useState("")
+  const [issue, setIssue] = useState("")
+  const [competition, setCompetition] = useState("")
+  const [decisionInfo, setDecisionInfo] = useState("")
+  const [opportunityStatus, setOpportunityStatus] = useState("발굴")
+  const [customerRegistrationGuideOpen, setCustomerRegistrationGuideOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
 
@@ -154,13 +135,268 @@ export function FindingCategoryNewPageView({
     router.push("/finding?tab=customers")
   }
 
+  const handlePartnerSubmit = () => {
+    const normalizedName = partnerName.trim()
+    const filledContacts = contacts.filter(hasContactValue)
+    const primaryContact = filledContacts[0]
+
+    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+      toast({
+        title: "협력사 등록 확인",
+        description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+      })
+      return
+    }
+
+    toast({
+      title: "협력사 등록 완료",
+      description: `${normalizedName} 협력사가 등록되었습니다.`,
+    })
+    router.push("/finding?tab=partners")
+  }
+
+  if (category === "partners") {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title={`${label} 등록`} description="협력사 기본정보와 담당자 정보를 등록합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl space-y-6">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href="/finding?tab=partners">발굴</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{label} 등록</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{label} 등록</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                  <section className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>협력사명 *</Label>
+                        <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>유형 *</Label>
+                        <Select value={partnerType} onValueChange={setPartnerType}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="선택하세요" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {partnerTypeOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>주소</Label>
+                        <Input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="주소를 입력하세요" />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>메모</Label>
+                        <Textarea value={memo} onChange={(event) => setMemo(event.target.value)} rows={4} placeholder="메모를 입력하세요" />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-base font-semibold">협력사 담당자 정보</h2>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => setContacts((prev) => [...prev, createEmptyContactDraft()])}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        담당자 추가
+                      </Button>
+                    </div>
+
+                    <div className="space-y-6">
+                      {contacts.map((contact, index) => (
+                        <section key={index} className="space-y-4 border border-border p-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">{`담당자 ${index + 1}`}</h3>
+                            <Button type="button" variant="outline" size="sm" onClick={() => setDeleteIndex(index)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              담당자 삭제
+                            </Button>
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <div className="space-y-2">
+                              <Label>담당자명</Label>
+                              <Input
+                                value={contact.name}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item)))
+                                }
+                                placeholder="담당자 이름을 입력하세요."
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>직급/직책</Label>
+                              <Input
+                                value={contact.position}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, position: event.target.value } : item)))
+                                }
+                                placeholder="직급/직책을 입력하세요."
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>소속부서</Label>
+                              <Input
+                                value={contact.department}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, department: event.target.value } : item)))
+                                }
+                                placeholder="소속부서명을 입력하세요."
+                              />
+                            </div>
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <div className="space-y-2">
+                              <Label>이메일</Label>
+                              <Input
+                                value={contact.email}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
+                                }
+                                placeholder="0000@000.co.kr"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>무선전화번호</Label>
+                              <Input
+                                value={contact.mobilePhone}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
+                                }
+                                placeholder="000-000-0000"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>유선전화번호</Label>
+                              <Input
+                                value={contact.landlinePhone}
+                                onChange={(event) =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
+                                }
+                                placeholder="02-0000-0000"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>담당 직무</Label>
+                            <Input
+                              value={contact.duty}
+                              onChange={(event) =>
+                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
+                              }
+                              placeholder="담당 직무를 입력하세요."
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>비고</Label>
+                            <Textarea
+                              value={contact.memo}
+                              onChange={(event) =>
+                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
+                              }
+                              rows={3}
+                              placeholder="담당자 관련 특기사항을 입력하세요."
+                            />
+                          </div>
+                        </section>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="space-y-2">
+                    <Label>첨부파일</Label>
+                    <Input type="file" multiple />
+                  </section>
+
+                  <div className="flex justify-end gap-2 border-t pt-6">
+                    <Button variant="outline" asChild>
+                      <Link href="/finding?tab=partners">취소</Link>
+                    </Button>
+                    <Button onClick={handlePartnerSubmit}>등록</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
   if (category !== "customers") {
-    const pageSections = category === "partners" ? partnerFormSections : findingFormSections
     const backHref = `/finding?tab=${category}`
-    const pageDescription =
-      category === "partners"
-        ? "협력사 기본정보를 등록합니다"
-        : "신규 사업기회 등록정보를 입력합니다"
+    const pageDescription = "신규 사업기회 등록정보를 입력합니다"
+
+    const handleOpportunitySubmit = () => {
+      if (!selectedOpportunityCustomer) {
+        setCustomerRegistrationGuideOpen(true)
+        return
+      }
+
+      if (!opportunityName.trim() || !businessType) {
+        toast({
+          title: "사업기회 등록 확인",
+          description: "사업명과 사업 구분을 입력해주십시오.",
+        })
+        return
+      }
+
+      const result = registerOpportunity({
+        customerCode: selectedOpportunityCustomer.id,
+        category: opportunityCustomerGroup,
+        name: opportunityName,
+        registrant: opportunityRegistrant,
+        partner: opportunityPartnerName,
+        expectedDate,
+        expectedAmount,
+        product: businessType,
+        module: moduleName,
+        issue,
+        competition,
+        decisionInfo,
+        status: opportunityStatus,
+        salesRep: opportunitySalesRep,
+      })
+
+      if (result.status === "customer_not_found") {
+        toast({
+          title: "사업기회 등록 실패",
+          description: "선택한 고객사를 찾지 못했습니다. 다시 선택해주십시오.",
+        })
+        return
+      }
+
+      toast({
+        title: "사업기회 등록 완료",
+        description: `${result.opportunity.customer} 고객사의 사업기회가 등록되었습니다.`,
+      })
+      router.push(`/finding/opportunities/${result.opportunity.id}?tab=opportunities`)
+    }
 
     return (
       <div className="min-h-screen bg-background">
@@ -188,36 +424,149 @@ export function FindingCategoryNewPageView({
                   <CardTitle>{label} 등록</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-8">
-                  {pageSections.map((section) => (
-                    <section key={section.title} className="space-y-4">
-                      <h2 className="text-base font-semibold">{section.title}</h2>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {section.fields.map((field) => (
-                          <div key={field.label} className={field.type === "textarea" || field.type === "file" ? "space-y-2 md:col-span-2" : "space-y-2"}>
-                            <Label>
-                              {field.label}
-                              {field.required ? " *" : ""}
-                            </Label>
-                            <FindingFormControl field={field} />
-                          </div>
-                        ))}
+                  <section className="space-y-4">
+                    <h2 className="text-base font-semibold">등록정보</h2>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>고객사명 *</Label>
+                        <CustomerAutocomplete
+                          value={opportunityCustomerName}
+                          onSelect={(customer) => {
+                            setSelectedOpportunityCustomer(customer)
+                            setOpportunityCustomerName(customer?.name ?? "")
+                            setOpportunityCustomerGroup(customer?.category ?? "민간")
+                          }}
+                          onValueChange={setOpportunityCustomerName}
+                          onUnregisteredAttempt={() => setCustomerRegistrationGuideOpen(true)}
+                          placeholder="고객사명 일부를 입력해 기존 고객사를 선택하세요"
+                        />
+                        {selectedOpportunityCustomer ? (
+                          <p className="text-xs text-muted-foreground">고객사 코드: {selectedOpportunityCustomer.id}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">자동완성 목록에서 선택하면 고객사 코드가 함께 연결됩니다.</p>
+                        )}
                       </div>
-                    </section>
-                  ))}
+                      <div className="space-y-2">
+                        <Label>협력사명</Label>
+                        <Input value={opportunityPartnerName} onChange={(event) => setOpportunityPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>사업명 *</Label>
+                        <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>고객군</Label>
+                        <Select value={opportunityCustomerGroup} onValueChange={setOpportunityCustomerGroup}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="선택하세요" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {customerGroupOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>등록자</Label>
+                        <Input value={opportunityRegistrant} readOnly />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>영업대표</Label>
+                        <Input value={opportunitySalesRep} onChange={(event) => setOpportunitySalesRep(event.target.value)} placeholder="영업대표명을 입력하세요" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>예상 입찰 또는 계약 시점</Label>
+                        <Input value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} placeholder="예: 2026년 3분기" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>예상 예산 또는 매출</Label>
+                        <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="예: 8억" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>사업 구분 *</Label>
+                        <Select value={businessType} onValueChange={setBusinessType}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="선택하세요" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {businessTypeOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>상태</Label>
+                        <Select value={opportunityStatus} onValueChange={setOpportunityStatus}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="선택하세요" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {findingStatuses.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>납품 모듈</Label>
+                        <Input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="납품 모듈을 입력하세요" />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>주요 사업 내용 및 주요 이슈 내용</Label>
+                        <Textarea value={issue} onChange={(event) => setIssue(event.target.value)} rows={4} placeholder="주요 사업 내용 및 주요 이슈 내용을 입력하세요" />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>경쟁 상황</Label>
+                        <Textarea value={competition} onChange={(event) => setCompetition(event.target.value)} rows={4} placeholder="경쟁 상황을 입력하세요" />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>고객사 의사결정구조 및 담당자 정보</Label>
+                        <Textarea value={decisionInfo} onChange={(event) => setDecisionInfo(event.target.value)} rows={4} placeholder="고객사 의사결정구조 및 담당자 정보를 입력하세요" />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-2">
+                    <Label>첨부파일</Label>
+                    <Input type="file" multiple />
+                  </section>
 
                   <div className="flex justify-end gap-2 border-t pt-6">
                     <Button variant="outline" asChild>
                       <Link href={backHref}>취소</Link>
                     </Button>
-                    <Button asChild>
-                      <Link href={backHref}>등록</Link>
-                    </Button>
+                    <Button onClick={handleOpportunitySubmit}>등록</Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
           </main>
         </div>
+
+        <AlertDialog open={customerRegistrationGuideOpen} onOpenChange={setCustomerRegistrationGuideOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>고객사 등록 필요</AlertDialogTitle>
+              <AlertDialogDescription>
+                등록된 고객사 정보가 없어서 영업기회 등록을 할 수 없습니다. 먼저 고객사 등록 후 사업기회등록을 진행해주십시오.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>닫기</AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Link href="/finding/new/customers">고객사 등록</Link>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     )
   }

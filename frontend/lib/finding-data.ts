@@ -31,9 +31,11 @@ export type CustomerContact = {
 }
 export type OpportunityRecord = {
   id: string
+  createdAt: string
   customerCode: string
   partnerCode: string
   name: string
+  registrant: string
   customer: string
   partner: string
   category: string
@@ -80,8 +82,28 @@ type CustomerUpdateInput = {
   aliases?: string[]
 }
 
+type OpportunityRegistrationInput = {
+  customerCode: string
+  category: string
+  name: string
+  registrant: string
+  partner?: string
+  expectedDate?: string
+  expectedAmount?: string
+  product: string
+  module?: string
+  issue?: string
+  competition?: string
+  decisionInfo?: string
+  status?: string
+  salesRep?: string
+}
+
+type OpportunityUpdateInput = OpportunityRegistrationInput
+
 const customerStorageKey = "orbis.customers"
 const deletedCustomerIdsStorageKey = "orbis.deleted-customer-ids"
+const opportunityStorageKey = "orbis.opportunities"
 const customerGroupOptions = ["공공", "민간", "해외"]
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 
@@ -107,13 +129,15 @@ export const findingFormSections: FindingFormSection[] = [
   },
 ]
 
-export const opportunities: OpportunityRecord[] = [
-  { id: "OPP-2026-001", customerCode: "CUS-001", partnerCode: "-", name: "삼성전자 EMS 구축", customer: "삼성전자", partner: "-", category: "민간", product: "EMS", module: "SMS", expectedAmount: "5억", expectedDate: "2026년 2분기", issue: "인프라 통합 관제 체계 고도화 검토", competition: "기존 관제 솔루션 교체 경쟁", decisionInfo: "IT운영팀 홍길동 / 구매팀 협의", partnerType: "-", partnerContact: "-", partnerPhone: "-", status: "진행중", salesRep: "김영업" },
-  { id: "OPP-2026-002", customerCode: "CUS-002", partnerCode: "PTN-001", name: "국방부 ITSM 도입", customer: "국방부", partner: "LG CNS", category: "공공", product: "ITSM", module: "ITSM", expectedAmount: "8억", expectedDate: "2026년 3분기", issue: "공공 ITSM 표준 프로세스 도입", competition: "대형 SI 제안 경쟁 예상", decisionInfo: "정보화담당관 김철수 / 단계별 승인", partnerType: "SI업체", partnerContact: "강대표", partnerPhone: "010-5678-9012", status: "발굴", salesRep: "이대리" },
-  { id: "OPP-2026-003", customerCode: "CUS-003", partnerCode: "-", name: "현대차 Automation 확장", customer: "현대자동차", partner: "-", category: "민간", product: "Automation", module: "Automation", expectedAmount: "3억", expectedDate: "2026년 2분기", issue: "업무 자동화 적용 범위 확대", competition: "RPA 솔루션 비교 검토", decisionInfo: "디지털혁신팀 이영희", partnerType: "-", partnerContact: "-", partnerPhone: "-", status: "진행중", salesRep: "박과장" },
-  { id: "OPP-2026-004", customerCode: "CUS-004", partnerCode: "PTN-002", name: "SK텔레콤 NMS 업그레이드", customer: "SK텔레콤", partner: "SK C&C", category: "민간", product: "EMS", module: "NMS", expectedAmount: "2억", expectedDate: "2026년 1분기", issue: "노후 NMS 기능 업그레이드", competition: "내부 개발 대체 가능성 검토", decisionInfo: "NW운영팀 박민수", partnerType: "SI업체", partnerContact: "윤실장", partnerPhone: "010-6789-0123", status: "유망", salesRep: "김영업" },
-  { id: "OPP-2026-005", customerCode: "CUS-005", partnerCode: "PTN-003", name: "일본 NTT DoCoMo WSS", customer: "NTT DoCoMo", partner: "NTT DATA", category: "해외", product: "WSS", module: "WSS", expectedAmount: "10억", expectedDate: "2026년 4분기", issue: "해외 통신사 WSS 신규 도입", competition: "현지 벤더와 가격 경쟁", decisionInfo: "서비스기획 Tanaka / NTT DATA 협업", partnerType: "파트너", partnerContact: "Yamamoto", partnerPhone: "+81-90-2345-6789", status: "발굴", salesRep: "최부장" },
+const baseOpportunities: OpportunityRecord[] = [
+  { id: "OPP-2026-001", createdAt: "2026-04-30", customerCode: "CUS-001", partnerCode: "-", name: "삼성전자 EMS 구축", registrant: "김영업", customer: "삼성전자", partner: "-", category: "민간", product: "EMS", module: "SMS", expectedAmount: "5억", expectedDate: "2026년 2분기", issue: "인프라 통합 관제 체계 고도화 검토", competition: "기존 관제 솔루션 교체 경쟁", decisionInfo: "IT운영팀 홍길동 / 구매팀 협의", partnerType: "-", partnerContact: "-", partnerPhone: "-", status: "진행중", salesRep: "김영업" },
+  { id: "OPP-2026-002", createdAt: "2026-04-24", customerCode: "CUS-002", partnerCode: "PTN-001", name: "국방부 ITSM 도입", registrant: "이대리", customer: "국방부", partner: "LG CNS", category: "공공", product: "ITSM", module: "ITSM", expectedAmount: "8억", expectedDate: "2026년 3분기", issue: "공공 ITSM 표준 프로세스 도입", competition: "대형 SI 제안 경쟁 예상", decisionInfo: "정보화담당관 김철수 / 단계별 승인", partnerType: "SI업체", partnerContact: "강대표", partnerPhone: "010-5678-9012", status: "발굴", salesRep: "이대리" },
+  { id: "OPP-2026-003", createdAt: "2026-04-18", customerCode: "CUS-003", partnerCode: "-", name: "현대차 Automation 확장", registrant: "박기술", customer: "현대자동차", partner: "-", category: "민간", product: "Automation", module: "Automation", expectedAmount: "3억", expectedDate: "2026년 2분기", issue: "업무 자동화 적용 범위 확대", competition: "RPA 솔루션 비교 검토", decisionInfo: "디지털혁신팀 이영희", partnerType: "-", partnerContact: "-", partnerPhone: "-", status: "진행중", salesRep: "박과장" },
+  { id: "OPP-2026-004", createdAt: "2026-04-09", customerCode: "CUS-004", partnerCode: "PTN-002", name: "SK텔레콤 NMS 업그레이드", registrant: "김영업", customer: "SK텔레콤", partner: "SK C&C", category: "민간", product: "EMS", module: "NMS", expectedAmount: "2억", expectedDate: "2026년 1분기", issue: "노후 NMS 기능 업그레이드", competition: "내부 개발 대체 가능성 검토", decisionInfo: "NW운영팀 박민수", partnerType: "SI업체", partnerContact: "윤실장", partnerPhone: "010-6789-0123", status: "유망", salesRep: "김영업" },
+  { id: "OPP-2026-005", createdAt: "2026-03-20", customerCode: "CUS-005", partnerCode: "PTN-003", name: "일본 NTT DoCoMo WSS", registrant: "최PM", customer: "NTT DoCoMo", partner: "NTT DATA", category: "해외", product: "WSS", module: "WSS", expectedAmount: "10억", expectedDate: "2026년 4분기", issue: "해외 통신사 WSS 신규 도입", competition: "현지 벤더와 가격 경쟁", decisionInfo: "서비스기획 Tanaka / NTT DATA 협업", partnerType: "파트너", partnerContact: "Yamamoto", partnerPhone: "+81-90-2345-6789", status: "발굴", salesRep: "최부장" },
 ]
+
+export const opportunities: OpportunityRecord[] = baseOpportunities
 
 const baseCustomers: CustomerRecord[] = [
   { id: "CUS-001", name: "삼성전자", category: "민간", opportunities: 3, contracts: 5, contact: "홍길동", phone: "010-1234-5678", aliases: ["samsung", "samsungelectronics"] },
@@ -144,7 +168,7 @@ export const partners: {
 export const findingStatuses: string[] = ["진행중", "발굴", "유망"]
 
 export function getFindingItem(category: FindingCategory, id: string) {
-  if (category === "opportunities") return opportunities.find((item) => item.id === id) ?? null
+  if (category === "opportunities") return getOpportunities().find((item) => item.id === id) ?? null
   if (category === "customers") return getCustomers().find((item) => item.id === id) ?? null
   return partners.find((item) => item.id === id) ?? null
 }
@@ -153,6 +177,9 @@ export function getFindingFields(category: FindingCategory, item: any) {
   if (category === "opportunities") {
     return [
       { label: "사업기회번호", value: item.id },
+      { label: "등록일", value: item.createdAt },
+      { label: "등록자", value: item.registrant },
+      { label: "영업대표", value: item.salesRep || "-" },
       { label: "고객 코드", value: item.customerCode },
       { label: "사업 코드", value: item.id },
       { label: "사업명", value: item.name },
@@ -270,7 +297,7 @@ export function getOpportunitiesByCustomerName(customerName: string) {
   const customer = getCustomerByName(customerName)
   if (!customer) return []
 
-  return opportunities.filter((item) => item.customerCode === customer.id)
+  return getOpportunities().filter((item) => item.customerCode === customer.id)
 }
 
 export function normalizeCustomerKeyword(value: string) {
@@ -317,6 +344,37 @@ function getStoredCustomers(): CustomerRecord[] {
   }
 }
 
+function getStoredOpportunities(): OpportunityRecord[] {
+  if (typeof window === "undefined") return []
+
+  const stored = window.localStorage.getItem(opportunityStorageKey)
+  if (!stored) return []
+
+  try {
+    const parsed = JSON.parse(stored) as OpportunityRecord[]
+    return Array.isArray(parsed)
+      ? parsed
+          .filter(
+            (item) =>
+            item &&
+            typeof item.id === "string" &&
+            typeof item.createdAt === "string" &&
+            typeof item.customerCode === "string" &&
+            typeof item.name === "string" &&
+            typeof item.customer === "string",
+          )
+          .map((item) => ({
+            ...item,
+            createdAt: typeof item.createdAt === "string" ? item.createdAt : "",
+            registrant: typeof item.registrant === "string" ? item.registrant : "",
+            salesRep: typeof item.salesRep === "string" ? item.salesRep : "",
+          }))
+      : []
+  } catch {
+    return []
+  }
+}
+
 function getDeletedCustomerIds(): string[] {
   if (typeof window === "undefined") return []
 
@@ -341,9 +399,23 @@ function setDeletedCustomerIds(value: string[]) {
   window.localStorage.setItem(deletedCustomerIdsStorageKey, JSON.stringify(value))
 }
 
+function setStoredOpportunities(value: OpportunityRecord[]) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(opportunityStorageKey, JSON.stringify(value))
+}
+
 function parseCustomerCode(customerId: string) {
   const match = customerId.match(/^CUS-(\d+)$/i)
   return match ? Number.parseInt(match[1], 10) : 0
+}
+
+function parseOpportunityCode(opportunityId: string) {
+  const match = opportunityId.match(/^OPP-(\d{4})-(\d+)$/i)
+  return match ? Number.parseInt(match[2], 10) : 0
+}
+
+function formatDateKey(date: Date) {
+  return date.toISOString().slice(0, 10)
 }
 
 export function getCustomers(): CustomerRecord[] {
@@ -361,6 +433,18 @@ export function getCustomers(): CustomerRecord[] {
 export function getNextCustomerCode() {
   const nextNumber = getCustomers().reduce((max, customer) => Math.max(max, parseCustomerCode(customer.id)), 0) + 1
   return `CUS-${String(nextNumber).padStart(3, "0")}`
+}
+
+export function getOpportunities() {
+  const merged = new Map<string, OpportunityRecord>()
+  for (const opportunity of baseOpportunities) merged.set(opportunity.id, opportunity)
+  for (const opportunity of getStoredOpportunities()) merged.set(opportunity.id, opportunity)
+  return [...merged.values()]
+}
+
+export function getNextOpportunityCode() {
+  const nextNumber = getOpportunities().reduce((max, opportunity) => Math.max(max, parseOpportunityCode(opportunity.id)), 0) + 1
+  return `OPP-2026-${String(nextNumber).padStart(3, "0")}`
 }
 
 export function registerCustomer(input: CustomerRegistrationInput) {
@@ -400,6 +484,38 @@ export function registerCustomer(input: CustomerRegistrationInput) {
   setDeletedCustomerIds(getDeletedCustomerIds().filter((item) => item !== created.id))
 
   return { status: "created" as const, customer: created }
+}
+
+export function registerOpportunity(input: OpportunityRegistrationInput) {
+  const customer = getCustomerByCode(input.customerCode)
+  if (!customer) return { status: "customer_not_found" as const }
+
+  const created: OpportunityRecord = {
+    id: getNextOpportunityCode(),
+    createdAt: formatDateKey(new Date()),
+    customerCode: customer.id,
+    partnerCode: "-",
+    name: input.name.trim(),
+    registrant: input.registrant.trim(),
+    customer: customer.name,
+    partner: input.partner?.trim() || "-",
+    category: input.category,
+    product: input.product,
+    module: input.module?.trim() || "-",
+    expectedAmount: input.expectedAmount?.trim() || "-",
+    expectedDate: input.expectedDate?.trim() || "-",
+    issue: input.issue?.trim() || "-",
+    competition: input.competition?.trim() || "-",
+    decisionInfo: input.decisionInfo?.trim() || "-",
+    partnerType: input.partner?.trim() ? "기타" : "-",
+    partnerContact: "-",
+    partnerPhone: "-",
+    status: input.status?.trim() || "발굴",
+    salesRep: input.salesRep?.trim() || "미지정",
+  }
+
+  setStoredOpportunities([...getStoredOpportunities(), created])
+  return { status: "created" as const, opportunity: created }
 }
 
 export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
@@ -443,6 +559,40 @@ export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
   setStoredCustomers([...storedCustomers, nextRecord])
   setDeletedCustomerIds(getDeletedCustomerIds().filter((item) => item !== normalizedId))
   return { status: "updated" as const, customer: nextRecord }
+}
+
+export function updateOpportunity(opportunityId: string, input: OpportunityUpdateInput) {
+  const normalizedId = opportunityId.trim()
+  const existing = getOpportunities().find((item) => item.id === normalizedId)
+  if (!existing) return { status: "not_found" as const }
+
+  const customer = getCustomerByCode(input.customerCode)
+  if (!customer) return { status: "customer_not_found" as const }
+
+  const nextRecord: OpportunityRecord = {
+    ...existing,
+    customerCode: customer.id,
+    customer: customer.name,
+    category: input.category,
+    name: input.name.trim(),
+    registrant: input.registrant.trim(),
+    partner: input.partner?.trim() || "-",
+    product: input.product,
+    module: input.module?.trim() || "-",
+    expectedAmount: input.expectedAmount?.trim() || "-",
+    expectedDate: input.expectedDate?.trim() || "-",
+    issue: input.issue?.trim() || "-",
+    competition: input.competition?.trim() || "-",
+    decisionInfo: input.decisionInfo?.trim() || "-",
+    status: input.status?.trim() || existing.status,
+    salesRep: input.salesRep?.trim() || existing.salesRep,
+    partnerType: input.partner?.trim() ? existing.partnerType === "-" ? "기타" : existing.partnerType : "-",
+    partnerCode: input.partner?.trim() ? existing.partnerCode : "-",
+  }
+
+  const storedOpportunities = getStoredOpportunities().filter((item) => item.id !== normalizedId)
+  setStoredOpportunities([...storedOpportunities, nextRecord])
+  return { status: "updated" as const, opportunity: nextRecord }
 }
 
 export function deleteCustomer(customerId: string) {
