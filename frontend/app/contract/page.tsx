@@ -17,6 +17,7 @@ import { PurchaseList } from "@/components/erp/contract/purchase-list";
 import { LicenseList } from "@/components/erp/contract/license-list";
 import { OrderReportForm } from "@/components/erp/contract/order-report-form";
 import { ContractForm } from "@/components/erp/contract/contract-form";
+import { PurchaseForm } from "@/components/erp/contract/purchase-form";
 
 export default function ContractPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -66,7 +67,10 @@ export default function ContractPage() {
     status: (i) => i.status,
     date: (i) => i.contractDate,
     fields: { supplier: (i) => i.supplier },
-  }).filter((i) => [i.id, i.name, i.supplier, i.manager].join(" ").toLowerCase().includes(q));
+  })
+    .filter((i) => [i.id, i.name, i.supplier, i.manager].join(" ").toLowerCase().includes(q))
+    // 가장 최근에 등록된 계약부터 표시되도록 계약일 기준 내림차순 정렬
+    .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
 
   const filteredLicenses = filterRecords(licenses, filters, {
     status: (i) => i.status,
@@ -160,10 +164,25 @@ export default function ContractPage() {
                   }}
                 />
               </TabsContent>
+            ) : activeTab === "purchases" ? (
+              <TabsContent value="purchases">
+                <PurchaseForm
+                  onSuccess={() => setIsCreating(false)}
+                  onCancel={() => setIsCreating(false)}
+                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
+                  inheritedData={{
+                    customerId: "CUST-001",
+                    customerName: "삼성전자",
+                    opportunityId: "OPP-2026-001",
+                    opportunityName: "삼성전자 EMS 구축",
+                    orderReportId: "ORD-2026-001",
+                  }}
+                />
+              </TabsContent>
             ) : (
               <TabsContent value={activeTab}>
                 <div className="bg-card rounded-lg border p-6 flex min-h-[400px] flex-col items-center justify-center space-y-4">
-                  <p className="text-muted-foreground text-lg">여기에 {activeTab === "purchases" ? "매입계약" : "라이선스"} 등록 폼 컴포넌트</p>
+                  <p className="text-muted-foreground text-lg">여기에 라이선스 등록 폼 컴포넌트</p>
                   <p className="text-sm text-muted-foreground">TODO: 컴포넌트 import</p>
                 </div>
               </TabsContent>
