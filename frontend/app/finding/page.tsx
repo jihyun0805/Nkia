@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { findingStatuses, getCustomers, opportunities, partners } from "@/lib/finding-data"
+import { findingStatuses, getCustomers, getOpportunities, partners } from "@/lib/finding-data"
 import { Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
@@ -47,20 +47,21 @@ function FindingPageContent() {
 
   const q = searchTerm.toLowerCase()
   const customerRows = getCustomers()
+  const opportunityRows = getOpportunities()
 
   const findingFieldOptions =
     activeTab === "opportunities"
       ? [
-          { key: "category", label: "고객군", options: uniqueOptions(opportunities, (item) => item.category) },
-          { key: "product", label: "제품", options: uniqueOptions(opportunities, (item) => item.product) },
-          { key: "customerCode", label: "고객 코드", options: uniqueOptions(opportunities, (item) => item.customerCode) },
-          { key: "customer", label: "고객사", options: uniqueOptions(opportunities, (item) => item.customer) },
+          { key: "category", label: "고객군", options: uniqueOptions(opportunityRows, (item) => item.category) },
+          { key: "product", label: "제품", options: uniqueOptions(opportunityRows, (item) => item.product) },
+          { key: "customerCode", label: "고객 코드", options: uniqueOptions(opportunityRows, (item) => item.customerCode) },
+          { key: "customer", label: "고객사", options: uniqueOptions(opportunityRows, (item) => item.customer) },
         ]
       : activeTab === "customers"
         ? [{ key: "category", label: "고객군", options: uniqueOptions(customerRows, (item) => item.category) }]
         : [{ key: "type", label: "협력사 유형", options: uniqueOptions(partners, (item) => item.type) }]
 
-  const filteredOpportunities = filterRecords(opportunities, filters, {
+  const filteredOpportunities = filterRecords(opportunityRows, filters, {
     status: (item) => item.status,
     owner: (item) => item.salesRep,
     fields: {
@@ -75,6 +76,21 @@ function FindingPageContent() {
       .toLowerCase()
       .includes(q),
   )
+
+  const recentOpportunityCards = useMemo(() => {
+    const threshold = new Date()
+    threshold.setMonth(threshold.getMonth() - 1)
+
+    return filteredOpportunities
+      .filter((item) => {
+        const createdAt = item.createdAt ? new Date(`${item.createdAt}T00:00:00`) : null
+        return createdAt ? createdAt >= threshold : false
+      })
+      .sort((a, b) => {
+        if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt)
+        return a.customer.localeCompare(b.customer, "ko")
+      })
+  }, [filteredOpportunities])
 
   const filteredCustomers = filterRecords(customerRows, filters, {
     owner: (item) => item.contact,
@@ -100,16 +116,6 @@ function FindingPageContent() {
     [filteredCustomers],
   )
 
-  const opportunityCards = useMemo(
-    () =>
-      [...filteredOpportunities].sort((a, b) => {
-        const nameCompare = a.name.localeCompare(b.name, "ko")
-        if (nameCompare !== 0) return nameCompare
-        return a.id.localeCompare(b.id)
-      }),
-    [filteredOpportunities],
-  )
-
   const partnerCards = useMemo(
     () =>
       [...filteredPartners].sort((a, b) => {
@@ -119,7 +125,7 @@ function FindingPageContent() {
       }),
     [filteredPartners],
   )
-  const previewOpportunityCards = useMemo(() => opportunityCards.slice(0, PREVIEW_CARD_COUNT), [opportunityCards])
+  const previewOpportunityCards = useMemo(() => recentOpportunityCards.slice(0, PREVIEW_CARD_COUNT), [recentOpportunityCards])
   const previewCustomerCards = useMemo(() => customerCards.slice(0, PREVIEW_CARD_COUNT), [customerCards])
   const previewPartnerCards = useMemo(() => partnerCards.slice(0, PREVIEW_CARD_COUNT), [partnerCards])
 
@@ -198,9 +204,9 @@ function FindingPageContent() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">사업기회 현황</CardTitle>
+                    <CardTitle className="text-lg">최근 1개월 신규 사업기회</CardTitle>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{filteredOpportunities.length}건</Badge>
+                      <Badge variant="secondary">{recentOpportunityCards.length}건</Badge>
                       <Button variant="outline" size="sm" asChild>
                         <Link href="/finding/opportunities">전체 보기</Link>
                       </Button>
@@ -215,16 +221,18 @@ function FindingPageContent() {
                           key={opp.id}
                           type="button"
                           className="min-h-[168px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
-                          onClick={() => router.push(`/finding/opportunities/${opp.id}?tab=${activeTab}`)}
+                          onClick={() => router.push(`/activity/customers/${opp.customerCode}`)}
                         >
                           <div className="flex h-full flex-col justify-between">
                             <div>
-                              <p className="line-clamp-2 text-lg font-semibold">{opp.name}</p>
+                              <p className="line-clamp-2 text-lg font-semibold">{opp.customer}</p>
                               <p className="mt-1 text-xs text-muted-foreground">{opp.id}</p>
+                              <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{opp.name}</p>
                             </div>
                             <div className="mt-5 text-sm text-muted-foreground">
-                              <p>{opp.customer}</p>
-                              <p>상태 {opp.status}</p>
+                              <p>제품 {opp.product}</p>
+                              <p>예산/예상매출 {opp.expectedAmount}</p>
+                              <p>예상시점 {opp.expectedDate}</p>
                             </div>
                           </div>
                         </button>
@@ -232,7 +240,7 @@ function FindingPageContent() {
                     </div>
                   ) : (
                     <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                      조건에 맞는 사업기회가 없습니다.
+                      최근 1개월 내 등록된 사업기회가 없습니다.
                     </div>
                   )}
                 </CardContent>
