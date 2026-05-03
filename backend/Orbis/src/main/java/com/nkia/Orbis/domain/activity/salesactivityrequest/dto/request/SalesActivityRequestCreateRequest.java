@@ -8,13 +8,13 @@ import lombok.Getter;
 @Getter
 public class SalesActivityRequestCreateRequest {
 
-    UUID targetUserId;
+    private UUID targetUserId;
 
-    ActivityPurpose activityPurpose;
+    private ActivityPurpose activityPurpose;
 
-    LocalDateTime activityDateTime;
+    private LocalDateTime activityDateTime;
 
-    String requestContent;
+    private String requestContent;
 
 
 }
