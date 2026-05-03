@@ -16,6 +16,7 @@ import { ContractList } from "@/components/erp/contract/contract-list";
 import { PurchaseList } from "@/components/erp/contract/purchase-list";
 import { LicenseList } from "@/components/erp/contract/license-list";
 import { OrderReportForm } from "@/components/erp/contract/order-report-form";
+import { ContractForm } from "@/components/erp/contract/contract-form";
 
 export default function ContractPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -144,10 +145,25 @@ export default function ContractPage() {
                 {/* TODO: 폼 컴포넌트의 제출/취소 완료 prop 이름(onSuccess, onSubmit 등)에 맞춰 연결 */}
                 <OrderReportForm onSuccess={() => setIsCreating(false)} onCancel={() => setIsCreating(false)} />
               </TabsContent>
+            ) : activeTab === "contracts" ? (
+              <TabsContent value="contracts">
+                <ContractForm
+                  onSuccess={() => setIsCreating(false)}
+                  onCancel={() => setIsCreating(false)}
+                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
+                  inheritedData={{
+                    customerId: "CUST-001",
+                    customerName: "삼성전자",
+                    opportunityId: "OPP-2026-001",
+                    opportunityName: "삼성전자 EMS 구축",
+                    orderReportId: "ORD-2026-001",
+                  }}
+                />
+              </TabsContent>
             ) : (
               <TabsContent value={activeTab}>
                 <div className="bg-card rounded-lg border p-6 flex min-h-[400px] flex-col items-center justify-center space-y-4">
-                  <p className="text-muted-foreground text-lg">여기에 {activeTab === "contracts" ? "계약" : activeTab === "purchases" ? "매입계약" : "라이선스"} 등록 폼 컴포넌트</p>
+                  <p className="text-muted-foreground text-lg">여기에 {activeTab === "purchases" ? "매입계약" : "라이선스"} 등록 폼 컴포넌트</p>
                   <p className="text-sm text-muted-foreground">TODO: 컴포넌트 import</p>
                 </div>
               </TabsContent>
