@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -153,12 +153,16 @@ export function OrderDetailTables() {
   const maintenanceDiscount = useWatch({ control, name: "maintenanceDiscount" });
 
   // 기본 1줄 자동추가
+  const isInitialized = useRef(false);
   useEffect(() => {
-    if (license.fields.length === 0) license.append({ category: "", group: "", product: "", quantity: "", unitPrice: "", subtotal: "" });
-    if (service.fields.length === 0) service.append({ content: "", mm: "", unitPrice: "", subtotal: "" });
-    if (maintenance.fields.length === 0) maintenance.append({ content: "", cycle: "", months: "", monthlyAmount: "", subtotal: "" });
-    if (otherSales.fields.length === 0) otherSales.append({ content: "", quantity: "", unitPrice: "", subtotal: "" });
-    if (purchase.fields.length === 0) purchase.append({ content: "", quantity: "", unitPrice: "", subtotal: "" });
+    if (!isInitialized.current) {
+      if (license.fields.length === 0) license.append({ category: "", group: "", product: "", quantity: "", unitPrice: "", subtotal: "" });
+      if (service.fields.length === 0) service.append({ content: "", mm: "", unitPrice: "", subtotal: "" });
+      if (maintenance.fields.length === 0) maintenance.append({ content: "", cycle: "", months: "", monthlyAmount: "", subtotal: "" });
+      if (otherSales.fields.length === 0) otherSales.append({ content: "", quantity: "", unitPrice: "", subtotal: "" });
+      if (purchase.fields.length === 0) purchase.append({ content: "", quantity: "", unitPrice: "", subtotal: "" });
+      isInitialized.current = true;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

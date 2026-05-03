@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,21 @@ import { OrderReportList } from "@/components/erp/contract/order-report-list";
 import { ContractList } from "@/components/erp/contract/contract-list";
 import { PurchaseList } from "@/components/erp/contract/purchase-list";
 import { LicenseList } from "@/components/erp/contract/license-list";
+import { OrderReportForm } from "@/components/erp/contract/order-report-form";
 
 export default function ContractPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
   const [activeTab, setActiveTab] = useState<"orders" | "contracts" | "purchases" | "licenses">("orders");
+  const [isCreating, setIsCreating] = useState(false);
   const q = searchTerm.toLowerCase();
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (isCreating && mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [isCreating]);
 
   const contractFieldOptions =
     activeTab === "orders"
@@ -30,7 +39,6 @@ export default function ContractPage() {
         : activeTab === "purchases"
           ? [{ key: "supplier", label: "공급사", options: uniqueOptions(purchaseContracts, (i) => i.supplier) }]
           : [
-              // licenses
               { key: "customer", label: "고객사", options: uniqueOptions(licenses, (i) => i.customer) },
               { key: "product", label: "제품", options: uniqueOptions(licenses, (i) => i.product) },
               { key: "type", label: "라이선스 유형", options: uniqueOptions(licenses, (i) => i.type) },
@@ -63,8 +71,15 @@ export default function ContractPage() {
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Header title="계약" description="수주 보고, 계약 관리 및 라이선스 발급을 관리합니다" />
-        <main className="flex-1 overflow-auto p-6">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "orders" | "contracts" | "purchases" | "licenses")} className="space-y-6">
+        <main ref={mainRef} className="flex-1 overflow-auto p-6">
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => {
+              setActiveTab(value as "orders" | "contracts" | "purchases" | "licenses");
+              setIsCreating(false); // 탭을 변경하면 목록화면으로 돌아가게 함
+            }}
+            className="space-y-6"
+          >
             <div className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="orders" className="gap-2">
@@ -87,30 +102,50 @@ export default function ContractPage() {
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isCreating} />
                 </div>
                 <FilterPopover title="계약" statusOptions={contractStatuses} value={filters} onApply={setFilters} fieldOptions={contractFieldOptions} />
-                <Button asChild>
-                  <Link href={`/contract/new/${activeTab}`}>
+                {!isCreating ? (
+                  <Button onClick={() => setIsCreating(true)}>
                     <Plus className="mr-2 w-4 h-4" />
                     {activeTab === "orders" ? "수주보고 등록" : activeTab === "contracts" ? "계약 등록" : activeTab === "purchases" ? "매입계약 등록" : "라이선스 등록"}
-                  </Link>
-                </Button>
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => setIsCreating(false)}>
+                    목록으로 돌아가기
+                  </Button>
+                )}
               </div>
             </div>
 
-            <TabsContent value="orders">
-              <OrderReportList reports={filteredOrderReports} />
-            </TabsContent>
-            <TabsContent value="contracts">
-              <ContractList contracts={filteredContracts} />
-            </TabsContent>
-            <TabsContent value="purchases">
-              <PurchaseList purchases={filteredPurchases} />
-            </TabsContent>
-            <TabsContent value="licenses">
-              <LicenseList licenses={filteredLicenses} />
-            </TabsContent>
+            {!isCreating ? (
+              <>
+                <TabsContent value="orders">
+                  <OrderReportList reports={filteredOrderReports} />
+                </TabsContent>
+                <TabsContent value="contracts">
+                  <ContractList contracts={filteredContracts} />
+                </TabsContent>
+                <TabsContent value="purchases">
+                  <PurchaseList purchases={filteredPurchases} />
+                </TabsContent>
+                <TabsContent value="licenses">
+                  <LicenseList licenses={filteredLicenses} />
+                </TabsContent>
+              </>
+            ) : activeTab === "orders" ? (
+              <TabsContent value="orders">
+                {/* TODO: 폼 컴포넌트의 제출/취소 완료 prop 이름(onSuccess, onSubmit 등)에 맞춰 연결 */}
+                <OrderReportForm onSuccess={() => setIsCreating(false)} onCancel={() => setIsCreating(false)} />
+              </TabsContent>
+            ) : (
+              <TabsContent value={activeTab}>
+                <div className="bg-card rounded-lg border p-6 flex min-h-[400px] flex-col items-center justify-center space-y-4">
+                  <p className="text-muted-foreground text-lg">여기에 {activeTab === "contracts" ? "계약" : activeTab === "purchases" ? "매입계약" : "라이선스"} 등록 폼 컴포넌트</p>
+                  <p className="text-sm text-muted-foreground">TODO: 컴포넌트 import</p>
+                </div>
+              </TabsContent>
+            )}
           </Tabs>
         </main>
       </div>
