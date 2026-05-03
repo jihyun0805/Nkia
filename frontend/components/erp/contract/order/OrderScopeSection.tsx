@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useFormContext, useFieldArray, useWatch } from "react-hook-form";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -28,9 +28,11 @@ export function OrderScopeSection() {
   };
 
   // 기본 1줄 자동추가
+  const isInitialized = useRef(false);
   useEffect(() => {
-    if (maintenanceSummary.fields.length === 0) {
+    if (!isInitialized.current && maintenanceSummary.fields.length === 0) {
       maintenanceSummary.append({ year: "", projectAmount: "", license: "", thirdParty: "", service: "", maintenance: "", rate: "" });
+      isInitialized.current = true;
     }
   }, [maintenanceSummary.fields.length, maintenanceSummary.append]);
 
