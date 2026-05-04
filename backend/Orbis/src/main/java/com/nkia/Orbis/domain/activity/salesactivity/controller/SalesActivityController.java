@@ -67,4 +67,14 @@ public class SalesActivityController {
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @Operation(summary = "영업 활동 상세 조회")
+    @GetMapping("/{salesActivityId}")
+    public ResponseEntity<ApiResponse<SalesActivityResponse>> getSalesActivity(
+            @PathVariable("salesActivityId") Long salesActivityId
+    ) {
+        SalesActivityResponse response = salesActivityService.getSalesActivity(salesActivityId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
 }
