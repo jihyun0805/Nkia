@@ -46,5 +46,21 @@ public class ProductModule extends BaseEntity {
 //    @OneToMany(mappedBy = "productModule")
 //    private List<License> licenses = new ArrayList<>();
 
-
+    public static ProductModule create(
+            ProductClass productClass,
+            String productGroup,
+            String productName,
+            String licenseStandard,
+            String licenseUnit,
+            Long unitPrice
+    ) {
+        ProductModule productModule = new ProductModule();
+        productModule.productClass = productClass;
+        productModule.productGroup = productGroup;
+        productModule.productName = productName;
+        productModule.licenseStandard = licenseStandard;
+        productModule.licenseUnit = licenseUnit;
+        productModule.unitPrice = unitPrice;
+        return productModule;
+    }
 }
