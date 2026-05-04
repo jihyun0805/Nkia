@@ -11,6 +11,10 @@ public class SolutionItemResponse {
 
     private Long productModuleId;
 
+    private String productName;
+
+    private String productGroup;
+
     private Integer quantity;
 
     private Long consumerPrice;
@@ -32,6 +36,16 @@ public class SolutionItemResponse {
                         item.getProductModule() == null
                                 ? null
                                 : item.getProductModule().getId()
+                )
+                .productName(
+                        item.getProductModule() == null
+                                ? null
+                                : item.getProductModule().getProductName()
+                )
+                .productGroup(
+                        item.getProductModule() == null
+                                ? null
+                                : item.getProductModule().getProductName()
                 )
                 .quantity(item.getQuantity())
                 .consumerPrice(item.getConsumerPrice())

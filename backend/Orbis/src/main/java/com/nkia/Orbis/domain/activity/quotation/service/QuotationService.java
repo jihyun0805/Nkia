@@ -1,5 +1,7 @@
 package com.nkia.Orbis.domain.activity.quotation.service;
 
+import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
@@ -9,6 +11,7 @@ import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItem;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItem;
 import com.nkia.Orbis.domain.activity.quotation.repository.QuotationRepository;
 import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -20,9 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class QuotationService {
-    // Todo: 사업기회, 제품 모듈 구현 후 연동 예정
+    // Todo: 사업기회 구현 후 연동 예정
     private final QuotationRepository quotationRepository;
-//    private final ProductModuleRepository productModuleRepository;
+    private final ProductModuleRepository productModuleRepository;
 
     @Transactional
     public QuotationResponse create(QuotationCreateRequest request) {
@@ -56,8 +59,8 @@ public class QuotationService {
 
         for (SolutionItemCreateRequest request : solutionItemRequests) {
 
-            // TODO: ProductModuleRepository 구현 후 findById로 교체
-            ProductModule productModule = null;
+            ProductModule productModule = productModuleRepository.findById(request.getProductModuleId())
+                    .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
 
             QuotationSolutionItem item = QuotationSolutionItem.create(
                     productModule,
