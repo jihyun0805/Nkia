@@ -70,7 +70,12 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         // 실무에서는 운영 도메인(예: https://my-frontend.com)과 로컬 도메인을 명시합니다.
-        config.setAllowedOriginPatterns(List.of("http://localhost:3000", "http://localhost:3001", "http://localhost:5173"));
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://localhost:5173",
+                "https://k14s106.p.ssafy.io"
+        ));
         config.setAllowedMethods(
                 List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")); // OPTIONS는 Preflight용으로 필수
         config.setAllowedHeaders(List.of("*"));
