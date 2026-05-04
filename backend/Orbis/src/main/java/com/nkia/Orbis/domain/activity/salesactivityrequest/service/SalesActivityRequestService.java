@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.activity.salesactivityrequest.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.request.SalesActivityRequestCreateRequest;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response.SalesActivityRequestListResponse;
@@ -46,5 +47,12 @@ public class SalesActivityRequestService {
                 .stream()
                 .map(SalesActivityRequestListResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public SalesActivityRequestResponse getSalesActivityRequest(Long salesActivityRequestId) {
+        SalesActivityRequest salesActivityRequest = salesActivityRequestRepository.findById(salesActivityRequestId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
+        return SalesActivityRequestResponse.from(salesActivityRequest);
     }
 }
