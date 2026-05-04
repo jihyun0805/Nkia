@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -71,9 +70,7 @@ public class SalesActivity extends BaseEntity {
     @OneToOne(mappedBy = "salesActivity", cascade = CascadeType.ALL, orphanRemoval = true)
     private SalesActivityRequest salesActivityRequest;
 
-    @Builder
-    private SalesActivity(
-
+    public static SalesActivity create(
             ProjectOpportunity projectOpportunity,
             ActivityType activityType,
             ActivityPurpose activityPurpose,
@@ -83,22 +80,20 @@ public class SalesActivity extends BaseEntity {
             String issue,
             String nextActivity,
             String customerInterest,
-            ActivityStatus status,
-            SalesActivityRequest salesActivityRequest
+            ActivityStatus status
     ) {
-        this.projectOpportunity = projectOpportunity;
-        this.activityType = activityType;
-        this.activityPurpose = activityPurpose;
-        this.activityContent = activityContent;
-        this.location = location;
-        this.activityDateTime = activityDateTime;
-        this.issue = issue;
-        this.nextActivity = nextActivity;
-        this.customerInterest = customerInterest;
-        this.status = status;
-        if (salesActivityRequest != null) {
-            setSalesActivityRequest(salesActivityRequest);
-        }
+        SalesActivity salesActivity = new SalesActivity();
+        salesActivity.projectOpportunity = projectOpportunity;
+        salesActivity.activityType = activityType;
+        salesActivity.activityPurpose = activityPurpose;
+        salesActivity.activityContent = activityContent;
+        salesActivity.location = location;
+        salesActivity.activityDateTime = activityDateTime;
+        salesActivity.issue = issue;
+        salesActivity.nextActivity = nextActivity;
+        salesActivity.customerInterest = customerInterest;
+        salesActivity.status = status;
+        return salesActivity;
     }
 
     public void setSalesActivityRequest(SalesActivityRequest request) {
