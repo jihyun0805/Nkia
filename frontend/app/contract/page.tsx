@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
 import { contracts, contractStatuses, licenses, orderReports, purchaseContracts, type PurchaseContract } from "@/lib/contract-data";
-import { Plus, Search, FileCheck, BookKey, Receipt, ClipboardList } from "lucide-react";
+import { Plus, Search, FileCheck, BookKey, Receipt, ClipboardList, Wrench, Settings } from "lucide-react";
 import { OrderReportList } from "@/components/erp/contract/order-report-list";
 import { ContractList } from "@/components/erp/contract/contract-list";
 import { PurchaseList } from "@/components/erp/contract/purchase-list";
@@ -18,11 +18,13 @@ import { LicenseList } from "@/components/erp/contract/license-list";
 import { OrderReportForm } from "@/components/erp/contract/order-report-form";
 import { ContractForm } from "@/components/erp/contract/contract-form";
 import { PurchaseForm } from "@/components/erp/contract/purchase-form";
+import { FreeMaintenanceForm } from "@/components/erp/contract/free-maintenance-form";
+import { PaidMaintenanceForm } from "@/components/erp/contract/paid-maintenance-form";
 
 export default function ContractPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
-  const [activeTab, setActiveTab] = useState<"orders" | "contracts" | "purchases" | "licenses">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "contracts" | "purchases" | "licenses" | "freeMaintenance" | "paidMaintenance">("orders");
   const [isCreating, setIsCreating] = useState(false);
   const q = searchTerm.toLowerCase();
 
@@ -46,11 +48,13 @@ export default function ContractPage() {
         ? [{ key: "customer", label: "고객사", options: uniqueOptions(contracts, (i) => i.customer) }]
         : activeTab === "purchases"
           ? [{ key: "supplier", label: "공급사", options: uniqueOptions(purchaseContracts, (i) => i.supplier) }]
-          : [
-              { key: "customer", label: "고객사", options: uniqueOptions(licenses, (i) => i.customer) },
-              { key: "product", label: "제품", options: uniqueOptions(licenses, (i) => i.product) },
-              { key: "type", label: "라이선스 유형", options: uniqueOptions(licenses, (i) => i.type) },
-            ];
+          : activeTab === "licenses"
+            ? [
+                { key: "customer", label: "고객사", options: uniqueOptions(licenses, (i) => i.customer) },
+                { key: "product", label: "제품", options: uniqueOptions(licenses, (i) => i.product) },
+                { key: "type", label: "라이선스 유형", options: uniqueOptions(licenses, (i) => i.type) },
+              ]
+            : [];
 
   const filteredOrderReports = filterRecords(orderReports, filters, {
     status: (i) => i.approvalStatus,
@@ -86,7 +90,7 @@ export default function ContractPage() {
           <Tabs
             value={activeTab}
             onValueChange={(value) => {
-              setActiveTab(value as "orders" | "contracts" | "purchases" | "licenses");
+              setActiveTab(value as "orders" | "contracts" | "purchases" | "licenses" | "freeMaintenance" | "paidMaintenance");
               setIsCreating(false); // 탭을 변경하면 목록화면으로 돌아가게 함
             }}
             className="space-y-6"
@@ -109,17 +113,39 @@ export default function ContractPage() {
                   <BookKey className="w-4 h-4" />
                   라이선스
                 </TabsTrigger>
+                <TabsTrigger value="freeMaintenance" className="gap-2">
+                  <Wrench className="w-4 h-4" />
+                  무상유지보수
+                </TabsTrigger>
+                <TabsTrigger value="paidMaintenance" className="gap-2">
+                  <Settings className="w-4 h-4" />
+                  유상유지보수
+                </TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isCreating} />
-                </div>
-                <FilterPopover title="계약" statusOptions={contractStatuses} value={filters} onApply={setFilters} fieldOptions={contractFieldOptions} />
+                {activeTab !== "freeMaintenance" && activeTab !== "paidMaintenance" && (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isCreating} />
+                    </div>
+                    <FilterPopover title="계약" statusOptions={contractStatuses} value={filters} onApply={setFilters} fieldOptions={contractFieldOptions} />
+                  </>
+                )}
                 {!isCreating ? (
                   <Button onClick={() => setIsCreating(true)}>
                     <Plus className="mr-2 w-4 h-4" />
-                    {activeTab === "orders" ? "수주보고 등록" : activeTab === "contracts" ? "계약 등록" : activeTab === "purchases" ? "매입계약 등록" : "라이선스 등록"}
+                    {activeTab === "orders"
+                      ? "수주보고 등록"
+                      : activeTab === "contracts"
+                        ? "계약 등록"
+                        : activeTab === "purchases"
+                          ? "매입계약 등록"
+                          : activeTab === "freeMaintenance"
+                            ? "무상유지보수 등록"
+                            : activeTab === "paidMaintenance"
+                              ? "유상유지보수 등록"
+                              : "라이선스 등록"}
                   </Button>
                 ) : (
                   <Button variant="outline" onClick={() => setIsCreating(false)}>
@@ -142,6 +168,34 @@ export default function ContractPage() {
                 </TabsContent>
                 <TabsContent value="licenses">
                   <LicenseList licenses={filteredLicenses} />
+                </TabsContent>
+                <TabsContent value="freeMaintenance">
+                  <div className="bg-card rounded-lg border p-12 flex flex-col items-center justify-center space-y-6 min-h-[400px]">
+                    <Wrench className="w-16 h-16 text-muted-foreground/50" />
+                    <div className="text-center space-y-2">
+                      <h3 className="text-xl font-bold">무상유지보수 계약 등록</h3>
+                      <p className="text-muted-foreground">
+                        무상유지보수 계약 현황 및 관리는 <strong>유지보수</strong> 페이지에서 확인할 수 있습니다.
+                      </p>
+                    </div>
+                    <Button onClick={() => setIsCreating(true)} size="lg" className="mt-4">
+                      <Plus className="mr-2 w-5 h-5" /> 무상유지보수 계약 등록
+                    </Button>
+                  </div>
+                </TabsContent>
+                <TabsContent value="paidMaintenance">
+                  <div className="bg-card rounded-lg border p-12 flex flex-col items-center justify-center space-y-6 min-h-[400px]">
+                    <Settings className="w-16 h-16 text-muted-foreground/50" />
+                    <div className="text-center space-y-2">
+                      <h3 className="text-xl font-bold">유상유지보수 계약 등록</h3>
+                      <p className="text-muted-foreground">
+                        유상유지보수 계약 현황 및 관리는 <strong>유지보수</strong> 페이지에서 확인할 수 있습니다.
+                      </p>
+                    </div>
+                    <Button onClick={() => setIsCreating(true)} size="lg" className="mt-4">
+                      <Plus className="mr-2 w-5 h-5" /> 유상유지보수 계약 등록
+                    </Button>
+                  </div>
                 </TabsContent>
               </>
             ) : activeTab === "orders" ? (
@@ -176,6 +230,38 @@ export default function ContractPage() {
                     opportunityId: "OPP-2026-001",
                     opportunityName: "삼성전자 EMS 구축",
                     orderReportId: "ORD-2026-001",
+                  }}
+                />
+              </TabsContent>
+            ) : activeTab === "freeMaintenance" ? (
+              <TabsContent value="freeMaintenance">
+                <FreeMaintenanceForm
+                  onSuccess={() => setIsCreating(false)}
+                  onCancel={() => setIsCreating(false)}
+                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
+                  inheritedData={{
+                    customerId: "CUST-001",
+                    customerName: "삼성전자",
+                    opportunityId: "OPP-2026-001",
+                    opportunityName: "삼성전자 EMS 구축",
+                    orderReportId: "ORD-2026-001",
+                    contractId: "CTR-2026-001",
+                  }}
+                />
+              </TabsContent>
+            ) : activeTab === "paidMaintenance" ? (
+              <TabsContent value="paidMaintenance">
+                <PaidMaintenanceForm
+                  onSuccess={() => setIsCreating(false)}
+                  onCancel={() => setIsCreating(false)}
+                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
+                  inheritedData={{
+                    customerId: "CUST-001",
+                    customerName: "삼성전자",
+                    opportunityId: "OPP-2026-001",
+                    opportunityName: "삼성전자 EMS 구축",
+                    orderReportId: "ORD-2026-001",
+                    contractId: "CTR-2026-001",
                   }}
                 />
               </TabsContent>
