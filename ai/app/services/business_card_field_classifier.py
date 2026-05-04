@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -12,7 +13,10 @@ from transformers import BertModel, BertTokenizer
 
 MODEL_CONFIDENCE_THRESHOLD = 0.40
 BERT_MODEL_TYPE = "bert_multilingual_line_classifier"
+BERT_LORA_MODEL_TYPE = "bert_multilingual_line_classifier_lora"
 BERT_FEATURE_SIZE = 6
+DEFAULT_LORA_ADAPTER_DIR = "bert_lora_adapter"
+DEFAULT_LORA_HEAD_PATH = "classifier_head.pt"
 
 
 @dataclass(frozen=True)
@@ -26,11 +30,12 @@ class BertBusinessCardFieldClassifier:
     def __init__(
         self,
         *,
-        checkpoint_path: Path,
+        artifact_dir: Path,
         metadata_path: Path,
     ) -> None:
         metadata = _read_metadata(metadata_path)
         self.model_name = str(metadata.get("model_name", "bert-base-multilingual-cased"))
+        self.model_type = str(metadata.get("model_type", BERT_MODEL_TYPE))
         self.label_to_idx = _string_int_dict(metadata["label_to_idx"])
         self.idx_to_label = _read_idx_to_label(metadata)
         self.max_length = int(metadata.get("max_length", 64))
@@ -46,9 +51,14 @@ class BertBusinessCardFieldClassifier:
             model_name=self.model_name,
             num_labels=len(self.label_to_idx),
             cache_dir=self.cache_dir,
+            adapter_path=_adapter_path(artifact_dir, metadata) if self.model_type == BERT_LORA_MODEL_TYPE else None,
         ).to(self.device)
-        state_dict = torch.load(checkpoint_path, map_location=self.device)
-        self.model.load_state_dict(state_dict)
+        if self.model_type == BERT_LORA_MODEL_TYPE:
+            head_state = torch.load(_head_path(artifact_dir, metadata), map_location=self.device)
+            self.model.load_head_state_dict(head_state)
+        else:
+            state_dict = torch.load(artifact_dir / "field_classifier.pt", map_location=self.device)
+            self.model.load_state_dict(state_dict)
         self.model.eval()
 
     def predict(self, lines: list[str]) -> list[FieldPrediction]:
@@ -110,17 +120,23 @@ def predict_business_card_fields(lines: list[str]) -> dict[str, str]:
 @lru_cache(maxsize=1)
 def get_business_card_field_classifier() -> BertBusinessCardFieldClassifier | None:
     artifact_dir = _default_artifact_dir()
-    checkpoint_path = artifact_dir / "field_classifier.pt"
     metadata_path = artifact_dir / "field_classifier_metadata.json"
-    if not checkpoint_path.is_file() or not metadata_path.is_file():
+    if not metadata_path.is_file():
         return None
 
     try:
         metadata = _read_metadata(metadata_path)
-        if metadata.get("model_type") != BERT_MODEL_TYPE:
+        model_type = metadata.get("model_type")
+        if model_type == BERT_MODEL_TYPE and not (artifact_dir / "field_classifier.pt").is_file():
+            return None
+        if model_type == BERT_LORA_MODEL_TYPE and (
+            not _adapter_path(artifact_dir, metadata).is_dir() or not _head_path(artifact_dir, metadata).is_file()
+        ):
+            return None
+        if model_type not in {BERT_MODEL_TYPE, BERT_LORA_MODEL_TYPE}:
             return None
         return BertBusinessCardFieldClassifier(
-            checkpoint_path=checkpoint_path,
+            artifact_dir=artifact_dir,
             metadata_path=metadata_path,
         )
     except Exception:
@@ -128,11 +144,17 @@ def get_business_card_field_classifier() -> BertBusinessCardFieldClassifier | No
 
 
 def _default_artifact_dir() -> Path:
+    configured_path = os.getenv("AI_BUSINESS_CARD_MODEL_DIR")
+    if configured_path:
+        return Path(configured_path)
     ai_root = Path(__file__).resolve().parents[2]
     return ai_root / "local_ocr_lab" / "pytorch_outputs"
 
 
 def _default_hf_cache_dir() -> Path:
+    configured_path = os.getenv("AI_HF_CACHE_DIR")
+    if configured_path:
+        return Path(configured_path)
     ai_root = Path(__file__).resolve().parents[2]
     return ai_root / "local_ocr_lab" / "hf_cache"
 
@@ -159,6 +181,16 @@ def _read_idx_to_label(metadata: dict[str, object]) -> dict[int, str]:
     return {index: label for label, index in label_to_idx.items()}
 
 
+def _adapter_path(artifact_dir: Path, metadata: dict[str, object]) -> Path:
+    adapter_dir = str(metadata.get("adapter_dir", DEFAULT_LORA_ADAPTER_DIR))
+    return artifact_dir / adapter_dir
+
+
+def _head_path(artifact_dir: Path, metadata: dict[str, object]) -> Path:
+    head_path = str(metadata.get("classifier_head", DEFAULT_LORA_HEAD_PATH))
+    return artifact_dir / head_path
+
+
 class BertAttentionPooling(nn.Module):
     def __init__(self, hidden_size: int) -> None:
         super().__init__()
@@ -178,12 +210,18 @@ class BertLineFieldClassifier(nn.Module):
         model_name: str,
         num_labels: int,
         cache_dir: Path,
+        adapter_path: Path | None = None,
     ) -> None:
         super().__init__()
         self.bert = BertModel.from_pretrained(model_name, cache_dir=str(cache_dir))
-        self.pool = BertAttentionPooling(self.bert.config.hidden_size)
+        hidden_size = self.bert.config.hidden_size
+        if adapter_path is not None:
+            from peft import PeftModel
+
+            self.bert = PeftModel.from_pretrained(self.bert, str(adapter_path))
+        self.pool = BertAttentionPooling(hidden_size)
         self.classifier = nn.Sequential(
-            nn.Linear(self.bert.config.hidden_size + BERT_FEATURE_SIZE, 128),
+            nn.Linear(hidden_size + BERT_FEATURE_SIZE, 128),
             nn.ReLU(),
             nn.Linear(128, num_labels),
         )
@@ -197,6 +235,10 @@ class BertLineFieldClassifier(nn.Module):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         pooled = self.pool(outputs.last_hidden_state, attention_mask)
         return self.classifier(torch.cat([pooled, features], dim=1))
+
+    def load_head_state_dict(self, state_dict: dict[str, object]) -> None:
+        self.pool.load_state_dict(state_dict["pool"])
+        self.classifier.load_state_dict(state_dict["classifier"])
 
 
 def extract_bert_features(text: str, position: float, total_lines: float) -> torch.Tensor:
