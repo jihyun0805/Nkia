@@ -6,7 +6,6 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.database import close_pool, open_pool, ping_database, pool
-from app.embeddings.model import EmbeddingConfig, EmbeddingModel
 from app.repositories.index_repository import validate_indexing_schema
 
 
@@ -15,7 +14,7 @@ async def lifespan(app: FastAPI):
     open_pool()
     with pool.connection() as conn:
         validate_indexing_schema(conn)
-    app.state.embedder = EmbeddingModel(EmbeddingConfig.from_settings(settings))
+    app.state.embedder = None
     yield
     close_pool()
 

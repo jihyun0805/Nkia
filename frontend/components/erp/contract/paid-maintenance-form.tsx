@@ -100,283 +100,260 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
             </div>
           </div>
 
-          {/* 계약 기본 정보 */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg border-b pb-2">계약 기본 정보</h3>
-            <div className="grid grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="siteName">
-                  사이트명 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="siteName" defaultValue={data.customerName} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="type">
-                  구분 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="type" placeholder="예: 신규, 갱신, 추가" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="importance">
-                  중요도 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="importance">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="상">상</SelectItem>
-                    <SelectItem value="중">중</SelectItem>
-                    <SelectItem value="하">하</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">
-                  위치 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="location" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="paymentType">유무상</Label>
-                <Input id="paymentType" value="유상" disabled />
-              </div>
-            </div>
-          </div>
-
-          {/* 유지보수 상세 정보 */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg border-b pb-2">유지보수 상세 정보</h3>
-            <div className="grid grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="contractDate">
-                  계약일 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="contractDate" type="date" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="startDate">
-                  시작일 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="startDate" type="date" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endDate">
-                  종료일 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="endDate" type="date" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="remote">
-                  원격 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="remote">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="O">O</SelectItem>
-                    <SelectItem value="X">X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="inspectionCycle">
-                  점검주기 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="inspectionCycle">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="월">월</SelectItem>
-                    <SelectItem value="분기">분기</SelectItem>
-                    <SelectItem value="반기">반기</SelectItem>
-                    <SelectItem value="없음">없음</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reportSubmission">
-                  보고서 제출여부 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="reportSubmission">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="O">O</SelectItem>
-                    <SelectItem value="X">X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="rate">
-                  요율 <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Input id="rate" type="number" step="0.01" placeholder="0" className="pr-8 text-right" required />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="amount">
-                  계약금액 <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Input id="amount" type="text" placeholder="0" className="pr-8 text-right" value={amount} onChange={handleAmountChange} required />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="annualAmount">
-                  연간 유지보수 금액 <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Input id="annualAmount" type="text" placeholder="0" className="pr-8 text-right" value={annualAmount} onChange={handleAnnualAmountChange} required />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="estimateContract">견적 및 계약</Label>
-                <Input id="estimateContract" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="regularPm">정기 PM</Label>
-                <Input id="regularPm" />
-              </div>
-            </div>
-          </div>
-
-          {/* 시스템 정보 */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg border-b pb-2">시스템 정보</h3>
-            <div className="grid grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="productFamily">
-                  제품군 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="productFamily" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apCount">
-                  AP수 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="apCount" type="number" min="0" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apVersion">
-                  AP버전 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="apVersion" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="esCount">
-                  ES수 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="esCount" type="number" min="0" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="esVersion">
-                  ES버전 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="esVersion" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dbVersion">
-                  DB버전 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="dbVersion" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dbHa">
-                  DB HA <span className="text-red-500">*</span>
-                </Label>
-                <Input id="dbHa" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="aclPatch">
-                  ACL 패치여부 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="aclPatch">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="O">O</SelectItem>
-                    <SelectItem value="X">X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="monitorVulnerability">
-                  모니터템플릿 취약점 패치여부 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="monitorVulnerability">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="O">O</SelectItem>
-                    <SelectItem value="X">X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 col-span-3">
-                <Label htmlFor="ltsUpgradePlan">LTS 8.4.0 업그레이드 계획</Label>
-                <Input id="ltsUpgradePlan" />
-              </div>
-            </div>
-          </div>
-
-          {/* 담당자 정보 */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg border-b pb-2">담당자 정보</h3>
-            <div className="grid grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="salesRep">
-                  영업 (영업대표) <span className="text-red-500">*</span>
-                </Label>
-                <Input id="salesRep" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customerContactName">
-                  고객 (담당자명) <span className="text-red-500">*</span>
-                </Label>
-                <Input id="customerContactName" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="contactNumber">
-                  연락처 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="contactNumber" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">
-                  이메일 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="email" type="email" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="engineerMain">변경(정) - 정담당자</Label>
-                <Input id="engineerMain" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="engineerSub">변경(부) - 부담당자</Label>
-                <Input id="engineerSub" />
-              </div>
-            </div>
-          </div>
-
-          {/* 기타 및 파일 첨부 */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg border-b pb-2">기타</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 mt-8 border-t pt-6">
             <div className="space-y-2">
+              <Label htmlFor="no">No</Label>
+              <Input id="no" placeholder="자동생성" disabled />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="siteName">
+                사이트명 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="siteName" defaultValue={data.customerName} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="engineerMain">변경(정)</Label>
+              <Input id="engineerMain" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="engineerSub">변경(부)</Label>
+              <Input id="engineerSub" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type">
+                구분 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="type" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="remote">
+                원격 <span className="text-red-500">*</span>
+              </Label>
+              <Select required>
+                <SelectTrigger id="remote">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="O">O</SelectItem>
+                  <SelectItem value="X">X</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="inspectionCycle">
+                점검주기 <span className="text-red-500">*</span>
+              </Label>
+              <Select required>
+                <SelectTrigger id="inspectionCycle">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="월">월</SelectItem>
+                  <SelectItem value="분기">분기</SelectItem>
+                  <SelectItem value="반기">반기</SelectItem>
+                  <SelectItem value="없음">없음</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="importance">
+                중요도 <span className="text-red-500">*</span>
+              </Label>
+              <Select required>
+                <SelectTrigger id="importance">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="상">상</SelectItem>
+                  <SelectItem value="중">중</SelectItem>
+                  <SelectItem value="하">하</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paymentType">유무상</Label>
+              <Input id="paymentType" value="유상" disabled />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="location">
+                위치 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="location" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rate">
+                요율 <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input id="rate" type="number" step="0.01" className="pr-8 text-right" required />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="amount">
+                계약금액 <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input id="amount" type="text" className="pr-8 text-right" value={amount} onChange={handleAmountChange} required />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="annualAmount">
+                연간 유지보수 금액 <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input id="annualAmount" type="text" className="pr-8 text-right" value={annualAmount} onChange={handleAnnualAmountChange} required />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contractDate">
+                계약일 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="contractDate" type="date" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="project">도입PJT</Label>
+              <Input id="project" value={`${data.opportunityName} (${data.opportunityId})`} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="startDate">
+                시작일 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="startDate" type="date" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="endDate">
+                종료일 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="endDate" type="date" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="estimateContract">견적 및 계약</Label>
+              <Input id="estimateContract" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reportSubmission">
+                보고서 제출여부 <span className="text-red-500">*</span>
+              </Label>
+              <Select required>
+                <SelectTrigger id="reportSubmission">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="O">O</SelectItem>
+                  <SelectItem value="X">X</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="regularPm">정기 PM</Label>
+              <Input id="regularPm" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="productFamily">
+                제품군 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="productFamily" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="apVersion">
+                AP버전 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="apVersion" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="aclPatch">
+                ACL 패치여부 <span className="text-red-500">*</span>
+              </Label>
+              <Select required>
+                <SelectTrigger id="aclPatch">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="O">O</SelectItem>
+                  <SelectItem value="X">X</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="monitorVulnerability">
+                모니터템플릿 취약점 패치여부 <span className="text-red-500">*</span>
+              </Label>
+              <Select required>
+                <SelectTrigger id="monitorVulnerability">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="O">O</SelectItem>
+                  <SelectItem value="X">X</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ltsUpgradePlan">LTS 8.4.0 업그레이드 계획</Label>
+              <Input id="ltsUpgradePlan" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="apCount">
+                AP수 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="apCount" type="number" min="0" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="esCount">
+                ES수 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="esCount" type="number" min="0" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="esVersion">
+                ES버전 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="esVersion" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dbHa">
+                DB HA <span className="text-red-500">*</span>
+              </Label>
+              <Input id="dbHa" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dbVersion">
+                DB버전 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="dbVersion" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="salesRep">
+                영업 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="salesRep" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customerContactName">
+                고객 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="customerContactName" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contactNumber">
+                연락처 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="contactNumber" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">
+                이메일 <span className="text-red-500">*</span>
+              </Label>
+              <Input id="email" type="email" required />
+            </div>
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="remarks">비고</Label>
               <Textarea id="remarks" rows={3} />
             </div>
-
-            <div className="space-y-2 pt-4">
+            <div className="space-y-2 md:col-span-2 pt-4 border-t">
               <Label htmlFor="contractFile">
                 계약서 첨부파일 <span className="text-red-500">*</span>
               </Label>

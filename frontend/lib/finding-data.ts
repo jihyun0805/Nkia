@@ -14,6 +14,7 @@ export type CustomerRecord = {
   email?: string
   mobilePhone?: string
   landlinePhone?: string
+  fax?: string
   duty?: string
   address?: string
   memo?: string
@@ -26,8 +27,10 @@ export type CustomerContact = {
   email?: string
   mobilePhone?: string
   landlinePhone?: string
+  fax?: string
   duty?: string
   memo?: string
+  businessCardImage?: string
 }
 export type OpportunityRecord = {
   id: string
@@ -204,6 +207,7 @@ export function getFindingFields(category: FindingCategory, item: any) {
       email: item.email ?? "",
       mobilePhone: item.mobilePhone ?? item.phone ?? "",
       landlinePhone: item.landlinePhone ?? "",
+      fax: item.fax ?? "",
       duty: item.duty ?? "",
       memo: item.memo ?? "",
     }]
@@ -470,10 +474,12 @@ export function registerCustomer(input: CustomerRegistrationInput) {
         email: contact.email?.trim() ?? "",
         mobilePhone: contact.mobilePhone?.trim() ?? "",
         landlinePhone: contact.landlinePhone?.trim() ?? "",
+        fax: contact.fax?.trim() ?? "",
         duty: contact.duty?.trim() ?? "",
         memo: contact.memo?.trim() ?? "",
+        businessCardImage: contact.businessCardImage ?? "",
       }))
-      .filter((contact) => contact.name || contact.mobilePhone || contact.landlinePhone || contact.email || contact.memo || contact.position || contact.department || contact.duty),
+      .filter((contact) => contact.name || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.email || contact.memo || contact.position || contact.department || contact.duty),
     address: input.address?.trim() ?? "",
     memo: input.memo?.trim() ?? "",
     aliases: input.aliases?.filter(Boolean) ?? [],
@@ -532,10 +538,12 @@ export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
       email: contact.email?.trim() ?? "",
       mobilePhone: contact.mobilePhone?.trim() ?? "",
       landlinePhone: contact.landlinePhone?.trim() ?? "",
+      fax: contact.fax?.trim() ?? "",
       duty: contact.duty?.trim() ?? "",
       memo: contact.memo?.trim() ?? "",
+      businessCardImage: contact.businessCardImage ?? "",
     }))
-    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.duty || contact.memo)
+    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
 
   const nextRecord: CustomerRecord = {
     ...existing,
@@ -552,6 +560,7 @@ export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
     email: contacts[0]?.email ?? existing.email,
     mobilePhone: contacts[0]?.mobilePhone ?? existing.mobilePhone,
     landlinePhone: contacts[0]?.landlinePhone ?? existing.landlinePhone,
+    fax: contacts[0]?.fax ?? existing.fax,
     duty: contacts[0]?.duty ?? existing.duty,
     aliases: input.aliases?.filter(Boolean) ?? existing.aliases ?? [],
   }

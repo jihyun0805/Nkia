@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.activity.salesactivity.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
-import com.nkia.Orbis.common.exception.errorcode.SalesActivityErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.request.SalesActivityCreateRequest;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.request.SalesActivityUpdateRequest;
@@ -69,7 +69,7 @@ public class SalesActivityService {
         }
 
         return salesActivityRequestRepository.findById(salesActivityRequestId)
-                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
     }
 
     private void addAttendees(SalesActivity salesActivity, List<UUID> attendeeUserIds) {
@@ -95,7 +95,7 @@ public class SalesActivityService {
             SalesActivityUpdateRequest request
     ) {
         SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
-                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
 
         salesActivity.update(
                 request.getActivityType(),
@@ -120,7 +120,7 @@ public class SalesActivityService {
     @Transactional
     public void delete(Long salesActivityId) {
         SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
-                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
 
         salesActivity.delete();
 
@@ -137,7 +137,7 @@ public class SalesActivityService {
     @Transactional
     public SalesActivityResponse getSalesActivity(Long salesActivityId) {
         SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
-                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
         return SalesActivityResponse.from(salesActivity);
     }
 }

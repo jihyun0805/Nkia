@@ -39,8 +39,10 @@ function getContactRows(customer: CustomerRecord) {
       email: customer.email ?? "",
       mobilePhone: customer.mobilePhone ?? customer.phone ?? "",
       landlinePhone: customer.landlinePhone ?? "",
+      fax: customer.fax ?? "",
       duty: customer.duty ?? "",
       memo: customer.memo ?? "",
+      businessCardImage: customer.contacts?.[0]?.businessCardImage ?? "",
     }]
 }
 
@@ -157,6 +159,13 @@ function CustomerDetailPageContent() {
                     {contacts.map((contact, index) => (
                       <section key={index} className="space-y-4 border border-border p-4">
                         <h3 className="text-sm font-semibold">{`담당자 ${index + 1}`}</h3>
+                        {contact.businessCardImage ? (
+                          <img
+                            src={contact.businessCardImage}
+                            alt="Business card preview"
+                            className="w-full max-w-xl rounded border border-border object-contain md:w-[560px]"
+                          />
+                        ) : null}
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
                             <Label>담당자명</Label>
@@ -183,6 +192,10 @@ function CustomerDetailPageContent() {
                           <div className="space-y-2">
                             <Label>유선전화번호</Label>
                             <CustomerDetailControl label="유선전화번호" value={contact.landlinePhone ?? ""} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>FAX</Label>
+                            <CustomerDetailControl label="FAX" value={contact.fax ?? ""} />
                           </div>
                         </div>
                         <div className="space-y-2">
