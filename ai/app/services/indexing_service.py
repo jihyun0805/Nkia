@@ -7,6 +7,7 @@ from app.core.database import pool
 from app.embeddings.chunker import split_text
 from app.embeddings.model import EmbeddingModel
 from app.embeddings.vector import vector_literal
+from app.models.constants import METADATA_ALIASES, SourceType
 from app.repositories.index_repository import (
     fetch_source_for_update,
     mark_source_deleted,
@@ -16,20 +17,64 @@ from app.repositories.index_repository import (
 from app.schemas.indexing import BatchIndexDocumentsResponse, IndexAttachmentRequest, IndexDocumentRequest, IndexDocumentResult
 from app.services.document_builder import build_document_text
 
-ATTACHMENT_SOURCE_TYPES = {"ATTACHMENT"}
+ATTACHMENT_SOURCE_TYPES = {SourceType.ATTACHMENT}
 ATTACHMENT_METADATA_FIELDS: dict[str, tuple[str, ...]] = {
+    "attachmentCode": ("attachmentCode", "attachment_code"),
     "fileId": ("fileId", "id"),
     "fileName": ("fileName", "filename", "originalFilename", "originalFileName", "name"),
     "extension": ("extension", "ext", "fileExtension"),
     "fileType": ("fileType", "mimeType", "contentType", "mediaType"),
+    "fileKind": ("fileKind", "kind"),
     "parentSourceType": ("parentSourceType", "ownerSourceType", "domainSourceType"),
     "parentSourceId": ("parentSourceId", "ownerSourceId", "domainSourceId"),
     "pageCount": ("pageCount", "pages", "sheetCount", "slideCount"),
+    "relatedType": ("relatedType", "related_type"),
+    "relatedCode": ("relatedCode", "related_code"),
+    "companyCode": ("companyCode", "company_code"),
+    "companyName": ("companyName", "company_name"),
+    "customerCompanyCode": ("customerCompanyCode", "customer_company_code"),
+    "customerCompanyName": ("customerCompanyName", "customer_company_name"),
+    "customerGroup": ("customerGroup", "customer_group"),
+    "customerType": ("customerType", "customer_type"),
+    "contactName": ("contactName", "contact_name"),
+    "contactDepartment": ("contactDepartment", "contact_department"),
+    "opportunityId": ("opportunityId", "projectOpportunityId"),
+    "opportunityCode": ("opportunityCode", "opportunity_code"),
+    "opportunityName": ("opportunityName", "opportunity_name"),
+    "businessType": ("businessType", "business_type"),
+    "currentStatus": ("currentStatus", "current_status"),
+    "activityId": ("activityId", "salesActivityId"),
+    "activityType": ("activityType", "activity_type"),
+    "activityChannel": ("activityChannel", "activity_channel"),
+    "quoteCode": ("quoteCode", "quotationCode", "quote_code"),
+    "rfpCode": ("rfpCode", "rfp_code"),
+    "rfpAnalysisCode": ("rfpAnalysisCode", "rfp_analysis_code"),
+    "proposalCode": ("proposalCode", "proposal_code"),
+    "prbCode": ("prbCode", "prb_code"),
+    "prbResultCode": ("prbResultCode", "prb_result_code"),
+    "bidResultCode": ("bidResultCode", "bid_result_code"),
+    "wonReportCode": ("wonReportCode", "won_report_code"),
+    "contractCode": ("contractCode", "contract_code"),
+    "projectCode": ("projectCode", "project_code"),
+    "projectReportCode": ("projectReportCode", "project_report_code"),
+    "maintenanceCode": ("maintenanceCode", "maintenance_code"),
+    "contractType": ("contractType", "contract_type"),
+    "supportCode": ("supportCode", "support_code"),
+    "maintenanceQuoteCode": ("maintenanceQuoteCode", "maintenance_quote_code"),
+    "licenseCode": ("licenseCode", "license_code"),
+    "licenseTypeCode": ("licenseTypeCode", "license_type_code"),
+    "billingCode": ("billingCode", "billing_code"),
+    "collectionCode": ("collectionCode", "collection_code"),
+    "moduleId": ("moduleId", "module_id", "productModuleId", "product_module_id"),
+    "moduleName": ("moduleName", "module_name", "productName", "product_name"),
+    "moduleType": ("moduleType", "module_type", "productType", "product_type"),
 }
 ATTACHMENT_PARENT_ENTITY_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("PROJECT_OPPORTUNITY", ("projectOpportunityId",)),
     ("SALES_ACTIVITY", ("salesActivityId",)),
+    ("POST_SALES", ("postSalesId", "salesActivityId")),
     ("QUOTATION", ("quotationId",)),
+    ("RFP", ("rfpId", "rfpCode")),
     ("RFP_ANALYSIS", ("rfpAnalyzeResultId", "rfpAnalysisId")),
     ("PRB", ("prbId",)),
     ("BID_RESULT", ("bidResultId",)),
@@ -42,6 +87,11 @@ ATTACHMENT_PARENT_ENTITY_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("CUSTOMER_SUPPORT", ("customerSupportId",)),
     ("LICENSE", ("licenseId",)),
     ("BILLING", ("billingId",)),
+)
+ATTACHMENT_ROOT_ENTITY_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("PROJECT_OPPORTUNITY", ("rootSourceId", "projectOpportunityId", "opportunityId")),
+    ("PROJECT", ("projectId",)),
+    ("MAINTENANCE", ("maintenanceId",)),
 )
 
 
@@ -94,6 +144,9 @@ def map_attachment_to_document(attachment: IndexAttachmentRequest) -> IndexDocum
         "evidenceGroupKey": metadata.get("evidenceGroupKey"),
         "extractedText": attachment.extracted_text,
     }
+    for key, value in metadata.items():
+        if value not in (None, ""):
+            payload.setdefault(key, value)
 
     return IndexDocumentRequest(
         sourceType="ATTACHMENT",
@@ -230,6 +283,7 @@ def build_source_metadata(*, document: IndexDocumentRequest, source_type: str) -
     metadata = dict(document.metadata)
     metadata.setdefault("sourceType", source_type)
     metadata.setdefault("origin", "crud")
+    normalize_document_metadata(metadata=metadata, payload=document.payload)
     apply_attachment_metadata_defaults(metadata=metadata, source_type=source_type, payload=document.payload)
     if document.event_id:
         metadata["eventId"] = document.event_id
@@ -238,6 +292,18 @@ def build_source_metadata(*, document: IndexDocumentRequest, source_type: str) -
     if document.deleted_at:
         metadata["deletedAt"] = document.deleted_at.isoformat()
     return metadata
+
+
+def normalize_document_metadata(*, metadata: dict[str, Any], payload: dict[str, Any]) -> None:
+    combined: dict[str, Any] = {**payload, **metadata}
+    for canonical_key, aliases in METADATA_ALIASES.items():
+        if canonical_key in metadata and metadata[canonical_key] not in (None, ""):
+            continue
+        for alias in aliases:
+            value = combined.get(alias)
+            if value not in (None, ""):
+                metadata.setdefault(canonical_key, value)
+                break
 
 
 def detect_duplicate_or_stale_event(
@@ -278,11 +344,25 @@ def apply_attachment_metadata_defaults(*, metadata: dict[str, Any], source_type:
         if value not in (None, ""):
             metadata.setdefault(target_key, value)
 
+    modules = lookup_first_payload_value(payload, ("modules", "moduleNames", "productModules"))
+    if modules not in (None, ""):
+        metadata.setdefault("modules", normalize_collection_value(modules))
+
+    competitors = lookup_first_payload_value(payload, ("competitors",))
+    if competitors not in (None, ""):
+        metadata.setdefault("competitors", normalize_collection_value(competitors))
+
     if "parentSourceType" not in metadata or "parentSourceId" not in metadata:
         inferred_parent_type, inferred_parent_id = infer_attachment_parent(payload)
         if inferred_parent_type and inferred_parent_id not in (None, ""):
             metadata.setdefault("parentSourceType", inferred_parent_type)
             metadata.setdefault("parentSourceId", inferred_parent_id)
+
+    if "rootSourceType" not in metadata or "rootSourceId" not in metadata:
+        inferred_root_type, inferred_root_id = infer_attachment_root(payload)
+        if inferred_root_type and inferred_root_id not in (None, ""):
+            metadata.setdefault("rootSourceType", inferred_root_type)
+            metadata.setdefault("rootSourceId", inferred_root_id)
 
 
 def lookup_first_payload_value(payload: dict[str, Any], keys: tuple[str, ...]) -> Any:
@@ -298,3 +378,20 @@ def infer_attachment_parent(payload: dict[str, Any]) -> tuple[str | None, Any]:
         if value not in (None, ""):
             return source_type, value
     return None, None
+
+
+def infer_attachment_root(payload: dict[str, Any]) -> tuple[str | None, Any]:
+    for source_type, candidate_keys in ATTACHMENT_ROOT_ENTITY_FIELDS:
+        value = lookup_first_payload_value(payload, candidate_keys)
+        if value not in (None, ""):
+            return source_type, value
+    return None, None
+
+
+def normalize_collection_value(value: Any) -> list[str] | str:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, tuple):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value).strip()
+    return text or ""
