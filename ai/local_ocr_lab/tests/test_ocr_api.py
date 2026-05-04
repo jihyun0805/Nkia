@@ -52,9 +52,9 @@ class OcrApiTests(unittest.TestCase):
             position="Director",
             address="Seoul Seocho-gu Teheran-ro 123",
             email="minsoo.kim@acme.co.kr",
-            mobile_phone="010-1234-5678",
-            office_phone="02-345-6789",
-            fax_phone="02-345-6790",
+            mobile="010-1234-5678",
+            phone="02-345-6789",
+            fax="02-345-6790",
             raw_text="raw text",
         )
 
@@ -69,9 +69,9 @@ class OcrApiTests(unittest.TestCase):
         self.assertEqual(response.json()["position"], "Director")
         self.assertEqual(response.json()["address"], "Seoul Seocho-gu Teheran-ro 123")
         self.assertEqual(response.json()["email"], "minsoo.kim@acme.co.kr")
-        self.assertEqual(response.json()["mobile_phone"], "010-1234-5678")
-        self.assertEqual(response.json()["office_phone"], "02-345-6789")
-        self.assertEqual(response.json()["fax_phone"], "02-345-6790")
+        self.assertEqual(response.json()["mobile"], "010-1234-5678")
+        self.assertEqual(response.json()["phone"], "02-345-6789")
+        self.assertEqual(response.json()["fax"], "02-345-6790")
         self.assertEqual(response.json()["raw_text"], "raw text")
         mock_analyze_business_card.assert_called_once_with(
             "card.png",

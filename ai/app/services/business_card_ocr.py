@@ -1,7 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
+import logging
 import re
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -13,19 +15,108 @@ from app.schemas.ocr import BusinessCardOcrLine, BusinessCardOcrResponse, Busine
 from app.services.business_card_field_classifier import predict_business_card_fields
 
 
+logger = logging.getLogger(__name__)
+
 EMAIL_PATTERN = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 PHONE_PATTERN = re.compile(r"(?:\+?\d{1,3}[-.\s]?)?(?:\d{2,4}[-.\s]?)?\d{3,4}[-.\s]?\d{4}")
 EMAIL_FALLBACK_PATTERN = re.compile(
     r"(?P<local>[a-z0-9._%+-]+)(?P<domain>naver|gmail|daum|kakao|hotmail|outlook|yahoo|korea)(?P<tld>com|net|org|co\.kr|kr)$",
     re.IGNORECASE,
 )
-EMAIL_LABEL_PATTERN = re.compile(r"^(?:e-?mail|mail)\s*[:：]?\s*", re.IGNORECASE)
+EMAIL_LABEL_PATTERN = re.compile(
+    r"^(?:(?:e-?mail|mail)\s*[.:：]?\s*|e\s*[.:：]\s*|e\s+(?=[a-z0-9._%+-]+\s*@?))",
+    re.IGNORECASE,
+)
 PHONE_LABEL_PATTERN = re.compile(
     r"^(?:mobile|cell|m|phone|tel|t|office|direct|fax)\s*[:：]?\s*",
     re.IGNORECASE,
 )
 CORPORATE_MARKER_PATTERN = re.compile(r"[\(\[]?\s*주\s*[\)\]]?")
 HANGUL_NAME_PATTERN = re.compile(r"^[가-힣]{2,4}$")
+KOREAN_POSITION_TITLES = (
+    "대표이사",
+    "부사장",
+    "전무",
+    "상무",
+    "이사",
+    "본부장",
+    "센터장",
+    "실장",
+    "부장",
+    "차장",
+    "과장",
+    "팀장",
+    "계장",
+    "대리",
+    "주임",
+    "선임",
+    "책임",
+    "연구원",
+    "사원",
+    "대표",
+    "원장",
+    "소장",
+    "매니저",
+    "PM",
+)
+ENGLISH_POSITION_TITLES = (
+    "Senior Product Manager",
+    "Senior Project Manager",
+    "Principal Engineer",
+    "Senior Consultant",
+    "Senior Manager",
+    "Product Manager",
+    "Project Manager",
+    "Staff Engineer",
+    "Lead Engineer",
+    "Consultant",
+    "Specialist",
+    "Coordinator",
+    "Director",
+    "Engineer",
+    "Analyst",
+    "Manager",
+    "Lead",
+    "Head",
+    "VP",
+)
+DEPARTMENT_KEYWORDS = (
+    "department",
+    "division",
+    "team",
+    "center",
+    "centre",
+    "office",
+    "lab",
+    "본부",
+    "센터",
+    "부서",
+    "사업부",
+    "팀",
+    "실",
+    "부",
+    "과",
+    "계",
+)
+ADDRESS_DETAIL_KEYWORDS = (
+    "동",
+    "로",
+    "길",
+    "빌딩",
+    "타워",
+    "층",
+    "호",
+    "센터",
+    "단지",
+)
+ROLE_MARKETING_KEYWORDS = (
+    "provider",
+    "partner",
+    "planner",
+    "planners",
+    "trustable",
+    "global",
+)
 
 
 @dataclass(frozen=True)
@@ -39,13 +130,26 @@ class OCRLine:
 
 
 def extract_business_card_paddle_output(_: str | None, __: str | None, image_bytes: bytes) -> BusinessCardPaddleOutput:
+    started_at = time.perf_counter()
+    step_started_at = time.perf_counter()
     images = _load_image_variants(image_bytes)
+    logger.info("business_card_ocr.timing image_variants count=%s elapsed=%.3fs", len(images), time.perf_counter() - step_started_at)
+
+    step_started_at = time.perf_counter()
     ocr_candidates = _extract_line_candidates(images)
+    logger.info("business_card_ocr.timing paddle_ocr lines=%s elapsed=%.3fs", len(ocr_candidates), time.perf_counter() - step_started_at)
+
+    step_started_at = time.perf_counter()
     ocr_candidates = _consolidate_similar_candidates(ocr_candidates)
+    logger.info(
+        "business_card_ocr.timing consolidate lines=%s elapsed=%.3fs",
+        len(ocr_candidates),
+        time.perf_counter() - step_started_at,
+    )
     ocr_lines = [candidate.text for candidate in ocr_candidates]
     raw_text = "\n".join(ocr_lines).strip() or None
 
-    return BusinessCardPaddleOutput(
+    output = BusinessCardPaddleOutput(
         raw_text=raw_text,
         lines=[
             BusinessCardOcrLine(
@@ -59,30 +163,54 @@ def extract_business_card_paddle_output(_: str | None, __: str | None, image_byt
             for index, candidate in enumerate(ocr_candidates)
         ],
     )
+    logger.info("business_card_ocr.timing paddle_output_total elapsed=%.3fs", time.perf_counter() - started_at)
+    return output
 
 
 def analyze_business_card(_: str | None, __: str | None, image_bytes: bytes) -> BusinessCardOcrResponse:
+    started_at = time.perf_counter()
+    step_started_at = time.perf_counter()
     paddle_output = extract_business_card_paddle_output(_, __, image_bytes)
+    logger.info("business_card_ocr.timing extract_paddle_output elapsed=%.3fs", time.perf_counter() - step_started_at)
     ocr_lines = [line.text for line in paddle_output.lines]
 
     if not ocr_lines:
+        logger.info("business_card_ocr.timing analyze_total lines=0 elapsed=%.3fs", time.perf_counter() - started_at)
         return BusinessCardOcrResponse(raw_text=paddle_output.raw_text)
 
+    step_started_at = time.perf_counter()
     model_fields = predict_business_card_fields(ocr_lines)
+    logger.info(
+        "business_card_ocr.timing field_classifier input_lines=%s output_fields=%s elapsed=%.3fs",
+        len(ocr_lines),
+        len(model_fields),
+        time.perf_counter() - step_started_at,
+    )
 
-    return BusinessCardOcrResponse(
-        company_name=model_fields.get("company_name"),
-        contact_name=model_fields.get("contact_name"),
-        position=model_fields.get("position"),
+    step_started_at = time.perf_counter()
+    contact_name = _normalize_contact_name(model_fields.get("contact_name")) or _infer_contact_name(ocr_lines, model_fields)
+    split_position, split_department = _infer_split_position_department(ocr_lines)
+    department = _normalize_department(model_fields.get("department")) or split_department or _infer_department(ocr_lines, model_fields)
+    mobile, phone = _normalize_contact_phones(
+        mobile_value=model_fields.get("mobile"),
+        phone_value=model_fields.get("phone"),
+    )
+    response = BusinessCardOcrResponse(
+        company_name=_normalize_company_name(model_fields.get("company_name")) or _infer_company_name(ocr_lines, model_fields),
+        contact_name=contact_name,
+        department=department,
+        role=_normalize_role(model_fields.get("role")),
+        position=model_fields.get("position") or split_position or _infer_position(ocr_lines, model_fields, contact_name),
         address=model_fields.get("address"),
         email=_normalize_model_email(model_fields.get("email")),
-        mobile_phone=_normalize_model_phone(model_fields.get("mobile_phone")),
-        office_phone=_normalize_model_phone(model_fields.get("office_phone")),
-        fax_phone=_normalize_model_phone(model_fields.get("fax_phone")),
-        responsibility=model_fields.get("responsibility"),
-        department_name=model_fields.get("department_name"),
+        mobile=mobile,
+        phone=phone,
+        fax=_normalize_model_phone(model_fields.get("fax")) or _extract_labeled_phone(ocr_lines, labels=("fax", "f")),
         raw_text=paddle_output.raw_text,
     )
+    logger.info("business_card_ocr.timing postprocess elapsed=%.3fs", time.perf_counter() - step_started_at)
+    logger.info("business_card_ocr.timing analyze_total lines=%s elapsed=%.3fs", len(ocr_lines), time.perf_counter() - started_at)
+    return response
 
 
 def _normalize_model_email(value: str | None) -> str | None:
@@ -91,24 +219,314 @@ def _normalize_model_email(value: str | None) -> str | None:
     return _extract_email([value]) or value
 
 
+def _normalize_company_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    candidate = _clean_text(value)
+    if not candidate:
+        return None
+    lowered = candidate.lower()
+    if lowered.startswith("www.") or "://" in lowered:
+        return None
+    if _extract_email([candidate]) or _normalize_model_phone(candidate) is not None:
+        return None
+    meaningful_count = len(re.findall(r"[A-Za-z0-9가-힣]", candidate))
+    if meaningful_count < 2:
+        return None
+    special_count = sum(not char.isalnum() and not char.isspace() for char in candidate)
+    if special_count / max(len(candidate), 1) > 0.4 and not CORPORATE_MARKER_PATTERN.search(candidate):
+        return None
+    return candidate
+
+
+def _infer_company_name(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    corporate_pattern = re.compile(r"(?i)(주식회사|\(주\)|㈜|inc\.?|corp\.?|co\.?|ltd\.?|company)")
+    for line in lines:
+        candidate = _normalize_company_name(line)
+        if candidate is None:
+            continue
+        if not corporate_pattern.search(candidate):
+            continue
+        if _is_selected_model_value(candidate, model_fields, exclude_fields={"company_name"}):
+            continue
+        return candidate
+    return None
+
+
+def _normalize_contact_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    candidate = re.sub(r"\s+", " ", value).strip()
+    candidate = _strip_position_from_name(candidate)
+    hangul_only = re.sub(r"\s+", "", candidate)
+    if HANGUL_NAME_PATTERN.fullmatch(hangul_only):
+        return hangul_only
+    return candidate or None
+
+
+def _strip_position_from_name(value: str) -> str:
+    name, _ = _split_korean_name_position(value)
+    if name is not None:
+        return name
+    return value
+
+
+def _infer_contact_name(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    for line in lines:
+        candidate = _clean_text(line)
+        if _is_selected_model_value(candidate, model_fields, exclude_fields={"contact_name", "position"}):
+            continue
+        name, _ = _split_korean_name_position(candidate)
+        if name is not None:
+            return name
+        compact_candidate = re.sub(r"\s+", "", candidate)
+        if HANGUL_NAME_PATTERN.fullmatch(compact_candidate) and not _extract_position_title(compact_candidate):
+            return compact_candidate
+    return None
+
+
+def _infer_position(lines: list[str], model_fields: dict[str, str], contact_name: str | None = None) -> str | None:
+    contact_name = contact_name or _normalize_contact_name(model_fields.get("contact_name"))
+    for line in lines:
+        candidate = _clean_text(line)
+        if _is_selected_model_value(candidate, model_fields, exclude_fields={"position"}):
+            continue
+        position = _extract_position_title(candidate, contact_name)
+        if position is not None:
+            return position
+    return None
+
+
+def _extract_position_title(value: str, contact_name: str | None = None) -> str | None:
+    compact_value = re.sub(r"\s+", "", value)
+    _, split_position = _split_korean_name_position(value)
+    if split_position is not None:
+        return split_position
+    english_position = _extract_english_position_title(value)
+    if english_position is not None:
+        return english_position
+    for title in sorted(KOREAN_POSITION_TITLES, key=len, reverse=True):
+        if compact_value == title:
+            return title
+        if compact_value.endswith(title) and len(compact_value) > len(title):
+            prefix = compact_value[: -len(title)]
+            if prefix and not HANGUL_NAME_PATTERN.fullmatch(prefix):
+                return title
+        if contact_name and compact_value in {f"{contact_name}{title}", f"{title}{contact_name}"}:
+            return title
+    return None
+
+
+def _extract_english_position_title(value: str) -> str | None:
+    normalized = re.sub(r"\s+", " ", value).strip()
+    for title in ENGLISH_POSITION_TITLES:
+        if re.fullmatch(re.escape(title), normalized, re.IGNORECASE):
+            return title
+    return None
+
+
+def _split_korean_name_position(value: str) -> tuple[str | None, str | None]:
+    compact_value = re.sub(r"\s+", "", value)
+    for title in sorted(KOREAN_POSITION_TITLES, key=len, reverse=True):
+        if compact_value.startswith(title):
+            remainder = compact_value[len(title) :]
+            if HANGUL_NAME_PATTERN.fullmatch(remainder):
+                return remainder, title
+        if compact_value.endswith(title):
+            remainder = compact_value[: -len(title)]
+            if HANGUL_NAME_PATTERN.fullmatch(remainder):
+                return remainder, title
+    return None, None
+
+
+def _infer_split_position_department(lines: list[str]) -> tuple[str | None, str | None]:
+    for line in lines:
+        split = _split_position_department_line(_clean_text(line))
+        if split is not None:
+            return split
+    return None, None
+
+
+def _split_position_department_line(value: str) -> tuple[str, str] | None:
+    parts = [part.strip() for part in re.split(r"\s*[|/·]\s*", value) if part.strip()]
+    if len(parts) < 2:
+        return None
+
+    for index, part in enumerate(parts):
+        position = _extract_english_position_title(_strip_contact_name_from_segment(part))
+        if position is None:
+            continue
+        for department_part in parts[:index] + parts[index + 1 :]:
+            department = _normalize_department(_strip_contact_name_from_segment(department_part))
+            if department is not None:
+                return position, department
+    return None
+
+
+def _strip_contact_name_from_segment(value: str) -> str:
+    candidate = re.sub(r"\s+", " ", value).strip()
+    tokens = candidate.split()
+    if len(tokens) <= 1:
+        return candidate
+    without_hangul_name = [token for token in tokens if not HANGUL_NAME_PATTERN.fullmatch(re.sub(r"\s+", "", token))]
+    if without_hangul_name and len(without_hangul_name) != len(tokens):
+        return " ".join(without_hangul_name).strip()
+    return candidate
+
+
+def _infer_department(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    for line in lines:
+        candidate = _clean_text(line)
+        if not _looks_like_department(candidate):
+            continue
+        if _is_selected_model_value(candidate, model_fields, exclude_fields={"department"}):
+            continue
+        return candidate
+    return None
+
+
+def _normalize_department(value: str | None) -> str | None:
+    if value is None:
+        return None
+    candidate = _clean_text(value)
+    if not _looks_like_department(candidate):
+        return None
+    return candidate
+
+
+def _normalize_role(value: str | None) -> str | None:
+    if value is None:
+        return None
+    candidate = _clean_text(value)
+    if not candidate:
+        return None
+    if _extract_email([candidate]) or _normalize_model_phone(candidate) is not None:
+        return None
+    if _looks_like_address_detail(candidate):
+        return None
+    if _looks_like_marketing_phrase(candidate):
+        return None
+    if _extract_position_title(candidate) is not None:
+        return None
+    return candidate
+
+
+def _looks_like_department(value: str) -> bool:
+    lowered = value.lower()
+    if _extract_email([value]) or _normalize_model_phone(value) is not None:
+        return False
+    if lowered.startswith("www.") or "://" in lowered:
+        return False
+    if _looks_like_address_detail(value):
+        return False
+    if _looks_like_marketing_phrase(value):
+        return False
+    if _extract_position_title(value) is not None:
+        return False
+    if HANGUL_NAME_PATTERN.fullmatch(re.sub(r"\s+", "", value)):
+        return False
+    if re.search(r"(?i)\b(product|platform|strategy|innovation|sales|success|security|service|cloud|data|dx|ax|ai|r&d)\b", value):
+        return True
+    if re.search(r"\d", value):
+        return False
+    if any(keyword in lowered for keyword in DEPARTMENT_KEYWORDS[:6]):
+        return True
+    if any(keyword in value for keyword in DEPARTMENT_KEYWORDS[6:]):
+        return True
+    alpha_count = sum(char.isalpha() for char in value)
+    return bool(alpha_count >= 5 and re.search(r"[&/]", value))
+
+
+def _looks_like_address_detail(value: str) -> bool:
+    candidate = value.strip()
+    compact = re.sub(r"\s+", "", candidate)
+    is_wrapped = (
+        (candidate.startswith("(") and candidate.endswith(")"))
+        or (candidate.startswith("[") and candidate.endswith("]"))
+    )
+    has_address_marker = any(keyword in compact for keyword in ADDRESS_DETAIL_KEYWORDS)
+    return bool(is_wrapped and has_address_marker and ("," in candidate or "·" in candidate or "-" in candidate))
+
+
+def _looks_like_marketing_phrase(value: str) -> bool:
+    lowered = value.lower()
+    if not re.fullmatch(r"[a-z0-9&/+\-\s.]+", value, re.IGNORECASE):
+        return False
+    words = re.findall(r"[a-z]+", lowered)
+    return bool(len(words) >= 2 and any(keyword in words for keyword in ROLE_MARKETING_KEYWORDS))
+
+
+def _is_selected_model_value(value: str, model_fields: dict[str, str], *, exclude_fields: set[str]) -> bool:
+    normalized_value = _normalize_similarity_text(value)
+    for field_name, field_value in model_fields.items():
+        if field_name in exclude_fields:
+            continue
+        if normalized_value and normalized_value == _normalize_similarity_text(field_value):
+            return True
+    return False
+
+
 def _normalize_model_phone(value: str | None) -> str | None:
     if value is None:
         return None
 
     normalized_candidate = _normalize_phone_candidate(value)
+    normalized = _normalize_phone(normalized_candidate)
+    if normalized is not None:
+        return normalized
+
     for match in PHONE_PATTERN.findall(normalized_candidate):
         normalized = _normalize_phone(match)
         if normalized is not None:
             return normalized
-    return value
+    return None
+
+
+def _normalize_contact_phones(*, mobile_value: str | None, phone_value: str | None) -> tuple[str | None, str | None]:
+    mobile = _normalize_model_phone(mobile_value)
+    phone = _normalize_model_phone(phone_value)
+
+    if phone is not None and _is_mobile_phone(phone):
+        if mobile is None:
+            mobile = phone
+        phone = None
+
+    if mobile is not None and not _is_mobile_phone(mobile):
+        if phone is None:
+            phone = mobile
+        mobile = None
+
+    return mobile, phone
+
+
+def _is_mobile_phone(value: str) -> bool:
+    return re.sub(r"\D", "", value).startswith("010")
+
+
+def _extract_labeled_phone(lines: list[str], *, labels: tuple[str, ...]) -> str | None:
+    label_pattern = "|".join(re.escape(label) for label in labels)
+    pattern = re.compile(rf"(?:^|[^A-Za-z가-힣])(?:{label_pattern})\s*[.:：]?\s*({PHONE_PATTERN.pattern})", re.IGNORECASE)
+    for line in lines:
+        match = pattern.search(line)
+        if not match:
+            continue
+        normalized = _normalize_model_phone(match.group(1))
+        if normalized is not None:
+            return normalized
+    return None
 
 
 def _load_image_variants(image_bytes: bytes) -> list[np.ndarray]:
     with Image.open(io.BytesIO(image_bytes)) as image:
         normalized = ImageOps.exif_transpose(image).convert("RGB")
         width, height = normalized.size
-        if max(width, height) < 1200:
-            scale = 1200 / max(width, height)
+        max_side = max(width, height)
+        if max_side > 960:
+            scale = 960 / max_side
+            normalized = normalized.resize((int(width * scale), int(height * scale)))
+        elif max_side < 720:
+            scale = 720 / max_side
             normalized = normalized.resize((int(width * scale), int(height * scale)))
 
         grayscale = ImageOps.grayscale(normalized)
@@ -120,8 +538,6 @@ def _load_image_variants(image_bytes: bytes) -> list[np.ndarray]:
         variants = [
             normalized,
             high_contrast.convert("RGB"),
-            sharpened.convert("RGB"),
-            thresholded.convert("RGB"),
         ]
         return [np.array(variant) for variant in variants]
 
@@ -138,24 +554,36 @@ def _get_ocr_engine() -> Any:
 
     try:
         return PaddleOCR(
-            lang="korean",
+            text_detection_model_name="PP-OCRv5_mobile_det",
+            text_recognition_model_name="korean_PP-OCRv5_mobile_rec",
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
+            text_recognition_batch_size=6,
         )
     except TypeError:
         return PaddleOCR(lang="korean", use_angle_cls=True)
 
 
 def _extract_line_candidates(images: list[np.ndarray]) -> list[OCRLine]:
+    started_at = time.perf_counter()
     ocr_engine = _get_ocr_engine()
+    logger.info("business_card_ocr.timing get_ocr_engine elapsed=%.3fs", time.perf_counter() - started_at)
     merged_lines: list[OCRLine] = []
     failures: list[str] = []
 
-    for image in images:
+    for index, image in enumerate(images):
+        variant_started_at = time.perf_counter()
         try:
             results = ocr_engine.predict(image)
-            merged_lines.extend(_parse_predict_results(results))
+            parsed_lines = _parse_predict_results(results)
+            merged_lines.extend(parsed_lines)
+            logger.info(
+                "business_card_ocr.timing paddle_variant index=%s method=predict lines=%s elapsed=%.3fs",
+                index,
+                len(parsed_lines),
+                time.perf_counter() - variant_started_at,
+            )
             continue
         except AttributeError:
             pass
@@ -164,11 +592,25 @@ def _extract_line_candidates(images: list[np.ndarray]) -> list[OCRLine]:
 
         try:
             legacy_results = ocr_engine.ocr(image, cls=True)
-            merged_lines.extend(_parse_legacy_results(legacy_results))
+            parsed_lines = _parse_legacy_results(legacy_results)
+            merged_lines.extend(parsed_lines)
+            logger.info(
+                "business_card_ocr.timing paddle_variant index=%s method=ocr lines=%s elapsed=%.3fs",
+                index,
+                len(parsed_lines),
+                time.perf_counter() - variant_started_at,
+            )
         except Exception as exc:
             failures.append(f"ocr(): {exc}")
 
+    normalize_started_at = time.perf_counter()
     lines = _normalize_candidates(merged_lines)
+    logger.info(
+        "business_card_ocr.timing normalize_candidates before=%s after=%s elapsed=%.3fs",
+        len(merged_lines),
+        len(lines),
+        time.perf_counter() - normalize_started_at,
+    )
     if lines:
         return lines
 
@@ -266,6 +708,7 @@ def _normalize_candidates(lines: list[OCRLine]) -> list[OCRLine]:
     return normalized
 
 
+
 def _consolidate_similar_candidates(candidates: list[OCRLine]) -> list[OCRLine]:
     consolidated: list[OCRLine] = []
 
@@ -319,7 +762,6 @@ def _looks_like_phone_like_text(value: str) -> bool:
 
 def _normalize_similarity_text(value: str) -> str:
     text = re.sub(r"[\s\[\]\(\)'`:.,\-_/]", "", value.lower())
-    text = text.replace("주", "주")
     return text
 
 
@@ -424,11 +866,16 @@ def _extract_email(lines: list[str]) -> str | None:
 
 def _normalize_phone(value: str) -> str | None:
     digits = re.sub(r"\D", "", value)
-    if len(digits) < 9 or len(digits) > 12:
-        return None
 
-    if digits.startswith("82") and len(digits) in {11, 12}:
+    if digits.startswith("820") and len(digits) in {12, 13}:
+        digits = "0" + digits[3:]
+    elif digits.startswith("82") and len(digits) in {11, 12, 13}:
         digits = "0" + digits[2:]
+
+    if len(digits) < 9 or len(digits) > 11:
+        if len(digits) == 12 and re.search(r"(?<!\d)\d{4}[-.\s]\d{4}[-.\s]\d{4}(?!\d)", value):
+            return f"{digits[:4]}-{digits[4:8]}-{digits[8:]}"
+        return None
 
     if len(digits) == 11:
         return f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
@@ -444,7 +891,7 @@ def _normalize_phone(value: str) -> str | None:
 def _normalize_email_candidate(value: str) -> str:
     candidate = EMAIL_LABEL_PATTERN.sub("", value.strip())
     candidate = candidate.replace(" ", "")
-    candidate = candidate.replace("©", "@").replace("(a)", "@")
+    candidate = candidate.replace("짤", "@").replace("(a)", "@")
     candidate = candidate.replace("co,kr", "co.kr").replace("cokr", "co.kr").replace("co kr", "co.kr")
     candidate = candidate.replace("[", "").replace("]", "").replace("|", "").replace("!", "")
     candidate = re.sub(
@@ -474,7 +921,8 @@ def _normalize_email_candidate(value: str) -> str:
 def _normalize_phone_candidate(value: str) -> str:
     candidate = PHONE_LABEL_PATTERN.sub("", value.strip())
     candidate = candidate.replace("O", "0").replace("o", "0")
-    candidate = candidate.replace("[", "").replace("]", "").replace("|", "1")
+    candidate = candidate.replace("[", "").replace("]", "").replace("(", "").replace(")", "")
+    candidate = candidate.replace("|", "1")
     return candidate
 
 
