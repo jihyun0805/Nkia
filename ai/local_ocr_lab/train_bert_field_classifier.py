@@ -20,21 +20,24 @@ from ocr_lab_common import AI_ROOT, write_json
 FIELD_NAMES = (
     "company_name",
     "contact_name",
+    "department",
+    "role",
     "position",
     "address",
     "email",
-    "mobile_phone",
-    "office_phone",
-    "fax_phone",
-    "responsibility",
-    "department_name",
+    "mobile",
+    "phone",
+    "fax",
     "none",
 )
 MODEL_TYPE = "bert_multilingual_line_classifier"
+LORA_MODEL_TYPE = "bert_multilingual_line_classifier_lora"
 MODEL_NAME = "bert-base-multilingual-cased"
 MAX_LENGTH = 64
 FEATURE_SIZE = 6
 DEFAULT_CONFIDENCE_THRESHOLD = 0.4
+LORA_ADAPTER_DIR = "bert_lora_adapter"
+LORA_HEAD_PATH = "classifier_head.pt"
 PHONE_REGEX = re.compile(r"\d{2,4}[-\s]?\d{3,4}[-\s]?\d{4}")
 
 
@@ -71,7 +74,7 @@ def match_line_to_field(line: str, label_payload: dict[str, object | None]) -> s
 
     if PHONE_REGEX.search(line):
         line_digits = digits_only(line)
-        for field in ("mobile_phone", "office_phone", "fax_phone"):
+        for field in ("mobile", "phone", "fax"):
             value = label_payload.get(field)
             if isinstance(value, str) and digits_only(value) and digits_only(value) in line_digits:
                 return field
@@ -152,13 +155,35 @@ class AttentionPooling(nn.Module):
 
 
 class BertLineFieldClassifier(nn.Module):
-    def __init__(self, *, num_labels: int, model_name: str = MODEL_NAME, cache_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        num_labels: int,
+        model_name: str = MODEL_NAME,
+        cache_dir: Path | None = None,
+        training_mode: str = "full",
+        lora_r: int = 8,
+        lora_alpha: int = 16,
+        lora_dropout: float = 0.1,
+    ) -> None:
         super().__init__()
         cache_dir_value = str(cache_dir) if cache_dir is not None else None
         self.bert = BertModel.from_pretrained(model_name, cache_dir=cache_dir_value)
-        self.pool = AttentionPooling(self.bert.config.hidden_size)
+        hidden_size = self.bert.config.hidden_size
+        if training_mode == "lora":
+            from peft import LoraConfig, TaskType, get_peft_model
+
+            lora_config = LoraConfig(
+                task_type=TaskType.FEATURE_EXTRACTION,
+                r=lora_r,
+                lora_alpha=lora_alpha,
+                lora_dropout=lora_dropout,
+                target_modules=["query", "value"],
+            )
+            self.bert = get_peft_model(self.bert, lora_config)
+        self.pool = AttentionPooling(hidden_size)
         self.classifier = nn.Sequential(
-            nn.Linear(self.bert.config.hidden_size + FEATURE_SIZE, 128),
+            nn.Linear(hidden_size + FEATURE_SIZE, 128),
             nn.ReLU(),
             nn.Linear(128, num_labels),
         )
@@ -172,6 +197,12 @@ class BertLineFieldClassifier(nn.Module):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         pooled = self.pool(outputs.last_hidden_state, attention_mask)
         return self.classifier(torch.cat([pooled, features], dim=1))
+
+    def head_state_dict(self) -> dict[str, object]:
+        return {
+            "pool": self.pool.state_dict(),
+            "classifier": self.classifier.state_dict(),
+        }
 
 
 def load_json(path: Path) -> dict[str, object | None]:
@@ -317,6 +348,14 @@ def evaluate(
     return correct / total if total else 0.0
 
 
+def clone_model_state(model: nn.Module) -> dict[str, torch.Tensor]:
+    return {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+
+
+def restore_model_state(model: nn.Module, state_dict: dict[str, torch.Tensor]) -> None:
+    model.load_state_dict(state_dict)
+
+
 def save_artifacts(
     *,
     model: BertLineFieldClassifier,
@@ -324,13 +363,28 @@ def save_artifacts(
     artifacts_dir: Path,
     history: list[dict[str, float | int]],
     confidence_threshold: float,
+    training_mode: str,
+    best_epoch: int | None,
+    best_val_accuracy: float | None,
 ) -> None:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), artifacts_dir / "field_classifier.pt")
+    if training_mode == "lora":
+        model.bert.save_pretrained(artifacts_dir / LORA_ADAPTER_DIR)
+        torch.save(model.head_state_dict(), artifacts_dir / LORA_HEAD_PATH)
+        model_type = LORA_MODEL_TYPE
+        artifact_metadata = {
+            "adapter_dir": LORA_ADAPTER_DIR,
+            "classifier_head": LORA_HEAD_PATH,
+        }
+    else:
+        torch.save(model.state_dict(), artifacts_dir / "field_classifier.pt")
+        model_type = MODEL_TYPE
+        artifact_metadata = {}
+
     write_json(
         artifacts_dir / "field_classifier_metadata.json",
         {
-            "model_type": MODEL_TYPE,
+            "model_type": model_type,
             "model_name": MODEL_NAME,
             "label_to_idx": label_to_idx,
             "idx_to_label": {str(index): label for label, index in label_to_idx.items()},
@@ -339,6 +393,9 @@ def save_artifacts(
             "max_length": MAX_LENGTH,
             "confidence_threshold": confidence_threshold,
             "history": history,
+            "best_epoch": best_epoch,
+            "best_val_accuracy": best_val_accuracy,
+            **artifact_metadata,
         },
     )
 
@@ -351,6 +408,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--confidence-threshold", type=float, default=DEFAULT_CONFIDENCE_THRESHOLD)
     parser.add_argument("--val-ratio", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--training-mode", choices=("full", "lora"), default="lora")
+    parser.add_argument("--lora-r", type=int, default=8)
+    parser.add_argument("--lora-alpha", type=int, default=16)
+    parser.add_argument("--lora-dropout", type=float, default=0.1)
+    parser.add_argument("--early-stopping-patience", type=int, default=3)
+    parser.add_argument("--early-stopping-min-delta", type=float, default=0.001)
+    parser.add_argument("--disable-early-stopping", action="store_true")
     return parser.parse_args()
 
 
@@ -394,17 +458,54 @@ def main() -> int:
     model = BertLineFieldClassifier(
         num_labels=len(FIELD_NAMES),
         cache_dir=cache_dir,
+        training_mode=args.training_mode,
+        lora_r=args.lora_r,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
     ).to(device)
     weights = compute_class_weights([label_to_idx[example.label] for example in train_examples], len(FIELD_NAMES), device)
     criterion = nn.CrossEntropyLoss(weight=weights)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam((parameter for parameter in model.parameters() if parameter.requires_grad), lr=args.learning_rate)
 
     history: list[dict[str, float | int]] = []
+    best_state: dict[str, torch.Tensor] | None = None
+    best_epoch: int | None = None
+    best_val_accuracy: float | None = None
+    epochs_without_improvement = 0
+
     for epoch in range(1, args.epochs + 1):
         loss = train_epoch(model, train_loader, optimizer=optimizer, criterion=criterion, device=device)
         val_accuracy = evaluate(model, val_loader, device=device) if val_examples else 0.0
         history.append({"epoch": epoch, "loss": round(loss, 4), "val_accuracy": round(val_accuracy, 4)})
         print(f"epoch={epoch:02d} loss={loss:.4f} val_acc={val_accuracy:.4f}")
+
+        if val_examples:
+            improved = (
+                best_val_accuracy is None
+                or val_accuracy > best_val_accuracy + args.early_stopping_min_delta
+            )
+            if improved:
+                best_state = clone_model_state(model)
+                best_epoch = epoch
+                best_val_accuracy = val_accuracy
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
+
+            if (
+                not args.disable_early_stopping
+                and args.early_stopping_patience > 0
+                and epochs_without_improvement >= args.early_stopping_patience
+            ):
+                print(
+                    "early_stopping "
+                    f"epoch={epoch:02d} best_epoch={best_epoch} "
+                    f"best_val_acc={best_val_accuracy:.4f}"
+                )
+                break
+
+    if best_state is not None:
+        restore_model_state(model, best_state)
 
     save_artifacts(
         model=model,
@@ -412,8 +513,11 @@ def main() -> int:
         artifacts_dir=artifacts_dir,
         history=history,
         confidence_threshold=args.confidence_threshold,
+        training_mode=args.training_mode,
+        best_epoch=best_epoch,
+        best_val_accuracy=round(best_val_accuracy, 4) if best_val_accuracy is not None else None,
     )
-    print(f"Saved BERT artifacts to {artifacts_dir}")
+    print(f"Saved BERT {args.training_mode} artifacts to {artifacts_dir}")
     return 0
 
 
