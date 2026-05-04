@@ -22,14 +22,15 @@ public class ProjectService {
 //    private final OrderReportRepository orderReportRepository;
 
     @Transactional
-    public void registerProject(ProjectCreateRequest dto) {
+    public Long registerProject(ProjectCreateRequest dto) {
 //        OrderReport report = validateAndGetOrderReport(dto.getOrderReportId());
-
+//
 //        ProjectCode code = determineProjectCode(report);
 //
 //        Project project = createProject(code, report);
 //
-//        projectRepository.save(project);
+//        return projectRepository.save(project).getId();
+        return 1L; // TODO: 임시 반환값
     }
 
     /**

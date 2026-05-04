@@ -24,7 +24,7 @@ public class ProjectResultReportService {
     private final UserRepository userRepository;
 
     @Transactional
-    public void registerResultReport(ProjectResultReportCreateRequest dto) {
+    public Long registerResultReport(ProjectResultReportCreateRequest dto) {
         Project project = getValidProject(dto.getProjectId());
 
         User manager = userRepository.findById(dto.getManagerId())
@@ -37,7 +37,7 @@ public class ProjectResultReportService {
 
         ProjectResultReport report = ProjectResultReport.create(project, manager, resultReportFile);
 
-        reportRepository.save(report);
+        return reportRepository.save(report).getId();
     }
 
     private Project getValidProject(Long projectId) {
