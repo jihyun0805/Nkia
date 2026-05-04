@@ -100,7 +100,6 @@ public class SalesActivity extends BaseEntity {
 
     public void setSalesActivityRequest(SalesActivityRequest request) {
         this.salesActivityRequest = request;
-        request.setSalesActivity(this);
     }
 
     public void addAttendee(SalesActivityAttendee attendee) {

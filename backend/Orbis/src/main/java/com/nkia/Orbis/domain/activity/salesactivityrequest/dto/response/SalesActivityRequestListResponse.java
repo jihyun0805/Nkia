@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response;
 
 import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityPurpose;
-import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityType;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityRequest;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -10,8 +9,7 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class SalesActivityRequestResponse {
-
+public class SalesActivityRequestListResponse {
     private Long id;
 
     private Long salesActivityId;
@@ -20,15 +18,12 @@ public class SalesActivityRequestResponse {
 
     private ActivityPurpose activityPurpose;
 
-    private ActivityType activityType;
-
     private LocalDateTime activityDateTime;
 
-    private String requestContent;
 
-    public static SalesActivityRequestResponse from(
+    public static SalesActivityRequestListResponse from(
             SalesActivityRequest salesActivityRequest) {
-        return SalesActivityRequestResponse.builder()
+        return SalesActivityRequestListResponse.builder()
                 .id(salesActivityRequest.getId())
                 .salesActivityId(
                         salesActivityRequest.getSalesActivity() != null ? salesActivityRequest.getSalesActivity()
@@ -36,9 +31,7 @@ public class SalesActivityRequestResponse {
                 )
                 .targetUserId(salesActivityRequest.getTargetUser().getId())
                 .activityPurpose(salesActivityRequest.getActivityPurpose())
-                .activityType(salesActivityRequest.getActivityType())
                 .activityDateTime(salesActivityRequest.getActivityDateTime())
-                .requestContent(salesActivityRequest.getRequestContent())
                 .build();
     }
 }

@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.activity.salesactivityrequest.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityPurpose;
+import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityType;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.user.entity.User;
 import jakarta.persistence.Column;
@@ -17,12 +18,13 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Getter
 @Entity
+@SQLRestriction("deleted = false")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SalesActivityRequest extends BaseEntity {
 
@@ -42,26 +44,32 @@ public class SalesActivityRequest extends BaseEntity {
     @Column(nullable = false)
     private ActivityPurpose activityPurpose;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ActivityType activityType;
+
     private LocalDateTime activityDateTime;
 
     private String requestContent;
 
-    @Builder
-    private SalesActivityRequest(
-            SalesActivity salesActivity,
+    public static SalesActivityRequest create(
             User targetUser,
             ActivityPurpose activityPurpose,
+            ActivityType activityType,
             LocalDateTime activityDateTime,
             String requestContent
     ) {
-        this.salesActivity = salesActivity;
-        this.targetUser = targetUser;
-        this.activityPurpose = activityPurpose;
-        this.activityDateTime = activityDateTime;
-        this.requestContent = requestContent;
+        SalesActivityRequest salesActivityRequest = new SalesActivityRequest();
+        salesActivityRequest.targetUser = targetUser;
+        salesActivityRequest.activityPurpose = activityPurpose;
+        salesActivityRequest.activityType = activityType;
+        salesActivityRequest.activityDateTime = activityDateTime;
+        salesActivityRequest.requestContent = requestContent;
+        return salesActivityRequest;
     }
 
     public void setSalesActivity(SalesActivity salesActivity) {
         this.salesActivity = salesActivity;
+        salesActivity.setSalesActivityRequest(this);
     }
 }
