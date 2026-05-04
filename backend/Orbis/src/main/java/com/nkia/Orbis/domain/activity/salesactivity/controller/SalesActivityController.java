@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,5 +46,14 @@ public class SalesActivityController {
         SalesActivityResponse response = salesActivityService.update(salesActivityId, request);
         return ResponseEntity.ok(ApiResponse.success(response));
 
+    }
+
+    @Operation(summary = "영업 활동 삭제")
+    @DeleteMapping("/activity/{salesActivityId}")
+    public ResponseEntity<ApiResponse<Void>> deleteSalesActivity(
+            @PathVariable("salesActivityId") Long salesActivityId
+    ) {
+        salesActivityService.delete(salesActivityId);
+        return ResponseEntity.noContent().build();
     }
 }
