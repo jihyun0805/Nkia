@@ -5,7 +5,8 @@ export default defineConfig({
   salesManagement: {
     // 1. 백엔드 Swagger 문서의 위치 (배포 개발 서버 기준)
     input: {
-      target: 'https://k14s106.p.ssafy.io/v3/api-docs', // Spring Boot의 Docs 엔드포인트
+      //target: 'http://localhost/api/v1/v3/api-docs', // 개발 Spring Boot의 Docs 엔드포인트
+      target: 'https://k14s106.p.ssafy.io/api/v1/v3/api-docs', // 배포 Spring Boot의 Docs 엔드포인트
     },
     // 2. 출력물 설정
     output: {

@@ -3,7 +3,8 @@ import axios, { AxiosRequestConfig } from 'axios';
 
 // 1. 기본 인스턴스 생성 (환경 변수에서 API 주소 로드)
 export const customAxiosInstance = axios.create({
-  baseURL: 'https://k14s106.p.ssafy.io',
+  baseURL: 'https://k14s106.p.ssafy.io', // 배포 주소
+  //baseURL: 'http://localhost', // 개발 주소
   headers: {
     'Content-Type': 'application/json',
   },
