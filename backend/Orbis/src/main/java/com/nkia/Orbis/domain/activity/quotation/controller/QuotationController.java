@@ -42,7 +42,7 @@ public class QuotationController {
             @PathVariable("quotationId") Long quotationId
     ) {
         quotationService.delete(quotationId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
 }

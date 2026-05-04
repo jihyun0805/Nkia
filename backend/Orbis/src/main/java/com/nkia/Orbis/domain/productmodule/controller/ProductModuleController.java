@@ -41,6 +41,6 @@ public class ProductModuleController {
             @PathVariable("productModuleId") Long productModuleId
     ) {
         productModuleService.delete(productModuleId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }
