@@ -13,7 +13,9 @@ public enum SalesActivityErrorCode implements ErrorCode {
             "요청한 sales activity request를 찾을 수 없습니다."),
 
     EXIST_SALES_ACTIVITY_REQUEST(HttpStatus.NOT_FOUND, "SALES_ACTIVITY_0003",
-            "이미 존재하는 sales activity 입니다.");
+            "이미 존재하는 sales activity 입니다."),
+    QUOTATION_NOT_FOUND(HttpStatus.NOT_FOUND, "SALES_ACTIVITY_0004",
+            "요청한 quotation을 찾을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

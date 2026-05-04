@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.activity.quotation.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.SalesActivityErrorCode;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
@@ -101,6 +102,14 @@ public class QuotationService {
         long count = quotationRepository.countDistinctQuotationCodeByQuotationDate(quotationDate);
 
         return "QT-" + date + "-" + String.format("%04d", count + 1);
+    }
+
+    @Transactional
+    public void delete(Long quotationId) {
+        Quotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.QUOTATION_NOT_FOUND));
+
+        quotation.delete();
     }
 
 }

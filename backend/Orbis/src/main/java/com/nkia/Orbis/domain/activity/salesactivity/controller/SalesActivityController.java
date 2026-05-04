@@ -38,7 +38,7 @@ public class SalesActivityController {
     }
 
     @Operation(summary = "영업 활동 수정")
-    @PatchMapping("/activity/{salesActivityId}")
+    @PatchMapping("/{salesActivityId}")
     public ResponseEntity<ApiResponse<SalesActivityResponse>> updateSalesActivity(
             @PathVariable("salesActivityId") Long salesActivityId,
             @RequestBody SalesActivityUpdateRequest request
@@ -49,7 +49,7 @@ public class SalesActivityController {
     }
 
     @Operation(summary = "영업 활동 삭제")
-    @DeleteMapping("/activity/{salesActivityId}")
+    @DeleteMapping("/{salesActivityId}")
     public ResponseEntity<ApiResponse<Void>> deleteSalesActivity(
             @PathVariable("salesActivityId") Long salesActivityId
     ) {
