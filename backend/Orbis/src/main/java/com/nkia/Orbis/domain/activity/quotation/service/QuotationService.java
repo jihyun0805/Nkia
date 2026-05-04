@@ -6,6 +6,7 @@ import com.nkia.Orbis.common.exception.errorcode.SalesActivityErrorCode;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
+import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationListResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItem;
@@ -112,5 +113,12 @@ public class QuotationService {
         quotation.delete();
     }
 
+    @Transactional
+    public List<QuotationListResponse> getQuotations() {
+        return quotationRepository.findAll()
+                .stream()
+                .map(QuotationListResponse::from)
+                .toList();
+    }
 }
 
