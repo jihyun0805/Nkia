@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,6 +42,17 @@ public class SalesActivityRequestController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<SalesActivityRequestListResponse>>> getSalesActivityRequests() {
         List<SalesActivityRequestListResponse> response = salesActivityRequestService.getSalesActivityRequests();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "영업 활동 요청 상세 조회")
+    @GetMapping("/{salesActivityRequestId}")
+    public ResponseEntity<ApiResponse<SalesActivityRequestResponse>> getSalesActivityRequest(
+            @PathVariable("salesActivityRequestId") Long salesActivityRequestId
+    ) {
+        SalesActivityRequestResponse response = salesActivityRequestService.getSalesActivityRequest(
+                salesActivityRequestId);
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
