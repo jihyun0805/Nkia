@@ -37,6 +37,9 @@ class EmbeddingModel:
     def encode_passages(self, texts: list[str]) -> list[list[float]]:
         return self._encode([self._with_prefix(self.config.document_prefix, text) for text in texts])
 
+    def encode_query(self, text: str) -> list[float]:
+        return self._encode([self._with_prefix(self.config.query_prefix, text)])[0]
+
     def _encode(self, texts: list[str]) -> list[list[float]]:
         embeddings = self.model.encode(
             texts,

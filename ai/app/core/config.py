@@ -16,6 +16,20 @@ class Settings(BaseSettings):
     ai_embedding_query_prefix: str = "query:"
     ai_chunk_size: int = 1000
     ai_chunk_overlap: int = 120
+    gms_key: str | None = None
+    gms_chat_completions_url: str = "https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions"
+    gms_chat_model: str = "gpt-5-mini"
+    gms_timeout_seconds: int = 30
+    langgraph_use_official_runtime: bool = True
+    langgraph_checkpoint_url: str | None = None
+    langgraph_checkpoint_schema: str = "langgraph"
+    ai_enable_draft_actions: bool = False
+    postgres_host: str | None = None
+    postgres_port: int = 5432
+    postgres_user: str | None = None
+    postgres_password: str | None = None
+    postgres_db: str | None = None
+    postgres_url: str | None = None
 
     model_config = SettingsConfigDict(env_file=None, extra="ignore")
 

@@ -1,0 +1,1001 @@
+import re
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+
+from app.core.config import settings
+from app.embeddings.model import EmbeddingModel
+from app.langgraph import (
+    evaluate_corrective_retrieval,
+    build_discovery_execution_plan,
+    StructuredExecutionPlan,
+    StructuredExecutionStep,
+    build_preflight_graph_state,
+    build_retrieval_execution_plan,
+    build_structured_execution_plan,
+    execute_discovery_execution_plan,
+    execute_structured_execution_plan,
+    route_to_response_value,
+)
+from app.llm.gms_client import GmsChatClient, GmsChatConfig
+from app.models.user_context import UserContext
+from app.orchestration import OrbisGraphCallbacks, invoke_orbis_agent_graph
+from app.repositories.backend_query_repository import resolve_primary_opportunity
+from app.schemas.answer import AnswerEvidence, AnswerResponse, ConversationMessage
+from app.schemas.search import QueryPlanView, SearchResult
+from app.services.evidence_service import group_answer_evidences
+from app.services.chat_planner_service import plan_chat_query
+from app.services.query_normalization_service import normalize_query_context
+from app.services.query_intent_service import parse_structured_query_intent
+from app.services.query_plan_service import plan_structured_query_with_gms
+from app.services.search_service import build_query_plan_view, search_knowledge
+from app.services.structured_answer_service import answer_graph_structured_extension
+
+BUSINESS_CODE_PATTERN = re.compile(r"(?<![A-Z0-9-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}(?![A-Z0-9-])")
+KST = timezone(timedelta(hours=9))
+
+
+def build_answer_graph_callbacks() -> OrbisGraphCallbacks:
+    return OrbisGraphCallbacks(
+        build_ambiguous_reference_response=build_ambiguous_reference_response,
+        attach_graph_contract=attach_graph_contract,
+        should_abort_for_low_confidence=should_abort_for_low_confidence,
+        build_low_confidence_message=build_low_confidence_message,
+        build_answer_evidences=build_answer_evidences,
+        resolve_corrective_time_range=resolve_corrective_time_range,
+        should_accept_corrective_retry=should_accept_corrective_retry,
+        build_contextual_query=build_contextual_query,
+        build_conversation_context=build_conversation_context,
+        build_evidence_context=build_evidence_context,
+        build_plan_summary=build_plan_summary,
+        build_extractive_answer=build_extractive_answer,
+        should_use_fast_answer=should_use_fast_answer,
+    )
+
+
+def answer_question(
+    *,
+    query: str,
+    limit: int,
+    source_types: list[str] | None,
+    attachment_session_id: str | None,
+    thread_id: str | None,
+    start_at: str | None,
+    end_at: str | None,
+    history: list[ConversationMessage],
+    embedder: EmbeddingModel,
+    compiled_graph: object | None = None,
+    user_context: UserContext | None = None,
+) -> AnswerResponse:
+    if compiled_graph is not None:
+        return invoke_orbis_agent_graph(
+            compiled_graph=compiled_graph,
+            query=query,
+            limit=limit,
+            source_types=source_types,
+            attachment_session_id=attachment_session_id,
+            start_at=start_at,
+            end_at=end_at,
+            history=history,
+            thread_id=thread_id,
+            user_context=user_context,
+        )
+
+    response = _answer_question_legacy(
+        query=query,
+        limit=limit,
+        source_types=source_types,
+        attachment_session_id=attachment_session_id,
+        start_at=start_at,
+        end_at=end_at,
+        history=history,
+        embedder=embedder,
+        user_context=user_context,
+    )
+    response.threadId = thread_id
+    return response
+
+
+def _answer_question_legacy(
+    *,
+    query: str,
+    limit: int,
+    source_types: list[str] | None,
+    attachment_session_id: str | None,
+    start_at: str | None,
+    end_at: str | None,
+    history: list[ConversationMessage],
+    embedder: EmbeddingModel,
+    user_context: UserContext | None = None,
+) -> AnswerResponse:
+    ambiguous_response = build_ambiguous_reference_response(query=query, history=history, embedder=embedder)
+    if ambiguous_response is not None:
+        return ambiguous_response
+
+    graph_state = build_preflight_graph_state(
+        query=query,
+        history=history,
+        start_at=start_at,
+        end_at=end_at,
+        attachment_session_id=attachment_session_id,
+        normalization=None,
+    )
+    effective_query = graph_state.rewrittenQuery or query
+    normalization = normalize_query_context(effective_query)
+    effective_start_at = start_at or graph_state.timeRange.startAt
+    effective_end_at = end_at or graph_state.timeRange.endAt
+
+    if graph_state.clarification.needed:
+        return attach_graph_contract(
+            AnswerResponse(
+                query=query,
+                answer=graph_state.clarification.question or "질문을 처리하려면 추가 정보가 필요합니다.",
+                route=route_to_response_value(graph_state.route),
+                answerStatus="clarification",
+                embeddingModel=embedder.config.model_name,
+                chatModel="graph-clarification-guard",
+                retrievalConfidence=None,
+                degradedReason=None,
+                excludedSourceTypes=[],
+                plan=None,
+                evidences=[],
+            ),
+            graph_state=graph_state,
+        )
+
+    graph_structured_response = answer_graph_structured_extension(
+        query=effective_query,
+        graph_state=graph_state,
+        limit=limit,
+        embedder=embedder,
+    )
+    if graph_structured_response is not None:
+        graph_structured_response.query = query
+        graph_structured_response.route = route_to_response_value(graph_state.route)
+        graph_structured_response.answerStatus = "good_answer"
+        return attach_graph_contract(graph_structured_response, graph_state=graph_state)
+
+    structured_plan = build_structured_execution_plan(
+        query=effective_query,
+        normalization=normalization,
+        graph_state=graph_state,
+    )
+    structured_response = execute_structured_execution_plan(
+        plan=structured_plan,
+        query=effective_query,
+        normalization=normalization,
+        graph_state=graph_state,
+        limit=limit,
+        start_at=effective_start_at,
+        end_at=effective_end_at,
+        embedder=embedder,
+    )
+    if structured_response is not None:
+        structured_response.query = query
+        structured_response.route = route_to_response_value(graph_state.route)
+        structured_response.answerStatus = "good_answer"
+        return attach_graph_contract(structured_response, graph_state=graph_state)
+
+    discovery_plan = build_discovery_execution_plan(graph_state=graph_state)
+    discovery_response = execute_discovery_execution_plan(
+        plan=discovery_plan,
+        query=effective_query,
+        graph_state=graph_state,
+        limit=limit,
+        embedder=embedder,
+    )
+    if discovery_response is not None:
+        discovery_response.query = query
+        discovery_response.route = route_to_response_value(graph_state.route)
+        return attach_graph_contract(discovery_response, graph_state=graph_state)
+
+    chat_plan, normalization = plan_chat_query(effective_query, normalization)
+    if chat_plan.task == "needs_clarification":
+        return attach_graph_contract(
+            AnswerResponse(
+                query=query,
+                answer=chat_plan.clarification_message or "질문을 처리하려면 추가 정보가 필요합니다.",
+                route="mixed" if normalization.target_hint in {"opportunity", "activity", "maintenance", "contract", "project"} else "discovery",
+                answerStatus="clarification",
+                embeddingModel=embedder.config.model_name,
+                chatModel="query-planner",
+                excludedSourceTypes=[],
+                plan=build_query_plan_view(chat_plan),
+                evidences=[],
+            ),
+            graph_state=graph_state,
+        )
+
+    structured_intent = structured_plan.structured_intent or parse_structured_query_intent(effective_query, normalization)
+    planned_by_gms = False
+    should_use_structured_gms = chat_plan.task == "semantic_search"
+    if structured_intent is None and should_use_structured_gms:
+        structured_intent = plan_structured_query_with_gms(effective_query)
+        planned_by_gms = structured_intent is not None
+
+    if structured_intent is not None:
+        fallback_plan = structured_plan
+        if fallback_plan.structured_intent is None:
+            fallback_plan = StructuredExecutionPlan(
+                route=graph_state.route,
+                steps=[StructuredExecutionStep(strategy="structured_intent", tool_name="structured_intent")],
+                structured_intent=structured_intent,
+            )
+        structured_response = execute_structured_execution_plan(
+            plan=fallback_plan,
+            query=effective_query,
+            normalization=normalization,
+            graph_state=graph_state,
+            limit=limit,
+            start_at=effective_start_at,
+            end_at=effective_end_at,
+            embedder=embedder,
+        )
+        if structured_response is not None:
+            structured_response.query = query
+            structured_response.route = route_to_response_value(graph_state.route)
+            structured_response.answerStatus = "good_answer"
+            return attach_graph_contract(structured_response, graph_state=graph_state)
+
+    retrieval_plan = build_retrieval_execution_plan(
+        graph_state=graph_state,
+        requested_limit=limit,
+        requested_source_types=source_types,
+    )
+    effective_limit = retrieval_plan.limit if retrieval_plan is not None else limit
+    effective_source_types = retrieval_plan.source_types if retrieval_plan is not None else source_types
+    search_query = build_contextual_query(query=graph_state.semanticQuery or effective_query, history=history)
+    search_response = search_knowledge(
+        query=search_query,
+        limit=effective_limit,
+        source_types=effective_source_types,
+        attachment_session_id=attachment_session_id,
+        start_at=effective_start_at,
+        end_at=effective_end_at,
+        embedder=embedder,
+        chat_plan=chat_plan,
+        normalization=normalization,
+        retrieval_plan=retrieval_plan,
+        user_context=user_context,
+    )
+    corrective_decision = evaluate_corrective_retrieval(
+        graph_state=graph_state,
+        search_response=search_response,
+        retrieval_plan=retrieval_plan,
+        explicit_source_types=source_types,
+        explicit_start_at=start_at,
+        explicit_end_at=end_at,
+    )
+    if corrective_decision.should_retry and retrieval_plan is not None:
+        graph_state.correctiveAction = corrective_decision.action
+        retry_plan = replace(
+            retrieval_plan,
+            search_mode=f"{retrieval_plan.search_mode}:{corrective_decision.action}",
+            source_types=corrective_decision.source_types or retrieval_plan.source_types,
+        )
+        retry_start_at, retry_end_at = resolve_corrective_time_range(
+            graph_state=graph_state,
+            action=corrective_decision.action,
+            current_start_at=effective_start_at,
+            current_end_at=effective_end_at,
+        )
+        retry_response = search_knowledge(
+            query=search_query,
+            limit=retry_plan.limit,
+            source_types=retry_plan.source_types,
+            attachment_session_id=attachment_session_id,
+            start_at=retry_start_at,
+            end_at=retry_end_at,
+            embedder=embedder,
+            chat_plan=chat_plan,
+            normalization=normalization,
+            retrieval_plan=retry_plan,
+            user_context=user_context,
+        )
+        if should_accept_corrective_retry(original=search_response, retry=retry_response):
+            search_response = retry_response
+            merged_reasons = list(search_response.confidenceReasons)
+            for reason in ["corrective_retry_applied", *corrective_decision.reasons]:
+                if reason not in merged_reasons:
+                    merged_reasons.append(reason)
+            search_response.confidenceReasons = merged_reasons
+    graph_state.confidenceReasons = list(search_response.confidenceReasons)
+    if not search_response.results:
+        return attach_graph_contract(
+            AnswerResponse(
+                query=query,
+                answer="제공된 근거만으로는 확인하기 어렵습니다.",
+                route=search_response.route,
+                answerStatus="insufficient_evidence",
+                embeddingModel=search_response.embeddingModel,
+                chatModel=settings.gms_chat_model if settings.gms_key else "extractive-fallback",
+                retrievalConfidence=search_response.retrievalConfidence,
+                confidenceReasons=search_response.confidenceReasons,
+                excludedSourceTypes=search_response.excludedSourceTypes,
+                plan=search_response.plan,
+                evidences=[],
+                typedEvidences=group_answer_evidences([]),
+            ),
+            graph_state=graph_state,
+        )
+
+    if should_abort_for_low_confidence(
+        query=query,
+        search_response=search_response,
+        normalization=normalization,
+    ):
+        low_confidence_evidences = build_answer_evidences(search_response.results)
+        return attach_graph_contract(
+            AnswerResponse(
+                query=query,
+                answer=build_low_confidence_message(graph_state=graph_state),
+                route=search_response.route,
+                answerStatus="insufficient_evidence",
+                embeddingModel=search_response.embeddingModel,
+                chatModel="confidence-guard",
+                retrievalConfidence=search_response.retrievalConfidence,
+                confidenceReasons=search_response.confidenceReasons,
+                excludedSourceTypes=search_response.excludedSourceTypes,
+                plan=search_response.plan,
+                evidences=low_confidence_evidences,
+                typedEvidences=group_answer_evidences(low_confidence_evidences),
+            ),
+            graph_state=graph_state,
+        )
+
+    if should_use_fast_answer(plan=search_response.plan):
+        generated_answer = build_extractive_answer(query=query, plan=search_response.plan, results=search_response.results)
+        chat_model = "fast-extractive"
+        answer_status = "good_answer"
+        degraded_reason = None
+    elif settings.gms_key:
+        client = GmsChatClient(
+            GmsChatConfig(
+                api_key=settings.gms_key,
+                url=settings.gms_chat_completions_url,
+                model=settings.gms_chat_model,
+                timeout_seconds=settings.gms_timeout_seconds,
+            )
+        )
+        try:
+            generated_answer = client.create_grounded_answer(
+                query=query,
+                context=build_evidence_context(search_response.results),
+                conversation_context=build_conversation_context(history),
+                plan_summary=build_plan_summary(search_response.plan),
+            )
+            chat_model = settings.gms_chat_model
+            answer_status = "good_answer"
+            degraded_reason = None
+        except RuntimeError:
+            generated_answer = build_extractive_answer(query=query, plan=search_response.plan, results=search_response.results)
+            chat_model = "extractive-fallback"
+            answer_status = "upstream_degraded"
+            degraded_reason = "grounded_answer_generation_failed"
+    else:
+        generated_answer = build_extractive_answer(query=query, plan=search_response.plan, results=search_response.results)
+        chat_model = "extractive-fallback"
+        answer_status = "upstream_degraded"
+        degraded_reason = "llm_unavailable"
+
+    evidences = build_answer_evidences(search_response.results)
+    return attach_graph_contract(
+        AnswerResponse(
+            query=query,
+            answer=generated_answer,
+            route=search_response.route,
+            answerStatus=answer_status,
+            embeddingModel=search_response.embeddingModel,
+            chatModel=chat_model,
+            retrievalConfidence=search_response.retrievalConfidence,
+            confidenceReasons=search_response.confidenceReasons,
+            degradedReason=degraded_reason,
+            excludedSourceTypes=search_response.excludedSourceTypes,
+            plan=search_response.plan,
+            evidences=evidences,
+            typedEvidences=group_answer_evidences(evidences),
+        ),
+        graph_state=graph_state,
+    )
+
+
+def should_use_fast_answer(*, plan: QueryPlanView | None) -> bool:
+    if plan is None:
+        return False
+    return plan.task in {"needs_clarification"}
+
+
+def build_answer_evidences(results: list[SearchResult]) -> list[AnswerEvidence]:
+    return [
+        AnswerEvidence(
+            evidenceType=getattr(result, "evidenceType", "retrieved_evidence"),
+            sourceType=result.sourceType,
+            sourceId=result.sourceId,
+            title=result.title,
+            chunkIndex=result.chunkIndex,
+            distance=result.distance,
+            vectorScore=result.vectorScore,
+            keywordScore=result.keywordScore,
+            finalScore=result.finalScore,
+            matchedBy=result.matchedBy,
+            content=result.content,
+            metadata=result.metadata,
+        )
+        for result in results
+    ]
+
+
+def attach_graph_contract(response: AnswerResponse, *, graph_state: object) -> AnswerResponse:
+    response.appliedDefaults = list(getattr(graph_state, "appliedDefaults", []) or [])
+    response.missingRequiredSlots = list(getattr(graph_state, "missingRequiredSlots", []) or [])
+    if not response.confidenceReasons:
+        response.confidenceReasons = list(getattr(graph_state, "confidenceReasons", []) or [])
+    if response.confidenceBand is None:
+        response.confidenceBand = infer_confidence_band(response)
+    return response
+
+
+def infer_confidence_band(response: AnswerResponse) -> str | None:
+    confidence = response.retrievalConfidence
+    if confidence is not None:
+        if confidence >= 0.75:
+            return "high"
+        if confidence >= 0.5:
+            return "medium"
+        return "low"
+
+    reasons = set(response.confidenceReasons or [])
+    if response.answerStatus == "upstream_degraded":
+        return "low"
+    if response.answerStatus == "clarification":
+        return None
+    if response.answerStatus == "insufficient_evidence":
+        return "low"
+
+    if reasons & {
+        "fast_structured",
+        "comparison_query",
+        "delta_query",
+        "structured_query",
+        "discovery_summary_rule",
+        "pattern_aggregation",
+        "maintenance_transition",
+    }:
+        return "high"
+    if reasons & {"hybrid", "global_scope", "graph_scoped", "retrieval_retry"}:
+        return "medium"
+    return None
+
+
+def should_abort_for_low_confidence(
+    *,
+    query: str,
+    search_response: object,
+    normalization: object,
+) -> bool:
+    confidence = getattr(search_response, "retrievalConfidence", None)
+    if confidence is not None and confidence < 0.42:
+        return True
+
+    results = getattr(search_response, "results", []) or []
+    if not results:
+        return True
+
+    source_types = {result.sourceType for result in results}
+    if source_types == {"ATTACHMENT"} and has_structured_signal_query(query):
+        return True
+
+    target_hint = getattr(normalization, "target_hint", None)
+    if target_hint in {"opportunity", "project", "maintenance"} and source_types == {"ATTACHMENT"}:
+        return True
+
+    return False
+
+
+def build_low_confidence_message(*, graph_state: object) -> str:
+    missing_slots = set(getattr(graph_state, "missingRequiredSlots", []) or [])
+    applied_defaults = set(getattr(graph_state, "appliedDefaults", []) or [])
+    route = getattr(graph_state, "route", "UNKNOWN")
+    slots = getattr(graph_state, "slots", {}) or {}
+    document_scope = None
+    if "document_scope" in slots:
+        document_scope = getattr(slots["document_scope"], "value", None)
+
+    if "metric" in missing_slots:
+        return "순위를 정하려면 비교 기준이 필요합니다. 예: 횟수, 금액, 최근성, 예상 수주율, 유지보수 건수, 계약 금액."
+
+    if "entity_scope" in missing_slots:
+        return "어느 사업을 기준으로 볼지 알려주세요. 사업코드, 사업명, 고객사 중 하나를 지정해 주세요."
+
+    if route == "DISCOVERY" and "time_range:recent->90d" in applied_defaults:
+        if document_scope == "PRB":
+            return (
+                "현재는 최근 90일 PRB 문서를 기준으로 보았지만 검색 신뢰도가 낮습니다. "
+                "기간 기준만 더 구체적으로 주시면 다시 답변하겠습니다. 예: 최근 30일, 최근 6개월."
+            )
+        return (
+            "현재는 최근 90일 기준으로 보았지만 검색 신뢰도가 낮습니다. "
+            "기간 기준만 더 구체적으로 주시면 다시 답변하겠습니다. 예: 최근 30일, 최근 6개월."
+        )
+
+    if route == "DISCOVERY":
+        return "관련 근거는 일부 찾았지만 현재 검색 신뢰도가 낮아 답변을 확정하지 않겠습니다. 기간 기준을 더 구체적으로 주시면 다시 답변하겠습니다."
+
+    return "관련 근거는 일부 찾았지만 현재 검색 신뢰도가 낮아 답변을 확정하지 않겠습니다. 사업코드나 기간 기준을 더 구체적으로 주시면 다시 답변하겠습니다."
+
+
+def resolve_corrective_time_range(
+    *,
+    graph_state: object,
+    action: str,
+    current_start_at: str | None,
+    current_end_at: str | None,
+) -> tuple[str | None, str | None]:
+    if action != "retry_expand_recent_window":
+        return current_start_at, current_end_at
+
+    end = datetime.now(KST).replace(microsecond=0)
+    start = end - timedelta(days=180)
+    return start.isoformat(), end.isoformat()
+
+
+def should_accept_corrective_retry(*, original: AnswerResponse | object, retry: AnswerResponse | object) -> bool:
+    original_confidence = getattr(original, "retrievalConfidence", 0.0) or 0.0
+    retry_confidence = getattr(retry, "retrievalConfidence", 0.0) or 0.0
+    original_count = len(getattr(original, "results", []) or [])
+    retry_count = len(getattr(retry, "results", []) or [])
+    if retry_count == 0:
+        return False
+    if original_count == 0:
+        return True
+    return retry_confidence >= original_confidence or retry_count > original_count
+
+
+def has_structured_signal_query(query: str) -> bool:
+    normalized = " ".join(query.lower().split())
+    return any(
+        keyword in normalized
+        for keyword in [
+            "실주",
+            "사유",
+            "의사결정",
+            "구조",
+            "결과보고",
+            "견적서",
+            "정기점검",
+            "긴급",
+            "리스크",
+            "근거 문서",
+        ]
+    )
+
+
+def build_contextual_query(*, query: str, history: list[ConversationMessage]) -> str:
+    recent_messages = history[-4:]
+    context_parts = [message.content.strip() for message in recent_messages if message.content.strip()]
+    context_parts.append(query.strip())
+    return "\n".join(part for part in context_parts if part)
+
+
+def rewrite_followup_query(*, query: str, history: list[ConversationMessage]) -> str:
+    if not history or not has_followup_reference(query):
+        return query
+
+    subject = infer_followup_subject(history)
+    if not subject:
+        return query
+    if subject in query:
+        return query
+    return f"{subject} {query}".strip()
+
+
+def has_followup_reference(query: str) -> bool:
+    normalized = " ".join(query.lower().split())
+    keywords = [
+        "그 사업",
+        "그 건",
+        "그 프로젝트",
+        "그거",
+        "해당 사업",
+        "해당 건",
+        "이 건",
+        "이 사업",
+    ]
+    return any(keyword in normalized for keyword in keywords)
+
+
+def infer_followup_subject(history: list[ConversationMessage]) -> str | None:
+    recent_messages = history[-6:]
+    codes: list[str] = []
+    for message in reversed(recent_messages):
+        content = get_message_content(message)
+        if content:
+            codes.extend(extract_business_codes_from_text(content))
+    if codes:
+        return codes[0]
+
+    combined_text = "\n".join(content for message in recent_messages if (content := get_message_content(message)))
+    normalization = normalize_query_context(combined_text)
+    entity = resolve_primary_opportunity(
+        query_terms=normalization.scope_terms or normalization.entity_terms,
+        exact_codes=extract_business_codes_from_text(combined_text),
+    )
+    if entity is None:
+        return None
+    return f"{entity['opportunity_code']} {entity['opportunity_name']}"
+
+
+def extract_business_codes_from_text(text: str) -> list[str]:
+    return list(dict.fromkeys(match.group(0).upper() for match in BUSINESS_CODE_PATTERN.finditer(text.upper())))
+
+
+def get_message_content(message: object) -> str:
+    if isinstance(message, dict):
+        return str(message.get("content") or "").strip()
+    content = getattr(message, "content", "")
+    return str(content or "").strip()
+
+
+def build_ambiguous_reference_response(
+    *,
+    query: str,
+    history: list[ConversationMessage],
+    embedder: EmbeddingModel,
+) -> AnswerResponse | None:
+    if not has_ambiguous_reference(query):
+        return None
+    if history:
+        return None
+
+    return AnswerResponse(
+        query=query,
+        answer=(
+            "질문에서 가리키는 대상 사업이나 판단 기준이 명확하지 않습니다. "
+            "사업명, 사업기회코드, 또는 기준을 함께 알려주면 근거 기반으로 다시 답변할 수 있습니다. "
+            "예: '한국전력 통합관제 사업을 포기했어야 했는지 알려줘' 또는 "
+            "'수주율과 리스크 기준으로 포기 후보를 알려줘'."
+        ),
+        embeddingModel=embedder.config.model_name,
+        chatModel="guardrail",
+        excludedSourceTypes=[],
+        plan=None,
+        evidences=[],
+    )
+
+
+def has_ambiguous_reference(query: str) -> bool:
+    normalized = " ".join(query.lower().split())
+    reference_keywords = ["이거", "그거", "저거", "이 사업", "그 사업", "아까", "방금", "위에"]
+    decision_keywords = ["포기", "위험", "문제", "어려", "조심", "실수"]
+    return any(keyword in normalized for keyword in reference_keywords) and any(
+        keyword in normalized for keyword in decision_keywords
+    )
+
+
+def build_vague_metric_response(*, query: str, embedder: EmbeddingModel) -> AnswerResponse | None:
+    if not has_vague_metric_question(query):
+        return None
+
+    return AnswerResponse(
+        query=query,
+        answer=(
+            "질문의 비교 기준이 명확하지 않아 특정 대상을 단정하기 어렵습니다. "
+            "비교 기준이나 집계 기준을 함께 알려주면 그 기준으로 데이터를 조회해 답변하겠습니다. "
+            "예: 횟수 기준, 금액 기준, 최근 기준, 상태 기준, 리스크 기준, 후속 조치 기준 등."
+        ),
+        embeddingModel=embedder.config.model_name,
+        chatModel="guardrail",
+        excludedSourceTypes=[],
+        plan=None,
+        evidences=[],
+    )
+
+
+def has_vague_metric_question(query: str) -> bool:
+    normalized = " ".join(query.lower().split())
+    superlative_keywords = ["가장", "제일", "최고", "최대", "상위", "top", "top3", "top 3"]
+    vague_activity_keywords = ["적극", "활발", "열심", "우수", "성과", "의미있는", "좋은", "잘한"]
+    measurable_keywords = [
+        "횟수",
+        "건수",
+        "빈도",
+        "시간",
+        "최근",
+        "날짜",
+        "기간",
+        "후속",
+        "미팅",
+        "방문",
+        "통화",
+        "메일",
+        "매출",
+        "이익",
+        "금액",
+        "수주율",
+        "이익률",
+        "수익성",
+        "계약",
+        "점수",
+    ]
+
+    has_superlative = any(keyword in normalized for keyword in superlative_keywords)
+    has_vague_activity = any(keyword in normalized for keyword in vague_activity_keywords)
+    has_activity_context = any(
+        keyword in normalized for keyword in ("활동", "사업", "유지보수", "결과", "입찰", "영업기회")
+    )
+    has_measurable_basis = any(keyword in normalized for keyword in measurable_keywords)
+    return has_superlative and has_vague_activity and has_activity_context and not has_measurable_basis
+
+
+def build_conversation_context(history: list[ConversationMessage]) -> str:
+    if not history:
+        return ""
+
+    lines = []
+    for message in history[-8:]:
+        label = "사용자" if message.role == "user" else "AI"
+        lines.append(f"{label}: {message.content}")
+    return "\n".join(lines)
+
+
+def build_evidence_context(results: list[SearchResult]) -> str:
+    sections = []
+    for index, result in enumerate(results, start=1):
+        metadata_lines = build_metadata_context_lines(result.metadata)
+        header = f"[근거 {index}] {result.sourceType} · {result.sourceId}"
+        if result.title:
+            header += f" · {result.title}"
+        sections.append(
+            "\n".join(
+                [
+                    header,
+                    *metadata_lines,
+                    "content:",
+                    result.content,
+                ]
+            )
+        )
+    return "\n\n---\n\n".join(sections)
+
+
+def build_metadata_context_lines(metadata: dict | None) -> list[str]:
+    if not metadata:
+        return []
+
+    interesting_keys = [
+        "rootOpportunityCode",
+        "rootOpportunityName",
+        "rootBusinessType",
+        "rootOpportunityStatus",
+        "documentStage",
+        "lifecyclePhase",
+        "opportunityFlowCategory",
+        "prospectListEligible",
+        "salesStartedAt",
+        "orderContractedAt",
+        "projectStartAt",
+        "projectEndAt",
+        "warrantyStartAt",
+        "warrantyEndAt",
+        "paidMaintenanceStartAt",
+        "paidMaintenanceEndAt",
+        "integratedSupportStartAt",
+        "integratedSupportEndAt",
+        "documentWrittenAt",
+        "documentStartAt",
+        "documentEndAt",
+        "businessStartAt",
+        "businessEndAt",
+        "maintenanceContractType",
+    ]
+    lines: list[str] = []
+    for key in interesting_keys:
+        value = metadata.get(key)
+        if value in (None, "", [], {}):
+            continue
+        lines.append(f"metadata.{key}: {value}")
+    return lines
+
+
+_TASK_KO = {
+    "summarize_period": "기간 요약",
+    "rank_metric": "지표 기준 순위",
+    "list_by_status": "상태별 목록 조회",
+    "rank_and_explain": "난이도/리스크 기준 순위",
+    "semantic_search": "의미 기반 검색",
+    "needs_clarification": "추가 정보 필요",
+}
+
+_SOURCE_TYPE_KO = {
+    "OPPORTUNITY": "영업기회",
+    "PROJECT_OPPORTUNITY": "사업기회",
+    "ORDER_REPORT": "수주 보고서",
+    "PRB": "PRB 검토서",
+    "PRB_RESULT": "PRB 심의 결과",
+    "BID_RESULT": "입찰 결과",
+    "RFP": "RFP",
+    "RFP_ANALYSIS": "RFP 분석",
+    "WON": "수주",
+    "LOST": "실주",
+    "WON_REPORT": "수주 보고서",
+    "CONTRACT": "계약서",
+    "SALES_ACTIVITY": "영업 활동",
+    "POST_SALES": "사후영업",
+    "MODULE": "모듈",
+    "MAINTENANCE_CONTRACT": "유지보수 계약",
+}
+
+_ANSWER_STYLE_KO = {
+    "bullet_summary": "글머리 요약",
+    "timeline": "타임라인",
+    "comparison": "비교 분석",
+    "detailed": "상세 설명",
+    "list": "목록",
+}
+
+_FILTER_KEY_KO = {
+    "customer_group": "고객 그룹",
+    "customer_type": "고객 유형",
+    "business_type": "사업 유형",
+}
+
+
+def build_plan_summary(plan: QueryPlanView | None) -> str:
+    if plan is None:
+        return ""
+
+    task_label = _TASK_KO.get(plan.task, plan.task)
+    source_labels = [_SOURCE_TYPE_KO.get(s, s) for s in plan.sourceTypes]
+    style_label = _ANSWER_STYLE_KO.get(plan.answerStyle, plan.answerStyle)
+
+    lines = [f"질의 유형: {task_label}", f"참조 문서: {', '.join(source_labels) if source_labels else '전체'}"]
+
+    if plan.timeRange and (plan.timeRange.label or plan.timeRange.startAt):
+        time_label = plan.timeRange.label or f"{plan.timeRange.startAt} ~ {plan.timeRange.endAt}"
+        lines.append(f"조회 기간: {time_label}")
+
+    if plan.filters:
+        filter_parts = [
+            f"{_FILTER_KEY_KO.get(k, k)}: {', '.join(v)}" for k, v in plan.filters.items() if v
+        ]
+        if filter_parts:
+            lines.append(f"필터: {' / '.join(filter_parts)}")
+
+    lines.append(f"답변 형식: {style_label}")
+    return "\n".join(lines)
+
+
+def build_extractive_answer(*, query: str, plan: QueryPlanView | None, results: list[SearchResult]) -> str:
+    if not results:
+        return "제공된 근거만으로는 확인하기 어렵습니다."
+
+    top_results = results[:3]
+    subject_names = [name for name in dict.fromkeys(extract_subject_name(result) for result in top_results) if name]
+    source_labels = [label for label in dict.fromkeys(describe_source_type(result.sourceType) for result in top_results) if label]
+
+    if plan and plan.answerStyle == "timeline":
+        if subject_names:
+            return (
+                f"확인된 근거 기준으로는 {', '.join(subject_names[:3])} 관련 이력이 우선 확인됩니다. "
+                "세부 시점과 순서는 아래 근거를 펼쳐서 확인해 주세요."
+            )
+        return "확인된 근거 기준으로 관련 이력이 일부 보입니다. 세부 시점과 순서는 아래 근거를 확인해 주세요."
+
+    if plan and plan.answerStyle == "bullet_summary":
+        if subject_names:
+            return (
+                f"관련 근거 {len(results)}건 기준으로 이번 질문과 직접 연결되는 주요 대상은 "
+                f"{', '.join(subject_names[:3])}입니다. 세부 내용과 수치 해석은 아래 근거를 확인해 주세요."
+            )
+        return f"관련 근거 {len(results)}건이 확인되었습니다. 세부 내용은 아래 근거를 확인해 주세요."
+
+    if subject_names:
+        source_text = f" {', '.join(source_labels[:2])} 기준으로" if source_labels else ""
+        return (
+            f"확인된 근거{source_text} 주요 관련 대상은 {', '.join(subject_names[:3])}입니다. "
+            "정확한 세부 내용은 아래 근거를 확인해 주세요."
+        )
+
+    if source_labels:
+        return (
+            f"관련 근거 {len(results)}건이 확인되었고, 주로 {', '.join(source_labels[:2])} 문서가 사용되었습니다. "
+            "정확한 세부 내용은 아래 근거를 확인해 주세요."
+        )
+
+    return f"관련 근거 {len(results)}건이 확인되었습니다. 세부 내용은 아래 근거를 확인해 주세요."
+
+
+def extract_subject_name(result: SearchResult) -> str | None:
+    metadata = result.metadata or {}
+    candidates = [
+        metadata.get("rootOpportunityName"),
+        metadata.get("opportunityName"),
+        metadata.get("customerName"),
+        result.title,
+    ]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        text = str(candidate).strip()
+        if not text:
+            continue
+        if text.lower().endswith((".pdf", ".docx", ".pptx", ".hwp", ".hwpx", ".txt", ".md")):
+            text = strip_file_extension(text)
+        return text
+    return None
+
+
+def strip_file_extension(text: str) -> str:
+    return re.sub(r"\.(pdf|docx|pptx|hwp|hwpx|txt|md)$", "", text, flags=re.IGNORECASE)
+
+
+def describe_source_type(source_type: str) -> str:
+    mapping = {
+        "PROJECT_OPPORTUNITY": "사업기회",
+        "SALES_ACTIVITY": "영업활동",
+        "QUOTATION": "견적",
+        "RFP": "RFP",
+        "RFP_ANALYSIS": "RFP 분석",
+        "PRB": "PRB",
+        "PRB_RESULT": "PRB 결과",
+        "BID_RESULT": "입찰 결과",
+        "WON": "수주",
+        "LOST": "실주",
+        "ORDER_REPORT": "수주보고서",
+        "CONTRACT": "계약",
+        "PROJECT": "사업",
+        "PROJECT_RESULT_REPORT": "결과 보고",
+        "PROPOSAL": "제안",
+        "POST_SALES": "사후영업",
+        "MAINTENANCE": "유지보수",
+        "MAINTENANCE_QUOTE": "유지보수 견적",
+        "CUSTOMER_SUPPORT": "고객지원",
+        "MODULE": "모듈",
+        "LICENSE": "라이선스",
+        "BILLING": "청구",
+        "ATTACHMENT": "첨부파일",
+    }
+    return mapping.get(source_type, source_type)
+
+
+def generate_structured_final_answer(
+    *,
+    query: str,
+    structured_response: AnswerResponse,
+    history: list[ConversationMessage],
+) -> AnswerResponse:
+    client = GmsChatClient(
+        GmsChatConfig(
+            api_key=settings.gms_key or "",
+            url=settings.gms_chat_completions_url,
+            model=settings.gms_chat_model,
+            timeout_seconds=settings.gms_timeout_seconds,
+        )
+    )
+    generated_answer = client.create_grounded_answer(
+        query=query,
+        context=build_structured_answer_context(structured_response),
+        conversation_context=build_conversation_context(history),
+    )
+    return AnswerResponse(
+        query=structured_response.query,
+        answer=generated_answer,
+        embeddingModel=structured_response.embeddingModel,
+        chatModel=settings.gms_chat_model,
+        excludedSourceTypes=structured_response.excludedSourceTypes,
+        plan=structured_response.plan,
+        evidences=structured_response.evidences,
+    )
+
+
+def build_structured_answer_context(response: AnswerResponse) -> str:
+    sections = [
+        "\n".join(
+            [
+                "[정형 조회 결과]",
+                response.answer,
+            ]
+        )
+    ]
+    if response.evidences:
+        sections.append(build_evidence_context(response.evidences))
+    return "\n\n---\n\n".join(sections)
