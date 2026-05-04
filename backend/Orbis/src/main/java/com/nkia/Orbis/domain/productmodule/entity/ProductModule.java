@@ -65,4 +65,20 @@ public class ProductModule extends BaseEntity {
         productModule.unitPrice = unitPrice;
         return productModule;
     }
+
+    public void update(
+            ProductClass productClass,
+            String productGroup,
+            String productName,
+            String licenseStandard,
+            String licenseUnit,
+            Long unitPrice
+    ) {
+        this.productClass = productClass;
+        this.productGroup = productGroup;
+        this.productName = productName;
+        this.licenseStandard = licenseStandard;
+        this.licenseUnit = licenseUnit;
+        this.unitPrice = unitPrice;
+    }
 }
