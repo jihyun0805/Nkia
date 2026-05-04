@@ -54,6 +54,6 @@ public class SalesActivityController {
             @PathVariable("salesActivityId") Long salesActivityId
     ) {
         salesActivityService.delete(salesActivityId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }
