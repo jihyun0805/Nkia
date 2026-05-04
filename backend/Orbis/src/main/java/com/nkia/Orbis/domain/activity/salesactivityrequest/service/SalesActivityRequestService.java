@@ -25,13 +25,12 @@ public class SalesActivityRequestService {
         User targetUser = userRepository.findById(request.getTargetUserId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
-        SalesActivityRequest salesActivityRequest = SalesActivityRequest.builder()
-                .salesActivity(null)
-                .targetUser(targetUser)
-                .activityPurpose(request.getActivityPurpose())
-                .activityDateTime(request.getActivityDateTime())
-                .requestContent(request.getRequestContent())
-                .build();
+        SalesActivityRequest salesActivityRequest = SalesActivityRequest.create(
+                targetUser,
+                request.getActivityPurpose(),
+                request.getActivityDateTime(),
+                request.getRequestContent()
+        );
 
         SalesActivityRequest saved = salesActivityRequestRepository.save(salesActivityRequest);
 
