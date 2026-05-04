@@ -133,4 +133,11 @@ public class SalesActivityService {
                 .map(SalesActivityListResponse::from)
                 .toList();
     }
+
+    @Transactional
+    public SalesActivityResponse getSalesActivity(Long salesActivityId) {
+        SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
+                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
+        return SalesActivityResponse.from(salesActivity);
+    }
 }
