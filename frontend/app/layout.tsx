@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Noto_Sans_KR } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { ChatbotModal } from '@/components/erp/chatbot-modal'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
@@ -42,6 +43,7 @@ export default function RootLayout({
     <html lang="ko">
       <body className={`${notoSansKR.variable} font-sans antialiased`}>
         {children}
+        <ChatbotModal />
         <Toaster />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
