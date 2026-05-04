@@ -1,19 +1,14 @@
 package com.nkia.Orbis.domain.maintenance.maintenance.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
 import lombok.Getter;
-import lombok.Setter;
+import lombok.RequiredArgsConstructor;
 
 @Getter
+@RequiredArgsConstructor
 public enum MaintenanceType {
 
-    FREE("무상유지보수"),
-    PAID("유상유지보수");
+    FREE("무상"),
+    PAID("유상");
 
     private final String description;
-
-    MaintenanceType(String description) {
-        this.description = description;
-    }
 }
