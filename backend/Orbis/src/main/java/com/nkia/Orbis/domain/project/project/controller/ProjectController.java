@@ -23,9 +23,9 @@ public class ProjectController {
 
     @Operation(summary = "사업 등록")
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<String>> registerProject(@Valid @RequestBody ProjectCreateRequest request) {
-        projectService.registerProject(request);
+    public ResponseEntity<ApiResponse<Long>> registerProject(@Valid @RequestBody ProjectCreateRequest request) {
+        Long projectId = projectService.registerProject(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("사업이 성공적으로 등록되었습니다."));
+                .body(ApiResponse.success(projectId));
     }
 }
