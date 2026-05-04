@@ -1,5 +1,3 @@
-import os
-
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from PIL import UnidentifiedImageError
@@ -9,7 +7,7 @@ from app.services.business_card_ocr import analyze_business_card, extract_busine
 
 
 router = APIRouter(prefix="/ocr", tags=["OCR"])
-MAX_IMAGE_BYTES = int(os.getenv("AI_MAX_IMAGE_BYTES", str(50 * 1024 * 1024)))
+MAX_IMAGE_BYTES = 50 * 1024 * 1024
 
 
 @router.post("/business-card", response_model=BusinessCardOcrResponse)
