@@ -36,10 +36,15 @@ public class UploadFile extends BaseEntity {
     @Column(nullable = false)
     private String contentType;
 
+    // 4. 파일 크기: 바이트(Byte) 단위, 화면에 용량을 표시하거나 정책 관리용
+    @Column(nullable = false)
+    private Long fileSize;
+
     @Builder
-    public UploadFile(String originalFileName, String objectKey, String contentType) {
+    public UploadFile(String originalFileName, String objectKey, String contentType, Long fileSize) {
         this.originalFileName = originalFileName;
         this.objectKey = objectKey;
         this.contentType = contentType;
+        this.fileSize = fileSize;
     }
 }
