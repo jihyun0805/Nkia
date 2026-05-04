@@ -195,6 +195,9 @@ def analyze_business_card(_: str | None, __: str | None, image_bytes: bytes) -> 
         mobile_value=model_fields.get("mobile"),
         phone_value=model_fields.get("phone"),
     )
+    fallback_mobile, fallback_phone = _extract_contact_phones(ocr_lines)
+    mobile = mobile or fallback_mobile
+    phone = phone or fallback_phone
     response = BusinessCardOcrResponse(
         company_name=_normalize_company_name(model_fields.get("company_name")) or _infer_company_name(ocr_lines, model_fields),
         contact_name=contact_name,
@@ -202,10 +205,10 @@ def analyze_business_card(_: str | None, __: str | None, image_bytes: bytes) -> 
         role=_normalize_role(model_fields.get("role")),
         position=model_fields.get("position") or split_position or _infer_position(ocr_lines, model_fields, contact_name),
         address=model_fields.get("address"),
-        email=_normalize_model_email(model_fields.get("email")),
+        email=_normalize_model_email(model_fields.get("email")) or _extract_email(ocr_lines),
         mobile=mobile,
         phone=phone,
-        fax=_normalize_model_phone(model_fields.get("fax")) or _extract_labeled_phone(ocr_lines, labels=("fax", "f")),
+        fax=_normalize_model_phone(model_fields.get("fax")) or _extract_labeled_phone(ocr_lines, labels=("fax", "facsimile", "f", "팩스")),
         raw_text=paddle_output.raw_text,
     )
     logger.info("business_card_ocr.timing postprocess elapsed=%.3fs", time.perf_counter() - step_started_at)
@@ -498,6 +501,40 @@ def _normalize_contact_phones(*, mobile_value: str | None, phone_value: str | No
         mobile = None
 
     return mobile, phone
+
+
+def _extract_contact_phones(lines: list[str]) -> tuple[str | None, str | None]:
+    mobile = _extract_labeled_phone(lines, labels=("mobile", "cell", "cellphone", "m", "휴대폰", "휴대전화", "휴대", "핸드폰"))
+    phone = _extract_labeled_phone(lines, labels=("phone", "tel", "telephone", "office", "direct", "t", "전화", "대표전화"))
+
+    for phone_number in _extract_all_phones(lines):
+        if _is_mobile_phone(phone_number):
+            mobile = mobile or phone_number
+        else:
+            phone = phone or phone_number
+
+    if phone is not None and mobile is not None and phone == mobile:
+        phone = None
+
+    return mobile, phone
+
+
+def _extract_all_phones(lines: list[str]) -> list[str]:
+    phones: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        if re.search(r"(?i)\b(fax|facsimile)\b|팩스", line):
+            continue
+        for match in PHONE_PATTERN.findall(_normalize_phone_candidate(line)):
+            normalized = _normalize_phone(match)
+            if normalized is None:
+                continue
+            digits = re.sub(r"\D", "", normalized)
+            if digits in seen:
+                continue
+            seen.add(digits)
+            phones.append(normalized)
+    return phones
 
 
 def _is_mobile_phone(value: str) -> bool:
@@ -924,5 +961,4 @@ def _normalize_phone_candidate(value: str) -> str:
     candidate = candidate.replace("[", "").replace("]", "").replace("(", "").replace(")", "")
     candidate = candidate.replace("|", "1")
     return candidate
-
 
