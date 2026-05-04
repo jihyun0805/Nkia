@@ -35,14 +35,27 @@ class OcrApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {"detail": "empty file"})
 
-    def test_business_card_endpoint_rejects_oversized_image(self) -> None:
+    @patch("app.api.ocr.MAX_IMAGE_BYTES", 10 * 1024 * 1024)
+    def test_business_card_endpoint_rejects_oversized_image_when_limit_is_enabled(self) -> None:
         response = self.client.post(
             "/ocr/business-card",
-            files={"file": ("large.png", b"0" * (MAX_IMAGE_BYTES + 1), "image/png")},
+            files={"file": ("large.png", b"0" * ((10 * 1024 * 1024) + 1), "image/png")},
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {"detail": "file too large"})
+
+    @patch("app.api.ocr.analyze_business_card")
+    def test_business_card_endpoint_allows_oversized_image_by_default(self, mock_analyze_business_card) -> None:
+        mock_analyze_business_card.return_value = BusinessCardOcrResponse(raw_text="raw text")
+
+        response = self.client.post(
+            "/ocr/business-card",
+            files={"file": ("large.png", b"0" * ((10 * 1024 * 1024) + 1), "image/png")},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_analyze_business_card.assert_called_once()
 
     @patch("app.api.ocr.analyze_business_card")
     def test_business_card_endpoint_returns_ocr_result(self, mock_analyze_business_card) -> None:
