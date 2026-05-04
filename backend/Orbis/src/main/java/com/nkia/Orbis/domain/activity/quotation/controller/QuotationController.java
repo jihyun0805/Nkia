@@ -55,4 +55,14 @@ public class QuotationController {
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @Operation(summary = "견적서 상세 조회")
+    @GetMapping("/{quotationId}")
+    public ResponseEntity<ApiResponse<QuotationResponse>> getQuotation(
+            @PathVariable("quotationId") Long quotationId
+    ) {
+        QuotationResponse response = quotationService.getQuotation(quotationId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

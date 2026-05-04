@@ -130,5 +130,13 @@ public class QuotationService {
                 .map(QuotationListResponse::from)
                 .toList();
     }
+
+    @Transactional
+    public QuotationResponse getQuotation(Long quotationId) {
+        Quotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
+
+        return QuotationResponse.from(quotation);
+    }
 }
 
