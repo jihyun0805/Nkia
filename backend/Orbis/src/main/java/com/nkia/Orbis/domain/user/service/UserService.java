@@ -5,10 +5,12 @@ import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.JwtProvider;
 import com.nkia.Orbis.domain.department.entity.Department;
 import com.nkia.Orbis.domain.user.dto.request.SignupRequest;
+import com.nkia.Orbis.domain.user.dto.response.UserResponse;
 import com.nkia.Orbis.domain.user.entity.Role;
 import com.nkia.Orbis.domain.user.entity.Status;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -71,5 +73,13 @@ public class UserService {
 
         // 4. DB에 저장
         userRepository.save(newUser);
+    }
+
+    @Transactional
+    public List<UserResponse> getUsers() {
+        return userRepository.findAll()
+                .stream()
+                .map(UserResponse::from)
+                .toList();
     }
 }
