@@ -28,6 +28,7 @@ public class SalesActivityRequestService {
         SalesActivityRequest salesActivityRequest = SalesActivityRequest.create(
                 targetUser,
                 request.getActivityPurpose(),
+                request.getActivityType(),
                 request.getActivityDateTime(),
                 request.getRequestContent()
         );

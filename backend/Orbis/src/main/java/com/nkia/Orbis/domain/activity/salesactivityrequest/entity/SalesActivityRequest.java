@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.activity.salesactivityrequest.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityPurpose;
+import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityType;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.user.entity.User;
 import jakarta.persistence.Column;
@@ -41,6 +42,10 @@ public class SalesActivityRequest extends BaseEntity {
     @Column(nullable = false)
     private ActivityPurpose activityPurpose;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ActivityType activityType;
+
     private LocalDateTime activityDateTime;
 
     private String requestContent;
@@ -48,12 +53,14 @@ public class SalesActivityRequest extends BaseEntity {
     public static SalesActivityRequest create(
             User targetUser,
             ActivityPurpose activityPurpose,
+            ActivityType activityType,
             LocalDateTime activityDateTime,
             String requestContent
     ) {
         SalesActivityRequest salesActivityRequest = new SalesActivityRequest();
         salesActivityRequest.targetUser = targetUser;
         salesActivityRequest.activityPurpose = activityPurpose;
+        salesActivityRequest.activityType = activityType;
         salesActivityRequest.activityDateTime = activityDateTime;
         salesActivityRequest.requestContent = requestContent;
         return salesActivityRequest;
