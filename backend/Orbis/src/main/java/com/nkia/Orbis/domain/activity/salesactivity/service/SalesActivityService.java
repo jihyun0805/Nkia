@@ -54,7 +54,7 @@ public class SalesActivityService {
                 .build();
 
         addAttendees(salesActivity, request.getAttendeeUserIds());
-        
+
         SalesActivity saved = salesActivityRepository.save(salesActivity);
 
         return SalesActivityResponse.from(saved);
@@ -112,5 +112,14 @@ public class SalesActivityService {
         }
 
         return SalesActivityResponse.from(salesActivity);
+    }
+
+    @Transactional
+    public void delete(Long salesActivityId) {
+        SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
+                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
+
+        salesActivity.delete();
+
     }
 }
