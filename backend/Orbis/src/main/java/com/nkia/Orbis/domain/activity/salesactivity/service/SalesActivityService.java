@@ -5,6 +5,7 @@ import com.nkia.Orbis.common.exception.errorcode.SalesActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.request.SalesActivityCreateRequest;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.request.SalesActivityUpdateRequest;
+import com.nkia.Orbis.domain.activity.salesactivity.dto.response.SalesActivityListResponse;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.response.SalesActivityResponse;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivityAttendee;
@@ -38,20 +39,22 @@ public class SalesActivityService {
                 request.getSalesActivityRequestId()
         );
 
-        SalesActivity salesActivity = SalesActivity.builder()
-//                .projectOpportunity(projectOpportunity)
-                .projectOpportunity(null)
-                .activityType(request.getActivityType())
-                .activityPurpose(request.getActivityPurpose())
-                .activityContent(request.getActivityContent())
-                .location(request.getLocation())
-                .activityDateTime(request.getActivityDateTime())
-                .issue(request.getIssue())
-                .nextActivity(request.getNextActivity())
-                .customerInterest(request.getCustomerInterest())
-                .status(request.getStatus())
-                .salesActivityRequest(salesActivityRequest)
-                .build();
+        SalesActivity salesActivity = SalesActivity.create(
+                null,
+                request.getActivityType(),
+                request.getActivityPurpose(),
+                request.getActivityContent(),
+                request.getLocation(),
+                request.getActivityDateTime(),
+                request.getIssue(),
+                request.getNextActivity(),
+                request.getCustomerInterest(),
+                request.getStatus()
+        );
+
+        if (salesActivityRequest != null) {
+            salesActivity.setSalesActivityRequest(salesActivityRequest);
+        }
 
         addAttendees(salesActivity, request.getAttendeeUserIds());
 
@@ -92,7 +95,7 @@ public class SalesActivityService {
             SalesActivityUpdateRequest request
     ) {
         SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
-                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
 
         salesActivity.update(
                 request.getActivityType(),
@@ -121,5 +124,13 @@ public class SalesActivityService {
 
         salesActivity.delete();
 
+    }
+
+    @Transactional
+    public List<SalesActivityListResponse> getSalesActivities() {
+        return salesActivityRepository.findAll()
+                .stream()
+                .map(SalesActivityListResponse::from)
+                .toList();
     }
 }
