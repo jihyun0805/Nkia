@@ -11,7 +11,6 @@ import {
   uploadChatbotAttachment,
   type UploadedChatbotAttachment,
 } from "@/lib/chatbot-api"
-import { loadAuthSession, subscribeAuthSession } from "@/lib/auth-session"
 import { useToast } from "@/hooks/use-toast"
 import {
   Bot,
@@ -59,10 +58,10 @@ const MAX_HISTORY_MESSAGES = 8
 const DEFAULT_LIMIT = 5
 
 const EXAMPLE_PROMPTS = [
-  "유상 유지보수 중 활동이 가장 많았던 사업을 근거와 함께 알려줘",
-  "이번 달 수주 실적을 요약해줘",
-  "최근 PRB 문서에서 반복된 리스크를 알려줘",
-  "업로드한 문서와 비슷한 영업기회를 찾아줘",
+  "Q-REAL-002-R1 견적의 지급 조건을 알려줘",
+  "Q-REAL-008-R1 견적의 주요 내용을 알려줘",
+  "CMDB 모듈의 단가를 알려줘",
+  "통합대시보드 모듈의 유형과 단가를 알려줘",
 ]
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
@@ -70,20 +69,26 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   COMPANY: "고객/협력사",
   CONTACT: "담당자",
   OPPORTUNITY: "사업기회",
+  PROJECT_OPPORTUNITY: "사업기회",
   QUOTATION: "견적서",
+  RFP: "RFP",
   RFP_ANALYSIS: "RFP 분석",
   PRB: "PRB",
   PRB_RESULT: "PRB 결과",
   BID_RESULT: "입찰결과",
   PROPOSAL: "제안서",
+  WON: "수주",
+  LOST: "실주",
   ORDER_REPORT: "수주보고",
   CONTRACT: "계약",
   LICENSE: "라이선스",
   PROJECT: "프로젝트",
   BILLING: "청구",
+  POST_SALES: "사후영업",
   MAINTENANCE: "유지보수",
   CUSTOMER_SUPPORT: "고객지원",
   MAINTENANCE_QUOTE: "유지보수 견적",
+  MODULE: "모듈",
 }
 
 function createId() {
@@ -169,22 +174,6 @@ function buildEvidenceSections(
   ].filter((section) => section.evidences.length > 0)
 }
 
-function createPreviewResponse(query: string, attachmentCount: number): string {
-  const lines = [
-    "현재는 챗봇 FE만 먼저 이관된 미리보기 모드입니다.",
-    "DB 엔티티, CRUD API, 색인 API가 아직 연결되지 않아 실제 검색 답변은 제공되지 않습니다.",
-    "",
-    `질문: ${query}`,
-  ]
-
-  if (attachmentCount > 0) {
-    lines.push(`첨부: ${attachmentCount}건이 현재 세션에만 보관되어 있습니다.`)
-  }
-
-  lines.push("", "백엔드 준비가 끝나면 같은 UI에서 실제 답변과 근거 목록이 바로 연결됩니다.")
-  return lines.join("\n")
-}
-
 function normalizeStoredSessions(raw: string | null) {
   if (!raw) return null
 
@@ -218,7 +207,6 @@ function normalizeStoredSessions(raw: string | null) {
 
 export function ChatbotModal() {
   const { toast } = useToast()
-  const [hasAuthSession, setHasAuthSession] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -237,13 +225,6 @@ export function ChatbotModal() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-
-  useEffect(() => {
-    const sync = () => setHasAuthSession(Boolean(loadAuthSession()))
-
-    sync()
-    return subscribeAuthSession(sync)
-  }, [])
 
   useEffect(() => {
     const stored = normalizeStoredSessions(localStorage.getItem(STORAGE_KEY))
@@ -434,9 +415,7 @@ export function ChatbotModal() {
 
       toast({
         title: "첨부파일 추가 완료",
-        description: hasAuthSession
-          ? "파일은 보내기 시점에 임시 색인됩니다."
-          : "현재는 FE 미리보기 모드라 첨부가 브라우저 세션에만 보관됩니다.",
+        description: "파일은 보내기 시점에 임시 색인됩니다.",
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : "첨부파일 추가에 실패했습니다."
@@ -496,18 +475,6 @@ export function ChatbotModal() {
     setErrorMessage("")
 
     const pendingAttachments = pendingAttachmentsBySession[activeSession.id] ?? []
-    if (!hasAuthSession) {
-      const previewMessage: ChatMessage = {
-        id: createId(),
-        role: "assistant",
-        content: createPreviewResponse(query, pendingAttachments.length),
-        createdAt: nowIso(),
-      }
-      appendAssistantMessage(activeSession.id, previewMessage)
-      setIsLoading(false)
-      return
-    }
-
     const requestAttachmentSessionId = pendingAttachments.length > 0 ? createId() : null
     const indexedAttachments: UploadedChatbotAttachment[] = []
 
@@ -594,7 +561,7 @@ export function ChatbotModal() {
           <Bot className="h-4 w-4" />
         </span>
         AI 챗봇
-        <span className={`h-2 w-2 rounded-full ${hasAuthSession ? "bg-emerald-400" : "bg-amber-400"}`} />
+        <span className="h-2 w-2 rounded-full bg-emerald-400" />
       </button>
 
       {isOpen && (
@@ -758,13 +725,9 @@ export function ChatbotModal() {
                     </div>
                     <div className="flex items-center gap-2">
                       <div
-                        className={`hidden rounded-full border px-3 py-1 text-[11px] font-medium md:block ${
-                          hasAuthSession
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-amber-200 bg-amber-50 text-amber-700"
-                        }`}
+                        className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700 md:block"
                       >
-                        {hasAuthSession ? "API 연결 모드" : "UI 미리보기 모드"}
+                        API 연결 모드
                       </div>
                       <button
                         type="button"
@@ -1049,11 +1012,7 @@ export function ChatbotModal() {
                     </button>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
-                    <span>
-                      {hasAuthSession
-                        ? "첨부 문서는 전송 시 임시 색인 후 바로 정리됩니다."
-                        : "현재는 FE만 연결되어 첨부와 대화 기록이 브라우저 세션에만 저장됩니다."}
-                    </span>
+                    <span>첨부 문서는 전송 시 임시 색인 후 바로 정리됩니다.</span>
                     <span>
                       {activePendingAttachments.length > 0
                         ? `첨부 ${activePendingAttachments.length}건 준비됨`
