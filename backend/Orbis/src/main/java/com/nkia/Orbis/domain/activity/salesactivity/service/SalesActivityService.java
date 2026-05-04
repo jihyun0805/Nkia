@@ -5,6 +5,7 @@ import com.nkia.Orbis.common.exception.errorcode.SalesActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.request.SalesActivityCreateRequest;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.request.SalesActivityUpdateRequest;
+import com.nkia.Orbis.domain.activity.salesactivity.dto.response.SalesActivityListResponse;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.response.SalesActivityResponse;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivityAttendee;
@@ -126,5 +127,10 @@ public class SalesActivityService {
     }
 
     @Transactional
-    public Page<Sa>
+    public List<SalesActivityListResponse> getSalesActivities() {
+        return salesActivityRepository.findAll()
+                .stream()
+                .map(SalesActivityListResponse::from)
+                .toList();
+    }
 }
