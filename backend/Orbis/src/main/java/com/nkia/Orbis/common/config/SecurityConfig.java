@@ -52,6 +52,7 @@ public class SecurityConfig {
                         .requestMatchers("/user/signup/admin/**").permitAll() // 관리자 계정 생성만 임시 허용
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Swagger 허용
                         .requestMatchers("/images/**").permitAll()
+                        .requestMatchers("/business-card-ocr").permitAll()
                         .requestMatchers("/business-card-ocr/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated() // 그 외 모든 API는 인증 필요
