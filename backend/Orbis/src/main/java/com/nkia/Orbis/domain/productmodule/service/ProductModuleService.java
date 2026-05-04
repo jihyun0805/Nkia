@@ -1,5 +1,7 @@
 package com.nkia.Orbis.domain.productmodule.service;
 
+import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.domain.productmodule.dto.request.ProductModuleCreateRequest;
 import com.nkia.Orbis.domain.productmodule.dto.response.ProductModuleResponse;
 import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
@@ -27,5 +29,13 @@ public class ProductModuleService {
         productModuleRepository.save(productModule);
 
         return ProductModuleResponse.from(productModule);
+    }
+
+    @Transactional
+    public void delete(Long productModuleId) {
+        ProductModule productModule = productModuleRepository.findById(productModuleId)
+                .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
+
+        productModule.delete();
     }
 }
