@@ -1,8 +1,8 @@
 package com.nkia.Orbis.domain.activity.quotation.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
-import com.nkia.Orbis.common.exception.errorcode.SalesActivityErrorCode;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
@@ -18,6 +18,7 @@ import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.Projec
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -98,17 +99,26 @@ public class QuotationService {
 
     private String generateQuotationCode(LocalDate quotationDate) {
 
-        String date = quotationDate.format(DateTimeFormatter.ofPattern("yyMMdd"));
+        String datePart = quotationDate.format(DateTimeFormatter.ofPattern("yyMMdd"));
+        String prefix = "QT-" + datePart + "-";
 
-        long count = quotationRepository.countDistinctQuotationCodeByQuotationDate(quotationDate);
+        Optional<String> lastCode =
+                quotationRepository.findLastQuotationCodeIncludingDeleted(prefix);
 
-        return "QT-" + date + "-" + String.format("%04d", count + 1);
+        int nextNumber = lastCode
+                .map(code -> {
+                    String numberPart = code.substring(code.lastIndexOf("-") + 1);
+                    return Integer.parseInt(numberPart) + 1;
+                })
+                .orElse(1);
+
+        return prefix + String.format("%04d", nextNumber);
     }
 
     @Transactional
     public void delete(Long quotationId) {
         Quotation quotation = quotationRepository.findById(quotationId)
-                .orElseThrow(() -> new ApiException(SalesActivityErrorCode.QUOTATION_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
 
         quotation.delete();
     }
