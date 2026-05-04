@@ -1,5 +1,6 @@
 package com.nkia.Orbis.common.entity;
 
+import com.nkia.Orbis.common.util.SecurityUtil;
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
@@ -29,4 +30,17 @@ public abstract class BaseEntity {
 
     @LastModifiedBy
     private String updatedBy;
+
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+    private LocalDateTime deletedAt;
+
+    private String deletedBy;
+
+    public void delete() {
+        this.deleted = true;
+        this.deletedAt = LocalDateTime.now();
+        this.deletedBy = SecurityUtil.getCurrentUserId();
+    }
 }
