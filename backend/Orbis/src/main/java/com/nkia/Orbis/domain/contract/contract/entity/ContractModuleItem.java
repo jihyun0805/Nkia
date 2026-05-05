@@ -64,7 +64,7 @@ public class ContractModuleItem {
         return contractModuleItem;
     }
 
-    public void setContract(Contract contract) {
+    void setContract(Contract contract) {
         this.contract = contract;
     }
 }

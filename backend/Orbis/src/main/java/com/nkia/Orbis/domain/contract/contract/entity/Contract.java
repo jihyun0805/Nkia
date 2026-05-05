@@ -59,7 +59,6 @@ public class Contract extends BaseEntity {
     public static Contract create(
             OrderReport orderReport,
             UploadFile uploadFile,
-            List<ContractModuleItem> contractModuleItems,
             ProposalType proposalType,
             Long contractAmount,
             LocalDate contractDate,
@@ -73,12 +72,6 @@ public class Contract extends BaseEntity {
             contract.contractFile = uploadFile;
         }
 
-        if (contractModuleItems != null) {
-            for (ContractModuleItem item : contractModuleItems) {
-                contract.contractModuleItems.add(item);
-                item.setContract(contract);
-            }
-        }
         contract.proposalType = proposalType;
         contract.contractAmount = contractAmount;
         contract.contractDate = contractDate;
@@ -86,5 +79,10 @@ public class Contract extends BaseEntity {
         contract.salesRepresentative = salesRepresentative;
 
         return contract;
+    }
+
+    public void addModuleItem(ContractModuleItem item) {
+        this.contractModuleItems.add(item);
+        item.setContract(this);
     }
 }
