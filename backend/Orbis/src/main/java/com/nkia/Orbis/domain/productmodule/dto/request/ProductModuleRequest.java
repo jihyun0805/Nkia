@@ -4,7 +4,7 @@ import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
 import lombok.Getter;
 
 @Getter
-public class ProductModuleCreateRequest {
+public class ProductModuleRequest {
 
     private ProductClass productClass;
 
