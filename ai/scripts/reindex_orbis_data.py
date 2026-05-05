@@ -59,9 +59,11 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.SALES_ACTIVITY,
         id_fields=("activityCode", "activity_code", "id"),
         title_fields=("activityCode", "activity_code", "activity_content", "id"),
-        content_fields=("activity_content", "customer_interest", "issue", "next_activity"),
+        content_fields=("activity_type", "activity_purpose", "activity_content", "customer_interest", "issue", "next_activity"),
         payload_aliases={
             "activityAt": ("activity_date_time",),
+            "activityType": ("activity_type",),
+            "activityPurpose": ("activity_purpose",),
             "content": ("activity_content",),
             "customerInterest": ("customer_interest",),
             "nextAction": ("next_activity",),
@@ -521,10 +523,41 @@ def fetch_table_rows(
         return [dict(record["row"]) for record in cur.fetchall()]
 
 
+_ACTIVITY_TYPE_LABELS: dict[str, str] = {
+    "EMAIL": "이메일",
+    "CALL": "전화",
+    "VIDEO_MEETING": "화상회의",
+    "OFFLINE_MEETING": "대면미팅",
+    "ETC": "기타",
+}
+
+_ACTIVITY_PURPOSE_LABELS: dict[str, str] = {
+    "CONSULTING": "컨설팅",
+    "PRODUCT_INTRODUCTION": "제품소개",
+    "DEMO": "데모",
+    "POC": "POC",
+    "BMT": "BMT",
+    "DOCUMENT_DELIVERY": "문서전달",
+    "RFP_ANALYSIS": "RFP분석",
+    "PROPOSAL_WRITING": "제안서작성",
+    "SI_PROPOSAL_WRITING": "SI제안서작성",
+    "ETC": "기타",
+}
+
+
 def build_current_activity_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
     source_type = SourceType.SALES_ACTIVITY if row.get("project_opportunity_id") else SourceType.POST_SALES
     config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "sales_activity")
-    document = build_document(config=config, row=row, override_source_type=source_type)
+    enriched_row = dict(row)
+    if enriched_row.get("activity_type"):
+        enriched_row["activity_type"] = _ACTIVITY_TYPE_LABELS.get(
+            enriched_row["activity_type"], enriched_row["activity_type"]
+        )
+    if enriched_row.get("activity_purpose"):
+        enriched_row["activity_purpose"] = _ACTIVITY_PURPOSE_LABELS.get(
+            enriched_row["activity_purpose"], enriched_row["activity_purpose"]
+        )
+    document = build_document(config=config, row=enriched_row, override_source_type=source_type)
     return [document] if document is not None else []
 
 
