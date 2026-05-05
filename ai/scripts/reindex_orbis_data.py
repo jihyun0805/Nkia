@@ -41,6 +41,7 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "current_status", "business_type", "expected_amount",
             "main_content", "issue_content", "competitor_status",
             "decision_structure", "contact_line",
+            "recent_activity_summary",
         ),
         payload_aliases={
             "opportunityId": ("id",),
@@ -486,7 +487,9 @@ def build_documents(
         for row in rows:
             if truthy(row.get("deleted")):
                 continue
-            if config.table == "sales_activity":
+            if config.table == "project_opportunity":
+                documents.extend(build_current_opportunity_documents(conn=conn, row=row))
+            elif config.table == "sales_activity":
                 documents.extend(build_current_activity_documents(row))
             elif config.table == "rfp_analyze_result":
                 documents.extend(build_current_rfp_documents(row))
@@ -521,6 +524,62 @@ def fetch_table_rows(
     with conn.cursor() as cur:
         cur.execute(query)
         return [dict(record["row"]) for record in cur.fetchall()]
+
+
+def build_current_opportunity_documents(
+    *,
+    conn: psycopg.Connection[Any],
+    row: dict[str, Any],
+) -> list[dict[str, Any]]:
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "project_opportunity")
+    opp_id = row.get("id")
+
+    activity_summary = ""
+    if opp_id is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        activity_content,
+                        customer_interest,
+                        issue,
+                        next_activity,
+                        activity_date_time
+                    FROM sales_activity
+                    WHERE project_opportunity_id = %s
+                      AND deleted = false
+                    ORDER BY activity_date_time DESC NULLS LAST
+                    LIMIT 3
+                    """,
+                    (opp_id,),
+                )
+                activities = cur.fetchall()
+                if activities:
+                    parts: list[str] = []
+                    for act in activities:
+                        act_parts: list[str] = []
+                        if act[0]:
+                            act_parts.append(f"활동내용: {act[0]}")
+                        if act[1]:
+                            act_parts.append(f"고객관심사: {act[1]}")
+                        if act[2]:
+                            act_parts.append(f"이슈: {act[2]}")
+                        if act[3]:
+                            act_parts.append(f"다음활동: {act[3]}")
+                        if act_parts:
+                            parts.append(" / ".join(act_parts))
+                    if parts:
+                        activity_summary = "\n".join(parts)
+        except Exception:
+            pass
+
+    enriched_row = dict(row)
+    if activity_summary:
+        enriched_row["recent_activity_summary"] = activity_summary
+
+    document = build_document(config=config, row=enriched_row)
+    return [document] if document is not None else []
 
 
 _ACTIVITY_TYPE_LABELS: dict[str, str] = {
