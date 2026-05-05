@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.contract.orderreport.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
-import com.nkia.Orbis.domain.contract.contract.entity.Contract;
+import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.orderreportmaintenance.entity.OrderReportMaintenance;
 import com.nkia.Orbis.domain.contract.orderreportmaintenanceamount.entity.OrderReportMaintenanceAmount;
