@@ -37,9 +37,21 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.PROJECT_OPPORTUNITY,
         id_fields=("opportunityCode", "opportunity_code", "id"),
         title_fields=("opportunityName", "opportunity_name", "id"),
+        content_fields=(
+            "current_status", "business_type", "expected_amount",
+            "main_content", "issue_content", "competitor_status",
+            "decision_structure", "contact_line",
+        ),
         payload_aliases={
             "opportunityId": ("id",),
             "customerCompanyId": ("customer_company_id",),
+            "opportunityCode": ("opportunity_code",),
+            "opportunityName": ("opportunity_name",),
+            "currentStatus": ("current_status",),
+            "businessType": ("business_type",),
+            "expectedAmount": ("expected_amount",),
+            "mainContent": ("main_content",),
+            "issueContent": ("issue_content",),
         },
     ),
     DocumentConfig(
@@ -77,6 +89,11 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.RFP_ANALYSIS,
         id_fields=("rfpAnalysisCode", "rfp_analysis_code", "id"),
         title_fields=("rfpAnalysisCode", "rfp_analysis_code", "id"),
+        content_fields=(
+            "issuer", "project_scope", "project_period",
+            "requirements", "risk_factors", "special_notes",
+            "key_requirements", "analysis_summary",
+        ),
         payload_aliases={
             "opportunityId": ("project_opportunity_id",),
             "rfpAnalysisCode": ("id",),
@@ -88,9 +105,19 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.PRB,
         id_fields=("prbCode", "prb_code", "id"),
         title_fields=("prbCode", "prb_code", "id"),
+        content_fields=(
+            "prb_date", "expected_win_rate", "estimated_revenue",
+            "estimated_profit_rate", "business_overview",
+            "risk_factors", "competitor_status", "prb_opinion",
+        ),
         payload_aliases={
             "opportunityId": ("project_opportunity_id",),
             "prbCode": ("id",),
+            "prbDate": ("prb_date",),
+            "expectedWinRate": ("expected_win_rate",),
+            "estimatedRevenue": ("estimated_revenue",),
+            "estimatedProfitRate": ("estimated_profit_rate",),
+            "riskFactors": ("risk_factors",),
         },
     ),
     DocumentConfig(
@@ -98,9 +125,17 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.PRB_RESULT,
         id_fields=("prbResultCode", "prb_result_code", "id"),
         title_fields=("prbResultCode", "prb_result_code", "id"),
+        content_fields=(
+            "decision_status", "result_date",
+            "risk_review", "final_opinion", "attendee_opinions",
+        ),
         payload_aliases={
             "prbResultCode": ("id",),
             "prbId": ("prb_id",),
+            "decisionStatus": ("decision_status",),
+            "resultDate": ("result_date",),
+            "riskReview": ("risk_review",),
+            "finalOpinion": ("final_opinion",),
         },
     ),
     DocumentConfig(
@@ -108,16 +143,28 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.PROPOSAL,
         id_fields=("proposalCode", "proposal_code", "id"),
         title_fields=("proposalName", "proposal_name", "proposalCode", "proposal_code", "id"),
-        payload_aliases={"proposalCode": ("id",)},
+        content_fields=("proposal_summary", "strategy_summary", "key_proposal_points"),
+        payload_aliases={
+            "proposalCode": ("id",),
+            "proposalSummary": ("proposal_summary",),
+            "strategySummary": ("strategy_summary",),
+        },
     ),
     DocumentConfig(
         table="bid_result",
         source_type=SourceType.BID_RESULT,
         id_fields=("bidResultCode", "bid_result_code", "id"),
         title_fields=("bidResultCode", "bid_result_code", "id"),
+        content_fields=(
+            "result_status", "result_date", "win_loss_reason",
+            "competitor_summary", "outcome_summary",
+        ),
         payload_aliases={
             "bidResultCode": ("id",),
             "opportunityId": ("project_opportunity_id",),
+            "resultStatus": ("result_status",),
+            "winLossReason": ("win_loss_reason",),
+            "competitorSummary": ("competitor_summary",),
         },
     ),
     DocumentConfig(
@@ -125,9 +172,16 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.ORDER_REPORT,
         id_fields=("wonReportCode", "won_report_code", "id"),
         title_fields=("wonReportCode", "won_report_code", "id"),
+        content_fields=(
+            "contract_date", "contract_amount", "business_scope",
+            "special_notes", "outcome_summary",
+        ),
         payload_aliases={
             "wonReportCode": ("id",),
             "opportunityId": ("project_opportunity_id",),
+            "contractDate": ("contract_date",),
+            "contractAmount": ("contract_amount",),
+            "businessScope": ("business_scope",),
         },
     ),
     DocumentConfig(
@@ -135,9 +189,11 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.CONTRACT,
         id_fields=("contractCode", "contract_code", "id"),
         title_fields=("contractCode", "contract_code", "id"),
+        content_fields=("contract_status", "start_date", "end_date", "memo"),
         payload_aliases={
             "contractCode": ("id",),
             "orderReportId": ("order_report_id",),
+            "contractStatus": ("contract_status",),
         },
     ),
     DocumentConfig(
@@ -145,6 +201,7 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.PROJECT,
         id_fields=("code", "projectCode", "project_code", "id"),
         title_fields=("code", "pjt_number", "id"),
+        content_fields=("type", "end_date", "project_overview", "team_name"),
         payload_aliases={
             "projectCode": ("code",),
             "deliveryDate": ("end_date",),
