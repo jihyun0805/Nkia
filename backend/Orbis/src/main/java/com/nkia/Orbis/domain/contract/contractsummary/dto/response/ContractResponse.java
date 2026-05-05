@@ -1,7 +1,7 @@
-package com.nkia.Orbis.domain.contract.contract.dto.response;
+package com.nkia.Orbis.domain.contract.contractsummary.dto.response;
 
-import com.nkia.Orbis.domain.contract.contract.entity.Contract;
-import com.nkia.Orbis.domain.contract.contract.entity.ProposalType;
+import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
+import com.nkia.Orbis.domain.contract.contractsummary.entity.ProposalType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;

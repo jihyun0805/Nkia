@@ -1,4 +1,4 @@
-package com.nkia.Orbis.domain.contract.contract.dto.request;
+package com.nkia.Orbis.domain.contract.contractsummary.dto.request;
 
 import lombok.Getter;
 

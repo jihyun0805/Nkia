@@ -1,4 +1,4 @@
-package com.nkia.Orbis.domain.contract.contract.entity;
+package com.nkia.Orbis.domain.contract.contractsummary.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;

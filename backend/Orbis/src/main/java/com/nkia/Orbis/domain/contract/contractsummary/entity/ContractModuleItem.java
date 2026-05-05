@@ -1,4 +1,4 @@
-package com.nkia.Orbis.domain.contract.contract.entity;
+package com.nkia.Orbis.domain.contract.contractsummary.entity;
 
 import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.productmodule.entity.ProductModule;

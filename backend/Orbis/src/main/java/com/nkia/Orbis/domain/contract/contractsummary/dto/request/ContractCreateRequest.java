@@ -1,6 +1,6 @@
-package com.nkia.Orbis.domain.contract.contract.dto.request;
+package com.nkia.Orbis.domain.contract.contractsummary.dto.request;
 
-import com.nkia.Orbis.domain.contract.contract.entity.ProposalType;
+import com.nkia.Orbis.domain.contract.contractsummary.entity.ProposalType;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;

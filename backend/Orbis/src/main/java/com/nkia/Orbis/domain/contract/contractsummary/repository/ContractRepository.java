@@ -1,6 +1,6 @@
-package com.nkia.Orbis.domain.contract.contract.repository;
+package com.nkia.Orbis.domain.contract.contractsummary.repository;
 
-import com.nkia.Orbis.domain.contract.contract.entity.Contract;
+import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ContractRepository extends JpaRepository<Contract, Long> {

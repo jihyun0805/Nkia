@@ -1,6 +1,6 @@
-package com.nkia.Orbis.domain.contract.contract.dto.response;
+package com.nkia.Orbis.domain.contract.contractsummary.dto.response;
 
-import com.nkia.Orbis.domain.contract.contract.entity.ContractModuleItem;
+import com.nkia.Orbis.domain.contract.contractsummary.entity.ContractModuleItem;
 import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
 import lombok.Builder;
 import lombok.Getter;
