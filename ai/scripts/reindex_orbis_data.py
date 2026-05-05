@@ -348,6 +348,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--batch-size", type=int, default=50, help="index API 배치 크기")
     parser.add_argument("--limit-per-table", type=int, default=0, help="테이블별 로우 제한. 0이면 전체")
+    parser.add_argument("--skip-dump-reset", action="store_true", help="dump DB 초기화 건너뜀 (외부 스크립트가 이미 로드한 경우)")
     return parser.parse_args()
 
 
