@@ -1597,11 +1597,14 @@ def build_structured_data_unavailable_response(*, query: str, embedder: Embeddin
     return AnswerResponse(
         query=query,
         answer=(
-            "이 질문은 사업 정형 데이터 조회가 필요하지만, 현재 개발 환경에는 해당 랭킹용 데이터 소스가 연결되어 있지 않습니다. "
-            "문서 검색이 아니라 사업 랭킹 답변을 원하면 dump_opportunities 계열 데이터 적재 또는 백엔드 조회 API 연결이 먼저 필요합니다."
+            "현재 해당 유형의 집계·랭킹 조회를 위한 데이터가 충분히 적재되지 않았습니다. "
+            "사업기회별 수치(금액, 횟수 등) 또는 순위 기반 질문은 데이터가 보강된 이후 이용 가능합니다. "
+            "대신 특정 사업 이름이나 고객사, 활동 내용으로 검색하시면 관련 문서를 찾아드릴 수 있습니다."
         ),
         embeddingModel=embedder.config.model_name,
         chatModel="structured-rule-engine",
+        route="fast_structured",
+        answerStatus="insufficient_evidence",
         excludedSourceTypes=[],
         evidences=[],
     )

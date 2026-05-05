@@ -98,6 +98,11 @@ def answer_prb_risk_patterns(
     if not rows:
         return build_insufficient_discovery_response(query=query, graph_state=graph_state, embedder=embedder)
 
+    # 실제 리스크 데이터가 있는 행만 처리 (미구현 엔티티 컬럼은 NULL 반환)
+    rows = [r for r in rows if r.get("risk_factors") or r.get("risk_review") or r.get("final_opinion")]
+    if not rows:
+        return build_insufficient_discovery_response(query=query, graph_state=graph_state, embedder=embedder)
+
     signature_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         signature = extract_risk_signature(row)

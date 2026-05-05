@@ -1,8 +1,11 @@
+import logging
 import re
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+
+logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.models.constants import TABLE as _TABLE
@@ -1049,37 +1052,41 @@ def fetch_project_result_highlight_in_range(
     end_at: str | None,
     limit: int = 5,
 ) -> list[dict[str, Any]]:
-    with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                f"""
-                SELECT
-                    o.opportunity_code,
-                    o.opportunity_name,
-                    c.company_name AS customer_name,
-                    p.project_code,
-                    p.project_status,
-                    pr.project_report_code,
-                    pr.report_date,
-                    pr.result_status,
-                    pr.detail_content
-                FROM {_PR} pr
-                JOIN {_PROJ} p ON p.id = pr.project_id
-                JOIN {_WR} wr ON wr.id = p.won_report_id
-                JOIN {_OPP} o ON o.id = wr.opportunity_id
-                JOIN {_CO} c ON c.id = o.customer_company_id
-                WHERE (%(start_at)s::timestamptz IS NULL OR pr.report_date >= %(start_at)s::timestamptz)
-                  AND (%(end_at)s::timestamptz IS NULL OR pr.report_date <= %(end_at)s::timestamptz)
-                  AND (
-                        COALESCE(pr.result_status, '') LIKE '%%완료%%'
-                     OR COALESCE(p.project_status, '') IN ('완료', '종료')
-                  )
-                ORDER BY pr.report_date DESC NULLS LAST, pr.id DESC
-                LIMIT %(limit)s
-                """,
-                {"start_at": start_at, "end_at": end_at, "limit": limit},
-            )
-            return list(cur.fetchall())
+    try:
+        with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        c.company_name AS customer_name,
+                        p.project_code,
+                        p.project_status,
+                        pr.project_report_code,
+                        pr.report_date,
+                        pr.result_status,
+                        pr.detail_content
+                    FROM {_PR} pr
+                    JOIN {_PROJ} p ON p.id = pr.project_id
+                    JOIN {_WR} wr ON wr.id = p.won_report_id
+                    JOIN {_OPP} o ON o.id = wr.opportunity_id
+                    JOIN {_CO} c ON c.id = o.customer_company_id
+                    WHERE (%(start_at)s::timestamptz IS NULL OR pr.report_date >= %(start_at)s::timestamptz)
+                      AND (%(end_at)s::timestamptz IS NULL OR pr.report_date <= %(end_at)s::timestamptz)
+                      AND (
+                            COALESCE(pr.result_status, '') LIKE '%%완료%%'
+                         OR COALESCE(p.project_status, '') IN ('완료', '종료')
+                      )
+                    ORDER BY pr.report_date DESC NULLS LAST, pr.id DESC
+                    LIMIT %(limit)s
+                    """,
+                    {"start_at": start_at, "end_at": end_at, "limit": limit},
+                )
+                return list(cur.fetchall())
+    except psycopg.Error as exc:
+        logger.warning("fetch_project_result_highlight_in_range DB error: %s", exc)
+        return []
 
 
 def fetch_prb_risk_rows(
@@ -1088,40 +1095,93 @@ def fetch_prb_risk_rows(
     end_at: str | None,
     limit: int = 60,
 ) -> list[dict[str, Any]]:
-    with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                f"""
-                SELECT
-                    o.opportunity_code,
-                    o.opportunity_name,
-                    c.company_name AS customer_name,
-                    p.prb_code,
-                    p.prb_date,
-                    p.risk_factors,
-                    p.expected_win_rate,
-                    pr.prb_result_code,
-                    pr.decision_status,
-                    pr.result_date,
-                    pr.risk_review,
-                    pr.final_opinion
-                FROM {_PRB} p
-                JOIN {_OPP} o ON o.id = p.opportunity_id
-                JOIN {_CO} c ON c.id = o.customer_company_id
-                LEFT JOIN {_PRBR} pr ON pr.prb_id = p.id
-                WHERE (
-                        (%(start_at)s::timestamptz IS NULL AND %(end_at)s::timestamptz IS NULL)
-                     OR (
-                            (%(start_at)s::timestamptz IS NULL OR COALESCE(pr.result_date, p.prb_date) >= %(start_at)s::timestamptz)
-                        AND (%(end_at)s::timestamptz IS NULL OR COALESCE(pr.result_date, p.prb_date) <= %(end_at)s::timestamptz)
-                     )
-                  )
-                ORDER BY COALESCE(pr.result_date, p.prb_date) DESC NULLS LAST, p.id DESC
-                LIMIT %(limit)s
-                """,
-                {"start_at": start_at, "end_at": end_at, "limit": limit},
-            )
-            return list(cur.fetchall())
+    db_url = build_backend_database_url()
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        c.company_name AS customer_name,
+                        p.prb_code,
+                        p.prb_date,
+                        p.risk_factors,
+                        p.expected_win_rate,
+                        pr.prb_result_code,
+                        pr.decision_status,
+                        pr.result_date,
+                        pr.risk_review,
+                        pr.final_opinion
+                    FROM {_PRB} p
+                    JOIN {_OPP} o ON o.id = p.opportunity_id
+                    JOIN {_CO} c ON c.id = o.customer_company_id
+                    LEFT JOIN {_PRBR} pr ON pr.prb_id = p.id
+                    WHERE (
+                            (%(start_at)s::timestamptz IS NULL AND %(end_at)s::timestamptz IS NULL)
+                         OR (
+                                (%(start_at)s::timestamptz IS NULL OR COALESCE(pr.result_date, p.prb_date) >= %(start_at)s::timestamptz)
+                            AND (%(end_at)s::timestamptz IS NULL OR COALESCE(pr.result_date, p.prb_date) <= %(end_at)s::timestamptz)
+                         )
+                      )
+                    ORDER BY COALESCE(pr.result_date, p.prb_date) DESC NULLS LAST, p.id DESC
+                    LIMIT %(limit)s
+                    """,
+                    {"start_at": start_at, "end_at": end_at, "limit": limit},
+                )
+                return list(cur.fetchall())
+    except psycopg.errors.UndefinedTable:
+        # dump_* 테이블이 없으면 실제 엔티티 테이블로 폴백
+        return _fetch_prb_risk_rows_from_entity(db_url=db_url, start_at=start_at, end_at=end_at, limit=limit)
+    except psycopg.Error as exc:
+        logger.warning("fetch_prb_risk_rows DB error: %s", exc)
+        return []
+
+
+def _fetch_prb_risk_rows_from_entity(
+    *,
+    db_url: str,
+    start_at: str | None,
+    end_at: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        p.id::text AS prb_code,
+                        p.id::text AS opportunity_code,
+                        p.id::text AS opportunity_name,
+                        NULL::text AS customer_name,
+                        p.created_at AS prb_date,
+                        NULL::text AS risk_factors,
+                        NULL::real AS expected_win_rate,
+                        pr.id::text AS prb_result_code,
+                        NULL::text AS decision_status,
+                        pr.created_at AS result_date,
+                        NULL::text AS risk_review,
+                        NULL::text AS final_opinion
+                    FROM prb p
+                    LEFT JOIN prb_result pr ON pr.prb_id = p.id
+                    WHERE (
+                            (%(start_at)s::timestamptz IS NULL AND %(end_at)s::timestamptz IS NULL)
+                         OR (
+                                (%(start_at)s::timestamptz IS NULL OR COALESCE(pr.created_at, p.created_at) >= %(start_at)s::timestamptz)
+                            AND (%(end_at)s::timestamptz IS NULL OR COALESCE(pr.created_at, p.created_at) <= %(end_at)s::timestamptz)
+                         )
+                      )
+                    ORDER BY COALESCE(pr.created_at, p.created_at) DESC NULLS LAST, p.id DESC
+                    LIMIT %(limit)s
+                    """,
+                    {"start_at": start_at, "end_at": end_at, "limit": limit},
+                )
+                return list(cur.fetchall())
+    except psycopg.Error as exc:
+        logger.warning("_fetch_prb_risk_rows_from_entity DB error: %s", exc)
+        return []
 
 
 def fetch_project_progress_rows(
