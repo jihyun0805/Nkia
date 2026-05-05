@@ -74,7 +74,7 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.QUOTATION,
         id_fields=("quotation_code", "quoteCode", "id"),
         title_fields=("quotation_code", "id"),
-        content_fields=("note", "payment_condition"),
+        content_fields=("payment_condition", "total_price", "consumer_total_price", "note"),
         payload_aliases={
             "quoteCode": ("quotation_code",),
             "quoteDate": ("quotation_date",),
