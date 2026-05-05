@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.contract.contractsummary.dto.request.ContractCreate
 import com.nkia.Orbis.domain.contract.contractsummary.dto.response.ContractResponse;
 import com.nkia.Orbis.domain.contract.contractsummary.service.ContractService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Contract", description = "계약 내역 관리 API")
 @RestController
 @RequestMapping("/contract/summaries")
 @RequiredArgsConstructor

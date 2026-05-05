@@ -30,10 +30,11 @@ public class ContractResponse {
 
     private UUID salesRepresentativeId;
 
+    // Todo: 수주보고서, 첨부파일 구현후 연동 예정
     public static ContractResponse from(Contract contract) {
         return ContractResponse.builder()
                 .id(contract.getId())
-                .orderReportId(contract.getOrderReport().getId())
+                .orderReportId(contract.getOrderReport() != null ? contract.getOrderReport().getId() : null)
                 .contractFileId(contract.getContractFile() != null ? contract.getContractFile().getId() : null)
                 .proposalType(contract.getProposalType())
                 .contractAmount(contract.getContractAmount())
