@@ -4,7 +4,6 @@ import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
-import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
 import com.nkia.Orbis.domain.user.entity.User;
 import jakarta.persistence.CascadeType;
@@ -62,10 +61,6 @@ public class Project extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id")
     private User manager;
-
-    // 청구 내역
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Billing> billings = new ArrayList<>();
 
     // 사업 결과 보고서
     @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
