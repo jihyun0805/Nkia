@@ -3,13 +3,22 @@ package com.nkia.Orbis.domain.contract.contract.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
+import com.nkia.Orbis.domain.user.entity.User;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,4 +39,52 @@ public class Contract extends BaseEntity {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_file_id", unique = true)
     private UploadFile contractFile;
+
+    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ContractModuleItem> contractModuleItems = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    private ProposalType proposalType;
+
+    private Long contractAmount;
+
+    private LocalDate contractDate;
+
+    private String maintenanceCondition;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sales_representative_id")
+    private User salesRepresentative;
+
+    public static Contract create(
+            OrderReport orderReport,
+            UploadFile uploadFile,
+            List<ContractModuleItem> contractModuleItems,
+            ProposalType proposalType,
+            Long contractAmount,
+            LocalDate contractDate,
+            String maintenanceCondition,
+            User salesRepresentative
+    ) {
+        Contract contract = new Contract();
+        contract.orderReport = orderReport;
+
+        if (uploadFile != null) {
+            contract.contractFile = uploadFile;
+        }
+
+        if (contractModuleItems != null) {
+            for (ContractModuleItem item : contractModuleItems) {
+                contract.contractModuleItems.add(item);
+                item.setContract(contract);
+            }
+        }
+        contract.proposalType = proposalType;
+        contract.contractAmount = contractAmount;
+        contract.contractDate = contractDate;
+        contract.maintenanceCondition = maintenanceCondition;
+        contract.salesRepresentative = salesRepresentative;
+
+        return contract;
+    }
 }
