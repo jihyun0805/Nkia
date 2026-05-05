@@ -1,9 +1,13 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.core.security import require_internal_token
 from app.embeddings.model import EmbeddingModel
 from app.schemas.answer import AnswerRequest, AnswerResponse
 from app.services.answer_service import answer_question
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Answer"], dependencies=[Depends(require_internal_token)])
 
@@ -27,3 +31,6 @@ def answer(request_body: AnswerRequest, request: Request) -> AnswerResponse:
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Unexpected error in /answer: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
