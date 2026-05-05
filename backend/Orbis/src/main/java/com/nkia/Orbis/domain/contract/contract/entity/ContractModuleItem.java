@@ -35,6 +35,8 @@ public class ContractModuleItem {
     @JoinColumn(name = "product_module_id", nullable = false)
     private ProductModule productModule;
 
+    private String productModuleName;
+
     @Enumerated(EnumType.STRING)
     private ProductClass productClass;
 
@@ -53,6 +55,7 @@ public class ContractModuleItem {
     ) {
         ContractModuleItem contractModuleItem = new ContractModuleItem();
         contractModuleItem.productModule = productModule;
+        contractModuleItem.productModuleName = productModule.getProductName();
         contractModuleItem.productClass = productModule.getProductClass();
         contractModuleItem.quantity = quantity;
         contractModuleItem.unitPrice = productModule.getUnitPrice();
