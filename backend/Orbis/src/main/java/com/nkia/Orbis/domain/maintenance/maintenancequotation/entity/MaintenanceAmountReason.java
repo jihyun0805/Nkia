@@ -11,7 +11,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
+
 import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
 
 @Entity
@@ -22,7 +22,6 @@ public class MaintenanceAmountReason {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Setter
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quotation_id")
     private MaintenanceQuotation quotation;
@@ -43,5 +42,8 @@ public class MaintenanceAmountReason {
         this.amount = amount;
         this.months = months;
         this.remarks = remarks;
+    }
+    void setQuotation(MaintenanceQuotation quotation) {
+        this.quotation = quotation;
     }
 }
