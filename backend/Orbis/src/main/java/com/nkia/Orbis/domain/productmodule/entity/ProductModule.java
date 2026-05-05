@@ -74,11 +74,23 @@ public class ProductModule extends BaseEntity {
             String licenseUnit,
             Long unitPrice
     ) {
-        this.productClass = productClass;
-        this.productGroup = productGroup;
-        this.productName = productName;
-        this.licenseStandard = licenseStandard;
-        this.licenseUnit = licenseUnit;
-        this.unitPrice = unitPrice;
+        if (productClass != null) {
+            this.productClass = productClass;
+        }
+        if (productGroup != null) {
+            this.productGroup = productGroup;
+        }
+        if (productName != null) {
+            this.productName = productName;
+        }
+        if (licenseStandard != null) {
+            this.licenseStandard = licenseStandard;
+        }
+        if (licenseUnit != null) {
+            this.licenseUnit = licenseUnit;
+        }
+        if (unitPrice != null) {
+            this.unitPrice = unitPrice;
+        }
     }
 }
