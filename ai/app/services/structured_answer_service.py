@@ -48,6 +48,8 @@ from app.repositories.backend_query_repository import (
     fetch_workflow_snapshot,
     fetch_won_summary,
     resolve_primary_opportunity,
+    fetch_product_catalog_rows,
+    fetch_module_quotation_revenue_rows,
 )
 from app.schemas.answer import AnswerEvidence, AnswerResponse
 from app.services.metric_registry import get_metric_spec
@@ -96,6 +98,30 @@ def answer_targeted_domain_query(
         if not rows:
             return None
         return build_maintenance_activity_rank_response(query=query, rows=rows[:3], limit=limit, embedder=embedder)
+
+    if is_module_revenue_query(normalized_query):
+        product_class = extract_product_class_from_query(normalized_query)
+        revenue_rows = fetch_module_quotation_revenue_rows(product_class=product_class, limit=20)
+        if revenue_rows:
+            return build_module_revenue_response(
+                query=query,
+                rows=revenue_rows,
+                product_class=product_class,
+                limit=limit,
+                embedder=embedder,
+            )
+
+    if is_product_catalog_query(normalized_query):
+        product_class = extract_product_class_from_query(normalized_query)
+        catalog_rows = fetch_product_catalog_rows(product_class=product_class, limit=200)
+        if catalog_rows:
+            return build_product_catalog_response(
+                query=query,
+                rows=catalog_rows,
+                product_class=product_class,
+                limit=limit,
+                embedder=embedder,
+            )
 
     entity = resolve_primary_opportunity(
         query_terms=normalization.scope_terms or normalization.entity_terms,
@@ -523,6 +549,31 @@ def answer_graph_structured_extension(
         )
         if response is not None:
             return response
+
+    normalized_q = " ".join(query.lower().split())
+    if is_module_revenue_query(normalized_q):
+        product_class = extract_product_class_from_query(normalized_q)
+        revenue_rows = fetch_module_quotation_revenue_rows(product_class=product_class, limit=20)
+        if revenue_rows:
+            return build_module_revenue_response(
+                query=query,
+                rows=revenue_rows,
+                product_class=product_class,
+                limit=limit,
+                embedder=embedder,
+            )
+
+    if is_product_catalog_query(normalized_q):
+        product_class = extract_product_class_from_query(normalized_q)
+        catalog_rows = fetch_product_catalog_rows(product_class=product_class, limit=200)
+        if catalog_rows:
+            return build_product_catalog_response(
+                query=query,
+                rows=catalog_rows,
+                product_class=product_class,
+                limit=limit,
+                embedder=embedder,
+            )
 
     return None
 
@@ -2218,6 +2269,125 @@ def build_paid_maintenance_transition_response(
     )
 
 
+def build_product_catalog_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    product_class: str | None,
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    class_label = product_class or "전체"
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        cls = str(row.get("product_class") or "기타")
+        grouped.setdefault(cls, []).append(row)
+
+    lines: list[str] = []
+    if product_class:
+        lines.append(f"핵심 결론: {class_label} 제품군에는 총 {len(rows)}개 모듈이 있습니다.")
+    else:
+        lines.append(f"핵심 결론: POLESTAR 제품 카탈로그에는 총 {len(rows)}개 모듈이 있습니다.")
+    lines.append("")
+
+    evidences: list[AnswerEvidence] = []
+    for cls, items in sorted(grouped.items()):
+        lines.append(f"[{cls}] — {len(items)}개")
+        for item in items[:8]:
+            price_str = format_number(item.get("unit_price"), suffix="원") if item.get("unit_price") else "가격 미기재"
+            lines.append(
+                f"  · {item.get('product_name') or '미기재'}"
+                f" ({item.get('product_group') or '그룹 미기재'}"
+                f" / {item.get('license_standard') or ''} {item.get('license_unit') or ''}"
+                f" / {price_str})"
+            )
+        if len(items) > 8:
+            lines.append(f"  … 외 {len(items) - 8}개")
+        evidences.append(
+            AnswerEvidence(
+                evidenceType="structured_evidence",
+                sourceType="MODULE",
+                sourceId=cls,
+                title=f"{cls} 제품군",
+                chunkIndex=0,
+                distance=0.0,
+                vectorScore=1.0,
+                keywordScore=1.0,
+                finalScore=1.0,
+                matchedBy=["structured_row"],
+                content=f"{cls} 제품군: {', '.join(r.get('product_name') or '' for r in items[:5])}",
+                metadata={"productClass": cls, "count": len(items)},
+            )
+        )
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences[:limit],
+    )
+
+
+def build_module_revenue_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    product_class: str | None,
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    class_label = product_class or "전체"
+    lines: list[str] = [
+        f"핵심 결론: {class_label} 모듈별 견적 공급 금액 현황입니다.",
+        "",
+    ]
+    evidences: list[AnswerEvidence] = []
+    for i, row in enumerate(rows[:10]):
+        total_price = row.get("total_supply_price")
+        qty = row.get("total_quantity")
+        cnt = row.get("quotation_count")
+        lines.append(
+            f"{i + 1}. {row.get('product_name') or '미기재'} ({row.get('product_class') or ''})"
+        )
+        lines.append(
+            f"   총 공급가: {format_number(total_price, suffix='원')} / 수량: {qty or 0} / 견적 {cnt or 0}건"
+        )
+        evidences.append(
+            AnswerEvidence(
+                evidenceType="structured_evidence",
+                sourceType="MODULE",
+                sourceId=str(row.get("product_name") or i),
+                title=str(row.get("product_name") or "모듈"),
+                chunkIndex=i,
+                distance=0.0,
+                vectorScore=1.0,
+                keywordScore=1.0,
+                finalScore=1.0,
+                matchedBy=["structured_row"],
+                content=(
+                    f"{row.get('product_name')} / {row.get('product_class')} / "
+                    f"공급가 {format_number(total_price, suffix='원')} / {cnt}건"
+                ),
+                metadata={
+                    "productClass": row.get("product_class"),
+                    "productName": row.get("product_name"),
+                    "totalSupplyPrice": str(total_price) if total_price is not None else None,
+                    "quotationCount": cnt,
+                },
+            )
+        )
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences[:limit],
+    )
+
+
 def build_maintenance_history_response(
     *,
     query: str,
@@ -3085,6 +3255,53 @@ def is_paid_maintenance_transition_query(normalized_query: str) -> bool:
     return ("유상유지보수" in compact or ("유상" in normalized_query and "유지보수" in normalized_query)) and any(
         keyword in normalized_query for keyword in ["전환", "사업", "사업들", "있어", "알려줘", "보여줘"]
     )
+
+
+def is_product_catalog_query(normalized_query: str) -> bool:
+    has_product_keyword = any(
+        keyword in normalized_query
+        for keyword in ["제품", "모듈", "라인업", "카탈로그", "솔루션 목록", "제품군", "제품 목록", "모듈 목록", "단가", "정가", "가격"]
+    )
+    has_class_keyword = any(
+        keyword in normalized_query.upper()
+        for keyword in ["EMS", "ITSM", "ITAM", "CLOUD", "BSM", "RCA", "DCA", "E2E", "DASHBOARD", "DATACENTER", "SUPPORTING"]
+    )
+    has_polestar = "POLESTAR" in normalized_query.upper() or "폴스타" in normalized_query
+    return (has_product_keyword and not _is_module_revenue_query(normalized_query)) or has_polestar or (has_class_keyword and has_product_keyword)
+
+
+def is_module_revenue_query(normalized_query: str) -> bool:
+    return _is_module_revenue_query(normalized_query)
+
+
+def _is_module_revenue_query(normalized_query: str) -> bool:
+    has_revenue = any(
+        keyword in normalized_query for keyword in ["매출", "판매", "수익", "금액", "총액", "얼마", "많이 팔"]
+    )
+    has_module = any(keyword in normalized_query for keyword in ["모듈", "제품", "솔루션"])
+    return has_revenue and has_module
+
+
+def extract_product_class_from_query(normalized_query: str) -> str | None:
+    upper = normalized_query.upper()
+    class_map = {
+        "EMS": "EMS",
+        "ITSM": "ITSM",
+        "ITAM": "ITAM",
+        "CLOUD": "CLOUD",
+        "BSM": "BSM",
+        "RCA": "RCA",
+        "DCA": "DCA",
+        "E2E": "E2E",
+        "DASHBOARD": "DASHBOARD",
+        "DATACENTER": "DATACENTER",
+        "SUPPORTING_TOOLS": "SUPPORTING_TOOLS",
+        "SUPPORTING": "SUPPORTING_TOOLS",
+    }
+    for keyword, cls in class_map.items():
+        if keyword in upper:
+            return cls
+    return None
 
 
 def extract_business_codes(query: str) -> list[str]:

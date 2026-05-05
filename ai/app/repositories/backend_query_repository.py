@@ -2380,3 +2380,96 @@ def build_query_params(
         "business_type": filters.get("business_type") or [],
         "limit": limit,
     }
+
+
+def fetch_product_catalog_rows(
+    *,
+    product_class: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    db_url = build_backend_database_url()
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                if product_class:
+                    cur.execute(
+                        """
+                        SELECT id, product_class, product_group, product_name,
+                               license_standard, license_unit, unit_price
+                        FROM public.product_module
+                        WHERE deleted = false AND product_class = %(product_class)s
+                        ORDER BY product_class, product_group, product_name
+                        LIMIT %(limit)s
+                        """,
+                        {"product_class": product_class, "limit": limit},
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT id, product_class, product_group, product_name,
+                               license_standard, license_unit, unit_price
+                        FROM public.product_module
+                        WHERE deleted = false
+                        ORDER BY product_class, product_group, product_name
+                        LIMIT %(limit)s
+                        """,
+                        {"limit": limit},
+                    )
+                return list(cur.fetchall())
+    except psycopg.Error as exc:
+        logger.warning("fetch_product_catalog_rows DB error: %s", exc)
+        return []
+
+
+def fetch_module_quotation_revenue_rows(
+    *,
+    product_class: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    db_url = build_backend_database_url()
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                if product_class:
+                    cur.execute(
+                        """
+                        SELECT
+                            pm.product_class,
+                            pm.product_group,
+                            pm.product_name,
+                            SUM(qi.quantity) AS total_quantity,
+                            SUM(qi.supply_total_price) AS total_supply_price,
+                            COUNT(DISTINCT qi.quotation_id) AS quotation_count
+                        FROM public.quotation_solution_item qi
+                        JOIN public.product_module pm ON pm.id = qi.product_module_id
+                        WHERE qi.deleted = false AND pm.deleted = false
+                          AND pm.product_class = %(product_class)s
+                        GROUP BY pm.product_class, pm.product_group, pm.product_name
+                        ORDER BY total_supply_price DESC NULLS LAST
+                        LIMIT %(limit)s
+                        """,
+                        {"product_class": product_class, "limit": limit},
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT
+                            pm.product_class,
+                            pm.product_group,
+                            pm.product_name,
+                            SUM(qi.quantity) AS total_quantity,
+                            SUM(qi.supply_total_price) AS total_supply_price,
+                            COUNT(DISTINCT qi.quotation_id) AS quotation_count
+                        FROM public.quotation_solution_item qi
+                        JOIN public.product_module pm ON pm.id = qi.product_module_id
+                        WHERE qi.deleted = false AND pm.deleted = false
+                        GROUP BY pm.product_class, pm.product_group, pm.product_name
+                        ORDER BY total_supply_price DESC NULLS LAST
+                        LIMIT %(limit)s
+                        """,
+                        {"limit": limit},
+                    )
+                return list(cur.fetchall())
+    except psycopg.Error as exc:
+        logger.warning("fetch_module_quotation_revenue_rows DB error: %s", exc)
+        return []
