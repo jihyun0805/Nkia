@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -42,8 +43,6 @@ public class Billing extends BaseEntity {
 
     private LocalDate collectedAt;  // 수금일
 
-    private LocalDate requestedAt;  // 요청일
-
     private String remarks;         // 특기사항
 
     private Long invoiceImageId;    // 세금계산서 이미지 첨부파일
@@ -53,4 +52,30 @@ public class Billing extends BaseEntity {
 
     @OneToMany(mappedBy = "billing", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Collection> collections = new ArrayList<>();
+
+    @Builder
+    public Billing(OrderReport orderReport, Long billingAmount, LocalDate requestedIssueDate, String remarks, BillingStatus status) {
+        this.orderReport = orderReport;
+        this.billingAmount = billingAmount;
+        this.requestedIssueDate = requestedIssueDate;
+        this.remarks = remarks;
+        this.status = status;
+    }
+
+    /**
+     * 세금계산서 발행 처리
+     */
+    public void issue(LocalDate issuedAt, Long invoiceImageId) {
+        this.issuedAt = issuedAt;
+        this.invoiceImageId = invoiceImageId;
+        this.status = BillingStatus.ISSUED;
+    }
+
+    /**
+     * 수금 완료 처리
+     */
+    public void collect(LocalDate collectedAt) {
+        this.collectedAt = collectedAt;
+        this.status = BillingStatus.COLLECTED;
+    }
 }
