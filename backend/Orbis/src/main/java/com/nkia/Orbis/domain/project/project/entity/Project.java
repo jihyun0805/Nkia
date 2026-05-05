@@ -73,7 +73,7 @@ public class Project extends BaseEntity {
 
     // 유지보수
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Maintenance> maintenances = new ArrayList<>();;
+    private List<Maintenance> maintenances = new ArrayList<>();
 
     // 유지보수 견적서
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
