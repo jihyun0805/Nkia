@@ -72,8 +72,8 @@ public class Project extends BaseEntity {
     private ProjectResultReport projectResultReport;
 
     // 유지보수
-    @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Maintenance maintenance;
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Maintenance> maintenances = new ArrayList<>();;
 
     // 유지보수 견적서
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
