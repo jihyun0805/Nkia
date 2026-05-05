@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.productmodule.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
-import com.nkia.Orbis.domain.productmodule.dto.request.ProductModuleCreateRequest;
+import com.nkia.Orbis.domain.productmodule.dto.request.ProductModuleRequest;
 import com.nkia.Orbis.domain.productmodule.dto.response.ProductModuleResponse;
 import com.nkia.Orbis.domain.productmodule.service.ProductModuleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,7 +31,7 @@ public class ProductModuleController {
     public ResponseEntity<ApiResponse<ProductModuleResponse>> createProductModule(
             @Valid
             @RequestBody
-            ProductModuleCreateRequest request
+            ProductModuleRequest request
     ) {
         ProductModuleResponse response = productModuleService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
