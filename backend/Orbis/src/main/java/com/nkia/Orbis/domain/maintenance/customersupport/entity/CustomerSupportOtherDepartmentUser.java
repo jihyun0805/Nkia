@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.maintenance.customersupport.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.user.entity.User;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -10,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -29,4 +31,17 @@ public class CustomerSupportOtherDepartmentUser extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
+
+    @Column(name = "role_description")
+    private String roleDescription; // 활동 내용
+
+    @Builder
+    public CustomerSupportOtherDepartmentUser(User user, String roleDescription) {
+        this.user = user;
+        this.roleDescription = roleDescription;
+    }
+
+    protected void assignCustomerSupport(CustomerSupport customerSupport) {
+        this.customerSupport = customerSupport;
+    }
 }

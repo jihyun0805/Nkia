@@ -2,20 +2,25 @@ package com.nkia.Orbis.domain.maintenance.customersupport.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
-import com.nkia.Orbis.domain.user.entity.User;
+import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -32,14 +37,60 @@ public class CustomerSupport extends BaseEntity {
     @JoinColumn(name = "maintenance_id", unique = true)
     private Maintenance maintenance;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "primary_manager_id")
-    private User primaryManager;
+    @Column(name = "customer_company_code", nullable = false)
+    private Long customerCompanyCode; // 고객사
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "secondary_manager_id")
-    private User secondaryManager;
+    @JoinColumn(name = "request_id")
+    private CustomerSupportRequest request;
+
+    @Column(name = "activity_type", nullable = false)
+    private String activityType; // 활동 구분 (정기점검 / 요청)
+
+    @Column(name = "activity_start_time")
+    private LocalDateTime activityStartTime;
+
+    @Column(name = "activity_end_time")
+    private LocalDateTime activityEndTime;
+
+    @Lob
+    @Column(name = "activity_content")
+    private String activityContent; // 고객 지원 내용
+
+    @Column(name = "registrant_id")
+    private String registrantId; // 등록자
+
+    @Column(name = "remarks", length = 1000)
+    private String remarks; // 특기사항
 
     @OneToMany(mappedBy = "customerSupport", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<CustomerSupportOtherDepartmentUser> otherDepartmentUsers = new ArrayList<>();
+    private final List<CustomerSupportOtherDepartmentUser> otherDepartmentUsers = new ArrayList<>();
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinTable(name = "customer_support_activity_file", joinColumns = @JoinColumn(name = "request_id"), inverseJoinColumns = @JoinColumn(name = "upload_file_id"))
+    private final List<UploadFile> attachedFiles = new ArrayList<>();
+
+    public void addAttachedFile(UploadFile file) {
+        this.attachedFiles.add(file);
+    }
+
+    public void addOtherDepartmentUser(CustomerSupportOtherDepartmentUser user) {
+        this.otherDepartmentUsers.add(user);
+        user.assignCustomerSupport(this);
+    }
+
+    @Builder
+    public CustomerSupport(CustomerSupportRequest request, Maintenance maintenance, Long customerCompanyCode,
+                           String activityType, LocalDateTime activityStartTime, LocalDateTime activityEndTime,
+                           String activityContent, String registrantId, String remarks) {
+        this.request = request;
+        this.maintenance = maintenance;
+        this.customerCompanyCode = customerCompanyCode;
+        this.activityType = activityType;
+        this.activityStartTime = activityStartTime;
+        this.activityEndTime = activityEndTime;
+        this.activityContent = activityContent;
+        this.registrantId = registrantId;
+        this.remarks = remarks;
+    }
 }
