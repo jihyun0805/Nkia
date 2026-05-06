@@ -2385,13 +2385,27 @@ def build_query_params(
 def fetch_product_catalog_rows(
     *,
     product_class: str | None = None,
+    name_term: str | None = None,
     limit: int = 200,
 ) -> list[dict[str, Any]]:
     db_url = build_backend_database_url()
     try:
         with psycopg.connect(db_url, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
-                if product_class:
+                if name_term:
+                    cur.execute(
+                        """
+                        SELECT id, product_class, product_group, product_name,
+                               license_standard, license_unit, unit_price
+                        FROM public.product_module
+                        WHERE deleted = false
+                          AND (product_name ILIKE %(term)s OR product_group ILIKE %(term)s)
+                        ORDER BY product_class, product_group, product_name
+                        LIMIT %(limit)s
+                        """,
+                        {"term": f"%{name_term}%", "limit": limit},
+                    )
+                elif product_class:
                     cur.execute(
                         """
                         SELECT id, product_class, product_group, product_name,

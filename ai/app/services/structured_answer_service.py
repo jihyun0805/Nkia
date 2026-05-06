@@ -112,13 +112,17 @@ def answer_targeted_domain_query(
             )
 
     if is_product_catalog_query(normalized_query):
-        product_class = extract_product_class_from_query(normalized_query)
-        catalog_rows = fetch_product_catalog_rows(product_class=product_class, limit=200)
+        name_term = extract_product_name_from_query(normalized_query)
+        product_class = None if name_term else extract_product_class_from_query(normalized_query)
+        catalog_rows = fetch_product_catalog_rows(
+            product_class=product_class, name_term=name_term, limit=200
+        )
         if catalog_rows:
             return build_product_catalog_response(
                 query=query,
                 rows=catalog_rows,
                 product_class=product_class,
+                name_term=name_term,
                 limit=limit,
                 embedder=embedder,
             )
@@ -564,13 +568,17 @@ def answer_graph_structured_extension(
             )
 
     if is_product_catalog_query(normalized_q):
-        product_class = extract_product_class_from_query(normalized_q)
-        catalog_rows = fetch_product_catalog_rows(product_class=product_class, limit=200)
+        name_term = extract_product_name_from_query(normalized_q)
+        product_class = None if name_term else extract_product_class_from_query(normalized_q)
+        catalog_rows = fetch_product_catalog_rows(
+            product_class=product_class, name_term=name_term, limit=200
+        )
         if catalog_rows:
             return build_product_catalog_response(
                 query=query,
                 rows=catalog_rows,
                 product_class=product_class,
+                name_term=name_term,
                 limit=limit,
                 embedder=embedder,
             )
@@ -2274,23 +2282,69 @@ def build_product_catalog_response(
     query: str,
     rows: list[dict[str, Any]],
     product_class: str | None,
+    name_term: str | None = None,
     limit: int,
     embedder: EmbeddingModel,
 ) -> AnswerResponse:
+    evidences: list[AnswerEvidence] = []
+
+    # 특정 모듈명 검색 결과 → 단답형
+    if name_term:
+        lines: list[str] = [
+            f"핵심 결론: '{name_term}' 검색 결과 {len(rows)}개 모듈이 확인됩니다.",
+            "",
+        ]
+        for i, row in enumerate(rows):
+            price_str = format_number(row.get("unit_price"), suffix="원") if row.get("unit_price") else "가격 미기재"
+            lines.append(
+                f"- {row.get('product_name') or '미기재'}"
+                f" [{row.get('product_class') or ''} / {row.get('product_group') or ''}]"
+                f" : {price_str}"
+            )
+            evidences.append(
+                AnswerEvidence(
+                    evidenceType="structured_evidence",
+                    sourceType="MODULE",
+                    sourceId=str(row.get("id") or i),
+                    title=str(row.get("product_name") or name_term),
+                    chunkIndex=i,
+                    distance=0.0,
+                    vectorScore=1.0,
+                    keywordScore=1.0,
+                    finalScore=1.0,
+                    matchedBy=["structured_row"],
+                    content=f"{row.get('product_name')} / {row.get('product_class')} / {row.get('product_group')} / {price_str}",
+                    metadata={
+                        "productClass": row.get("product_class"),
+                        "productGroup": row.get("product_group"),
+                        "productName": row.get("product_name"),
+                        "unitPrice": str(row.get("unit_price")) if row.get("unit_price") is not None else None,
+                    },
+                )
+            )
+        return AnswerResponse(
+            query=query,
+            answer="\n".join(lines),
+            embeddingModel=embedder.config.model_name,
+            chatModel="structured-rule-engine",
+            excludedSourceTypes=[],
+            evidences=evidences[:limit],
+        )
+
+    # 제품군/전체 목록 → 그룹핑 표시
     class_label = product_class or "전체"
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         cls = str(row.get("product_class") or "기타")
         grouped.setdefault(cls, []).append(row)
 
-    lines: list[str] = []
+    lines = []
     if product_class:
         lines.append(f"핵심 결론: {class_label} 제품군에는 총 {len(rows)}개 모듈이 있습니다.")
     else:
         lines.append(f"핵심 결론: POLESTAR 제품 카탈로그에는 총 {len(rows)}개 모듈이 있습니다.")
     lines.append("")
 
-    evidences: list[AnswerEvidence] = []
     for cls, items in sorted(grouped.items()):
         lines.append(f"[{cls}] — {len(items)}개")
         for item in items[:8]:
@@ -3257,6 +3311,18 @@ def is_paid_maintenance_transition_query(normalized_query: str) -> bool:
     )
 
 
+_PRODUCT_CATALOG_STOPWORDS = {
+    "알려줘", "알려", "줘", "보여줘", "보여", "의", "이", "가", "은", "는", "을", "를",
+    "에", "에서", "로", "으로", "과", "와", "이랑", "랑", "이나", "나", "단가", "가격",
+    "정가", "얼마", "모듈", "제품", "솔루션", "목록", "라인업", "카탈로그", "제품군",
+    "제품목록", "모듈목록", "뭐야", "뭐", "있어", "있나", "어때", "알고싶어",
+}
+_PRODUCT_CLASS_KEYWORDS = {
+    "EMS", "ITSM", "ITAM", "CLOUD", "BSM", "RCA", "DCA", "E2E",
+    "DASHBOARD", "DATACENTER", "SUPPORTING_TOOLS", "SUPPORTING", "POLESTAR",
+}
+
+
 def is_product_catalog_query(normalized_query: str) -> bool:
     has_product_keyword = any(
         keyword in normalized_query
@@ -3264,10 +3330,24 @@ def is_product_catalog_query(normalized_query: str) -> bool:
     )
     has_class_keyword = any(
         keyword in normalized_query.upper()
-        for keyword in ["EMS", "ITSM", "ITAM", "CLOUD", "BSM", "RCA", "DCA", "E2E", "DASHBOARD", "DATACENTER", "SUPPORTING"]
+        for keyword in _PRODUCT_CLASS_KEYWORDS
     )
     has_polestar = "POLESTAR" in normalized_query.upper() or "폴스타" in normalized_query
     return (has_product_keyword and not _is_module_revenue_query(normalized_query)) or has_polestar or (has_class_keyword and has_product_keyword)
+
+
+def extract_product_name_from_query(normalized_query: str) -> str | None:
+    upper = normalized_query.upper()
+    if any(cls in upper for cls in _PRODUCT_CLASS_KEYWORDS):
+        return None
+    tokens = re.split(r"[\s　]+", normalized_query)
+    candidates = [
+        t for t in tokens
+        if len(t) >= 2
+        and t.lower() not in _PRODUCT_CATALOG_STOPWORDS
+        and t.upper() not in _PRODUCT_CLASS_KEYWORDS
+    ]
+    return candidates[0] if candidates else None
 
 
 def is_module_revenue_query(normalized_query: str) -> bool:
