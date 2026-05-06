@@ -22,9 +22,11 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Getter
 @Entity
+@SQLRestriction("deleted = false")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Contract extends BaseEntity {
 
