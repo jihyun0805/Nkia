@@ -48,4 +48,13 @@ public class CompanyManager extends BaseEntity {
 
     private String role;
 
+    public void updateInfo(String name, String mobilePhone, String officePhone, String department, String position,
+                           String role) {
+        this.name = name;
+        this.mobilePhone = mobilePhone;
+        this.officePhone = officePhone;
+        this.department = department;
+        this.position = position;
+        this.role = role;
+    }
 }
