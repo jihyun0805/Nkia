@@ -1,6 +1,7 @@
 "use client"
 
 import { activityRequests, type ActivityRequestRecord } from "@/lib/activity-data"
+import { getRfpAnalyses } from "@/lib/bid-data"
 import { currentUser } from "@/lib/current-user"
 
 const REQUESTS_STORAGE_KEY = "orbis.activityRequests"
@@ -22,7 +23,7 @@ export type WorkflowTask = {
   title: string
   dueDate: string
   priority: "high" | "medium"
-  statusLabel: "승인 필요" | "승인완료" | "접수완료"
+  statusLabel: "승인 필요" | "승인완료" | "접수완료" | "진행중"
   href: string
 }
 
@@ -67,17 +68,31 @@ function createCurrentUserApprovalSeed(): ActivityRequestRecord {
     date: "2026-04-24",
     requester: "박과장",
     receiver: currentUser.name,
-    type: "제품소개",
-    customerCode: "CUS-008",
-    customer: "엘지씨엔에스",
-    opportunityCode: "OPP-2026-008",
-    opportunity: "공공 ITSM 고도화",
-    content: "고객사 대상 제품소개 지원 요청",
+    type: "RFP 분석",
+    customerCode: "CUS-004",
+    customer: "SK텔레콤",
+    opportunityCode: "OPP-2026-004",
+    opportunity: "SK텔레콤 NMS 업그레이드",
+    content: "고객사 전달 RFP 분석 요청",
     dueDate: "2026-04-29",
     status: "요청",
     lastAction: "created",
     lastActionAt: "2026-04-24",
   }
+}
+
+function getLinkedRfpAnalysis(requestId: string) {
+  return getRfpAnalyses().find((item) => item.requestId === requestId) ?? null
+}
+
+function isOverdueRfpAnalysis(request: ActivityRequestRecord) {
+  if (request.type !== "RFP 분석" || request.status !== "접수완료") return false
+
+  const linkedAnalysis = getLinkedRfpAnalysis(request.id)
+  if (!linkedAnalysis) return true
+  if (linkedAnalysis.status === "완료") return false
+
+  return request.dueDate < today()
 }
 
 function getRequestPriority(item: ActivityRequestRecord) {
@@ -170,9 +185,22 @@ export function getActivityRequests() {
 }
 
 export function getWorkflowNotifications(userName: string = currentUser.name) {
-  return readStorage<WorkflowNotification[]>(NOTIFICATIONS_STORAGE_KEY, defaultNotifications).filter(
+  const stored = readStorage<WorkflowNotification[]>(NOTIFICATIONS_STORAGE_KEY, defaultNotifications).filter(
     (item) => !item.audience || item.audience === userName,
   )
+  const overdueRfpNotifications = getActivityRequests()
+    .filter((item) => item.receiver === userName && isOverdueRfpAnalysis(item))
+    .map((item) =>
+      createWorkflowNotification({
+        title: "RFP 분석 미완료",
+        category: "RFP 분석",
+        description: `${item.customer} ${item.opportunity} 건의 RFP 분석이 완료되지 않았습니다. 진행 상태를 확인하세요.`,
+        href: `/activity/requests/${item.id}`,
+        audience: userName,
+      }),
+    )
+
+  return [...overdueRfpNotifications, ...stored]
 }
 
 function saveActivityRequests(requests: ActivityRequestRecord[]) {
@@ -196,6 +224,22 @@ export function dismissWorkflowNotification(id: string) {
   emitWorkflowUpdate()
 }
 
+export function notifyRfpAnalysisCompleted(input: {
+  requester: string
+  customer: string
+  opportunity: string
+  requestId?: string
+}) {
+  pushNotification({
+    title: "RFP 분석 완료",
+    category: "RFP 분석",
+    description: "요청하신 RFP 분석이 완료되었습니다.",
+    href: input.requestId ? `/activity/requests/${input.requestId}` : "/bid",
+    audience: input.requester,
+  })
+  emitWorkflowUpdate()
+}
+
 export function createActivityRequest(input: Omit<ActivityRequestRecord, "id" | "status" | "approvedAt" | "lastAction" | "lastActionAt">) {
   const requests = getActivityRequests()
   const request: ActivityRequestRecord = {
@@ -207,13 +251,23 @@ export function createActivityRequest(input: Omit<ActivityRequestRecord, "id" | 
   }
 
   saveActivityRequests([request, ...requests])
-  pushNotification({
-    title: "활동 요청 접수 확인 필요",
-    category: "활동 요청",
-    description: `${request.receiver} 담당자에게 ${request.customer} ${request.type} 요청이 전달되었습니다. 승인(접수) 여부를 확인하세요.`,
-    href: `/activity/requests/${request.id}`,
-    audience: request.receiver,
-  })
+  pushNotification(
+    request.type === "RFP 분석"
+      ? {
+          title: "RFP 분석 요청 접수",
+          category: "RFP 분석",
+          description: `${request.customer} ${request.opportunity} 건의 RFP 분석 요청이 접수되었습니다. 요청 내용을 확인하세요.`,
+          href: `/activity/requests/${request.id}`,
+          audience: request.receiver,
+        }
+      : {
+          title: "활동 요청 접수 확인 필요",
+          category: "활동 요청",
+          description: `${request.receiver} 담당자에게 ${request.customer} ${request.type} 요청이 전달되었습니다. 승인(접수) 여부를 확인하세요.`,
+          href: `/activity/requests/${request.id}`,
+          audience: request.receiver,
+        },
+  )
   emitWorkflowUpdate()
 
   return request
@@ -295,6 +349,19 @@ export function approveActivityRequest(id: string) {
 
 export function getWorkflowTasks(userName: string = currentUser.name) {
   const requestTasks = getActivityRequests().flatMap<WorkflowTask>((item) => {
+    if (item.receiver === userName && isOverdueRfpAnalysis(item)) {
+      return [
+        {
+          id: `task-rfp-overdue-${item.id}`,
+          title: `미완료 · ${item.customer} RFP 분석`,
+          dueDate: item.dueDate,
+          priority: "high",
+          statusLabel: "진행중",
+          href: `/activity/requests/${item.id}`,
+        },
+      ]
+    }
+
     if (item.status === "접수완료") {
       if (item.requester === userName) {
         return [
@@ -328,7 +395,22 @@ export function getWorkflowTasks(userName: string = currentUser.name) {
     ]
   })
 
-  return requestTasks.slice(0, 6)
+  const completedRfpTasks = getRfpAnalyses().flatMap<WorkflowTask>((item) => {
+    if (item.status !== "완료" || item.requester !== userName || !item.requestId) return []
+
+    return [
+      {
+        id: `task-rfp-completed-${item.id}`,
+        title: `${item.customer} RFP 분석 완료`,
+        dueDate: item.updatedAt?.slice(0, 10) ?? item.dueDate,
+        priority: "medium",
+        statusLabel: "접수완료",
+        href: `/activity/requests/${item.requestId}`,
+      },
+    ]
+  })
+
+  return [...completedRfpTasks, ...requestTasks].slice(0, 6)
 }
 
 export function subscribeWorkflowUpdates(callback: () => void) {

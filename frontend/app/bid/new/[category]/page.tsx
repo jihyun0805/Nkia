@@ -2,29 +2,38 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
+import { RfpAnalysisSheetLoader } from "@/components/erp/rfp-analysis-sheet-loader"
 import { Button } from "@/components/ui/button"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { type BidCategory, getBidCategoryLabel } from "@/lib/bid-data"
+import { type BidCategory, getBidCategoryLabel, getBidCreateActionLabel, rfpList } from "@/lib/bid-data"
 
 const categories: BidCategory[] = ["rfp", "prb", "proposal", "result"]
 
-export default async function BidCategoryNewPage({ params }: { params: Promise<{ category: BidCategory }> }) {
+export default async function BidCategoryNewPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ category: BidCategory }>
+  searchParams: Promise<{ requestId?: string; standalone?: string }>
+}) {
   const { category } = await params
+  const { requestId, standalone } = await searchParams
   if (!categories.includes(category)) notFound()
 
   const title = getBidCategoryLabel(category)
+  const actionLabel = getBidCreateActionLabel(category)
 
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header title={`${title} 등록`} description={`${title} 정보를 페이지에서 등록합니다`} />
+        <Header title={actionLabel} description={`${title} 정보를 페이지에서 등록합니다`} />
         <main className="flex-1 overflow-auto p-6">
-          <div className="mx-auto max-w-5xl space-y-6">
+          <div className="mx-auto max-w-6xl space-y-6">
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -34,23 +43,18 @@ export default async function BidCategoryNewPage({ params }: { params: Promise<{
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{title} 등록</BreadcrumbPage>
+                  <BreadcrumbPage>{actionLabel}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-            <Card>
-              <CardHeader>
-                <CardTitle>{title} 등록</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {category === "rfp" && (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>사업명 *</Label><Input /></div><div className="space-y-2"><Label>고객사 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>입수일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>제출 마감일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>입찰일</Label><Input type="date" /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>예상 금액</Label><Input /></div><div className="space-y-2"><Label>입수 방법</Label><Input /></div></div>
-                    <div className="space-y-2"><Label>RFP 분석 내용</Label><Textarea rows={4} /></div>
-                  </>
-                )}
+            {category === "rfp" ? (
+              <RfpAnalysisSheetLoader title={actionLabel} requestId={standalone === "1" ? undefined : (requestId ?? rfpList[0]?.id)} blankMode />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{actionLabel}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
                 {category === "prb" && (
                   <>
                     <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>RFP 번호 *</Label><Input /></div><div className="space-y-2"><Label>검토자 *</Label><Input /></div></div>
@@ -75,8 +79,9 @@ export default async function BidCategoryNewPage({ params }: { params: Promise<{
                 )}
                 <div className="space-y-2"><Label>첨부파일</Label><Input type="file" multiple /></div>
                 <div className="flex justify-end gap-2 border-t pt-6"><Button variant="outline" asChild><Link href="/bid">취소</Link></Button><Button asChild><Link href="/bid">등록</Link></Button></div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </main>
       </div>

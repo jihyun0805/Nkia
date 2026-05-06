@@ -528,6 +528,11 @@ export default function ActivityDetailPage() {
                       <Link href={`/activity/new/activities?requestId=${id}`}>활동 등록</Link>
                     </Button>
                   )}
+                  {requestItem && requestItem.type === "RFP 분석" && requestItem.receiver === currentUser.name && (
+                    <Button asChild className="bg-red-600 hover:bg-red-700">
+                      <Link href={`/bid/new/rfp?requestId=${id}`}>RFP 분석 실행</Link>
+                    </Button>
+                  )}
                   {requestItem && requestItem.status !== "접수완료" && requestItem.receiver === currentUser.name && (
                     <Button onClick={handleApprove} className="bg-green-600 hover:bg-green-700">
                       승인(접수)
