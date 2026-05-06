@@ -4,6 +4,8 @@ import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.uploadfile.entity.FileCategory;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/files")
 @RequiredArgsConstructor
+@Tag(name = "UploadFile", description = "파일 업로드 API")
 public class UploadFileController {
 
     private final UploadFileService uploadFileService;
@@ -33,6 +36,7 @@ public class UploadFileController {
     /**
      * 1. 범용 파일 업로드 API 파일을 MinIO에 물리적 업로드하고 DB에 메타데이터를 저장한 뒤, fileId를 반환합니다.
      */
+    @Operation(summary = "파일 업로드")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Long>> uploadFile(@RequestPart("file") MultipartFile file,
                                                         @RequestParam("category") FileCategory category
@@ -44,6 +48,7 @@ public class UploadFileController {
     /**
      * 2. 범용 파일 다운로드 API fileId를 받아 파일 스트림을 반환합니다.
      */
+    @Operation(summary = "파일 다운로드")
     @GetMapping("/{fileId}/download")
     public ResponseEntity<Resource> downloadFile(@PathVariable Long fileId) throws Exception {
         // 1. Service에서 파일 스트림 가져오기
@@ -71,6 +76,7 @@ public class UploadFileController {
     /**
      * 3. 이미지 조회를 위한 Presigned URL 발급 API 내부적으로 DB 조회를 수행하므로 fileId만 넘겨줍니다.
      */
+    @Operation(summary = "이미지 조회 위한 Presigned URL 발급")
     @GetMapping("/{fileId}/view")
     public ResponseEntity<ApiResponse<String>> getFileViewUrl(@PathVariable Long fileId) {
         String presignedUrl = uploadFileService.getPresignedUrl(fileId);
@@ -80,6 +86,7 @@ public class UploadFileController {
     /**
      * 4. [추가] 파일 삭제 API fileId를 받아 DB Soft Delete 및 MinIO 물리 삭제를 수행합니다.
      */
+    @Operation(summary = "파일 삭제")
     @DeleteMapping("/{fileId}")
     public ResponseEntity<ApiResponse<Void>> removeFile(@PathVariable Long fileId) {
         uploadFileService.removeFile(fileId);

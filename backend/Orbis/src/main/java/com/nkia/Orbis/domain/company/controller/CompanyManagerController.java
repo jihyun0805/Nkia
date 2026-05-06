@@ -5,6 +5,8 @@ import com.nkia.Orbis.domain.company.dto.request.CompanyManagerCreateRequest;
 import com.nkia.Orbis.domain.company.dto.request.CompanyManagerUpdateRequest;
 import com.nkia.Orbis.domain.company.dto.response.CompanyManagerResponse;
 import com.nkia.Orbis.domain.company.service.CompanyManagerService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,7 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/companies") // 리소스 중심의 URL 설계
+@Tag(name = "CompanyManager", description = "회사 담당자 관련 API")
+@RequestMapping("/companies")
 public class CompanyManagerController {
 
     private final CompanyManagerService companyManagerService;
@@ -31,11 +34,12 @@ public class CompanyManagerController {
     /**
      * 특정 고객사(협력사)에 담당자 등록 URI: POST /api/v1/companies/{companyId}/managers
      */
+    @Operation(summary = "회사 담당자 등록")
     @PostMapping("/{companyId}/managers")
     public ResponseEntity<ApiResponse<Long>> createManager(
             @PathVariable Long companyId,
             @Valid @RequestBody CompanyManagerCreateRequest request) { // @Valid로 DTO 검증 수행
-        
+
         // 여기서는 클라이언트가 URL과 Body에 모두 명시한다고 가정합니다.
         Long managerId = companyManagerService.createManager(request, companyId);
 
@@ -47,6 +51,7 @@ public class CompanyManagerController {
     /**
      * 담당자 정보 수정 URI: PUT /api/v1/companies/managers/{managerId}
      */
+    @Operation(summary = "회사 담당자 정보 수정")
     @PutMapping("/managers/{managerId}")
     public ResponseEntity<ApiResponse<Void>> updateManager(
             @PathVariable Long managerId,
@@ -59,6 +64,7 @@ public class CompanyManagerController {
     /**
      * 담당자 논리적 삭제 (Soft Delete) URI: DELETE /api/v1/companies/managers/{managerId}
      */
+    @Operation(summary = "회사 담당자 정보 삭제")
     @DeleteMapping("/managers/{managerId}")
     public ResponseEntity<ApiResponse<Void>> deleteManager(@PathVariable Long managerId) {
         companyManagerService.deleteManager(managerId);
@@ -68,6 +74,7 @@ public class CompanyManagerController {
     /**
      * 담당자 단건 상세 조회 URI: GET /api/v1/companies/managers/{managerId}
      */
+    @Operation(summary = "회사 담당자 상세 정보 조회")
     @GetMapping("/managers/{managerId}")
     public ResponseEntity<ApiResponse<CompanyManagerResponse>> getManager(@PathVariable Long managerId) {
         CompanyManagerResponse response = companyManagerService.getManager(managerId);
@@ -77,6 +84,7 @@ public class CompanyManagerController {
     /**
      * 특정 회사의 담당자 목록 페이징 조회 URI: GET /api/v1/companies/{companyId}/managers?page=0&size=10
      */
+    @Operation(summary = "회사 담당자 목록 조회")
     @GetMapping("/{companyId}/managers")
     public ResponseEntity<ApiResponse<Page<CompanyManagerResponse>>> getManagersByCompany(
             @PathVariable Long companyId,
