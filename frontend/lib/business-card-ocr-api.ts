@@ -24,6 +24,15 @@ export type BusinessCardOcrResult = {
   rawText: string | null
 }
 
+export const BUSINESS_CARD_IMAGE_MAX_BYTES = 50 * 1024 * 1024
+export const BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL = "50MB"
+
+export function assertBusinessCardImageSize(file: File) {
+  if (file.size > BUSINESS_CARD_IMAGE_MAX_BYTES) {
+    throw new Error(`명함 이미지는 ${BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} 이하만 업로드할 수 있습니다.`)
+  }
+}
+
 async function parseApiResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null
 
@@ -39,6 +48,8 @@ async function parseApiResponse<T>(response: Response, fallbackMessage: string):
 }
 
 export async function analyzeBusinessCard(file: File) {
+  assertBusinessCardImageSize(file)
+
   const formData = new FormData()
   formData.append("file", file)
 
