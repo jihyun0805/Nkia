@@ -96,4 +96,46 @@ public class ContractService {
                 .orElseThrow(() -> new ApiException(ContractErrorCode.CONTRACT_SUMMARY_NOT_FOUND));
         contract.delete();
     }
+
+    @Transactional
+    public void update(Long contractId, ContractRequest request) {
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.CONTRACT_SUMMARY_NOT_FOUND));
+
+        OrderReport orderReport = null;
+        UploadFile contractFile = null;
+
+        User salesRepresentative = contract.getSalesRepresentative();
+
+        if (request.getSalesRepresentativeId() != null) {
+            salesRepresentative = userRepository.findById(request.getSalesRepresentativeId())
+                    .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+        }
+
+        contract.update(
+                orderReport,
+                contractFile,
+                request.getProposalType(),
+                request.getContractAmount(),
+                request.getContractDate(),
+                request.getMaintenanceCondition(),
+                salesRepresentative
+        );
+
+        if (request.getContractModuleItems() != null) {
+            contract.clearModuleItems();
+
+            for (ContractModuleItemRequest itemRequest : request.getContractModuleItems()) {
+                ProductModule productModule = productModuleRepository.findById(itemRequest.getProductModuleId())
+                        .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
+
+                ContractModuleItem item = ContractModuleItem.create(
+                        productModule,
+                        itemRequest.getQuantity()
+                );
+
+                contract.addModuleItem(item);
+            }
+        }
+    }
 }
