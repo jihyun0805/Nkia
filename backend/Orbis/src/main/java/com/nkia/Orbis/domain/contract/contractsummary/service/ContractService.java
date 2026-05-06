@@ -1,10 +1,12 @@
 package com.nkia.Orbis.domain.contract.contractsummary.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.request.ContractCreateRequest;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.request.ContractModuleItemCreateRequest;
+import com.nkia.Orbis.domain.contract.contractsummary.dto.response.ContractListResponse;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.response.ContractResponse;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.ContractModuleItem;
@@ -72,4 +74,19 @@ public class ContractService {
         return ContractResponse.from(savedContract);
     }
 
+    @Transactional
+    public List<ContractListResponse> getContracts() {
+        return contractRepository.findAll()
+                .stream()
+                .map(ContractListResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public ContractResponse getContract(Long contractId) {
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.CONTRACT_SUMMARY_NOT_FOUND));
+
+        return ContractResponse.from(contract);
+    }
 }
