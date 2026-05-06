@@ -1,7 +1,10 @@
 package com.nkia.Orbis.domain.uploadfile.service;
 
-import com.nkia.Orbis.domain.uploadfile.dto.response.FileUploadResult;
+import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.UploadFileErrorCode;
 import com.nkia.Orbis.domain.uploadfile.entity.FileCategory;
+import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
+import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
 import io.minio.BucketExistsArgs;
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
@@ -18,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
@@ -26,6 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class UploadFileService {
 
     private final MinioClient minioClient;
+    private final UploadFileRepository uploadFileRepository;
 
     @Value("${minio.bucket-name}")
     private String bucketName;
@@ -36,7 +41,8 @@ public class UploadFileService {
      * @param file     업로드할 파일
      * @param category 파일 카테고리 (Enum)
      */
-    public FileUploadResult uploadFile(MultipartFile file, FileCategory category) {
+    @Transactional
+    public Long uploadFile(MultipartFile file, FileCategory category) {
         try {
             // 1. 버킷 존재 여부 확인 및 생성
             ensureBucketExists();
@@ -45,15 +51,15 @@ public class UploadFileService {
             // 형식: 카테고리/YYYY/MM/UUID.확장자
             String objectKey = generateObjectKey(category.getDirectory(), file.getOriginalFilename());
 
-            // 3. MinIO에 파일 업로드[cite: 1]
+            // 3. MinIO에 파일 업로드
             executeUpload(file, objectKey);
 
             log.info("파일 업로드 완료: {} -> {}", file.getOriginalFilename(), objectKey);
-            return getFileUploadResult(file, objectKey);
+            return uploadFileRepository.save(createUploadFile(file, objectKey)).getId();
 
         } catch (Exception e) {
             log.error("파일 업로드 중 오류 발생", e);
-            throw new RuntimeException("파일 업로드에 실패했습니다.", e);
+            throw new ApiException(UploadFileErrorCode.FILE_UPLOAD_FAIL);
         }
     }
 
@@ -90,16 +96,21 @@ public class UploadFileService {
         }
     }
 
-    private FileUploadResult getFileUploadResult(MultipartFile file, String objectKey) {
-        return new FileUploadResult(file.getOriginalFilename(), objectKey, file.getContentType(), file.getSize());
+    private UploadFile createUploadFile(MultipartFile file, String objectKey) {
+        return UploadFile.builder()
+                .originalFileName(file.getOriginalFilename())
+                .objectKey(objectKey)
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .build();
     }
 
-    /**
-     * MinIO 파일 삭제
-     *
-     * @param objectKey 삭제할 파일의 경로
-     */
-    public void removeFile(String objectKey) {
+    // 파일 삭제
+    @Transactional
+    public void removeFile(Long fileId) {
+        UploadFile uploadFile = getUploadFile(fileId);
+        uploadFile.delete();
+        String objectKey = uploadFile.getObjectKey();
         try {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
@@ -110,33 +121,41 @@ public class UploadFileService {
             log.info("MinIO 파일 삭제 성공: {}", objectKey);
         } catch (Exception e) {
             log.error("MinIO 파일 삭제 실패: {}", objectKey, e);
+            throw new ApiException(UploadFileErrorCode.FILE_REMOVE_FAIL);
         }
     }
 
     // 파일 다운로드
-    public InputStream downloadFile(String objectKey) throws Exception {
+    public InputStream downloadFile(Long fileId) throws Exception {
+        UploadFile uploadFile = getUploadFile(fileId);
         return minioClient.getObject(
                 GetObjectArgs.builder()
                         .bucket(bucketName)
-                        .object(objectKey)
+                        .object(uploadFile.getObjectKey())
                         .build()
         );
     }
 
     // 이미지 조회 위한 presignedUrl 반환
-    public String getPresignedUrl(String objectKey) {
+    public String getPresignedUrl(Long fileId) {
+        UploadFile uploadFile = getUploadFile(fileId);
         try {
             return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
                             .bucket(bucketName)
-                            .object(objectKey)
+                            .object(uploadFile.getObjectKey())
                             .expiry(60 * 60) // 1시간 동안 유효
                             .build()
             );
         } catch (Exception e) {
             log.error("URL 생성 실패", e);
-            return null;
+            throw new ApiException(UploadFileErrorCode.FILE_URL_FAIL);
         }
+    }
+
+    private UploadFile getUploadFile(Long fileId) {
+        return uploadFileRepository.findById(fileId)
+                .orElseThrow(() -> new ApiException(UploadFileErrorCode.FILE_NOT_FOUND));
     }
 }
