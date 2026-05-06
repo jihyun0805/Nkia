@@ -154,7 +154,7 @@ public class UploadFileService {
         }
     }
 
-    private UploadFile getUploadFile(Long fileId) {
+    public UploadFile getUploadFile(Long fileId) {
         return uploadFileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException(UploadFileErrorCode.FILE_NOT_FOUND));
     }
