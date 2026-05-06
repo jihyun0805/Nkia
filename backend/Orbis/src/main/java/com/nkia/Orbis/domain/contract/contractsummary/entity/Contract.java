@@ -87,4 +87,13 @@ public class Contract extends BaseEntity {
         this.contractModuleItems.add(item);
         item.setContract(this);
     }
+
+    @Override
+    public void delete() {
+        super.delete();
+
+        for (ContractModuleItem item : contractModuleItems) {
+            item.delete();
+        }
+    }
 }
