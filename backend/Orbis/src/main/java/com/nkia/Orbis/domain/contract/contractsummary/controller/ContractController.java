@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.contract.contractsummary.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
-import com.nkia.Orbis.domain.contract.contractsummary.dto.request.ContractCreateRequest;
+import com.nkia.Orbis.domain.contract.contractsummary.dto.request.ContractRequest;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.response.ContractListResponse;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.response.ContractResponse;
 import com.nkia.Orbis.domain.contract.contractsummary.service.ContractService;
@@ -32,7 +32,7 @@ public class ContractController {
     public ResponseEntity<ApiResponse<ContractResponse>> createContract(
             @Valid
             @RequestBody
-            ContractCreateRequest request
+            ContractRequest request
     ) {
         ContractResponse response = contractService.create(request);
 
