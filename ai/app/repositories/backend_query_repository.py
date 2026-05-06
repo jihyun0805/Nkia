@@ -2408,11 +2408,14 @@ _ENTITY_COUNT_DUMP_TABLE_MAP: dict[str, str] = {
 def fetch_entity_count(entity_type: str) -> int | None:
     db_url = build_backend_database_url()
 
-    def _count(table: str) -> int | None:
+    def _count(table: str, *, use_deleted_filter: bool = True) -> int | None:
         try:
             with psycopg.connect(db_url, row_factory=dict_row) as conn:
                 with conn.cursor() as cur:
-                    cur.execute(f"SELECT COUNT(*) AS cnt FROM {table} WHERE deleted = false")
+                    sql = f"SELECT COUNT(*) AS cnt FROM {table}"
+                    if use_deleted_filter:
+                        sql += " WHERE deleted = false"
+                    cur.execute(sql)
                     row = cur.fetchone()
                     return int(row["cnt"]) if row else None
         except psycopg.errors.UndefinedTable:
@@ -2421,16 +2424,17 @@ def fetch_entity_count(entity_type: str) -> int | None:
             logger.warning("fetch_entity_count(%s) DB error: %s", entity_type, exc)
             return None
 
-    # dump 테이블 우선 (배포서버), 없으면 entity 테이블 폴백 (로컬)
+    # dump 테이블 우선 (배포서버) — deleted 컬럼 없음
     dump_table = _ENTITY_COUNT_DUMP_TABLE_MAP.get(entity_type)
     if dump_table:
-        result = _count(dump_table)
+        result = _count(dump_table, use_deleted_filter=False)
         if result is not None:
             return result
 
+    # entity 테이블 폴백 (로컬)
     entity_table = _ENTITY_COUNT_TABLE_MAP.get(entity_type)
     if entity_table:
-        return _count(entity_table)
+        return _count(entity_table, use_deleted_filter=True)
 
     return None
 

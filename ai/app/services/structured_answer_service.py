@@ -3424,6 +3424,7 @@ _COUNT_ENTITY_MAP: dict[str, str] = {
     "사업 기회": "opportunity",
     "영업활동": "activity",
     "영업 활동": "activity",
+    "활동": "activity",
     "rfp": "rfp",
     "견적": "quotation",
     "프로젝트": "project",
