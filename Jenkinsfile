@@ -118,8 +118,10 @@ pipeline {
 
                 sh '''
                     set -eu
+                    set -a
                     . ${BACKEND_DIR}/.env.prod
                     . ${AI_DIR}/.env.prod
+                    set +a
 
                     wait_for_postgres() {
                       timeout_seconds="$1"
