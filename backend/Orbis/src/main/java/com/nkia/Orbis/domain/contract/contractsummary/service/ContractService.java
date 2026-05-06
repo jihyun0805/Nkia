@@ -89,4 +89,11 @@ public class ContractService {
 
         return ContractResponse.from(contract);
     }
+
+    @Transactional
+    public void delete(Long contractId) {
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.CONTRACT_SUMMARY_NOT_FOUND));
+        contract.delete();
+    }
 }
