@@ -2,7 +2,7 @@ package com.nkia.Orbis.domain.productmodule.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
-import com.nkia.Orbis.domain.productmodule.dto.request.ProductModuleCreateRequest;
+import com.nkia.Orbis.domain.productmodule.dto.request.ProductModuleRequest;
 import com.nkia.Orbis.domain.productmodule.dto.response.ProductModuleResponse;
 import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.productmodule.repository.ProductModuleRepository;
@@ -17,7 +17,7 @@ public class ProductModuleService {
     private final ProductModuleRepository productModuleRepository;
 
     @Transactional
-    public ProductModuleResponse create(ProductModuleCreateRequest request) {
+    public ProductModuleResponse create(ProductModuleRequest request) {
         ProductModule productModule = ProductModule.create(
                 request.getProductClass(),
                 request.getProductGroup(),
@@ -46,5 +46,22 @@ public class ProductModuleService {
                 .stream()
                 .map(ProductModuleResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public ProductModuleResponse update(Long productModuleId, ProductModuleRequest request) {
+        ProductModule productModule = productModuleRepository.findById(productModuleId)
+                .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
+
+        productModule.update(
+                request.getProductClass(),
+                request.getProductGroup(),
+                request.getProductName(),
+                request.getLicenseStandard(),
+                request.getLicenseUnit(),
+                request.getUnitPrice()
+        );
+
+        return ProductModuleResponse.from(productModule);
     }
 }

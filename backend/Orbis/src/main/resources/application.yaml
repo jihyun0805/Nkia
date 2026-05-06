@@ -53,7 +53,11 @@ app:
 
 ai:
   base-url: ${AI_API_BASE_URL:http://localhost:8000}
-  internal-token: ${AI_INTERNAL_TOKEN}
+  api:
+    base-url: ${AI_API_BASE_URL}
+    internal-token: ${AI_INTERNAL_TOKEN}
+    connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:3000}
+    request-timeout-ms: ${AI_REQUEST_TIMEOUT_MS:65000}
 
 # JWT 설정
 jwt:

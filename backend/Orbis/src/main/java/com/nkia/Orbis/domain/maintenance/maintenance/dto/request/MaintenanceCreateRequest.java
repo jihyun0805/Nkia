@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.maintenance.maintenance.dto.request;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Importance;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.InspectionCycle;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.MaintenanceType;
+import com.nkia.Orbis.domain.maintenance.maintenance.entity.ProdFamily;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -48,7 +49,7 @@ public class MaintenanceCreateRequest {
     private UUID regularPm;             // 정기PM
 
     // 5. 기술 환경 정보 (Technical Specs)
-    private String productFamily;       // 제품군
+    private ProdFamily productFamily;       // 제품군
     private String apVersion;           // AP버전
     private Integer apCount;            // AP수
     private String esVersion;           // ES버전

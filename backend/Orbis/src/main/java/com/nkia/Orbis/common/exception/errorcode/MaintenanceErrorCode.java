@@ -1,0 +1,18 @@
+package com.nkia.Orbis.common.exception.errorcode;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+
+@Getter
+@RequiredArgsConstructor
+public enum MaintenanceErrorCode implements ErrorCode {
+    QUOTATION_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "MAINTENANCE_0001", "이미 등록된 견적서 참조번호입니다."),
+    MODULE_NOT_FOUND(HttpStatus.NOT_FOUND, "MAINTENANCE_0002", "요청한 제품 모듈을 찾을 수 없습니다."),
+    CATEGORY_NOT_FOUND(HttpStatus.NOT_FOUND, "MAINTENANCE_0003", "존재하지 않는 서비스 구분입니다."),
+    ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "MAINTENANCE_0004", "존재하지 않는 서비스 항목입니다.");
+
+    private final HttpStatus httpStatus;
+    private final String code;
+    private final String message;
+}
