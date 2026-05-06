@@ -9,6 +9,7 @@ POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 AI_DB_USER="${AI_DB_USER:-orbis_ai}"
 AI_DB_PASSWORD="${AI_DB_PASSWORD:-orbis_ai}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-Orbis-Postgres}"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 SQL_FILE="${SCRIPT_DIR}/migrations/001_bootstrap_ai_schema.sql"
@@ -49,14 +50,16 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 127
 fi
 
-docker run --rm \
-  --network host \
-  -e PGPASSWORD="${POSTGRES_PASSWORD}" \
-  -v "${TMP_SQL_FILE}:/migration.sql:ro" \
-  pgvector/pgvector:pg15 \
-  psql \
-    --host "${POSTGRES_HOST}" \
-    --port "${POSTGRES_PORT}" \
-    --username "${POSTGRES_USER}" \
-    --dbname "${POSTGRES_DB}" \
-    -f /migration.sql
+if docker ps --format '{{.Names}}' | grep -Fxq "${POSTGRES_CONTAINER}"; then
+  docker exec -i \
+    -e PGPASSWORD="${POSTGRES_PASSWORD}" \
+    "${POSTGRES_CONTAINER}" \
+    psql \
+      --username "${POSTGRES_USER}" \
+      --dbname "${POSTGRES_DB}" \
+      -f - < "${TMP_SQL_FILE}"
+  exit 0
+fi
+
+echo "Postgres container not found: ${POSTGRES_CONTAINER}" >&2
+exit 127

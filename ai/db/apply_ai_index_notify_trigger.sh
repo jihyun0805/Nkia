@@ -7,6 +7,7 @@ set -eu
 
 POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-Orbis-Postgres}"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 SQL_FILE="${SCRIPT_DIR}/migrations/002_ai_index_notify_trigger.sql"
@@ -38,15 +39,17 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 127
 fi
 
-docker run --rm \
-  --network host \
-  -e PGPASSWORD="${POSTGRES_PASSWORD}" \
-  -v "${SQL_FILE}:/trigger.sql:ro" \
-  pgvector/pgvector:pg15 \
-  psql \
-    --host "${POSTGRES_HOST}" \
-    --port "${POSTGRES_PORT}" \
-    --username "${POSTGRES_USER}" \
-    --dbname "${POSTGRES_DB}" \
-    -v ON_ERROR_STOP=1 \
-    -f /trigger.sql
+if docker ps --format '{{.Names}}' | grep -Fxq "${POSTGRES_CONTAINER}"; then
+  docker exec -i \
+    -e PGPASSWORD="${POSTGRES_PASSWORD}" \
+    "${POSTGRES_CONTAINER}" \
+    psql \
+      --username "${POSTGRES_USER}" \
+      --dbname "${POSTGRES_DB}" \
+      -v ON_ERROR_STOP=1 \
+      -f - < "${SQL_FILE}"
+  exit 0
+fi
+
+echo "Postgres container not found: ${POSTGRES_CONTAINER}" >&2
+exit 127
