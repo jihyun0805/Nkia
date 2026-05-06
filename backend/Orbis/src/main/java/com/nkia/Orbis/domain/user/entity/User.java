@@ -7,7 +7,7 @@ import com.nkia.Orbis.domain.alarm.entity.Alarm;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.department.entity.Department;
-import com.nkia.Orbis.domain.maintenance.customersupport.entity.CustomerSupportOtherDepartmentUser;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupportOtherDepartmentUser;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
 import jakarta.persistence.Column;
@@ -97,10 +97,6 @@ public class User extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "manager")
     private List<ProjectResultReport> projectResultReports = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "user")
-    private List<CustomerSupportOtherDepartmentUser> involvedCustomerSupports = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "sender")
