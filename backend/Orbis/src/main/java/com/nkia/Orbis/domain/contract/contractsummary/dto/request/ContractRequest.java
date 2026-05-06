@@ -8,13 +8,13 @@ import java.util.UUID;
 import lombok.Getter;
 
 @Getter
-public class ContractCreateRequest {
+public class ContractRequest {
     private Long orderReportId;
 
     private Long contractFileId;
 
     @Valid
-    private List<ContractModuleItemCreateRequest> contractModuleItems;
+    private List<ContractModuleItemRequest> contractModuleItems;
 
     private ProposalType proposalType;
 
