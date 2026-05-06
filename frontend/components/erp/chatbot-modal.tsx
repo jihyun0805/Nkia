@@ -555,13 +555,20 @@ export function ChatbotModal() {
       <button
         type="button"
         onClick={openChat}
-        className="fixed bottom-6 right-6 z-40 inline-flex h-14 items-center justify-center gap-2 rounded-full border border-sky-400/30 bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_20px_50px_rgba(15,23,42,0.35)] transition-all hover:-translate-y-0.5 hover:bg-slate-900"
+        className="inline-flex h-12 w-[280px] items-center justify-between rounded-2xl border border-slate-200 bg-background px-4 text-sm text-slate-500 shadow-sm transition-all hover:border-sky-200 hover:bg-white hover:text-slate-700"
       >
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/20 text-sky-200">
-          <Bot className="h-4 w-4" />
+        <span className="flex items-center gap-3">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/10 text-sky-600">
+            <Bot className="h-4 w-4" />
+          </span>
+          <span className="text-left">
+            <span className="block text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">
+              AI 챗봇
+            </span>
+            <span className="block text-sm text-slate-500">질문하거나 문서를 찾아보세요</span>
+          </span>
         </span>
-        AI 챗봇
-        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
       </button>
 
       {isOpen && (

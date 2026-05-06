@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Bell, Search } from "lucide-react"
+import { Bell } from "lucide-react"
+import { ChatbotModal } from "@/components/erp/chatbot-modal"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Popover,
   PopoverContent,
@@ -46,14 +46,7 @@ export function Header({ title, description }: HeaderProps) {
         </div>
         
         <div className="flex items-center gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="검색..." 
-              className="pl-9 w-64 bg-background"
-            />
-          </div>
+          <ChatbotModal />
 
           {/* Notifications */}
           <Popover>
