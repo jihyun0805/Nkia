@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -10,6 +11,8 @@ import torch
 from torch import nn
 from transformers import BertModel, BertTokenizer
 
+
+logger = logging.getLogger(__name__)
 
 MODEL_CONFIDENCE_THRESHOLD = 0.40
 BERT_MODEL_TYPE = "bert_multilingual_line_classifier"
@@ -139,7 +142,8 @@ def get_business_card_field_classifier() -> BertBusinessCardFieldClassifier | No
             artifact_dir=artifact_dir,
             metadata_path=metadata_path,
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("business_card_field_classifier.load_failed artifact_dir=%s error=%s", artifact_dir, exc)
         return None
 
 

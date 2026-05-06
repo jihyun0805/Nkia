@@ -363,18 +363,55 @@ export function FindingCategoryNewPageView({
                         <Plus className="mr-2 h-4 w-4" />
                         담당자 추가
                       </Button>
+                      <Input
+                        ref={businessCardInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={ocrLoadingIndex !== null}
+                        onChange={(event) => {
+                          void handleBusinessCardFileChange(event.target.files?.[0])
+                          event.target.value = ""
+                        }}
+                      />
                     </div>
 
                     <div className="space-y-6">
                       {contacts.map((contact, index) => (
                         <section key={index} className="space-y-4 border border-border p-4">
-                          <div className="flex items-center justify-between">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
                             <h3 className="text-sm font-semibold">{`담당자 ${index + 1}`}</h3>
+                            <div className="flex flex-wrap gap-2">
+                              <Button type="button" variant="outline" size="sm" disabled={ocrLoadingIndex !== null} onClick={() => openBusinessCardInput(index)}>
+                                {ocrLoadingIndex === index ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
+                                명함 등록
+                              </Button>
                             <Button type="button" variant="outline" size="sm" onClick={() => setDeleteIndex(index)}>
                               <Trash2 className="mr-2 h-4 w-4" />
                               담당자 삭제
                             </Button>
+                            </div>
                           </div>
+                          {contact.businessCardImage ? (
+                            <div className="flex items-start gap-3">
+                              <img
+                                src={contact.businessCardImage}
+                                alt="Business card preview"
+                                className="w-full max-w-xl rounded border border-border object-contain md:w-[560px]"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, businessCardImage: "" } : item)))
+                                }
+                              >
+                                <X className="mr-2 h-4 w-4" />
+                                미리보기 제거
+                              </Button>
+                            </div>
+                          ) : null}
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
                               <Label>담당자명</Label>
