@@ -7,29 +7,17 @@ set -eu
 
 POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
-AI_DB_USER="${AI_DB_USER:-orbis_ai}"
-AI_DB_PASSWORD="${AI_DB_PASSWORD:-orbis_ai}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-Orbis-Postgres}"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-SQL_FILE="${SCRIPT_DIR}/migrations/001_bootstrap_ai_schema.sql"
-TMP_SQL_FILE="$(mktemp)"
+SQL_FILE="${SCRIPT_DIR}/migrations/002_ai_index_notify_trigger.sql"
 
-cleanup() {
-  rm -f "${TMP_SQL_FILE}"
-}
-trap cleanup EXIT
+if [ ! -f "${SQL_FILE}" ]; then
+  echo "Trigger SQL file not found: ${SQL_FILE}" >&2
+  exit 1
+fi
 
 export PGPASSWORD="${POSTGRES_PASSWORD}"
-
-escape_sed() {
-  printf '%s' "$1" | sed 's/[\\/&]/\\\\&/g'
-}
-
-sed \
-  -e "s/__AI_DB_USER__/$(escape_sed "${AI_DB_USER}")/g" \
-  -e "s/__AI_DB_PASSWORD__/$(escape_sed "${AI_DB_PASSWORD}")/g" \
-  "${SQL_FILE}" > "${TMP_SQL_FILE}"
 
 run_psql() {
   "$@" \
@@ -37,7 +25,8 @@ run_psql() {
     --port "${POSTGRES_PORT}" \
     --username "${POSTGRES_USER}" \
     --dbname "${POSTGRES_DB}" \
-    -f "${TMP_SQL_FILE}"
+    -v ON_ERROR_STOP=1 \
+    -f "${SQL_FILE}"
 }
 
 if command -v psql >/dev/null 2>&1; then
@@ -46,7 +35,7 @@ if command -v psql >/dev/null 2>&1; then
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "psql or docker is required to run AI DB migration." >&2
+  echo "psql or docker is required to apply AI index notify trigger." >&2
   exit 127
 fi
 
@@ -57,7 +46,8 @@ if docker ps --format '{{.Names}}' | grep -Fxq "${POSTGRES_CONTAINER}"; then
     psql \
       --username "${POSTGRES_USER}" \
       --dbname "${POSTGRES_DB}" \
-      -f - < "${TMP_SQL_FILE}"
+      -v ON_ERROR_STOP=1 \
+      -f - < "${SQL_FILE}"
   exit 0
 fi
 

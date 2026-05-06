@@ -54,6 +54,121 @@ function chunkRows<T>(rows: T[], size: number) {
   return chunks
 }
 
+function estimateWrappedLineCount(value: string | undefined, charsPerLine: number) {
+  const normalized = (value ?? "").trim()
+  if (!normalized) return 1
+
+  return normalized
+    .split("\n")
+    .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
+}
+
+function sumHeights<T>(rows: T[], estimate: (row: T) => number) {
+  return rows.reduce((total, row) => total + estimate(row), 0)
+}
+
+function paginateRowsByHeight<T>(
+  rows: T[],
+  pageHeights: number[],
+  estimateRowHeight: (row: T) => number,
+  finalReservedHeight = 0,
+) {
+  if (rows.length === 0) return [[] as T[]]
+
+  const getPageHeight = (pageIndex: number) => pageHeights[Math.min(pageIndex, pageHeights.length - 1)]
+  const chunks: { rows: T[]; usedHeight: number }[] = []
+  let currentRows: T[] = []
+  let currentHeight = 0
+  let pageIndex = 0
+
+  for (const row of rows) {
+    const rowHeight = estimateRowHeight(row)
+    const pageHeight = getPageHeight(pageIndex)
+
+    if (currentRows.length > 0 && currentHeight + rowHeight > pageHeight) {
+      chunks.push({ rows: currentRows, usedHeight: currentHeight })
+      currentRows = [row]
+      currentHeight = rowHeight
+      pageIndex += 1
+      continue
+    }
+
+    currentRows.push(row)
+    currentHeight += rowHeight
+  }
+
+  chunks.push({ rows: currentRows, usedHeight: currentHeight })
+
+  while (chunks.length > 0) {
+    const lastIndex = chunks.length - 1
+    const lastChunk = chunks[lastIndex]
+    const lastPageHeight = getPageHeight(lastIndex)
+
+    if (lastChunk.usedHeight + finalReservedHeight <= lastPageHeight || lastChunk.rows.length <= 1) {
+      break
+    }
+
+    const overflowRows: T[] = []
+    let overflowHeight = 0
+
+    while (lastChunk.rows.length > 1 && lastChunk.usedHeight + finalReservedHeight > lastPageHeight) {
+      const movedRow = lastChunk.rows.pop()
+      if (!movedRow) break
+      const movedHeight = estimateRowHeight(movedRow)
+      overflowRows.unshift(movedRow)
+      overflowHeight += movedHeight
+      lastChunk.usedHeight -= movedHeight
+    }
+
+    if (overflowRows.length === 0) {
+      break
+    }
+
+    chunks.push({ rows: overflowRows, usedHeight: overflowHeight })
+  }
+
+  return chunks.map((chunk) => chunk.rows)
+}
+
+function estimateSolutionRowHeight(
+  row: {
+    category?: string
+    module?: string
+    note?: string
+    consumerUnitPrice?: string
+    consumerTotal?: string
+    supplyUnitPrice?: string
+    supplyTotal?: string
+  },
+  compact: boolean,
+) {
+  const maxLines = Math.max(
+    estimateWrappedLineCount(row.category, compact ? 10 : 12),
+    estimateWrappedLineCount(row.module, compact ? 28 : 34),
+    estimateWrappedLineCount(row.note, compact ? 8 : 10),
+    estimateWrappedLineCount(row.consumerUnitPrice, 10),
+    estimateWrappedLineCount(row.consumerTotal, 10),
+    estimateWrappedLineCount(row.supplyUnitPrice, 10),
+    estimateWrappedLineCount(row.supplyTotal, 10),
+  )
+
+  return (compact ? 34 : 38) + (maxLines - 1) * (compact ? 16 : 18)
+}
+
+function estimateCustomizingRowHeight(
+  row: { item?: string; laborRate?: string; manMonth?: string; supplyAmount?: string },
+  compact: boolean,
+) {
+  const maxLines = Math.max(
+    estimateWrappedLineCount(row.item, compact ? 34 : 42),
+    estimateWrappedLineCount(row.laborRate, 12),
+    estimateWrappedLineCount(row.manMonth, 12),
+    estimateWrappedLineCount(row.supplyAmount, 12),
+  )
+
+  return (compact ? 32 : 36) + (maxLines - 1) * (compact ? 16 : 18)
+}
+
 function baseSolutionRows() {
   return [
     { id: "", rowNo: "1", category: "", module: "", quantity: "", consumerUnitPrice: "", consumerTotal: "", supplyUnitPrice: "", supplyTotal: "", discountRate: "", note: "" },
@@ -251,6 +366,14 @@ export function normalizeQuotationForm(form: QuotationFormState): QuotationFormS
 
 export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationSheetProps) {
   const readOnly = mode === "detail"
+  const EVIDENCE_SINGLE_PAGE_HEIGHT = 1580
+  const SINGLE_PAGE_STATIC_HEIGHT = 410
+  const SINGLE_PAGE_ACTION_HEIGHT = readOnly ? 0 : 72
+  const COMPACT_SOLUTION_FIRST_PAGE_HEIGHT = 1330
+  const COMPACT_SOLUTION_NEXT_PAGE_HEIGHT = 1410
+  const COMPACT_CUSTOM_PAGE_HEIGHT = 1410
+  const COMPACT_SOLUTION_SUMMARY_HEIGHT = 48 + (readOnly ? 0 : 72)
+  const COMPACT_CUSTOM_SUMMARY_HEIGHT = 48 + (readOnly ? 0 : 72)
   const items = form.items ?? []
   const solutionRows = form.solutionRows ?? []
   const customizingRows = form.customizingRows ?? []
@@ -259,15 +382,34 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
   const itemsTotal = sumBy(items, (item) => item.amount)
   const solutionTotal = sumBy(solutionRows, (row) => row.supplyTotal)
   const customizingTotal = sumBy(customizingRows.filter((row) => row.supplyAmount !== "-"), (row) => row.supplyAmount)
-  const evidenceFitsSinglePage = solutionRows.length <= 10 && customizingRows.length <= 8
   const inputClass = "h-8 appearance-none rounded-none border-0 bg-transparent px-1 text-inherit shadow-none focus-visible:ring-0"
   const wrappingTextClass = "min-h-0 appearance-none resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 py-0 text-inherit shadow-none focus-visible:ring-0 [field-sizing:content] whitespace-pre-wrap break-words [scrollbar-width:none] [-ms-overflow-style:none]"
   const tableCellTextareaClass = "min-h-[24px] appearance-none resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 py-0 text-inherit shadow-none focus-visible:ring-0 whitespace-pre-wrap break-words [field-sizing:content] [scrollbar-width:none] [-ms-overflow-style:none]"
   const inlineLineInputClass = "h-auto min-h-0 appearance-none rounded-none border-0 bg-transparent px-0 py-0 align-baseline shadow-none focus-visible:ring-0"
   const lineRowTextClass = "text-[18px] font-bold leading-none"
   const refRowTextClass = "text-[17px] font-normal leading-none"
-  const solutionChunks = chunkRows(solutionRows, 10)
-  const customizingChunks = chunkRows(customizingRows, 12)
+  const singlePageEstimatedHeight =
+    SINGLE_PAGE_STATIC_HEIGHT +
+    SINGLE_PAGE_ACTION_HEIGHT +
+    sumHeights(solutionRows, (row) => estimateSolutionRowHeight(row, false)) +
+    sumHeights(customizingRows, (row) => estimateCustomizingRowHeight(row, false))
+  const evidenceFitsSinglePage = singlePageEstimatedHeight <= EVIDENCE_SINGLE_PAGE_HEIGHT
+  const solutionChunks = evidenceFitsSinglePage
+    ? [solutionRows]
+    : paginateRowsByHeight(
+        solutionRows,
+        [COMPACT_SOLUTION_FIRST_PAGE_HEIGHT, COMPACT_SOLUTION_NEXT_PAGE_HEIGHT],
+        (row) => estimateSolutionRowHeight(row, true),
+        COMPACT_SOLUTION_SUMMARY_HEIGHT,
+      )
+  const customizingChunks = evidenceFitsSinglePage
+    ? [customizingRows]
+    : paginateRowsByHeight(
+        customizingRows,
+        [COMPACT_CUSTOM_PAGE_HEIGHT],
+        (row) => estimateCustomizingRowHeight(row, true),
+        COMPACT_CUSTOM_SUMMARY_HEIGHT,
+      )
 
   const updateForm = (updater: (prev: QuotationFormState) => QuotationFormState) => {
     if (!onChange || readOnly) return
