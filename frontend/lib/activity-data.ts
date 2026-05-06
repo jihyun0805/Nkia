@@ -23,6 +23,7 @@ export type ActivityRecord = {
 
 export type QuotationRecord = {
   id: string
+  requestId?: string
   refNumber?: string
   date: string
   customerCode?: string
@@ -535,6 +536,56 @@ export const activityRequests: ActivityRequestRecord[] = [
     approvedAt: "2026-03-13",
     lastAction: "approved",
     lastActionAt: "2026-03-13",
+  },
+  {
+    id: "REQ-2026-014",
+    date: "2026-04-22",
+    requester: "김영업",
+    receiver: "박과장",
+    type: "SI 제안서 작성",
+    customerCode: "CUS-004",
+    customer: "SK텔레콤",
+    opportunityCode: "OPP-2026-004",
+    opportunity: "SK텔레콤 NMS 업그레이드",
+    content: "제안서 최종본 취합 후 등록 요청",
+    dueDate: "2026-04-30",
+    status: "접수완료",
+    approvedAt: "2026-04-22",
+    lastAction: "approved",
+    lastActionAt: "2026-04-22",
+  },
+  {
+    id: "REQ-2026-015",
+    date: "2026-04-28",
+    requester: "박과장",
+    receiver: "최PM",
+    type: "제안서 작성",
+    customerCode: "CUS-003",
+    customer: "현대자동차",
+    opportunityCode: "OPP-2026-003",
+    opportunity: "현대차 Automation 확장",
+    content: "고객 요청사항 반영한 제안서 등록 준비",
+    dueDate: "2026-05-08",
+    status: "접수완료",
+    approvedAt: "2026-04-28",
+    lastAction: "approved",
+    lastActionAt: "2026-04-28",
+  },
+  {
+    id: "REQ-2026-016",
+    date: "2026-05-03",
+    requester: "최부장",
+    receiver: "김영업",
+    type: "SI 제안서 작성",
+    customerCode: "CUS-005",
+    customer: "NTT DoCoMo",
+    opportunityCode: "OPP-2026-005",
+    opportunity: "일본 NTT DoCoMo WSS",
+    content: "현지 협업사와 공동 제안서 작성 요청",
+    dueDate: "2026-05-14",
+    status: "요청",
+    lastAction: "created",
+    lastActionAt: "2026-05-03",
   },
   {
     id: "REQ-2026-013",

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
+import { ProposalRegistrationForm } from "@/components/erp/proposal-registration-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
@@ -13,6 +14,34 @@ import { getStatusOptions, isStatusField } from "@/lib/status-options"
 
 export default async function BidEditPage({ params }: { params: Promise<{ category: BidCategory; id: string }> }) {
   const { category, id } = await params
+  if (category === "proposal") {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title="제안서 수정" description="제안서 정보를 페이지에서 수정합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl space-y-6">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href="/bid">입찰</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{id}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              <ProposalRegistrationForm proposalId={id} />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
   const item = getBidItem(category, id)
   if (!item) notFound()
   const label = getBidCategoryLabel(category)

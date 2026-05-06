@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
+import { ProposalRegistrationForm } from "@/components/erp/proposal-registration-form"
 import { RfpAnalysisSheetLoader } from "@/components/erp/rfp-analysis-sheet-loader"
 import { Button } from "@/components/ui/button"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
@@ -18,10 +19,10 @@ export default async function BidCategoryNewPage({
   searchParams,
 }: {
   params: Promise<{ category: BidCategory }>
-  searchParams: Promise<{ requestId?: string; standalone?: string }>
+  searchParams: Promise<{ requestId?: string; standalone?: string; proposalId?: string }>
 }) {
   const { category } = await params
-  const { requestId, standalone } = await searchParams
+  const { requestId, standalone, proposalId } = await searchParams
   if (!categories.includes(category)) notFound()
 
   const title = getBidCategoryLabel(category)
@@ -49,6 +50,8 @@ export default async function BidCategoryNewPage({
             </Breadcrumb>
             {category === "rfp" ? (
               <RfpAnalysisSheetLoader title={actionLabel} requestId={standalone === "1" ? undefined : (requestId ?? rfpList[0]?.id)} blankMode />
+            ) : category === "proposal" ? (
+              <ProposalRegistrationForm initialRequestId={requestId} proposalId={proposalId} />
             ) : (
               <Card>
                 <CardHeader>
@@ -60,13 +63,6 @@ export default async function BidCategoryNewPage({
                     <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>RFP 번호 *</Label><Input /></div><div className="space-y-2"><Label>검토자 *</Label><Input /></div></div>
                     <div className="grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>상신일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>검토일</Label><Input type="date" /></div><div className="space-y-2"><Label>리스크 등급 *</Label><Input placeholder="예: 중" /></div></div>
                     <div className="space-y-2"><Label>검토 의견 *</Label><Textarea rows={4} /></div>
-                  </>
-                )}
-                {category === "proposal" && (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>RFP 번호 *</Label><Input /></div><div className="space-y-2"><Label>PM *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>작성 시작일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>제출 마감일 *</Label><Input type="date" /></div></div>
-                    <div className="space-y-2"><Label>제안 전략</Label><Textarea rows={4} /></div>
                   </>
                 )}
                 {category === "result" && (

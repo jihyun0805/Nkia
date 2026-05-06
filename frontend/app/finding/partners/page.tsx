@@ -9,19 +9,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { partners } from "@/lib/finding-data"
+import { getPartners } from "@/lib/finding-data"
 
 export default function FindingPartnersPage() {
   const router = useRouter()
+  const partnerRows = getPartners()
 
   const partnerCards = useMemo(
     () =>
-      [...partners].sort((a, b) => {
+      [...partnerRows].sort((a, b) => {
         const nameCompare = a.name.localeCompare(b.name, "ko")
         if (nameCompare !== 0) return nameCompare
         return a.id.localeCompare(b.id)
       }),
-    [],
+    [partnerRows],
   )
 
   return (

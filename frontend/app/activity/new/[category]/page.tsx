@@ -71,6 +71,38 @@ function ActivityCategoryNewPageContent() {
   })
 
   useEffect(() => {
+    if (category !== "quotations") return
+
+    const sync = () => {
+      if (!linkedRequestId) return
+
+      const request = getActivityRequests().find((item) => item.id === linkedRequestId) ?? null
+      if (!request) return
+
+      const matchedCustomer =
+        (request.customerCode ? getCustomerByCode(request.customerCode) : null) ??
+        (request.customer ? getCustomerByName(request.customer) : null)
+
+      setQuotationForm((prev) =>
+        normalizeQuotationForm({
+          ...prev,
+          requestId: request.id,
+          customer: matchedCustomer?.name ?? request.customer ?? prev.customer,
+          customerCode: matchedCustomer?.id ?? request.customerCode ?? prev.customerCode,
+          opportunity: request.opportunity ?? prev.opportunity,
+          opportunityCode: request.opportunityCode ?? prev.opportunityCode,
+          proposalType: request.type === "SI 제안서 작성" ? "SI 제안" : "자체 제안",
+          salesRep: request.requester ?? prev.salesRep,
+          validity: request.dueDate || prev.validity,
+        }),
+      )
+    }
+
+    sync()
+    return subscribeWorkflowUpdates(sync)
+  }, [category, linkedRequestId])
+
+  useEffect(() => {
     if (category !== "activities") return
 
     const sync = () => {
@@ -106,7 +138,11 @@ function ActivityCategoryNewPageContent() {
   }
 
   const title = getCategoryLabel(category)
-  const registrationTitle = category === "activities" ? "활동" : title
+  const isProposalRequest =
+    category === "quotations" &&
+    !!linkedRequestId &&
+    ["제안서 작성", "SI 제안서 작성"].includes(linkedRequest?.type ?? getActivityRequests().find((item) => item.id === linkedRequestId)?.type ?? "")
+  const registrationTitle = category === "activities" ? "활동" : category === "quotations" && isProposalRequest ? "제안서" : title
 
   const targetCustomer =
     category === "activities" ? activityCustomer : category === "quotations" ? quotationForm.customer : form.customer
@@ -138,8 +174,8 @@ function ActivityCategoryNewPageContent() {
 
       const created = createQuotation(normalized)
       toast({
-        title: "견적 등록 완료",
-        description: `${created.customer} 견적서가 등록되었습니다.`,
+        title: `${registrationTitle} 등록 완료`,
+        description: `${created.customer} ${registrationTitle}가 등록되었습니다.`,
       })
       router.push(`/activity/quotations/${created.id}`)
       return
