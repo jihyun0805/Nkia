@@ -32,6 +32,26 @@ export type CustomerContact = {
   memo?: string
   businessCardImage?: string
 }
+export type PartnerRecord = {
+  id: string
+  name: string
+  type: string
+  opportunities: number
+  projects: number
+  contact: string
+  phone: string
+  contacts?: CustomerContact[]
+  contactName?: string
+  position?: string
+  department?: string
+  email?: string
+  mobilePhone?: string
+  landlinePhone?: string
+  fax?: string
+  duty?: string
+  address?: string
+  memo?: string
+}
 export type OpportunityRecord = {
   id: string
   createdAt: string
@@ -103,10 +123,20 @@ type OpportunityRegistrationInput = {
 }
 
 type OpportunityUpdateInput = OpportunityRegistrationInput
+type PartnerRegistrationInput = {
+  name: string
+  type: string
+  contacts: CustomerContact[]
+  address?: string
+  memo?: string
+}
+type PartnerUpdateInput = PartnerRegistrationInput
 
 const customerStorageKey = "orbis.customers"
 const deletedCustomerIdsStorageKey = "orbis.deleted-customer-ids"
 const opportunityStorageKey = "orbis.opportunities"
+const partnerStorageKey = "orbis.partners"
+const deletedPartnerIdsStorageKey = "orbis.deleted-partner-ids"
 const customerGroupOptions = ["공공", "민간", "해외"]
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 
@@ -153,15 +183,7 @@ const baseCustomers: CustomerRecord[] = [
 
 export const customers: CustomerRecord[] = baseCustomers
 
-export const partners: {
-  id: string
-  name: string
-  type: string
-  opportunities: number
-  projects: number
-  contact: string
-  phone: string
-}[] = [
+const basePartners: PartnerRecord[] = [
   { id: "PTN-001", name: "LG CNS", type: "SI", opportunities: 2, projects: 3, contact: "강대표", phone: "010-5678-9012" },
   { id: "PTN-002", name: "SK C&C", type: "SI", opportunities: 1, projects: 2, contact: "윤실장", phone: "010-6789-0123" },
   { id: "PTN-003", name: "NTT DATA", type: "파트너", opportunities: 1, projects: 1, contact: "Yamamoto", phone: "+81-90-2345-6789" },
@@ -173,7 +195,7 @@ export const findingStatuses: string[] = ["진행중", "발굴", "유망"]
 export function getFindingItem(category: FindingCategory, id: string) {
   if (category === "opportunities") return getOpportunities().find((item) => item.id === id) ?? null
   if (category === "customers") return getCustomers().find((item) => item.id === id) ?? null
-  return partners.find((item) => item.id === id) ?? null
+  return getPartners().find((item) => item.id === id) ?? null
 }
 
 export function getFindingFields(category: FindingCategory, item: any) {
@@ -379,10 +401,40 @@ function getStoredOpportunities(): OpportunityRecord[] {
   }
 }
 
+function getStoredPartners(): PartnerRecord[] {
+  if (typeof window === "undefined") return []
+
+  const stored = window.localStorage.getItem(partnerStorageKey)
+  if (!stored) return []
+
+  try {
+    const parsed = JSON.parse(stored) as PartnerRecord[]
+    return Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item.id === "string" && typeof item.name === "string")
+      : []
+  } catch {
+    return []
+  }
+}
+
 function getDeletedCustomerIds(): string[] {
   if (typeof window === "undefined") return []
 
   const stored = window.localStorage.getItem(deletedCustomerIdsStorageKey)
+  if (!stored) return []
+
+  try {
+    const parsed = JSON.parse(stored) as string[]
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+  } catch {
+    return []
+  }
+}
+
+function getDeletedPartnerIds(): string[] {
+  if (typeof window === "undefined") return []
+
+  const stored = window.localStorage.getItem(deletedPartnerIdsStorageKey)
   if (!stored) return []
 
   try {
@@ -408,6 +460,16 @@ function setStoredOpportunities(value: OpportunityRecord[]) {
   window.localStorage.setItem(opportunityStorageKey, JSON.stringify(value))
 }
 
+function setStoredPartners(value: PartnerRecord[]) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(partnerStorageKey, JSON.stringify(value))
+}
+
+function setDeletedPartnerIds(value: string[]) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(deletedPartnerIdsStorageKey, JSON.stringify(value))
+}
+
 function parseCustomerCode(customerId: string) {
   const match = customerId.match(/^CUS-(\d+)$/i)
   return match ? Number.parseInt(match[1], 10) : 0
@@ -416,6 +478,11 @@ function parseCustomerCode(customerId: string) {
 function parseOpportunityCode(opportunityId: string) {
   const match = opportunityId.match(/^OPP-(\d{4})-(\d+)$/i)
   return match ? Number.parseInt(match[2], 10) : 0
+}
+
+function parsePartnerCode(partnerId: string) {
+  const match = partnerId.match(/^PTN-(\d+)$/i)
+  return match ? Number.parseInt(match[1], 10) : 0
 }
 
 function formatDateKey(date: Date) {
@@ -446,9 +513,33 @@ export function getOpportunities() {
   return [...merged.values()]
 }
 
+export function getPartners() {
+  const merged = new Map<string, PartnerRecord>()
+  const deletedIds = new Set(getDeletedPartnerIds())
+  for (const partner of basePartners) {
+    if (!deletedIds.has(partner.id)) {
+      merged.set(partner.id, partner)
+    }
+  }
+  for (const partner of getStoredPartners()) merged.set(partner.id, partner)
+  return [...merged.values()]
+}
+
+export function getNextPartnerCode() {
+  const nextNumber = getPartners().reduce((max, partner) => Math.max(max, parsePartnerCode(partner.id)), 0) + 1
+  return `PTN-${String(nextNumber).padStart(3, "0")}`
+}
+
 export function getNextOpportunityCode() {
   const nextNumber = getOpportunities().reduce((max, opportunity) => Math.max(max, parseOpportunityCode(opportunity.id)), 0) + 1
   return `OPP-2026-${String(nextNumber).padStart(3, "0")}`
+}
+
+export function getPartnerByName(partnerName: string) {
+  const normalized = partnerName.trim().toLowerCase()
+  if (!normalized) return null
+
+  return getPartners().find((item) => item.name.trim().toLowerCase() === normalized) ?? null
 }
 
 export function registerCustomer(input: CustomerRegistrationInput) {
@@ -522,6 +613,55 @@ export function registerOpportunity(input: OpportunityRegistrationInput) {
 
   setStoredOpportunities([...getStoredOpportunities(), created])
   return { status: "created" as const, opportunity: created }
+}
+
+export function registerPartner(input: PartnerRegistrationInput) {
+  const name = input.name.trim()
+  const existing = getPartnerByName(name)
+  if (existing) {
+    return { status: "duplicate" as const, partner: existing }
+  }
+
+  const contacts = input.contacts
+    .map((contact) => ({
+      name: contact.name.trim(),
+      position: contact.position?.trim() ?? "",
+      department: contact.department?.trim() ?? "",
+      email: contact.email?.trim() ?? "",
+      mobilePhone: contact.mobilePhone?.trim() ?? "",
+      landlinePhone: contact.landlinePhone?.trim() ?? "",
+      fax: contact.fax?.trim() ?? "",
+      duty: contact.duty?.trim() ?? "",
+      memo: contact.memo?.trim() ?? "",
+      businessCardImage: contact.businessCardImage ?? "",
+    }))
+    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
+
+  const created: PartnerRecord = {
+    id: getNextPartnerCode(),
+    name,
+    type: input.type,
+    opportunities: 0,
+    projects: 0,
+    contact: contacts[0]?.name ?? "",
+    phone: contacts[0]?.mobilePhone ?? "",
+    contacts,
+    contactName: contacts[0]?.name ?? "",
+    position: contacts[0]?.position ?? "",
+    department: contacts[0]?.department ?? "",
+    email: contacts[0]?.email ?? "",
+    mobilePhone: contacts[0]?.mobilePhone ?? "",
+    landlinePhone: contacts[0]?.landlinePhone ?? "",
+    fax: contacts[0]?.fax ?? "",
+    duty: contacts[0]?.duty ?? "",
+    address: input.address?.trim() ?? "",
+    memo: input.memo?.trim() ?? "",
+  }
+
+  setStoredPartners([...getStoredPartners(), created])
+  setDeletedPartnerIds(getDeletedPartnerIds().filter((item) => item !== created.id))
+
+  return { status: "created" as const, partner: created }
 }
 
 export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
@@ -604,6 +744,52 @@ export function updateOpportunity(opportunityId: string, input: OpportunityUpdat
   return { status: "updated" as const, opportunity: nextRecord }
 }
 
+export function updatePartner(partnerId: string, input: PartnerUpdateInput) {
+  const normalizedId = partnerId.trim()
+  const existing = getPartners().find((item) => item.id === normalizedId)
+  if (!existing) return { status: "not_found" as const }
+
+  const contacts = input.contacts
+    .map((contact) => ({
+      name: contact.name.trim(),
+      position: contact.position?.trim() ?? "",
+      department: contact.department?.trim() ?? "",
+      email: contact.email?.trim() ?? "",
+      mobilePhone: contact.mobilePhone?.trim() ?? "",
+      landlinePhone: contact.landlinePhone?.trim() ?? "",
+      fax: contact.fax?.trim() ?? "",
+      duty: contact.duty?.trim() ?? "",
+      memo: contact.memo?.trim() ?? "",
+      businessCardImage: contact.businessCardImage ?? "",
+    }))
+    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
+
+  const nextRecord: PartnerRecord = {
+    ...existing,
+    name: input.name.trim(),
+    type: input.type,
+    address: input.address?.trim() ?? "",
+    memo: input.memo?.trim() ?? "",
+    contacts,
+    contact: contacts[0]?.name ?? existing.contact,
+    phone: contacts[0]?.mobilePhone ?? existing.phone,
+    contactName: contacts[0]?.name ?? existing.contactName,
+    position: contacts[0]?.position ?? existing.position,
+    department: contacts[0]?.department ?? existing.department,
+    email: contacts[0]?.email ?? existing.email,
+    mobilePhone: contacts[0]?.mobilePhone ?? existing.mobilePhone,
+    landlinePhone: contacts[0]?.landlinePhone ?? existing.landlinePhone,
+    fax: contacts[0]?.fax ?? existing.fax,
+    duty: contacts[0]?.duty ?? existing.duty,
+  }
+
+  const storedPartners = getStoredPartners().filter((item) => item.id !== normalizedId)
+  setStoredPartners([...storedPartners, nextRecord])
+  setDeletedPartnerIds(getDeletedPartnerIds().filter((item) => item !== normalizedId))
+
+  return { status: "updated" as const, partner: nextRecord }
+}
+
 export function deleteCustomer(customerId: string) {
   const normalizedId = customerId.trim()
   const existing = getCustomers().find((item) => item.id === normalizedId)
@@ -617,4 +803,19 @@ export function deleteCustomer(customerId: string) {
   setDeletedCustomerIds([...deletedIds])
 
   return { status: "deleted" as const, customer: existing }
+}
+
+export function deletePartner(partnerId: string) {
+  const normalizedId = partnerId.trim()
+  const existing = getPartners().find((item) => item.id === normalizedId)
+  if (!existing) return { status: "not_found" as const }
+
+  const filteredStoredPartners = getStoredPartners().filter((item) => item.id !== normalizedId)
+  const deletedIds = new Set(getDeletedPartnerIds())
+  deletedIds.add(normalizedId)
+
+  setStoredPartners(filteredStoredPartners)
+  setDeletedPartnerIds([...deletedIds])
+
+  return { status: "deleted" as const, partner: existing }
 }

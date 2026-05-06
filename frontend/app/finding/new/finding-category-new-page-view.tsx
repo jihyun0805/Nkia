@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
-import { findingStatuses, getCustomerByName, getFindingCategoryLabel, registerCustomer, registerOpportunity, type CustomerRecord } from "@/lib/finding-data"
+import { findingStatuses, getCustomerByName, getFindingCategoryLabel, getPartnerByName, registerCustomer, registerOpportunity, registerPartner, type CustomerRecord } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
@@ -257,9 +257,34 @@ export function FindingCategoryNewPageView({
       return
     }
 
+    const duplicate = getPartnerByName(normalizedName)
+    if (duplicate) {
+      toast({
+        title: "협력사 등록 확인",
+        description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
+      })
+      return
+    }
+
+    const result = registerPartner({
+      name: normalizedName,
+      type: partnerType,
+      contacts: filledContacts,
+      address,
+      memo,
+    })
+
+    if (result.status === "duplicate") {
+      toast({
+        title: "협력사 등록 확인",
+        description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
+      })
+      return
+    }
+
     toast({
       title: "협력사 등록 완료",
-      description: `${normalizedName} 협력사가 등록되었습니다.`,
+      description: `${result.partner.name} 협력사가 등록되었습니다.`,
     })
     router.push("/finding?tab=partners")
   }

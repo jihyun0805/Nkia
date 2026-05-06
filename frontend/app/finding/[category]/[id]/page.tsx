@@ -1,17 +1,28 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getFindingCategoryLabel, getFindingFields, getFindingItem, type FindingCategory, type FindingFormField } from "@/lib/finding-data"
+import { toast } from "@/hooks/use-toast"
+import { deletePartner, getFindingCategoryLabel, getFindingFields, getFindingItem, type FindingCategory, type FindingFormField } from "@/lib/finding-data"
 
 function FindingDetailControl({ field, value }: { field: FindingFormField; value: string }) {
   if (field.type === "file") return <Input readOnly value="등록된 첨부파일이 없습니다." />
@@ -38,12 +49,14 @@ function getPartnerContacts(item: any) {
 export default function FindingDetailPage() {
   const params = useParams<{ category?: string | string[]; id?: string | string[] }>()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const categoryParam = Array.isArray(params.category) ? params.category[0] : params.category ?? ""
   const id = Array.isArray(params.id) ? params.id[0] : params.id ?? ""
   const category = (categoryParam === "opportunities" || categoryParam === "customers" || categoryParam === "partners"
     ? categoryParam
     : "opportunities") as FindingCategory
   const [item, setItem] = useState<any>(null)
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
 
   useEffect(() => {
     const sync = () => setItem(getFindingItem(category, id))
@@ -55,6 +68,28 @@ export default function FindingDetailPage() {
   const label = getFindingCategoryLabel(category)
   const tab = searchParams.get("tab") ?? category
   const backHref = `/finding?tab=${tab}`
+  const editHref = `/finding/${category}/${id}/edit?tab=${tab}`
+
+  const handleDelete = () => {
+    if (category !== "partners") return
+
+    const result = deletePartner(id)
+    if (result.status === "not_found") {
+      toast({
+        title: "협력사 삭제 실패",
+        description: "삭제할 협력사를 찾지 못했습니다.",
+      })
+      setIsDeleteAlertOpen(false)
+      return
+    }
+
+    toast({
+      title: "협력사 삭제 완료",
+      description: `${result.partner.name} 협력사가 삭제되었습니다.`,
+    })
+    setIsDeleteAlertOpen(false)
+    router.push(backHref)
+  }
 
   if (!item) {
     return (
@@ -196,8 +231,13 @@ export default function FindingDetailPage() {
                   <Button variant="outline" asChild>
                     <Link href={backHref}>목록</Link>
                   </Button>
+                  {category === "partners" ? (
+                    <Button variant="destructive" onClick={() => setIsDeleteAlertOpen(true)}>
+                      삭제
+                    </Button>
+                  ) : null}
                   <Button asChild>
-                    <Link href={`/finding/${category}/${id}/edit?tab=${tab}`}>수정</Link>
+                    <Link href={editHref}>수정</Link>
                   </Button>
                 </div>
               </CardContent>
@@ -205,6 +245,21 @@ export default function FindingDetailPage() {
           </div>
         </main>
       </div>
+
+      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>협력사를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 협력사 상세 정보와 담당자 정보를 이 화면에서 다시 복구할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

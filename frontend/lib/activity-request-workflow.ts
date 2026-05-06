@@ -81,6 +81,25 @@ function createCurrentUserApprovalSeed(): ActivityRequestRecord {
   }
 }
 
+function createCurrentUserProposalSeed(): ActivityRequestRecord {
+  return {
+    id: "REQ-2026-098",
+    date: "2026-05-06",
+    requester: "박과장",
+    receiver: currentUser.name,
+    type: "SI 제안서 작성",
+    customerCode: "CUS-001",
+    customer: "삼성전자",
+    opportunityCode: "OPP-2026-001",
+    opportunity: "삼성전자 EMS 구축",
+    content: "제안서 최종본 등록 진행 요청",
+    dueDate: "2026-05-12",
+    status: "요청",
+    lastAction: "created",
+    lastActionAt: "2026-05-06",
+  }
+}
+
 function getLinkedRfpAnalysis(requestId: string) {
   return getRfpAnalyses().find((item) => item.requestId === requestId) ?? null
 }
@@ -128,6 +147,22 @@ function ensureCurrentUserApprovalRequest(requests: ActivityRequestRecord[]) {
   return [createCurrentUserApprovalSeed(), ...requests]
 }
 
+function ensureCurrentUserProposalRequest(requests: ActivityRequestRecord[]) {
+  const hasSeedRequest = requests.some((item) => item.id === "REQ-2026-098")
+  const hasPendingProposal = requests.some(
+    (item) =>
+      item.receiver === currentUser.name &&
+      item.status === "요청" &&
+      (item.type === "제안서 작성" || item.type === "SI 제안서 작성"),
+  )
+
+  if (hasSeedRequest || hasPendingProposal) {
+    return requests
+  }
+
+  return [createCurrentUserProposalSeed(), ...requests]
+}
+
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -173,8 +208,10 @@ function createWorkflowNotification(notification: Omit<WorkflowNotification, "id
 }
 
 export function getActivityRequests() {
-  const requests = ensureCurrentUserApprovalRequest(
-    normalizeRequests(readStorage<ActivityRequestRecord[]>(REQUESTS_STORAGE_KEY, cloneRequests())),
+  const requests = ensureCurrentUserProposalRequest(
+    ensureCurrentUserApprovalRequest(
+      normalizeRequests(readStorage<ActivityRequestRecord[]>(REQUESTS_STORAGE_KEY, cloneRequests())),
+    ),
   )
 
   if (isBrowser()) {

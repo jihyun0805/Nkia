@@ -167,6 +167,7 @@ function nextQuotationId(records: QuotationRecord[]) {
 function normalizeQuotation(record: QuotationRecord): QuotationRecord {
   return {
     ...record,
+    requestId: record.requestId,
     items: record.items.map((item, index) => ({
       ...item,
       id: item.id || `${record.id}-ITEM-${index + 1}`,
@@ -216,6 +217,7 @@ function normalizeQuotation(record: QuotationRecord): QuotationRecord {
 function createSnapshotForm(record: Omit<QuotationRecord, "id">): Omit<QuotationRecord, "id" | "changeHistory" | "versionSnapshots"> {
   return {
     ...record,
+    requestId: record.requestId,
     items: record.items.map((item) => ({ ...item })),
     solutionRows: record.solutionRows?.map((item) => ({ ...item })) ?? [],
     customizingRows: record.customizingRows?.map((item) => ({ ...item })) ?? [],

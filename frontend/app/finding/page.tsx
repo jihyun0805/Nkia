@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { findingStatuses, getCustomers, getOpportunities, partners } from "@/lib/finding-data"
+import { findingStatuses, getCustomers, getOpportunities, getPartners } from "@/lib/finding-data"
 import { Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
@@ -48,6 +48,7 @@ function FindingPageContent() {
   const q = searchTerm.toLowerCase()
   const customerRows = getCustomers()
   const opportunityRows = getOpportunities()
+  const partnerRows = getPartners()
 
   const findingFieldOptions =
     activeTab === "opportunities"
@@ -59,7 +60,7 @@ function FindingPageContent() {
         ]
       : activeTab === "customers"
         ? [{ key: "category", label: "고객군", options: uniqueOptions(customerRows, (item) => item.category) }]
-        : [{ key: "type", label: "협력사 유형", options: uniqueOptions(partners, (item) => item.type) }]
+        : [{ key: "type", label: "협력사 유형", options: uniqueOptions(partnerRows, (item) => item.type) }]
 
   const filteredOpportunities = filterRecords(opportunityRows, filters, {
     status: (item) => item.status,
@@ -99,7 +100,7 @@ function FindingPageContent() {
     },
   }).filter((item) => [item.id, item.name, item.contact, item.phone].join(" ").toLowerCase().includes(q))
 
-  const filteredPartners = filterRecords(partners, filters, {
+  const filteredPartners = filterRecords(partnerRows, filters, {
     owner: (item) => item.contact,
     fields: {
       type: (item) => item.type,
