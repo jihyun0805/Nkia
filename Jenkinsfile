@@ -109,6 +109,45 @@ pipeline {
             }
         }
 
+        stage('4.5. Ensure AI DB Schema & Trigger') {
+            when {
+                expression { env.AI_CHANGED == 'true' || env.BACKEND_CHANGED == 'true' }
+            }
+            steps {
+                echo 'AI 스키마 및 색인 알림 트리거 보장'
+
+                sh '''
+                    set -eu
+                    . ${BACKEND_DIR}/.env.prod
+                    . ${AI_DIR}/.env.prod
+
+                    wait_for_postgres() {
+                      timeout_seconds="$1"
+                      start_ts="$(date +%s)"
+                      while true; do
+                        if docker exec Orbis-Postgres pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
+                          return 0
+                        fi
+                        now_ts="$(date +%s)"
+                        if [ $((now_ts - start_ts)) -ge "$timeout_seconds" ]; then
+                          echo "postgres readiness timeout"
+                          return 1
+                        fi
+                        sleep 3
+                      done
+                    }
+
+                    wait_for_postgres 180
+
+                    export POSTGRES_HOST="127.0.0.1"
+                    export POSTGRES_PORT="${POSTGRES_PORT}"
+
+                    sh ${AI_DIR}/db/migrate_existing_db.sh
+                    sh ${AI_DIR}/db/apply_ai_index_notify_trigger.sh
+                '''
+            }
+        }
+
         stage('5. Deploy AI Stack') {
             steps {
                 echo 'AI FastAPI 서버 배포'

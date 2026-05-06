@@ -50,6 +50,8 @@ from app.repositories.backend_query_repository import (
     resolve_primary_opportunity,
     fetch_product_catalog_rows,
     fetch_module_quotation_revenue_rows,
+    fetch_entity_count,
+    fetch_opportunity_list_rows,
 )
 from app.schemas.answer import AnswerEvidence, AnswerResponse
 from app.services.metric_registry import get_metric_spec
@@ -98,6 +100,22 @@ def answer_targeted_domain_query(
         if not rows:
             return None
         return build_maintenance_activity_rank_response(query=query, rows=rows[:3], limit=limit, embedder=embedder)
+
+    if is_entity_count_query(normalized_query):
+        entity_type = extract_count_entity_type(normalized_query)
+        if entity_type:
+            count = fetch_entity_count(entity_type)
+            if count is not None:
+                return build_entity_count_response(
+                    query=query, entity_type=entity_type, count=count, embedder=embedder
+                )
+
+    if is_opportunity_list_query(normalized_query):
+        rows = fetch_status_rows(status_filters=[], limit=50)
+        if rows:
+            return build_opportunity_list_response(
+                query=query, rows=rows, limit=limit, embedder=embedder
+            )
 
     if is_module_revenue_query(normalized_query):
         product_class = extract_product_class_from_query(normalized_query)
@@ -555,6 +573,23 @@ def answer_graph_structured_extension(
             return response
 
     normalized_q = " ".join(query.lower().split())
+
+    if is_entity_count_query(normalized_q):
+        entity_type = extract_count_entity_type(normalized_q)
+        if entity_type:
+            count = fetch_entity_count(entity_type)
+            if count is not None:
+                return build_entity_count_response(
+                    query=query, entity_type=entity_type, count=count, embedder=embedder
+                )
+
+    if is_opportunity_list_query(normalized_q):
+        rows = fetch_opportunity_list_rows(limit=50)
+        if rows:
+            return build_opportunity_list_response(
+                query=query, rows=rows, limit=limit, embedder=embedder
+            )
+
     if is_module_revenue_query(normalized_q):
         product_class = extract_product_class_from_query(normalized_q)
         revenue_rows = fetch_module_quotation_revenue_rows(product_class=product_class, limit=20)
@@ -2442,6 +2477,61 @@ def build_module_revenue_response(
     )
 
 
+def build_opportunity_list_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    lines = [f"핵심 결론: 전체 사업기회는 총 {len(rows)}건입니다.", ""]
+    for i, row in enumerate(rows, 1):
+        amount = format_number(row.get("expected_amount")) if row.get("expected_amount") else "금액 미기재"
+        lines.append(
+            f"{i}. [{row.get('opportunity_code') or '-'}] {row.get('opportunity_name') or '미기재'}"
+            f" ({row.get('customer_name') or '미기재'} / {row.get('current_status') or '미기재'} / {amount})"
+        )
+    evidences = build_status_list_evidences(rows=rows[:limit])
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
+def build_entity_count_response(
+    *,
+    query: str,
+    entity_type: str,
+    count: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    label_map = {
+        "opportunity": "사업기회",
+        "activity": "영업활동",
+        "rfp": "RFP",
+        "quotation": "견적서",
+        "project": "프로젝트",
+        "contract": "계약",
+        "maintenance": "유지보수",
+        "prb": "PRB",
+        "bid": "입찰 결과",
+        "proposal": "제안서",
+    }
+    label = label_map.get(entity_type, entity_type)
+    return AnswerResponse(
+        query=query,
+        answer=f"핵심 결론: 현재 등록된 {label}은 총 {count:,}건입니다.",
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=[],
+    )
+
+
 def build_maintenance_history_response(
     *,
     query: str,
@@ -3321,6 +3411,43 @@ _PRODUCT_CLASS_KEYWORDS = {
     "EMS", "ITSM", "ITAM", "CLOUD", "BSM", "RCA", "DCA", "E2E",
     "DASHBOARD", "DATACENTER", "SUPPORTING_TOOLS", "SUPPORTING", "POLESTAR",
 }
+
+
+def is_opportunity_list_query(normalized_query: str) -> bool:
+    has_opp = any(kw in normalized_query for kw in ["사업기회", "사업 기회"])
+    has_list = any(kw in normalized_query for kw in ["전체", "모든", "모두", "전부", "목록", "리스트", "다 보여", "다 알려", "다 조회"])
+    return has_opp and has_list
+
+
+_COUNT_ENTITY_MAP: dict[str, str] = {
+    "사업기회": "opportunity",
+    "사업 기회": "opportunity",
+    "영업활동": "activity",
+    "영업 활동": "activity",
+    "활동": "activity",
+    "rfp": "rfp",
+    "견적": "quotation",
+    "프로젝트": "project",
+    "계약": "contract",
+    "유지보수": "maintenance",
+    "prb": "prb",
+    "입찰": "bid",
+    "제안서": "proposal",
+}
+
+
+def is_entity_count_query(normalized_query: str) -> bool:
+    has_count_kw = any(kw in normalized_query for kw in ["몇 개", "몇개", "몇 건", "몇건", "몇가지", "몇 가지", "갯수", "개수", "총 수", "총수", "총 건수", "건수"])
+    has_entity_kw = any(kw in normalized_query.lower() for kw in _COUNT_ENTITY_MAP)
+    return has_count_kw and has_entity_kw
+
+
+def extract_count_entity_type(normalized_query: str) -> str | None:
+    lower = normalized_query.lower()
+    for kw, entity in _COUNT_ENTITY_MAP.items():
+        if kw in lower:
+            return entity
+    return None
 
 
 def is_product_catalog_query(normalized_query: str) -> bool:
