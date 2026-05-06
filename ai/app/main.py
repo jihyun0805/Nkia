@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import ExitStack, asynccontextmanager
 from urllib.parse import quote
@@ -15,6 +16,7 @@ from app.embeddings.model import EmbeddingConfig, EmbeddingModel
 from app.orchestration import create_orbis_agent_graph
 from app.repositories.index_repository import validate_indexing_schema
 from app.services.answer_service import build_answer_graph_callbacks
+from app.services.index_listener import listen_and_index
 
 
 logger = logging.getLogger(__name__)
@@ -58,7 +60,17 @@ async def lifespan(app: FastAPI):
         callbacks=callbacks,
         checkpointer=checkpointer,
     )
+    listener_task = asyncio.create_task(
+        listen_and_index(embedder=app.state.embedder),
+        name="ai_index_listener",
+    )
+    logger.info("AI index listener task started.")
     yield
+    listener_task.cancel()
+    try:
+        await listener_task
+    except asyncio.CancelledError:
+        pass
     exit_stack.close()
     close_pool()
 

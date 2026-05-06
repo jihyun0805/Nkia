@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { analyzeBusinessCard } from "@/lib/business-card-ocr-api"
+import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { getCustomerByName, getCustomers, updateCustomer, type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
@@ -156,6 +156,17 @@ function CustomerEditPageContent() {
 
     const targetIndex = pendingOcrIndexRef.current
     if (targetIndex === null || targetIndex < 0 || targetIndex >= contacts.length) return
+
+    try {
+      assertBusinessCardImageSize(file)
+    } catch (error) {
+      toast({
+        title: "명함 OCR 실패",
+        description: error instanceof Error ? error.message : `명함 이미지는 ${BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} 이하만 업로드할 수 있습니다.`,
+      })
+      pendingOcrIndexRef.current = null
+      return
+    }
 
     setOcrLoadingIndex(targetIndex)
     try {
@@ -339,7 +350,10 @@ function CustomerEditPageContent() {
 
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-base font-semibold">고객사 담당자 정보</h2>
+                    <div>
+                      <h2 className="text-base font-semibold">고객사 담당자 정보</h2>
+                      <p className="text-xs text-muted-foreground">명함 이미지는 {BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} 이하만 업로드할 수 있습니다.</p>
+                    </div>
                     <Button
                       type="button"
                       variant="outline"

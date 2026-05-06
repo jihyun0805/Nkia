@@ -150,4 +150,13 @@ public class SalesActivity extends BaseEntity {
     public void clearAttendees() {
         this.attendees.clear();
     }
+
+    @Override
+    public void delete() {
+        super.delete();
+
+        for (SalesActivityAttendee attendee : attendees) {
+            attendee.delete();
+        }
+    }
 }
