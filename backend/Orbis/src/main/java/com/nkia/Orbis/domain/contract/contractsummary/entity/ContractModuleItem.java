@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.contract.contractsummary.entity;
 
+import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
 import jakarta.persistence.Column;
@@ -21,7 +22,7 @@ import org.hibernate.annotations.SQLRestriction;
 @Getter
 @SQLRestriction("deleted = false")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ContractModuleItem {
+public class ContractModuleItem extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -87,4 +87,49 @@ public class Contract extends BaseEntity {
         this.contractModuleItems.add(item);
         item.setContract(this);
     }
+
+    public void update(
+            OrderReport orderReport,
+            UploadFile contractFile,
+            ProposalType proposalType,
+            Long contractAmount,
+            LocalDate contractDate,
+            String maintenanceCondition,
+            User salesRepresentative
+    ) {
+        if (orderReport != null) {
+            this.orderReport = orderReport;
+        }
+        if (contractFile != null) {
+            this.contractFile = contractFile;
+        }
+        if (proposalType != null) {
+            this.proposalType = proposalType;
+        }
+        if (contractAmount != null) {
+            this.contractAmount = contractAmount;
+        }
+        if (contractDate != null) {
+            this.contractDate = contractDate;
+        }
+        if (maintenanceCondition != null) {
+            this.maintenanceCondition = maintenanceCondition;
+        }
+        if (salesRepresentative != null) {
+            this.salesRepresentative = salesRepresentative;
+        }
+    }
+
+    public void clearModuleItems() {
+        this.contractModuleItems.clear();
+    }
+
+    @Override
+    public void delete() {
+        super.delete();
+
+        for (ContractModuleItem item : contractModuleItems) {
+            item.delete();
+        }
+    }
 }

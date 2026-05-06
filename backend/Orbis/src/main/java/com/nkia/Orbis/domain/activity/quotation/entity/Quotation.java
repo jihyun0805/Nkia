@@ -104,4 +104,16 @@ public class Quotation extends BaseEntity {
         this.totalPrice = this.supplyTotalPrice + this.laborTotalPrice;
     }
 
+    @Override
+    public void delete() {
+        super.delete();
+
+        for (QuotationLaborItem laborItem : quotationLaborItems) {
+            laborItem.delete();
+        }
+
+        for (QuotationSolutionItem solutionItem : quotationSolutionItems) {
+            solutionItem.delete();
+        }
+    }
 }

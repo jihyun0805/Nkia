@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.contract.contractsummary.dto.request;
 import lombok.Getter;
 
 @Getter
-public class ContractModuleItemCreateRequest {
+public class ContractModuleItemRequest {
 
     private Long productModuleId;
 

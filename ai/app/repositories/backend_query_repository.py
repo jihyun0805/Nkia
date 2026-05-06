@@ -2382,6 +2382,93 @@ def build_query_params(
     }
 
 
+_ENTITY_COUNT_TABLE_MAP: dict[str, str] = {
+    "opportunity": "public.project_opportunity",
+    "activity":    "public.sales_activity",
+    "rfp":         "public.rfp_analyze_result",
+    "quotation":   "public.quotation",
+    "project":     "public.project",
+    "contract":    "public.contract",
+    "maintenance": "public.maintenance",
+    "prb":         "public.prb",
+    "bid":         "public.bid_result",
+    "proposal":    "public.proposal",
+}
+
+
+_ENTITY_COUNT_DUMP_TABLE_MAP: dict[str, str] = {
+    "opportunity": str(_OPP),
+    "activity":    str(_ACT),
+    "rfp":         str(_RFP),
+    "bid":         str(_BID),
+    "proposal":    str(_PROP),
+}
+
+
+def fetch_entity_count(entity_type: str) -> int | None:
+    db_url = build_backend_database_url()
+
+    def _count(table: str, *, use_deleted_filter: bool = True) -> int | None:
+        try:
+            with psycopg.connect(db_url, row_factory=dict_row) as conn:
+                with conn.cursor() as cur:
+                    sql = f"SELECT COUNT(*) AS cnt FROM {table}"
+                    if use_deleted_filter:
+                        sql += " WHERE deleted = false"
+                    cur.execute(sql)
+                    row = cur.fetchone()
+                    return int(row["cnt"]) if row else None
+        except psycopg.errors.UndefinedTable:
+            return None
+        except psycopg.Error as exc:
+            logger.warning("fetch_entity_count(%s) DB error: %s", entity_type, exc)
+            return None
+
+    # dump 테이블 우선 (배포서버) — deleted 컬럼 없음
+    dump_table = _ENTITY_COUNT_DUMP_TABLE_MAP.get(entity_type)
+    if dump_table:
+        result = _count(dump_table, use_deleted_filter=False)
+        if result is not None:
+            return result
+
+    # entity 테이블 폴백 (로컬)
+    entity_table = _ENTITY_COUNT_TABLE_MAP.get(entity_type)
+    if entity_table:
+        return _count(entity_table, use_deleted_filter=True)
+
+    return None
+
+
+def fetch_opportunity_list_rows(*, limit: int = 50) -> list[dict[str, Any]]:
+    db_url = build_backend_database_url()
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        c.company_name AS customer_name,
+                        o.current_status,
+                        o.expected_amount,
+                        o.business_type
+                    FROM {_OPP} o
+                    JOIN {_CO} c ON c.id = o.customer_company_id
+                    WHERE o.deleted = false
+                    ORDER BY o.expected_amount DESC NULLS LAST, o.id
+                    LIMIT %(limit)s
+                    """,
+                    {"limit": limit},
+                )
+                return list(cur.fetchall())
+    except psycopg.errors.UndefinedTable:
+        return []
+    except psycopg.Error as exc:
+        logger.warning("fetch_opportunity_list_rows DB error: %s", exc)
+        return []
+
+
 def fetch_product_catalog_rows(
     *,
     product_class: str | None = None,
