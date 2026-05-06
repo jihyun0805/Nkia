@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
@@ -13,9 +13,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
+import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { findingStatuses, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
+import { Loader2, ScanLine } from "lucide-react"
 
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 const customerGroupOptions = ["공공", "민간", "해외"]
@@ -31,6 +33,7 @@ type ContactDraft = {
   fax: string
   duty: string
   memo: string
+  businessCardImage: string
 }
 
 function createEmptyContactDraft(): ContactDraft {
@@ -44,6 +47,7 @@ function createEmptyContactDraft(): ContactDraft {
     fax: "",
     duty: "",
     memo: "",
+    businessCardImage: "",
   }
 }
 
@@ -61,6 +65,7 @@ function toContactDrafts(partner: PartnerRecord | null) {
         fax: partner.fax ?? "",
         duty: partner.duty ?? "",
         memo: partner.memo ?? "",
+        businessCardImage: "",
       }]
 
   return contacts.map((contact) => ({
@@ -73,6 +78,7 @@ function toContactDrafts(partner: PartnerRecord | null) {
     fax: contact.fax ?? "",
     duty: contact.duty ?? "",
     memo: contact.memo ?? "",
+    businessCardImage: contact.businessCardImage ?? "",
   }))
 }
 
@@ -80,6 +86,41 @@ function hasContactValue(contact: ContactDraft) {
   return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.fax, contact.duty, contact.memo].some(
     (value) => value.trim(),
   )
+}
+
+function keepExistingValue(currentValue: string | undefined, nextValue: string | null | undefined) {
+  const trimmedNext = String(nextValue ?? "").trim()
+  if (trimmedNext) return trimmedNext
+  return currentValue ?? ""
+}
+
+function createBusinessCardThumbnail(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error("Failed to read business card image."))
+    reader.onload = () => {
+      const image = new Image()
+      image.onerror = () => reject(new Error("Failed to load business card image."))
+      image.onload = () => {
+        const maxWidth = 960
+        const scale = Math.min(1, maxWidth / image.width)
+        const width = Math.max(1, Math.round(image.width * scale))
+        const height = Math.max(1, Math.round(image.height * scale))
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const context = canvas.getContext("2d")
+        if (!context) {
+          reject(new Error("Failed to render business card image."))
+          return
+        }
+        context.drawImage(image, 0, 0, width, height)
+        resolve(canvas.toDataURL("image/jpeg", 0.72))
+      }
+      image.src = String(reader.result ?? "")
+    }
+    reader.readAsDataURL(file)
+  })
 }
 
 export default function FindingEditPage() {
@@ -111,6 +152,9 @@ export default function FindingEditPage() {
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
+  const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
+  const businessCardInputRef = useRef<HTMLInputElement | null>(null)
+  const pendingOcrIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
     const sync = () => {
@@ -152,6 +196,72 @@ export default function FindingEditPage() {
   const label = getFindingCategoryLabel(category)
   const tab = searchParams.get("tab") ?? category
   const backHref = `/finding/${category}/${id}?tab=${tab}`
+
+  const openBusinessCardInput = (contactIndex: number) => {
+    pendingOcrIndexRef.current = contactIndex
+    businessCardInputRef.current?.click()
+  }
+
+  const handleBusinessCardFileChange = async (file: File | undefined) => {
+    if (!file) return
+
+    const targetIndex = pendingOcrIndexRef.current
+    if (targetIndex === null || targetIndex < 0 || targetIndex >= contacts.length) return
+
+    try {
+      assertBusinessCardImageSize(file)
+    } catch (error) {
+      toast({
+        title: "명함 OCR 실패",
+        description: error instanceof Error ? error.message : `명함 이미지는 ${BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} 이하만 업로드할 수 있습니다.`,
+      })
+      pendingOcrIndexRef.current = null
+      return
+    }
+
+    setOcrLoadingIndex(targetIndex)
+    try {
+      const [result, businessCardImage] = await Promise.all([
+        analyzeBusinessCard(file),
+        createBusinessCardThumbnail(file),
+      ])
+      const currentContact = contacts[targetIndex] ?? createEmptyContactDraft()
+      const nextContact: ContactDraft = {
+        ...currentContact,
+        name: keepExistingValue(currentContact.name, result.contactName),
+        position: keepExistingValue(currentContact.position, result.position),
+        department: keepExistingValue(currentContact.department, result.department),
+        email: keepExistingValue(currentContact.email, result.email),
+        mobilePhone: keepExistingValue(currentContact.mobilePhone, result.mobile),
+        landlinePhone: keepExistingValue(currentContact.landlinePhone, result.phone),
+        fax: keepExistingValue(currentContact.fax, result.fax),
+        duty: keepExistingValue(currentContact.duty, result.role),
+        businessCardImage,
+      }
+
+      if (!hasContactValue(nextContact)) {
+        toast({
+          title: "명함 OCR 결과 없음",
+          description: "담당자 정보로 입력할 값을 찾지 못했습니다.",
+        })
+        return
+      }
+
+      setContacts((prev) => prev.map((contact, index) => (index === targetIndex ? nextContact : contact)))
+      toast({
+        title: "명함 OCR 완료",
+        description: `${nextContact.name || "담당자"} 정보를 해당 담당자 칸에 채웠습니다.`,
+      })
+    } catch (error) {
+      toast({
+        title: "명함 OCR 실패",
+        description: error instanceof Error ? error.message : "이미지를 다시 확인해 주세요.",
+      })
+    } finally {
+      setOcrLoadingIndex(null)
+      pendingOcrIndexRef.current = null
+    }
+  }
 
   const handleSave = () => {
     if (category === "partners") {
@@ -341,12 +451,28 @@ export default function FindingEditPage() {
                       <Button type="button" variant="outline" onClick={() => setContacts((prev) => [...prev, createEmptyContactDraft()])}>
                         담당자 추가
                       </Button>
+                      <Input
+                        ref={businessCardInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={ocrLoadingIndex !== null}
+                        onChange={(event) => {
+                          void handleBusinessCardFileChange(event.target.files?.[0])
+                          event.target.value = ""
+                        }}
+                      />
                     </div>
                     <div className="space-y-6">
                       {contacts.map((contact, index) => (
                         <section key={index} className="space-y-4 border border-border p-4">
-                          <div className="flex items-center justify-between">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
                             <h3 className="text-sm font-semibold">{`담당자 ${index + 1}`}</h3>
+                            <div className="flex flex-wrap gap-2">
+                              <Button type="button" variant="outline" size="sm" disabled={ocrLoadingIndex !== null} onClick={() => openBusinessCardInput(index)}>
+                                {ocrLoadingIndex === index ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
+                                명함 등록
+                              </Button>
                             <Button
                               type="button"
                               variant="outline"
@@ -355,7 +481,27 @@ export default function FindingEditPage() {
                             >
                               담당자 삭제
                             </Button>
+                            </div>
                           </div>
+                          {contact.businessCardImage ? (
+                            <div className="flex items-start gap-3">
+                              <img
+                                src={contact.businessCardImage}
+                                alt="Business card preview"
+                                className="w-full max-w-xl rounded border border-border object-contain md:w-[560px]"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, businessCardImage: "" } : item)))
+                                }
+                              >
+                                미리보기 제거
+                              </Button>
+                            </div>
+                          ) : null}
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
                               <Label>담당자명</Label>

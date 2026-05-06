@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BusinessCardOcrLine(BaseModel):
@@ -12,7 +12,7 @@ class BusinessCardOcrLine(BaseModel):
 
 class BusinessCardPaddleOutput(BaseModel):
     raw_text: str | None = None
-    lines: list[BusinessCardOcrLine] = []
+    lines: list[BusinessCardOcrLine] = Field(default_factory=list)
 
 
 class BusinessCardOcrResponse(BaseModel):

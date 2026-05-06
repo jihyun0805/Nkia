@@ -568,7 +568,7 @@ export function registerCustomer(input: CustomerRegistrationInput) {
         fax: contact.fax?.trim() ?? "",
         duty: contact.duty?.trim() ?? "",
         memo: contact.memo?.trim() ?? "",
-        businessCardImage: contact.businessCardImage ?? "",
+        businessCardImage: "",
       }))
       .filter((contact) => contact.name || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.email || contact.memo || contact.position || contact.department || contact.duty),
     address: input.address?.trim() ?? "",
@@ -633,7 +633,7 @@ export function registerPartner(input: PartnerRegistrationInput) {
       fax: contact.fax?.trim() ?? "",
       duty: contact.duty?.trim() ?? "",
       memo: contact.memo?.trim() ?? "",
-      businessCardImage: contact.businessCardImage ?? "",
+      businessCardImage: "",
     }))
     .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
 
@@ -681,7 +681,7 @@ export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
       fax: contact.fax?.trim() ?? "",
       duty: contact.duty?.trim() ?? "",
       memo: contact.memo?.trim() ?? "",
-      businessCardImage: contact.businessCardImage ?? "",
+      businessCardImage: "",
     }))
     .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
 
@@ -760,7 +760,7 @@ export function updatePartner(partnerId: string, input: PartnerUpdateInput) {
       fax: contact.fax?.trim() ?? "",
       duty: contact.duty?.trim() ?? "",
       memo: contact.memo?.trim() ?? "",
-      businessCardImage: contact.businessCardImage ?? "",
+      businessCardImage: "",
     }))
     .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
 
