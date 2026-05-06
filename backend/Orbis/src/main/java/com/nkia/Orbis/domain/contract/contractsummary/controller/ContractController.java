@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -63,5 +64,15 @@ public class ContractController {
     ) {
         contractService.delete(contractId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "계약 내역 수정")
+    @PatchMapping("/{contractId}")
+    public ResponseEntity<ApiResponse<ContractResponse>> update(
+            @PathVariable("contractId") Long contractId,
+            @RequestBody ContractRequest request
+    ) {
+        ContractResponse response = contractService.update(contractId, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

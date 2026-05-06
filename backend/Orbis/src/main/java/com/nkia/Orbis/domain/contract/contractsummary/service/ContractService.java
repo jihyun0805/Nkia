@@ -98,7 +98,7 @@ public class ContractService {
     }
 
     @Transactional
-    public void update(Long contractId, ContractRequest request) {
+    public ContractResponse update(Long contractId, ContractRequest request) {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.CONTRACT_SUMMARY_NOT_FOUND));
 
@@ -137,5 +137,6 @@ public class ContractService {
                 contract.addModuleItem(item);
             }
         }
+        return ContractResponse.from(contract);
     }
 }
