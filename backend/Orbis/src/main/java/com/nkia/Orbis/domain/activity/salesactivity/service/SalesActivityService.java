@@ -53,7 +53,7 @@ public class SalesActivityService {
         );
 
         if (salesActivityRequest != null) {
-            salesActivity.setSalesActivityRequest(salesActivityRequest);
+            salesActivityRequest.setSalesActivity(salesActivity);
         }
 
         addAttendees(salesActivity, request.getAttendeeUserIds());

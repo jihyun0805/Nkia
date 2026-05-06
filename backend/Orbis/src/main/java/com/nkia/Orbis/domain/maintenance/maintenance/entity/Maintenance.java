@@ -31,8 +31,8 @@ public class Maintenance extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id", unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -70,10 +70,11 @@ public class Maintenance extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "regular_pm_id")
-    private User regularPm;           // 정기PM
+    private User regularPm;             // 정기PM
 
-    // 기술 환경 정보
-    private String productFamily;       // 제품군
+    @Enumerated(EnumType.STRING)
+    private ProdFamily productFamily;   // 제품군
+
     private String apVersion;           // AP버전
     private boolean aclPatchStatus;     // ACL패치여부
     private boolean vulnPatchStatus;    // 모니터템플릿 취약점 패치여부
@@ -110,7 +111,7 @@ public class Maintenance extends BaseEntity {
             LocalDate endDate,
             boolean reportSubmitted,
             User regularPm,
-            String productFamily,
+            ProdFamily productFamily,
             String apVersion,
             boolean aclPatchStatus,
             boolean vulnPatchStatus,

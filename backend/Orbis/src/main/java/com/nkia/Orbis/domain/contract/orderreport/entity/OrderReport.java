@@ -3,13 +3,14 @@ package com.nkia.Orbis.domain.contract.orderreport.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
-import com.nkia.Orbis.domain.contract.contract.entity.Contract;
+import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.orderreportmaintenance.entity.OrderReportMaintenance;
 import com.nkia.Orbis.domain.contract.orderreportmaintenanceamount.entity.OrderReportMaintenanceAmount;
 import com.nkia.Orbis.domain.contract.orderreportother.entity.OrderReportOther;
 import com.nkia.Orbis.domain.contract.orderreportpurchase.entity.OrderReportPurchase;
 import com.nkia.Orbis.domain.contract.orderreportservice.entity.OrderReportService;
+import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.user.entity.User;
@@ -82,4 +83,7 @@ public class OrderReport extends BaseEntity {
 
     @OneToOne(mappedBy = "orderReport")
     private Project project;
+
+    @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Billing> billings = new ArrayList<>();
 }

@@ -1,0 +1,31 @@
+package com.nkia.Orbis.domain.maintenance.maintenancequotation.controller;
+
+import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.QuotationCreateRequest;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.QuotationCreateResponse;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.service.MaintenanceQuotationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = "Maintenance Quotation", description = "유지보수 견적서 API")
+@RestController
+@RequestMapping("/maintenances/quotations")
+@RequiredArgsConstructor
+public class MaintenanceQuotationController {
+
+    private final MaintenanceQuotationService quotationService;
+
+    @Operation(summary = "유지보수 견적서 등록")
+    @PostMapping
+    public ResponseEntity<ApiResponse<QuotationCreateResponse>> register(@Valid @RequestBody QuotationCreateRequest dto) {
+        QuotationCreateResponse response = quotationService.register(dto);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+}

@@ -1,13 +1,16 @@
 package com.nkia.Orbis.domain.activity.salesactivityrequest.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.request.SalesActivityRequestCreateRequest;
+import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response.SalesActivityRequestListResponse;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response.SalesActivityRequestResponse;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityRequest;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.repository.SalesActivityRequestRepository;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,16 +28,31 @@ public class SalesActivityRequestService {
         User targetUser = userRepository.findById(request.getTargetUserId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
-        SalesActivityRequest salesActivityRequest = SalesActivityRequest.builder()
-                .salesActivity(null)
-                .targetUser(targetUser)
-                .activityPurpose(request.getActivityPurpose())
-                .activityDateTime(request.getActivityDateTime())
-                .requestContent(request.getRequestContent())
-                .build();
+        SalesActivityRequest salesActivityRequest = SalesActivityRequest.create(
+                targetUser,
+                request.getActivityPurpose(),
+                request.getActivityType(),
+                request.getActivityDateTime(),
+                request.getRequestContent()
+        );
 
         SalesActivityRequest saved = salesActivityRequestRepository.save(salesActivityRequest);
 
         return SalesActivityRequestResponse.from(saved);
+    }
+
+    @Transactional
+    public List<SalesActivityRequestListResponse> getSalesActivityRequests() {
+        return salesActivityRequestRepository.findAll()
+                .stream()
+                .map(SalesActivityRequestListResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public SalesActivityRequestResponse getSalesActivityRequest(Long salesActivityRequestId) {
+        SalesActivityRequest salesActivityRequest = salesActivityRequestRepository.findById(salesActivityRequestId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
+        return SalesActivityRequestResponse.from(salesActivityRequest);
     }
 }
