@@ -4,18 +4,15 @@ import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
-import com.nkia.Orbis.domain.contract.license.entity.License;
-import com.nkia.Orbis.domain.contract.orderreportmaintenance.entity.OrderReportMaintenance;
-import com.nkia.Orbis.domain.contract.orderreportmaintenanceamount.entity.OrderReportMaintenanceAmount;
-import com.nkia.Orbis.domain.contract.orderreportother.entity.OrderReportOther;
-import com.nkia.Orbis.domain.contract.orderreportpurchase.entity.OrderReportPurchase;
-import com.nkia.Orbis.domain.contract.orderreportservice.entity.OrderReportService;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.user.entity.User;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -24,6 +21,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
@@ -39,6 +37,31 @@ public class OrderReport extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false, unique = true)
+    private String OrderReportCode;
+
+    @Enumerated(EnumType.STRING)
+    private OrderReportType type;
+
+    private boolean channel;
+
+    @Enumerated(EnumType.STRING)
+    private CodeType codeType;
+
+    private LocalDate contractDate;
+
+    private Integer freeMaintenacePeriodMonths;
+
+    private LocalDate contractStartDate;
+
+    private LocalDate contractEndDate;
+
+    private Integer contractPeriodMonths;
+
+    private String scopeOfWork;
+
+    private String remarks;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_opportunity_id")
@@ -64,7 +87,7 @@ public class OrderReport extends BaseEntity {
     private List<OrderReportMaintenance> maintenances = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<License> licenses = new ArrayList<>();
+    private List<OrderReportLicense> licenses = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderReportService> services = new ArrayList<>();

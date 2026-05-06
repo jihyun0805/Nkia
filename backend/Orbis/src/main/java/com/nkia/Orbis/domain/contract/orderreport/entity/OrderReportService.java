@@ -1,7 +1,6 @@
-package com.nkia.Orbis.domain.contract.orderreportmaintenanceamount.entity;
+package com.nkia.Orbis.domain.contract.orderreport.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -13,11 +12,10 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OrderReportMaintenanceAmount extends BaseEntity {
+public class OrderReportService extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,4 +24,12 @@ public class OrderReportMaintenanceAmount extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_report_id")
     private OrderReport orderReport;
+
+    private String content;
+
+    private Long manMonth;
+
+    private Long price;
+
+    private Long totalPrice;
 }
