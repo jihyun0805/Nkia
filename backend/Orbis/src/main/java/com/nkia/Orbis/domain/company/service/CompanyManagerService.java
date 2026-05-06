@@ -30,14 +30,14 @@ public class CompanyManagerService {
      * 담당자 등록 (Create)
      */
     @Transactional // 쓰기 작업이므로 트랜잭션 활성화
-    public Long createManager(CompanyManagerCreateRequest request) {
+    public Long createManager(CompanyManagerCreateRequest request, Long companyId) {
         // 1. Fail-Fast: 이메일 중복 검증
         if (companyManagerRepository.existsByEmail(request.email())) {
             throw new ApiException(CompanyManagerErrorCode.COMPANY_MANAGER_EXISTS_EMAIL);
         }
 
         // 2. 연관된 회사(Company) 조회
-        Company company = companyRepository.findById(request.companyId())
+        Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
 
         // 3. DTO -> Entity 변환 및 저장

@@ -4,12 +4,8 @@ import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 public record CompanyManagerCreateRequest(
-        @NotNull(message = "회사 ID는 필수입니다.")
-        Long companyId,
-
         @NotBlank(message = "담당자 이름은 필수입니다.")
         String name,
 
