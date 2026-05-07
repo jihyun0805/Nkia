@@ -64,10 +64,42 @@ export type ProposalRecord = {
   updatedAt: string
 }
 
+export type BidOutcome = "수주" | "실주"
+export type BidResultAttachment = {
+  name: string
+  url?: string
+  mimeType?: string
+}
+
+export type BidResultRecord = {
+  id: string
+  proposalId: string
+  requestId: string
+  customerCode: string
+  customer: string
+  opportunityCode: string
+  opportunity: string
+  proposalType: ProposalType
+  productGroup: ProposalProductGroup
+  proposalDeadline: string
+  salesRep: string
+  bidDate: string
+  result: BidOutcome
+  amount: string
+  competitor: string
+  reason: string
+  attachments?: BidResultAttachment[]
+  attachmentNames: string[]
+  createdAt: string
+  updatedAt: string
+}
+
 const RFP_ANALYSES_STORAGE_KEY = "orbis.rfpAnalyses"
 const RFP_ANALYSES_EVENT_NAME = "orbis-rfp-analyses-updated"
 const PROPOSALS_STORAGE_KEY = "orbis.proposals"
 const PROPOSALS_EVENT_NAME = "orbis-proposals-updated"
+const BID_RESULTS_STORAGE_KEY = "orbis.bidResults"
+const BID_RESULTS_EVENT_NAME = "orbis-bid-results-updated"
 
 export const rfpList: RfpAnalysisRecord[] = [
   { id: "RFP-2026-003", requestId: "REQ-2026-010", customer: "SK텔레콤", customerCode: "CUS-004", opportunity: "SK텔레콤 NMS 업그레이드", opportunityCode: "OPP-2026-004", requester: "최민수", analyst: "김영업", receiveDate: "2026-03-12", requestDate: "2026-03-12", dueDate: "2026-03-30", status: "접수", businessType: "EMS", proposalType: "SI 제안" },
@@ -116,13 +148,32 @@ export const proposalList: ProposalRecord[] = [
     updatedAt: "2026-05-02T06:30:00.000Z",
   },
 ]
-export const bidResults = [
-  { id: "BID-2026-001", name: "농협은행 통합 모니터링 시스템", customer: "농협은행", bidDate: "2026-03-01", result: "수주", amount: "3억", competitor: "와이즈스톤", winReason: "기술력 우위, 레퍼런스 다수", salesRep: "김영업" },
-  { id: "BID-2026-002", name: "한전 ITSM 구축", customer: "한국전력", bidDate: "2026-02-20", result: "실주", amount: "6억", competitor: "삼성SDS", loseReason: "가격 경쟁력 부족", salesRep: "이대리" },
-  { id: "BID-2026-003", name: "우리은행 자동화 시스템", customer: "우리은행", bidDate: "2026-02-15", result: "수주", amount: "2.5억", competitor: "티맥스소프트", winReason: "고객 관계, 맞춤 솔루션 제안", salesRep: "박과장" },
+export const bidResults: BidResultRecord[] = [
+  {
+    id: "BID-2026-001",
+    proposalId: "PRO-2026-001",
+    requestId: "REQ-2026-014",
+    customerCode: "CUS-004",
+    customer: "SK텔레콤",
+    opportunityCode: "OPP-2026-004",
+    opportunity: "SK텔레콤 NMS 업그레이드",
+    proposalType: "SI 제안",
+    productGroup: "EMS",
+    proposalDeadline: "2026-04-30",
+    salesRep: "김영업",
+    bidDate: "2026-05-03",
+    result: "수주",
+    amount: "3억",
+    competitor: "와이즈스톤",
+    reason: "기술 적합성과 기존 레퍼런스 경쟁력이 우세했습니다.",
+    attachments: [{ name: "SKT_NMS_입찰결과보고.pdf" }],
+    attachmentNames: ["SKT_NMS_입찰결과보고.pdf"],
+    createdAt: "2026-05-03T10:30:00.000Z",
+    updatedAt: "2026-05-03T10:30:00.000Z",
+  },
 ]
 
-export const bidStatuses = ["접수", "분석중", "완료", "승인", "검토중", "작성중", "수주", "실주"]
+export const bidStatuses = ["접수", "분석중", "완료", "승인", "검토중", "작성중", "미정", "수주", "실주"]
 
 function isBrowser() {
   return typeof window !== "undefined"
@@ -136,6 +187,11 @@ function emitRfpAnalysesUpdate() {
 function emitProposalsUpdate() {
   if (!isBrowser()) return
   window.dispatchEvent(new Event(PROPOSALS_EVENT_NAME))
+}
+
+function emitBidResultsUpdate() {
+  if (!isBrowser()) return
+  window.dispatchEvent(new Event(BID_RESULTS_EVENT_NAME))
 }
 
 function readStoredRfpAnalyses() {
@@ -203,6 +259,54 @@ function writeStoredProposals(items: ProposalRecord[]) {
   window.localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(items))
 }
 
+function readStoredBidResults() {
+  if (!isBrowser()) return bidResults
+
+  const stored = window.localStorage.getItem(BID_RESULTS_STORAGE_KEY)
+  if (!stored) return bidResults
+
+  try {
+    const parsed = JSON.parse(stored) as BidResultRecord[]
+    const storedItems = Array.isArray(parsed)
+      ? parsed
+          .filter(
+            (item) =>
+              item &&
+              typeof item.id === "string" &&
+              typeof item.proposalId === "string" &&
+              typeof item.requestId === "string" &&
+              typeof item.customerCode === "string" &&
+              typeof item.opportunityCode === "string",
+          )
+          .map((item) => ({
+            ...item,
+            attachments: Array.isArray(item.attachments)
+              ? item.attachments.filter((attachment) => attachment && typeof attachment.name === "string")
+              : Array.isArray(item.attachmentNames)
+                ? item.attachmentNames
+                    .filter((name) => typeof name === "string")
+                    .map((name) => ({ name }))
+                : [],
+            attachmentNames: Array.isArray(item.attachmentNames)
+              ? item.attachmentNames.filter((name) => typeof name === "string")
+              : [],
+          }))
+      : []
+
+    const merged = new Map<string, BidResultRecord>()
+    for (const item of bidResults) merged.set(item.id, item)
+    for (const item of storedItems) merged.set(item.id, item)
+    return [...merged.values()]
+  } catch {
+    return bidResults
+  }
+}
+
+function writeStoredBidResults(items: BidResultRecord[]) {
+  if (!isBrowser()) return
+  window.localStorage.setItem(BID_RESULTS_STORAGE_KEY, JSON.stringify(items))
+}
+
 export function getRfpAnalyses() {
   const items = readStoredRfpAnalyses()
   if (isBrowser() && !window.localStorage.getItem(RFP_ANALYSES_STORAGE_KEY)) {
@@ -227,12 +331,28 @@ export function getProposals() {
   return items
 }
 
+export function getBidResults() {
+  const items = readStoredBidResults()
+  if (isBrowser() && !window.localStorage.getItem(BID_RESULTS_STORAGE_KEY)) {
+    writeStoredBidResults(items)
+  }
+  return items
+}
+
 export function getProposalById(id: string) {
   return getProposals().find((item) => item.id === id) ?? null
 }
 
 export function getProposalByRequestId(requestId: string) {
   return getProposals().find((item) => item.requestId === requestId) ?? null
+}
+
+export function getBidResultById(id: string) {
+  return getBidResults().find((item) => item.id === id) ?? null
+}
+
+export function getBidResultByProposalId(proposalId: string) {
+  return getBidResults().find((item) => item.proposalId === proposalId) ?? null
 }
 
 export function subscribeRfpAnalysesUpdates(callback: () => void) {
@@ -257,6 +377,17 @@ export function subscribeProposalUpdates(callback: () => void) {
   }
 }
 
+export function subscribeBidResultUpdates(callback: () => void) {
+  if (!isBrowser()) return () => undefined
+
+  const listener = () => callback()
+  window.addEventListener(BID_RESULTS_EVENT_NAME, listener)
+
+  return () => {
+    window.removeEventListener(BID_RESULTS_EVENT_NAME, listener)
+  }
+}
+
 function nextRfpAnalysisId(items: RfpAnalysisRecord[]) {
   const max = items.reduce((acc, item) => {
     const current = Number.parseInt(item.id.split("-").at(-1) ?? "0", 10)
@@ -273,6 +404,15 @@ function nextProposalId(items: ProposalRecord[]) {
   }, 0)
 
   return `PRO-2026-${String(max + 1).padStart(3, "0")}`
+}
+
+function nextBidResultId(items: BidResultRecord[]) {
+  const max = items.reduce((acc, item) => {
+    const current = Number.parseInt(item.id.split("-").at(-1) ?? "0", 10)
+    return Number.isNaN(current) ? acc : Math.max(acc, current)
+  }, 0)
+
+  return `BID-2026-${String(max + 1).padStart(3, "0")}`
 }
 
 export function saveRfpAnalysis(record: Omit<RfpAnalysisRecord, "id"> & { id?: string }) {
@@ -320,11 +460,36 @@ export function saveProposal(record: Omit<ProposalRecord, "id" | "createdAt" | "
   return nextRecord
 }
 
+export function saveBidResult(record: Omit<BidResultRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
+  const items = getBidResults()
+  const existingById = record.id ? items.find((item) => item.id === record.id) ?? null : null
+  const existingByProposal = !record.id ? items.find((item) => item.proposalId === record.proposalId) ?? null : null
+  const targetId = existingById?.id ?? existingByProposal?.id ?? record.id ?? nextBidResultId(items)
+  const createdAt = existingById?.createdAt ?? existingByProposal?.createdAt ?? new Date().toISOString()
+  const nextRecord: BidResultRecord = {
+    ...record,
+    id: targetId,
+    attachments: Array.isArray(record.attachments) ? record.attachments : [],
+    attachmentNames: Array.isArray(record.attachmentNames) ? record.attachmentNames : [],
+    createdAt,
+    updatedAt: new Date().toISOString(),
+  }
+
+  const nextItems = items.some((item) => item.id === targetId)
+    ? items.map((item) => (item.id === targetId ? nextRecord : item))
+    : [nextRecord, ...items]
+
+  writeStoredBidResults(nextItems)
+  emitBidResultsUpdate()
+
+  return nextRecord
+}
+
 export function getBidItem(category: BidCategory, id: string) {
   if (category === "rfp") return getRfpAnalysisById(id)
   if (category === "prb") return prbList.find((item) => item.id === id) ?? null
   if (category === "proposal") return getProposalById(id)
-  return bidResults.find((item) => item.id === id) ?? null
+  return getBidResultById(id)
 }
 
 export function getBidFields(category: BidCategory, item: any) {
@@ -358,7 +523,20 @@ export function getBidFields(category: BidCategory, item: any) {
     { label: "상태", value: "완료" },
   ]
   return [
-    { label: "입찰 번호", value: item.id }, { label: "사업명", value: item.name }, { label: "고객사", value: item.customer }, { label: "입찰일", value: item.bidDate }, { label: "결과", value: item.result }, { label: "금액", value: item.amount }, { label: "경쟁사", value: item.competitor }, { label: "담당자", value: item.salesRep }, { label: "결과 사유", value: item.result === "수주" ? item.winReason : item.loseReason },
+    { label: "입찰 번호", value: item.id },
+    { label: "제안서 코드", value: item.proposalId },
+    { label: "사업명", value: item.opportunity },
+    { label: "고객사", value: item.customer },
+    { label: "제안형태", value: item.proposalType },
+    { label: "제품군", value: item.productGroup },
+    { label: "제안서 마감일", value: item.proposalDeadline },
+    { label: "입찰 결과", value: item.result },
+    { label: "영업대표", value: item.salesRep },
+    { label: "상태", value: item.result },
+    { label: "입찰일", value: item.bidDate },
+    { label: "금액", value: item.amount },
+    { label: "경쟁사", value: item.competitor },
+    { label: "결과 사유", value: item.reason },
   ]
 }
 
