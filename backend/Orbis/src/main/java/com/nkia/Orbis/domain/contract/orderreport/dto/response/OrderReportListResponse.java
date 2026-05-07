@@ -50,8 +50,11 @@ public class OrderReportListResponse {
                 .codeType(orderReport.getCodeType())
                 .contractDate(orderReport.getContractDate())
                 .contractPeriodMonths(orderReport.getContractPeriodMonths())
-                .projectOpportunityId(orderReport.getProjectOpportunity().getId())
-                .pmId(orderReport.getPm() != null ? orderReport.getPm().getId() : null)
+                .projectOpportunityId(
+                        orderReport.getProjectOpportunity() != null
+                                ? orderReport.getProjectOpportunity().getId()
+                                : null
+                ).pmId(orderReport.getPm() != null ? orderReport.getPm().getId() : null)
                 .pmName(orderReport.getPm() != null ? orderReport.getPm().getName() : null)
 //
 //
