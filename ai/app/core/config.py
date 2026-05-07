@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     ai_chunk_overlap: int = 120
     gms_key: str | None = None
     gms_chat_completions_url: str = "https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions"
-    gms_chat_model: str = "gpt-4o-mini"
+    gms_chat_model: str = "gpt-5-mini"
     gms_timeout_seconds: int = 30
     langgraph_use_official_runtime: bool = True
     langgraph_checkpoint_url: str | None = None
