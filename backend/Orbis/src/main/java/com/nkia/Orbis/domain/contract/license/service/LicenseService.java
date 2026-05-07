@@ -62,4 +62,12 @@ public class LicenseService {
 
         return LicenseResponse.from(license);
     }
+
+    @Transactional
+    public void delete(Long licenseId) {
+        License license = licenseRepository.findById(licenseId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.LICENSE_NOT_FOUND));
+
+        license.delete();
+    }
 }
