@@ -66,9 +66,10 @@ export default function ContractPage() {
     // 가장 최근에 등록된 것부터 과거 순서로 배열
     .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
-  const filteredContracts = filterRecords(contracts, filters, { status: (i) => i.status, date: (i) => i.contractDate, fields: { customer: (i) => i.customer } }).filter((i) =>
-    [i.id, i.name, i.customer, i.orderId].join(" ").toLowerCase().includes(q),
-  );
+  const filteredContracts = filterRecords(contracts, filters, { status: (i) => i.status, date: (i) => i.contractDate, fields: { customer: (i) => i.customer } })
+    .filter((i) => [i.id, i.name, i.customer, i.orderId].join(" ").toLowerCase().includes(q))
+    // 가장 최근에 등록된 것부터 과거 순서로 배열
+    .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
 
   const filteredPurchases = filterRecords(purchaseContracts, filters, {
     status: (i) => i.status,
