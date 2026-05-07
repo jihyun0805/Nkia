@@ -4,7 +4,8 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
-import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportLicenseRequest;
+import com.nkia.Orbis.domain.contract.license.dto.request.LicenseFromOrderReportRequest;
+import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportMaintenanceOnlyItemRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportMaintenanceRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportOtherRequest;
@@ -14,7 +15,6 @@ import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportService
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportListResponse;
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportResponse;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportLicense;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportMaintenance;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportMaintenanceOnlyItem;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportOther;
@@ -77,13 +77,15 @@ public class OrderReportService {
         );
 
         if (request.getLicenses() != null) {
-            for (OrderReportLicenseRequest licenseRequest : request.getLicenses()) {
-                ProductModule productModule = productModuleRepository.findById(licenseRequest.getProductModuleId())
+            for (LicenseFromOrderReportRequest licenseFromOrderReportRequest : request.getLicenses()) {
+                ProductModule productModule = productModuleRepository.findById(
+                                licenseFromOrderReportRequest.getProductModuleId())
                         .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
 
-                OrderReportLicense license = OrderReportLicense.create(
+                License license = License.createFromOrderReport(
+                        orderReport,
                         productModule,
-                        licenseRequest.getQuantity()
+                        licenseFromOrderReportRequest.getQuantity()
                 );
 
                 orderReport.addLicense(license);
