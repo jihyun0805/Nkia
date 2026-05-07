@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,6 +43,16 @@ public class LicenseController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<LicenseListResponse>>> getLicenses() {
         List<LicenseListResponse> response = licenseService.getLicenses();
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "라이선스 상세 조회")
+    @GetMapping("/{licenseId}")
+    public ResponseEntity<ApiResponse<LicenseResponse>> getLicense(
+            @PathVariable("licenseId") Long licenseId
+    ) {
+        LicenseResponse response = licenseService.getLicense(licenseId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
