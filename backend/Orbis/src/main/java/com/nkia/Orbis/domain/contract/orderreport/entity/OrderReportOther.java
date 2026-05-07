@@ -1,7 +1,6 @@
-package com.nkia.Orbis.domain.contract.orderreportother.entity;
+package com.nkia.Orbis.domain.contract.orderreport.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -26,4 +25,30 @@ public class OrderReportOther extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_report_id")
     private OrderReport orderReport;
+
+    private String content;
+
+    private Integer quantity;
+
+    private Long price;
+
+    private Long totalPrice;
+
+    public static OrderReportOther create(
+            String content,
+            Integer quantity,
+            Long price
+    ) {
+        OrderReportOther orderReportOther = new OrderReportOther();
+        orderReportOther.content = content;
+        orderReportOther.quantity = quantity;
+        orderReportOther.price = price;
+        orderReportOther.totalPrice = price * quantity;
+
+        return orderReportOther;
+    }
+
+    void setOrderReport(OrderReport orderReport) {
+        this.orderReport = orderReport;
+    }
 }
