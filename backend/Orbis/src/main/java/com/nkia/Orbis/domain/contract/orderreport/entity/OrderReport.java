@@ -224,9 +224,9 @@ public class OrderReport extends BaseEntity {
         calculateServiceTotal();
     }
 
-    public void addMaintenanceAmount(OrderReportMaintenanceOnlyItem maintenanceAmount) {
-        this.maintenanceOnlyItems.add(maintenanceAmount);
-        maintenanceAmount.setOrderReport(this);
+    public void addMaintenanceOnlyItem(OrderReportMaintenanceOnlyItem maintenanceOnlyItem) {
+        this.maintenanceOnlyItems.add(maintenanceOnlyItem);
+        maintenanceOnlyItem.setOrderReport(this);
     }
 
     public void addOther(OrderReportOther other) {
