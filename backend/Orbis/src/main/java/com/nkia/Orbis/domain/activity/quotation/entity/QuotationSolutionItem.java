@@ -48,22 +48,22 @@ public class QuotationSolutionItem extends BaseEntity {
 
     private Boolean freeSupply;
 
-    public static QuotationSolutionItem create( // 수정됨
-                                                ProductModule productModule,
-                                                Integer quantity,
-                                                Long supplyPrice,
-                                                Double discountRate,
-                                                Boolean freeSupply
+    public static QuotationSolutionItem create(
+            ProductModule productModule,
+            Integer quantity,
+            Long supplyPrice,
+            Double discountRate,
+            Boolean freeSupply
     ) {
         QuotationSolutionItem item = new QuotationSolutionItem();
         item.productModule = productModule;
         item.quantity = quantity;
-        item.consumerPrice = productModule.getUnitPrice(); // 수정됨
-        item.consumerTotalPrice = item.consumerPrice * quantity; // 수정됨
+        item.consumerPrice = productModule.getUnitPrice();
+        item.consumerTotalPrice = item.consumerPrice * quantity;
         item.supplyPrice = supplyPrice;
         item.discountRate = discountRate == null ? 0.0 : discountRate;
         item.freeSupply = Boolean.TRUE.equals(freeSupply);
-        item.supplyTotalPrice = item.calculateSupplyTotalPrice(); // 수정됨
+        item.supplyTotalPrice = item.calculateSupplyTotalPrice();
         return item;
     }
 
@@ -72,7 +72,7 @@ public class QuotationSolutionItem extends BaseEntity {
     }
 
     //
-    private Long calculateSupplyTotalPrice() { // 수정됨
+    private Long calculateSupplyTotalPrice() {
         if (Boolean.TRUE.equals(this.freeSupply)) {
             return 0L;
         }
