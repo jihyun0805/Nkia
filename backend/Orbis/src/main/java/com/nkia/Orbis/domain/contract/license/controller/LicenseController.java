@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.contract.license.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseRequest;
+import com.nkia.Orbis.domain.contract.license.dto.request.LicenseUpdateRequest;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseListResponse;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseResponse;
 import com.nkia.Orbis.domain.contract.license.service.LicenseService;
@@ -14,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -57,7 +59,7 @@ public class LicenseController {
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
-    
+
     @Operation(summary = "라이선스 삭제")
     @DeleteMapping("/{licenseId}")
     public ResponseEntity<ApiResponse<Void>> delete(
@@ -66,5 +68,16 @@ public class LicenseController {
         licenseService.delete(licenseId);
 
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "라이선스 수정")
+    @PatchMapping("/{licenseId}")
+    public ResponseEntity<ApiResponse<LicenseResponse>> update(
+            @PathVariable("licenseId") Long licenseId,
+            @RequestBody LicenseUpdateRequest request
+    ) {
+        LicenseResponse response = licenseService.update(licenseId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
