@@ -27,7 +27,9 @@ public class Department extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String name;
+    private String headquarters;
+
+    private String team;
 
     @OneToMany(mappedBy = "department")
     private List<User> users = new ArrayList<>();
@@ -36,10 +38,12 @@ public class Department extends BaseEntity {
     private List<Permission> permissions = new ArrayList<>();
 
     public static Department create(
-            String name
+            String headquarters,
+            String team
     ) {
         Department department = new Department();
-        department.name = name;
+        department.headquarters = headquarters;
+        department.team = team;
         return department;
     }
 }
