@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { bidResults, bidStatuses, getBidCreateActionLabel, getProposals, getRfpAnalyses, prbList, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
+import { bidStatuses, getBidCreateActionLabel, getBidResults, getProposals, getRfpAnalyses, prbList, subscribeBidResultUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { getOpportunities } from "@/lib/finding-data"
@@ -43,6 +43,21 @@ type ProposalOverviewRow = {
   sortDate: string
 }
 
+type BidResultOverviewRow = {
+  key: string
+  proposalId: string
+  bidResultId?: string
+  customer: string
+  opportunity: string
+  proposalType: "자체 제안" | "SI 제안"
+  productGroup: string
+  proposalDeadline: string
+  bidResult: string
+  salesRep: string
+  status: "미정" | "수주" | "실주"
+  sortDate: string
+}
+
 export default function BidPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
@@ -51,7 +66,9 @@ export default function BidPage() {
   const [rfpItems, setRfpItems] = useState<ReturnType<typeof getRfpAnalyses>>([])
   const [proposalRequests, setProposalRequests] = useState<ActivityRequestRecord[]>([])
   const [proposals, setProposals] = useState<ReturnType<typeof getProposals>>([])
+  const [results, setResults] = useState<ReturnType<typeof getBidResults>>([])
   const [proposalConfirmTarget, setProposalConfirmTarget] = useState<ProposalOverviewRow | null>(null)
+  const [resultConfirmTarget, setResultConfirmTarget] = useState<BidResultOverviewRow | null>(null)
   const q = searchTerm.toLowerCase()
 
   useEffect(() => {
@@ -75,6 +92,13 @@ export default function BidPage() {
 
     sync()
     return subscribeProposalUpdates(sync)
+  }, [])
+
+  useEffect(() => {
+    const sync = () => setResults(getBidResults())
+
+    sync()
+    return subscribeBidResultUpdates(sync)
   }, [])
 
   const opportunityMap = new Map(getOpportunities().map((item) => [item.id, item]))
@@ -130,6 +154,43 @@ export default function BidPage() {
     .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
 
   const proposalOverviewRows = [...pendingProposalRows, ...completedProposalRows]
+  const resultByProposalId = new Map(results.map((result) => [result.proposalId, result]))
+
+  const pendingBidResultRows: BidResultOverviewRow[] = proposals
+    .filter((proposal) => !resultByProposalId.has(proposal.id))
+    .map((proposal) => ({
+      key: `proposal-pending-result-${proposal.id}`,
+      proposalId: proposal.id,
+      customer: proposal.customer,
+      opportunity: proposal.opportunity,
+      proposalType: proposal.proposalType,
+      productGroup: proposal.productGroup,
+      proposalDeadline: proposal.proposalDeadline,
+      bidResult: "-",
+      salesRep: proposal.salesRep,
+      status: "미정" as const,
+      sortDate: proposal.createdAt,
+    }))
+    .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
+
+  const completedBidResultRows: BidResultOverviewRow[] = results
+    .map((result) => ({
+      key: `bid-result-${result.id}`,
+      proposalId: result.proposalId,
+      bidResultId: result.id,
+      customer: result.customer,
+      opportunity: result.opportunity,
+      proposalType: result.proposalType,
+      productGroup: result.productGroup,
+      proposalDeadline: result.proposalDeadline,
+      bidResult: result.result,
+      salesRep: result.salesRep,
+      status: result.result,
+      sortDate: result.createdAt,
+    }))
+    .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
+
+  const bidResultOverviewRows = [...pendingBidResultRows, ...completedBidResultRows]
 
   const statusOptions = activeTab === "proposal" ? ["작성 중", "완료"] : bidStatuses
   const bidFieldOptions = activeTab === "rfp"
@@ -142,8 +203,9 @@ export default function BidPage() {
     : activeTab === "proposal"
       ? [{ key: "customer", label: "고객사", options: uniqueOptions(proposalOverviewRows, (i) => i.customer) }]
       : [
-        { key: "customer", label: "고객사", options: uniqueOptions(bidResults, (i) => i.customer) },
-        { key: "competitor", label: "경쟁사", options: uniqueOptions(bidResults, (i) => i.competitor) },
+        { key: "customer", label: "고객사", options: uniqueOptions(bidResultOverviewRows, (i) => i.customer) },
+        { key: "proposalType", label: "제안형태", options: uniqueOptions(bidResultOverviewRows, (i) => i.proposalType) },
+        { key: "productGroup", label: "제품군", options: uniqueOptions(bidResultOverviewRows, (i) => i.productGroup) },
       ]
   const filteredRfpList = filterRecords(rfpItems, filters, { status: (i) => i.status, owner: (i) => i.analyst, date: (i) => i.receiveDate, fields: { customer: (i) => i.customer } })
     .filter((i) => [i.id, i.customer, i.opportunity, i.requester, i.analyst].join(" ").toLowerCase().includes(q))
@@ -155,7 +217,16 @@ export default function BidPage() {
     date: (i) => i.sortDate,
     fields: { customer: (i) => i.customer },
   }).filter((i) => [i.customer, i.opportunity, i.proposalType, i.productGroup, i.requestDate, i.proposalDeadline, i.status].join(" ").toLowerCase().includes(q))
-  const filteredBidResults = filterRecords(bidResults, filters, { status: (i) => i.result, owner: (i) => i.salesRep, date: (i) => i.bidDate, fields: { customer: (i) => i.customer, competitor: (i) => i.competitor } }).filter((i) => [i.id, i.name, i.customer, i.salesRep].join(" ").toLowerCase().includes(q))
+  const filteredBidResults = filterRecords(bidResultOverviewRows, filters, {
+    status: (i) => i.status,
+    owner: (i) => i.salesRep,
+    date: (i) => i.sortDate.slice(0, 10),
+    fields: {
+      customer: (i) => i.customer,
+      proposalType: (i) => i.proposalType,
+      productGroup: (i) => i.productGroup,
+    },
+  }).filter((i) => [i.customer, i.opportunity, i.proposalType, i.productGroup, i.proposalDeadline, i.bidResult, i.salesRep, i.status].join(" ").toLowerCase().includes(q))
 
   const handleProposalRowClick = (proposal: ProposalOverviewRow) => {
     if (proposal.status === "완료" && proposal.proposalId) {
@@ -164,6 +235,15 @@ export default function BidPage() {
     }
 
     setProposalConfirmTarget(proposal)
+  }
+
+  const handleBidResultRowClick = (row: BidResultOverviewRow) => {
+    if (row.bidResultId) {
+      router.push(`/bid/result/${row.bidResultId}`)
+      return
+    }
+
+    setResultConfirmTarget(row)
   }
 
   return (
@@ -179,7 +259,7 @@ export default function BidPage() {
                   <TabsTrigger value="rfp" className="gap-2"><FileText className="w-4 h-4" />RFP 분석</TabsTrigger>
                   <TabsTrigger value="prb" className="gap-2"><ClipboardCheck className="w-4 h-4" />PRB</TabsTrigger>
                   <TabsTrigger value="proposal" className="gap-2"><Presentation className="w-4 h-4" />제안서</TabsTrigger>
-                  <TabsTrigger value="result" className="gap-2"><Trophy className="w-4 h-4" />입찰 결과</TabsTrigger>
+                  <TabsTrigger value="result" className="gap-2"><Trophy className="w-4 h-4" />입찰결과현황</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-2">
                   <div className="relative">
@@ -321,7 +401,7 @@ export default function BidPage() {
                 <Card>
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">입찰 결과 목록</CardTitle>
+                      <CardTitle className="text-lg">입찰결과현황</CardTitle>
                       <Badge variant="secondary">{filteredBidResults.length}건</Badge>
                     </div>
                   </CardHeader>
@@ -329,29 +409,31 @@ export default function BidPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[120px]">입찰번호</TableHead>
-                          <TableHead>사업명</TableHead>
                           <TableHead>고객사</TableHead>
-                          <TableHead>입찰일</TableHead>
-                          <TableHead className="text-right">금액</TableHead>
-                          <TableHead>경쟁사</TableHead>
-                          <TableHead>결과</TableHead>
-                          <TableHead>사유</TableHead>
-                          <TableHead>담당자</TableHead>
+                          <TableHead>사업명</TableHead>
+                          <TableHead>제안형태</TableHead>
+                          <TableHead>제품군</TableHead>
+                          <TableHead>제안서 마감일</TableHead>
+                          <TableHead>입찰 결과</TableHead>
+                          <TableHead>영업대표</TableHead>
+                          <TableHead>상태</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredBidResults.map((bid) => (
-                          <TableRow key={bid.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/result/${bid.id}`)}>
-                            <TableCell className="font-mono text-sm">{bid.id}</TableCell>
-                            <TableCell className="max-w-[180px] truncate font-medium">{bid.name}</TableCell>
+                          <TableRow key={bid.key} className="cursor-pointer hover:bg-muted/50" onClick={() => handleBidResultRowClick(bid)}>
                             <TableCell>{bid.customer}</TableCell>
-                            <TableCell>{bid.bidDate}</TableCell>
-                            <TableCell className="text-right font-medium">{bid.amount}</TableCell>
-                            <TableCell>{bid.competitor}</TableCell>
-                            <TableCell><Badge variant={bid.result === "수주" ? "default" : "destructive"} className={bid.result === "수주" ? "bg-green-100 text-green-700 hover:bg-green-100" : ""}>{bid.result}</Badge></TableCell>
-                            <TableCell className="max-w-[150px] truncate">{bid.result === "수주" ? bid.winReason : bid.loseReason}</TableCell>
+                            <TableCell className="max-w-[240px] truncate font-medium">{bid.opportunity}</TableCell>
+                            <TableCell>{bid.proposalType}</TableCell>
+                            <TableCell>{bid.productGroup}</TableCell>
+                            <TableCell>{bid.proposalDeadline || "-"}</TableCell>
+                            <TableCell>{bid.bidResult}</TableCell>
                             <TableCell>{bid.salesRep}</TableCell>
+                            <TableCell>
+                              <Badge className={bid.status === "수주" ? "bg-green-100 text-green-700 hover:bg-green-100" : bid.status === "실주" ? "bg-rose-100 text-rose-700 hover:bg-rose-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"}>
+                                {bid.status}
+                              </Badge>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -373,6 +455,22 @@ export default function BidPage() {
             <AlertDialogCancel>아니오</AlertDialogCancel>
             <AlertDialogAction asChild>
               <Link href={proposalConfirmTarget?.requestId ? `/bid/new/proposal?requestId=${proposalConfirmTarget.requestId}` : "/bid/new/proposal"}>
+                확인
+              </Link>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(resultConfirmTarget)} onOpenChange={(open) => { if (!open) setResultConfirmTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>입찰 결과가 등록되지 않았습니다.</AlertDialogTitle>
+            <AlertDialogDescription>입찰 결과가 등록되지 않았습니다. 입찰 결과 등록을 진행하시겠습니까?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>아니오</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Link href={resultConfirmTarget?.proposalId ? `/bid/new/result?proposalId=${resultConfirmTarget.proposalId}` : "/bid/new/result"}>
                 확인
               </Link>
             </AlertDialogAction>

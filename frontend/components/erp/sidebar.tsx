@@ -1,10 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { currentUser } from "@/lib/current-user"
-import { Orbit, UserStar } from "lucide-react"
+import { Orbit, UserStar, LogOut } from "lucide-react"
+import { logout } from "@/lib/api/generated/auth/auth"
+import { clearAuthSession } from "@/lib/auth-session"
 
 const menuItems = [
   { 
@@ -56,6 +58,19 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  // 로그아웃 처리 함수
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch (error) {
+      console.error("로그아웃 실패:", error)
+    } finally {
+      clearAuthSession()
+      router.push("/login")
+    }
+  }
 
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-sidebar text-sidebar-foreground shadow-sm">
@@ -102,6 +117,13 @@ export function Sidebar() {
             <p className="truncate text-sm font-medium">{currentUser.name}</p>
             <p className="truncate text-xs text-sidebar-foreground/60">{currentUser.email}</p>
           </div>
+          <button
+            onClick={handleLogout}
+            className="ml-2 p-2 text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+            title="로그아웃"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
         </div>
       </div>
     </div>

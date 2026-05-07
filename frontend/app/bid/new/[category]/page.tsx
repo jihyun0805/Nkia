@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
+import { BidResultRegistrationForm } from "@/components/erp/bid-result-registration-form"
 import { ProposalRegistrationForm } from "@/components/erp/proposal-registration-form"
 import { RfpAnalysisSheetLoader } from "@/components/erp/rfp-analysis-sheet-loader"
 import { Button } from "@/components/ui/button"
@@ -52,6 +53,8 @@ export default async function BidCategoryNewPage({
               <RfpAnalysisSheetLoader title={actionLabel} requestId={standalone === "1" ? undefined : (requestId ?? rfpList[0]?.id)} blankMode />
             ) : category === "proposal" ? (
               <ProposalRegistrationForm initialRequestId={requestId} proposalId={proposalId} />
+            ) : category === "result" ? (
+              <BidResultRegistrationForm proposalId={proposalId} />
             ) : (
               <Card>
                 <CardHeader>
@@ -63,14 +66,6 @@ export default async function BidCategoryNewPage({
                     <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>RFP 번호 *</Label><Input /></div><div className="space-y-2"><Label>검토자 *</Label><Input /></div></div>
                     <div className="grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>상신일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>검토일</Label><Input type="date" /></div><div className="space-y-2"><Label>리스크 등급 *</Label><Input placeholder="예: 중" /></div></div>
                     <div className="space-y-2"><Label>검토 의견 *</Label><Textarea rows={4} /></div>
-                  </>
-                )}
-                {category === "result" && (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>사업명 *</Label><Input /></div><div className="space-y-2"><Label>고객사 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>입찰일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>결과 *</Label><Input placeholder="예: 수주" /></div><div className="space-y-2"><Label>금액</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>경쟁사</Label><Input /></div><div className="space-y-2"><Label>담당자</Label><Input /></div></div>
-                    <div className="space-y-2"><Label>결과 사유</Label><Textarea rows={4} /></div>
                   </>
                 )}
                 <div className="space-y-2"><Label>첨부파일</Label><Input type="file" multiple /></div>
