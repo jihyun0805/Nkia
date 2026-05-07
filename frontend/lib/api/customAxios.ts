@@ -1,5 +1,5 @@
-// src/api/customAxios.ts
 import axios, { AxiosRequestConfig } from 'axios';
+import { getAccessToken } from '../auth-session';
 
 // 1. 기본 인스턴스 생성 (환경 변수에서 API 주소 로드)
 export const customAxiosInstance = axios.create({
@@ -14,8 +14,8 @@ export const customAxiosInstance = axios.create({
 // 2. Request Interceptor: JWT 토큰 자동 주입
 customAxiosInstance.interceptors.request.use(
   (config) => {
-    // 로컬 스토리지나 전역 상태(Zustand 등)에서 토큰을 가져옵니다.
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    // localStorage 직접 접근 대신 auth-session.ts 함수 사용
+    const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`; // JWT 인증 스펙 반영
     }
