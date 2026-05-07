@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.activity.quotation.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

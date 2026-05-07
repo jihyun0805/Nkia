@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.project.projectresultreport.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
-import com.nkia.Orbis.domain.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,7 +13,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -51,7 +50,8 @@ public class ProjectResultReport extends BaseEntity {
     private LocalDate endDate;
 
     @Builder
-    public ProjectResultReport(Project project, UploadFile resultReportFile, User manager,  LocalDate startDate, LocalDate endDate) {
+    public ProjectResultReport(Project project, UploadFile resultReportFile, User manager, LocalDate startDate,
+                               LocalDate endDate) {
         this.project = project;
         this.resultReportFile = resultReportFile;
         this.manager = manager;
@@ -59,7 +59,8 @@ public class ProjectResultReport extends BaseEntity {
         this.endDate = endDate;
     }
 
-    public static ProjectResultReport create(Project project, User manager, UploadFile fileId,  LocalDate startDate, LocalDate endDate) {
+    public static ProjectResultReport create(Project project, User manager, UploadFile fileId, LocalDate startDate,
+                                             LocalDate endDate) {
         return ProjectResultReport.builder()
                 .project(project)
                 .manager(manager)
@@ -72,7 +73,8 @@ public class ProjectResultReport extends BaseEntity {
     /**
      * 결과 보고서 정보를 업데이트합니다.
      */
-    public void updateReport(UploadFile resultReportFile, String content, User manager, LocalDate startDate, LocalDate endDate) {
+    public void updateReport(UploadFile resultReportFile, String content, User manager, LocalDate startDate,
+                             LocalDate endDate) {
         this.resultReportFile = resultReportFile;
         this.content = content;
         this.manager = manager;

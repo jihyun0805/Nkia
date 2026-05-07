@@ -5,7 +5,7 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
-import com.nkia.Orbis.domain.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
