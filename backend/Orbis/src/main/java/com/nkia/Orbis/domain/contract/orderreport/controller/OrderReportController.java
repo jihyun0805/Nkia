@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,5 +55,14 @@ public class OrderReportController {
         OrderReportResponse response = orderReportService.getOrderReport(orderReportId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "수주보고서 삭제")
+    @DeleteMapping("/{orderReportId}")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable("orderReportId") Long orderReportId
+    ) {
+        orderReportService.delete(orderReportId);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

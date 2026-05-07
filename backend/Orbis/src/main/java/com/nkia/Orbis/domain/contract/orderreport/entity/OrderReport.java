@@ -382,4 +382,34 @@ public class OrderReport extends BaseEntity {
                         : item.getMaintenance())
                 .sum();
     }
+
+    @Override
+    public void delete() {
+        super.delete();
+
+        for (OrderReportLicense item : licenses) {
+            item.delete();
+        }
+
+        for (OrderReportMaintenance item : maintenances) {
+            item.delete();
+        }
+
+        for (OrderReportMaintenanceOnlyItem item : maintenanceOnlyItems) {
+            item.delete();
+        }
+
+        for (OrderReportOther item : others) {
+            item.delete();
+        }
+
+        for (OrderReportPurchase item : purchases) {
+            item.delete();
+        }
+
+        for (OrderReportServiceItem item : services) {
+            item.delete();
+        }
+
+    }
 }
