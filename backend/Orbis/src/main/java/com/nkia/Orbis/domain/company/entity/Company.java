@@ -62,4 +62,11 @@ public class Company extends BaseEntity {
 
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CompanyManager> managers = new ArrayList<>();
+
+    public void updateInfo(String name, Sector sector, CompanyCategory category, String address) {
+        this.name = name;
+        this.sector = sector;
+        this.category = category;
+        this.address = address;
+    }
 }
