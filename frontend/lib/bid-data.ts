@@ -71,6 +71,46 @@ export type BidResultAttachment = {
   mimeType?: string
 }
 
+export type BidResultCompetitorScore = {
+  label: string
+  technicalScore: string
+  priceScore: string
+  totalScore: string
+}
+
+export type BidResultChecklistItem = {
+  label: string
+  score: string
+  reason: string
+}
+
+export type BidResultChecklistSection = {
+  category: string
+  items: BidResultChecklistItem[]
+}
+
+export type BidResultAnalysisSheet = {
+  bidOverviewCustomerName: string
+  bidOverviewProjectName: string
+  proposalProductModule: string
+  budget: string
+  bidAnnouncementDate: string
+  proposalSubmissionDeadline: string
+  proposalPresentationDate: string
+  externalPdRequired: string
+  salesLeaderName: string
+  pmName: string
+  proposalParticipants: string
+  keySuccessFactors: string
+  rfpIssues: string
+  proposalStrategy: string
+  scoreDisclosure: string
+  technicalRatio: string
+  priceRatio: string
+  competitors: BidResultCompetitorScore[]
+  checklistSections: BidResultChecklistSection[]
+}
+
 export type BidResultRecord = {
   id: string
   proposalId: string
@@ -88,6 +128,7 @@ export type BidResultRecord = {
   amount: string
   competitor: string
   reason: string
+  analysisSheet?: BidResultAnalysisSheet
   attachments?: BidResultAttachment[]
   attachmentNames: string[]
   createdAt: string
