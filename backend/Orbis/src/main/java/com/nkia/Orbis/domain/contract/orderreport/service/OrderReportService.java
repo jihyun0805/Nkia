@@ -10,6 +10,7 @@ import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportOtherRe
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportPurchaseRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportServiceRequest;
+import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportListResponse;
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportResponse;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportLicense;
@@ -23,8 +24,10 @@ import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -163,5 +166,11 @@ public class OrderReportService {
         return "OR-" + System.currentTimeMillis();
     }
 
-
+    @Transactional
+    public List<OrderReportListResponse> getOrderReports() {
+        return orderReportRepository.findAll()
+                .stream()
+                .map(OrderReportListResponse::from)
+                .toList();
+    }
 }
