@@ -181,4 +181,11 @@ public class OrderReportService {
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
         return OrderReportResponse.from(orderReport);
     }
+
+    @Transactional
+    public void delete(Long orderReportId) {
+        OrderReport orderReport = orderReportRepository.findById(orderReportId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
+        orderReport.delete();
+    }
 }
