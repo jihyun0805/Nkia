@@ -6,13 +6,16 @@ import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseRequest;
+import com.nkia.Orbis.domain.contract.license.dto.response.LicenseListResponse;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseResponse;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.license.repository.LicenseRepository;
 import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.productmodule.repository.ProductModuleRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -41,5 +44,13 @@ public class LicenseService {
         License savedLicense = licenseRepository.save(license);
 
         return LicenseResponse.from(savedLicense);
+    }
+
+    @Transactional
+    public List<LicenseListResponse> getlicenses() {
+        return licenseRepository.findAll()
+                .stream()
+                .map(LicenseListResponse::from)
+                .toList();
     }
 }
