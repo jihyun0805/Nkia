@@ -61,7 +61,10 @@ export default function ContractPage() {
     owner: (i) => i.salesRep,
     date: (i) => i.orderDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.id, i.name, i.customer, i.product, i.salesRep].join(" ").toLowerCase().includes(q));
+  })
+    .filter((i) => [i.id, i.name, i.customer, i.product, i.salesRep].join(" ").toLowerCase().includes(q))
+    // 가장 최근에 등록된 것부터 과거 순서로 배열
+    .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
   const filteredContracts = filterRecords(contracts, filters, { status: (i) => i.status, date: (i) => i.contractDate, fields: { customer: (i) => i.customer } }).filter((i) =>
     [i.id, i.name, i.customer, i.orderId].join(" ").toLowerCase().includes(q),
@@ -182,7 +185,17 @@ export default function ContractPage() {
             ) : activeTab === "orders" ? (
               <TabsContent value="orders">
                 {/* TODO: 폼 컴포넌트의 제출/취소 완료 prop 이름(onSuccess, onSubmit 등)에 맞춰 연결 */}
-                <OrderReportForm onSuccess={() => setIsCreating(false)} onCancel={() => setIsCreating(false)} />
+                <OrderReportForm
+                  onSuccess={() => setIsCreating(false)}
+                  onCancel={() => setIsCreating(false)}
+                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
+                  inheritedData={{
+                    customerId: "CUST-001",
+                    customerName: "삼성전자",
+                    opportunityId: "OPP-2026-001",
+                    opportunityName: "삼성전자 EMS 구축",
+                  }}
+                />
               </TabsContent>
             ) : activeTab === "contracts" ? (
               <TabsContent value="contracts">
