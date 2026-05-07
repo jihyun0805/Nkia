@@ -120,4 +120,23 @@ public class License extends BaseEntity {
     public void setOrderReport(OrderReport orderReport) {
         this.orderReport = orderReport;
     }
+
+    public void update(
+            Company customerCompany,
+            ProductModule productModule,
+            Integer quantity,
+            LicenseType licenseType,
+            LicenseStatus licenseStatus,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        this.customerCompany = customerCompany;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.licenseType = licenseType;
+        this.licenseStatus = licenseStatus;
+
+        applyProduct(productModule);
+        applyPrice(quantity);
+    }
 }
