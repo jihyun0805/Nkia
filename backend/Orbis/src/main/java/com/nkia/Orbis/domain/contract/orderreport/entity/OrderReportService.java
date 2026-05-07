@@ -32,4 +32,22 @@ public class OrderReportService extends BaseEntity {
     private Long price;
 
     private Long totalPrice;
+
+    public static OrderReportService create(
+            String content,
+            Long manMonth,
+            Long price
+    ) {
+        OrderReportService orderReportService = new OrderReportService();
+        orderReportService.content = content;
+        orderReportService.manMonth = manMonth;
+        orderReportService.price = price;
+        orderReportService.totalPrice = price * manMonth;
+
+        return orderReportService;
+    }
+
+    void setOrderReport(OrderReport orderReport) {
+        this.orderReport = orderReport;
+    }
 }

@@ -39,7 +39,7 @@ public class OrderReport extends BaseEntity {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String OrderReportCode;
+    private String orderReportCode;
 
     @Enumerated(EnumType.STRING)
     private OrderReportType type;
@@ -93,7 +93,7 @@ public class OrderReport extends BaseEntity {
     private List<OrderReportService> services = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderReportMaintenanceAmount> maintenanceAmounts = new ArrayList<>();
+    private List<OrderReportMaintenanceOnlyItem> maintenanceOnlyItems = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderReportOther> others = new ArrayList<>();
@@ -109,4 +109,190 @@ public class OrderReport extends BaseEntity {
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Billing> billings = new ArrayList<>();
+
+    // OrderReportLicense totalPrice들의 총합
+    private Long licenseTotal;
+
+    // OrderReportService totalPrice들의 총합
+    private Long serviceTotal;
+
+    // OrderReportMaintenance totalPrice들의 총합
+    private Long maintenanceTotal;
+
+    // OrderReportOther totalPrice들의 총합
+    private Long otherTotal;
+
+    // OrderReportPurchase totalPrice들의 총합
+    private Long purchaseTotal;
+
+    // OrderReportLicense 중 ProductClass가 EMS인 것들의 totalPrice들의 총합
+    private Long emsSummary;
+
+    // OrderReportLicense 중 ProductClass가 ITSM인 것들의 totalPrice들의 총합
+    private Long itgSummary;
+
+    // OrderReportLicense 중 ProductClass가 DASHBOARD인 것들의 totalPrice들의 총합
+    private Long dashboardSummary;
+
+    // OrderReportLicense 중 ProductClass가 DATACENTER, RCA, DCA인 것들의 totalPrice들의 총합
+    private Long aiotionSummary;
+
+    private Long emsMaintenanceSummary;
+
+    private Long itgMaintenanceSummary;
+
+    // OrderReportLicense 중 ProductClass가 ITAM인 것들의 totalPrice들의 총합
+    private Long itoSummary;
+
+    // OrderReportLicense 중 ProductClass가 앞의 분류에 해당하지 않는것들의 totalPrice들의 총합
+    private Long otherSummary;
+
+    public static OrderReport create(
+            String orderReportCode,
+            OrderReportType type,
+            boolean channel,
+            CodeType codeType,
+            LocalDate contractDate,
+            Integer freeMaintenacePeriodMonths,
+            LocalDate contractStartDate,
+            LocalDate contractEndDate,
+            Integer contractPeriodMonths,
+            String scopeOfWork,
+            String remarks,
+            ProjectOpportunity projectOpportunity,
+            User pm,
+            CompanyManager contractCounterpartManager,
+            Company finalCustomerCompany,
+            CompanyManager finalCustomerManager
+            // Todo: 연관관계 메서드 필요
+//            Contract contract,
+//            Project project
+    ) {
+        OrderReport orderReport = new OrderReport();
+        orderReport.orderReportCode = orderReportCode;
+        orderReport.type = type;
+        orderReport.channel = channel;
+        orderReport.codeType = codeType;
+        orderReport.contractDate = contractDate;
+        orderReport.freeMaintenacePeriodMonths = freeMaintenacePeriodMonths;
+        orderReport.contractStartDate = contractStartDate;
+        orderReport.contractEndDate = contractEndDate;
+        orderReport.contractPeriodMonths = contractPeriodMonths;
+        orderReport.scopeOfWork = scopeOfWork;
+        orderReport.remarks = remarks;
+        orderReport.projectOpportunity = projectOpportunity;
+        orderReport.pm = pm;
+        orderReport.contractCounterpartManager = contractCounterpartManager;
+        orderReport.finalCustomerCompany = finalCustomerCompany;
+        orderReport.finalCustomerManager = finalCustomerManager;
+        orderReport.licenseTotal = 0L;
+        orderReport.serviceTotal = 0L;
+        orderReport.maintenanceTotal = 0L;
+        orderReport.otherTotal = 0L;
+        orderReport.purchaseTotal = 0L;
+        orderReport.emsSummary = 0L;
+        orderReport.itgSummary = 0L;
+        orderReport.dashboardSummary = 0L;
+        orderReport.aiotionSummary = 0L;
+        orderReport.emsMaintenanceSummary = 0L;
+        orderReport.itgMaintenanceSummary = 0L;
+        orderReport.itoSummary = 0L;
+        orderReport.otherSummary = 0L;
+
+        return orderReport;
+    }
+
+    public void addLicense(OrderReportLicense license) {
+        this.licenses.add(license);
+        license.setOrderReport(this);
+
+        calculateLicenseTotal();
+        calculateLicenseSummary();
+    }
+
+    public void addMaintenance(OrderReportMaintenance maintenance) {
+        this.maintenances.add(maintenance);
+        maintenance.setOrderReport(this);
+
+        calculateMaintenanceTotal();
+    }
+
+    public void addService(OrderReportService service) {
+        this.services.add(service);
+        service.setOrderReport(this);
+
+        calculateServiceTotal();
+    }
+
+    public void addMaintenanceAmount(OrderReportMaintenanceOnlyItem maintenanceAmount) {
+        this.maintenanceOnlyItems.add(maintenanceAmount);
+        maintenanceAmount.setOrderReport(this);
+    }
+
+    public void addOther(OrderReportOther other) {
+        this.others.add(other);
+        other.setOrderReport(this);
+
+        calculateOtherTotal();
+    }
+
+    public void addPurchase(OrderReportPurchase purchase) {
+        this.purchases.add(purchase);
+        purchase.setOrderReport(this);
+
+        calculatePurchaseTotal();
+    }
+
+    private void calculateLicenseTotal() {
+        this.licenseTotal = licenses.stream()
+                .mapToLong(license -> license.getTotalPrice() == null ? 0L : license.getTotalPrice())
+                .sum();
+    }
+
+    private void calculateServiceTotal() {
+        this.serviceTotal = services.stream()
+                .mapToLong(service -> service.getTotalPrice() == null ? 0L : service.getTotalPrice())
+                .sum();
+    }
+
+    private void calculateMaintenanceTotal() {
+        this.maintenanceTotal = maintenances.stream()
+                .mapToLong(maintenance -> maintenance.getTotalPrice() == null ? 0L : maintenance.getTotalPrice())
+                .sum();
+    }
+
+    private void calculateOtherTotal() {
+        this.otherTotal = others.stream()
+                .mapToLong(other -> other.getTotalPrice() == null ? 0L : other.getTotalPrice())
+                .sum();
+    }
+
+    private void calculatePurchaseTotal() {
+        this.purchaseTotal = purchases.stream()
+                .mapToLong(purchase -> purchase.getTotalPrice() == null ? 0L : purchase.getTotalPrice())
+                .sum();
+    }
+
+    private void calculateLicenseSummary() {
+        this.emsSummary = 0L;
+        this.itgSummary = 0L;
+        this.dashboardSummary = 0L;
+        this.aiotionSummary = 0L;
+        this.itoSummary = 0L;
+        this.otherSummary = 0L;
+
+        for (OrderReportLicense license : licenses) {
+            Long price = license.getTotalPrice() == null ? 0L : license.getTotalPrice();
+
+            switch (license.getProductClass()) {
+                case EMS -> this.emsSummary += price;
+                case ITSM -> this.itgSummary += price;
+                case DASHBOARD -> this.dashboardSummary += price;
+                case DATACENTER, RCA, DCA -> this.aiotionSummary += price;
+                case ITAM -> this.itoSummary += price;
+                default -> this.otherSummary += price;
+            }
+        }
+    }
+
 }

@@ -44,4 +44,24 @@ public class OrderReportLicense extends BaseEntity {
     private Long price;
 
     private Long totalPrice;
+
+    public static OrderReportLicense create(
+            ProductModule productModule,
+            Integer quantity
+    ) {
+        OrderReportLicense license = new OrderReportLicense();
+        license.productModule = productModule;
+        license.productClass = productModule.getProductClass();
+        license.productGroup = productModule.getProductGroup();
+        license.productName = productModule.getProductName();
+        license.quantity = quantity;
+        license.price = productModule.getUnitPrice();
+        license.totalPrice = license.price * quantity;
+
+        return license;
+    }
+
+    void setOrderReport(OrderReport orderReport) {
+        this.orderReport = orderReport;
+    }
 }

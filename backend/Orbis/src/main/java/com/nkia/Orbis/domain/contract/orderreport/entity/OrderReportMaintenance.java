@@ -40,4 +40,26 @@ public class OrderReportMaintenance extends BaseEntity {
     private Long price;
 
     private Long totalPrice;
+
+    public static OrderReportMaintenance create(
+            String content,
+            VisitCycle visitCycle,
+            Integer quantity,
+            Integer month,
+            Long price
+    ) {
+        OrderReportMaintenance orderReportMaintenance = new OrderReportMaintenance();
+        orderReportMaintenance.content = content;
+        orderReportMaintenance.visitCycle = visitCycle;
+        orderReportMaintenance.quantity = quantity;
+        orderReportMaintenance.month = month;
+        orderReportMaintenance.price = price;
+        orderReportMaintenance.totalPrice = price * quantity;
+
+        return orderReportMaintenance;
+    }
+
+    void setOrderReport(OrderReport orderReport) {
+        this.orderReport = orderReport;
+    }
 }

@@ -34,4 +34,21 @@ public class OrderReportPurchase extends BaseEntity {
 
     private Long totalPrice;
 
+    public static OrderReportPurchase creat(
+            String content,
+            Integer quantity,
+            Long price
+    ) {
+        OrderReportPurchase orderReportPurchase = new OrderReportPurchase();
+        orderReportPurchase.content = content;
+        orderReportPurchase.quantity = quantity;
+        orderReportPurchase.price = price;
+        orderReportPurchase.totalPrice = price * quantity;
+
+        return orderReportPurchase;
+    }
+
+    void setOrderReport(OrderReport orderReport) {
+        this.orderReport = orderReport;
+    }
 }
