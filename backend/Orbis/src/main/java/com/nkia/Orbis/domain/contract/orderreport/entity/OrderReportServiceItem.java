@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OrderReportService extends BaseEntity {
+public class OrderReportServiceItem extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,18 +33,18 @@ public class OrderReportService extends BaseEntity {
 
     private Long totalPrice;
 
-    public static OrderReportService create(
+    public static OrderReportServiceItem create(
             String content,
             Long manMonth,
             Long price
     ) {
-        OrderReportService orderReportService = new OrderReportService();
-        orderReportService.content = content;
-        orderReportService.manMonth = manMonth;
-        orderReportService.price = price;
-        orderReportService.totalPrice = price * manMonth;
+        OrderReportServiceItem orderReportServiceItem = new OrderReportServiceItem();
+        orderReportServiceItem.content = content;
+        orderReportServiceItem.manMonth = manMonth;
+        orderReportServiceItem.price = price;
+        orderReportServiceItem.totalPrice = price * manMonth;
 
-        return orderReportService;
+        return orderReportServiceItem;
     }
 
     void setOrderReport(OrderReport orderReport) {

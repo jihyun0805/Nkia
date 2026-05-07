@@ -1,6 +1,6 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportService;
+import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportServiceItem;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -18,7 +18,7 @@ public class OrderReportServiceResponse {
 
     private Long totalPrice;
 
-    public static OrderReportServiceResponse from(OrderReportService service) {
+    public static OrderReportServiceResponse from(OrderReportServiceItem service) {
         return OrderReportServiceResponse.builder()
                 .id(service.getId())
                 .content(service.getContent())

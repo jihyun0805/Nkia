@@ -15,6 +15,7 @@ public class OrderReportRequest {
     private boolean contractProvided;
     private boolean purchaseOrderProvided;
     private boolean prbReportProvided;
+    private String paymentCondition;
     private String additionalDocuments;
     private boolean channel;
     private CodeType codeType;

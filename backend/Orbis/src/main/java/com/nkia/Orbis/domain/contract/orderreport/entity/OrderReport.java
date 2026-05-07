@@ -27,10 +27,12 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 
 @Entity
 @Getter
+@SQLRestriction("deleted = false")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderReport extends BaseEntity {
 
@@ -108,7 +110,7 @@ public class OrderReport extends BaseEntity {
     private List<OrderReportLicense> licenses = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderReportService> services = new ArrayList<>();
+    private List<OrderReportServiceItem> services = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderReportMaintenanceOnlyItem> maintenanceOnlyItems = new ArrayList<>();
@@ -269,7 +271,7 @@ public class OrderReport extends BaseEntity {
         calculateMaintenanceTotal();
     }
 
-    public void addService(OrderReportService service) {
+    public void addService(OrderReportServiceItem service) {
         this.services.add(service);
         service.setOrderReport(this);
 
