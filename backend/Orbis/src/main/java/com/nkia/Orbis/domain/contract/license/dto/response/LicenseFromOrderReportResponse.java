@@ -1,13 +1,13 @@
-package com.nkia.Orbis.domain.contract.orderreport.dto.response;
+package com.nkia.Orbis.domain.contract.license.dto.response;
 
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportLicense;
+import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
-public class OrderReportLicenseResponse {
+public class LicenseFromOrderReportResponse {
 
     private Long id;
 
@@ -25,8 +25,8 @@ public class OrderReportLicenseResponse {
 
     private Long totalPrice;
 
-    public static OrderReportLicenseResponse from(OrderReportLicense license) {
-        return OrderReportLicenseResponse.builder()
+    public static LicenseFromOrderReportResponse from(License license) {
+        return LicenseFromOrderReportResponse.builder()
                 .id(license.getId())
                 .productModuleId(license.getProductModule().getId())
                 .productClass(license.getProductClass())
