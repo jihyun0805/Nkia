@@ -36,7 +36,7 @@ services:
       AI_HF_CACHE_DIR: ${AI_HF_CACHE_DIR:-/models/huggingface}
       AI_UVICORN_WORKERS: ${AI_UVICORN_WORKERS:-1}
       GMS_KEY: ${GMS_KEY}
-      GMS_CHAT_MODEL: ${GMS_CHAT_MODEL:-gpt-5-mini}
+      GMS_CHAT_MODEL: ${GMS_CHAT_MODEL:-gpt-4o-mini}
       TZ: Asia/Seoul
     volumes:
       - ai_model_cache:/models

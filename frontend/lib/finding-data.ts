@@ -74,6 +74,16 @@ export type OpportunityRecord = {
   partnerPhone: string
   status: string
   salesRep: string
+  rfpAttachments?: OpportunityAttachment[]
+}
+export type OpportunityAttachment = {
+  id: string
+  name: string
+  size: number
+  contentType: string
+  dataUrl: string
+  summary: string
+  createdAt: string
 }
 export type FindingFormField = {
   label: string
@@ -120,6 +130,7 @@ type OpportunityRegistrationInput = {
   decisionInfo?: string
   status?: string
   salesRep?: string
+  rfpAttachments?: OpportunityAttachment[]
 }
 
 type OpportunityUpdateInput = OpportunityRegistrationInput
@@ -609,6 +620,7 @@ export function registerOpportunity(input: OpportunityRegistrationInput) {
     partnerPhone: "-",
     status: input.status?.trim() || "발굴",
     salesRep: input.salesRep?.trim() || "미지정",
+    rfpAttachments: input.rfpAttachments ?? [],
   }
 
   setStoredOpportunities([...getStoredOpportunities(), created])

@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { toast } from "@/hooks/use-toast"
 import { deletePartner, getFindingCategoryLabel, getFindingFields, getFindingItem, type FindingCategory, type FindingFormField } from "@/lib/finding-data"
+import { Download, FileText } from "lucide-react"
 
 function FindingDetailControl({ field, value }: { field: FindingFormField; value: string }) {
   if (field.type === "file") return <Input readOnly value="등록된 첨부파일이 없습니다." />
@@ -44,6 +45,10 @@ function getPartnerContacts(item: any) {
       memo: item.memo ?? "",
     },
   ]
+}
+
+function formatFileSize(size: number) {
+  return `${Math.ceil(size / 1024).toLocaleString()}KB`
 }
 
 export default function FindingDetailPage() {
@@ -215,16 +220,44 @@ export default function FindingDetailPage() {
                     </section>
                   </>
                 ) : (
-                  <section className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {fields.map((field) => (
-                        <div key={field.label} className="space-y-2 md:col-span-2">
-                          <Label>{field.label}</Label>
-                          <FindingDetailControl field={{ label: field.label }} value={field.value} />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+                  <>
+                    <section className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {fields.map((field) => (
+                          <div key={field.label} className="space-y-2 md:col-span-2">
+                            <Label>{field.label}</Label>
+                            <FindingDetailControl field={{ label: field.label }} value={field.value} />
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                    {category === "opportunities" ? (
+                      <section className="space-y-3">
+                        <h2 className="text-base font-semibold">RFP 문서</h2>
+                        {Array.isArray(item.rfpAttachments) && item.rfpAttachments.length > 0 ? (
+                          <div className="space-y-2">
+                            {item.rfpAttachments.map((attachment: any) => (
+                              <div key={attachment.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
+                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-medium">{attachment.name}</p>
+                                  <p className="text-xs text-muted-foreground">{formatFileSize(attachment.size)}</p>
+                                </div>
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={attachment.dataUrl} download={attachment.name}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    다운로드
+                                  </a>
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">등록된 RFP 문서가 없습니다.</div>
+                        )}
+                      </section>
+                    ) : null}
+                  </>
                 )}
 
                 <div className="flex justify-end gap-2 border-t pt-6">
