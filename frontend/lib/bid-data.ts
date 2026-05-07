@@ -80,6 +80,18 @@ export type PrbApprovalLine = {
   name: string
 }
 
+export type PrbApprovalStepKey = "author" | "firstApproval" | "secondApproval" | "deploy" | "share"
+
+export type PrbApprovalStepStatus = "completed" | "pending" | "waiting"
+
+export type PrbApprovalStep = {
+  key: PrbApprovalStepKey
+  label: string
+  assignee: string
+  status: PrbApprovalStepStatus
+  completedAt?: string
+}
+
 export type PrbRecord = {
   id: string
   customerCode: string
@@ -90,10 +102,16 @@ export type PrbRecord = {
   author: string
   reviewer: string
   nextApprover: string
+  deployOwner: string
+  shareOwner: string
   proposalDeadline: string
   createdDate: string
   status: PrbStatus
   notificationsSent?: boolean
+  approvalSteps: PrbApprovalStep[]
+  revisionGroupId: string
+  revisionNumber: number
+  parentPrbId?: string
   formData: Record<string, string>
   salesItems: PrbLineItem[]
   expenseItems: PrbLineItem[]
@@ -211,10 +229,21 @@ export const prbList: PrbRecord[] = seedPrbList.map((item, index) => ({
   author: item.author,
   reviewer: item.reviewer,
   nextApprover: item.reviewer === "-" ? "영업팀장" : item.reviewer,
+  deployOwner: "배포 권한 보유자",
+  shareOwner: "공유 권한 보유자",
   proposalDeadline: item.proposalDeadline,
   createdDate: item.createdDate,
   status: item.status as PrbStatus,
   notificationsSent: item.status === "검토 중",
+  approvalSteps: [
+    { key: "author", label: "작성자", assignee: "영업대표", status: "completed", completedAt: item.createdDate },
+    { key: "firstApproval", label: "1차 승인", assignee: "팀장", status: item.status === "작성 중" ? "waiting" : item.status === "승인" ? "completed" : "pending" },
+    { key: "secondApproval", label: "2차 승인", assignee: "본부장", status: item.status === "승인" ? "completed" : "waiting" },
+    { key: "deploy", label: "배포", assignee: "권한 보유자", status: "waiting" },
+    { key: "share", label: "공유", assignee: "권한 보유자", status: "waiting" },
+  ],
+  revisionGroupId: `PRB-GROUP-${index + 1}`,
+  revisionNumber: 1,
   formData: {
     reportDate: item.createdDate,
     businessName: item.name,
@@ -232,6 +261,8 @@ export const prbList: PrbRecord[] = seedPrbList.map((item, index) => ({
     { role: "영업대표", name: item.author },
     { role: "팀장", name: "영업팀장" },
     { role: "본부장", name: item.reviewer === "-" ? "본부장" : item.reviewer },
+    { role: "배포", name: "권한 보유자" },
+    { role: "공유", name: "권한 보유자" },
   ],
   attendeeOpinions: ["", "", ""],
   version: "v1.0",
@@ -440,6 +471,31 @@ function writeStoredBidResults(items: BidResultRecord[]) {
   window.localStorage.setItem(BID_RESULTS_STORAGE_KEY, JSON.stringify(items))
 }
 
+function buildDefaultPrbApprovalSteps(item: Partial<PrbRecord>): PrbApprovalStep[] {
+  const status = item.status ?? "작성 중"
+  return [
+    { key: "author", label: "작성자", assignee: "영업대표", status: "completed" as const, completedAt: item.createdDate },
+    { key: "firstApproval", label: "1차 승인", assignee: "팀장", status: status === "작성 중" ? "waiting" as const : status === "승인" ? "completed" as const : "pending" as const },
+    { key: "secondApproval", label: "2차 승인", assignee: "본부장", status: status === "승인" ? "completed" as const : "waiting" as const },
+    { key: "deploy", label: "배포", assignee: "권한 보유자", status: "waiting" as const },
+    { key: "share", label: "공유", assignee: "권한 보유자", status: "waiting" as const },
+  ]
+}
+
+function normalizePrbRecord(item: PrbRecord, fallback?: PrbRecord): PrbRecord {
+  return {
+    ...fallback,
+    ...item,
+    deployOwner: item.deployOwner ?? fallback?.deployOwner ?? "배포 권한 보유자",
+    shareOwner: item.shareOwner ?? fallback?.shareOwner ?? "공유 권한 보유자",
+    approvalSteps: Array.isArray(item.approvalSteps) && item.approvalSteps.length > 0
+      ? item.approvalSteps
+      : buildDefaultPrbApprovalSteps(item),
+    revisionGroupId: item.revisionGroupId ?? fallback?.revisionGroupId ?? `PRB-GROUP-${item.id}`,
+    revisionNumber: item.revisionNumber ?? fallback?.revisionNumber ?? 1,
+  }
+}
+
 function readStoredPrbs() {
   if (!isBrowser()) return prbList
 
@@ -456,12 +512,12 @@ function readStoredPrbs() {
             typeof item.customerCode === "string" &&
             typeof item.opportunityCode === "string" &&
             typeof item.rfpAnalysisId === "string",
-        )
+        ).map((item) => normalizePrbRecord(item))
       : []
 
     const merged = new Map<string, PrbRecord>()
     for (const item of prbList) merged.set(item.id, item)
-    for (const item of storedItems) merged.set(item.id, item)
+    for (const item of storedItems) merged.set(item.id, normalizePrbRecord(item, merged.get(item.id)))
     return [...merged.values()]
   } catch {
     return prbList
@@ -527,6 +583,15 @@ export function getBidResultById(id: string) {
 
 export function getPrbById(id: string) {
   return getPrbs().find((item) => item.id === id) ?? null
+}
+
+export function getPrbRevisionHistory(prbId: string) {
+  const current = getPrbById(prbId)
+  if (!current) return []
+
+  return getPrbs()
+    .filter((item) => item.revisionGroupId === current.revisionGroupId)
+    .sort((a, b) => a.revisionNumber - b.revisionNumber)
 }
 
 export function getBidResultByProposalId(proposalId: string) {
@@ -686,12 +751,28 @@ export function saveBidResult(record: Omit<BidResultRecord, "id" | "createdAt" |
 export function savePrb(record: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const items = getPrbs()
   const existingById = record.id ? items.find((item) => item.id === record.id) ?? null : null
-  const existingByRfp = !record.id ? items.find((item) => item.rfpAnalysisId === record.rfpAnalysisId && item.opportunityCode === record.opportunityCode) ?? null : null
+  const existingByRfp = !record.id && !record.parentPrbId
+    ? items.find((item) => item.rfpAnalysisId === record.rfpAnalysisId && item.opportunityCode === record.opportunityCode && item.revisionNumber === 1) ?? null
+    : null
+  const parentPrb = record.parentPrbId ? items.find((item) => item.id === record.parentPrbId) ?? null : null
+  const siblingRevisions = parentPrb
+    ? items.filter((item) => item.revisionGroupId === parentPrb.revisionGroupId)
+    : existingById
+      ? items.filter((item) => item.revisionGroupId === existingById.revisionGroupId)
+      : existingByRfp
+        ? items.filter((item) => item.revisionGroupId === existingByRfp.revisionGroupId)
+        : []
   const targetId = existingById?.id ?? existingByRfp?.id ?? record.id ?? nextPrbId(items)
   const createdAt = existingById?.createdAt ?? existingByRfp?.createdAt ?? new Date().toISOString()
   const nextRecord: PrbRecord = {
     ...record,
     id: targetId,
+    deployOwner: record.deployOwner || existingById?.deployOwner || parentPrb?.deployOwner || "배포 권한 보유자",
+    shareOwner: record.shareOwner || existingById?.shareOwner || parentPrb?.shareOwner || "공유 권한 보유자",
+    approvalSteps: record.approvalSteps,
+    revisionGroupId: existingById?.revisionGroupId ?? existingByRfp?.revisionGroupId ?? parentPrb?.revisionGroupId ?? `PRB-GROUP-${targetId}`,
+    revisionNumber: existingById?.revisionNumber ?? existingByRfp?.revisionNumber ?? (parentPrb ? siblingRevisions.length + 1 : 1),
+    parentPrbId: record.parentPrbId ?? existingById?.parentPrbId ?? undefined,
     createdAt,
     updatedAt: new Date().toISOString(),
   }
@@ -703,6 +784,44 @@ export function savePrb(record: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"
   writeStoredPrbs(nextItems)
   emitPrbsUpdate()
 
+  return nextRecord
+}
+
+export function approvePrbStep(prbId: string, actor: string) {
+  const items = getPrbs()
+  const target = items.find((item) => item.id === prbId) ?? null
+  if (!target) return null
+
+  const currentStepIndex = target.approvalSteps.findIndex((step) => step.status === "pending")
+  if (currentStepIndex < 0) return target
+
+  const nextSteps = target.approvalSteps.map((step, index) => {
+    if (index === currentStepIndex) {
+      return { ...step, assignee: actor || step.assignee, status: "completed" as const, completedAt: new Date().toISOString().slice(0, 10) }
+    }
+    if (index === currentStepIndex + 1) {
+      return { ...step, status: "pending" as const }
+    }
+    return step
+  })
+
+  const nextPending = nextSteps.find((step) => step.status === "pending")
+  const nextStatus: PrbStatus = currentStepIndex >= 1 ? "승인" : "검토 중"
+
+  const nextRecord: PrbRecord = {
+    ...target,
+    approvalSteps: nextSteps,
+    nextApprover: nextPending?.key === "deploy"
+      ? target.deployOwner
+      : nextPending?.key === "share"
+        ? target.shareOwner
+        : nextPending?.assignee ?? target.nextApprover,
+    status: nextStatus,
+    updatedAt: new Date().toISOString(),
+  }
+
+  writeStoredPrbs(items.map((item) => (item.id === prbId ? nextRecord : item)))
+  emitPrbsUpdate()
   return nextRecord
 }
 

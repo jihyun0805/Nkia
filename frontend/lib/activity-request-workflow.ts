@@ -389,11 +389,13 @@ export function notifyPrbApprovalRequested(input: {
   nextApprover: string
   prbId: string
   opportunity: string
+  message?: string
+  title?: string
 }) {
   pushNotification({
-    title: "PRB 결재 대기",
+    title: input.title ?? "PRB 결재 대기",
     category: "PRB",
-    description: `${input.requester}이 작성한 PRB 보고서가 결재 대기 중입니다.`,
+    description: input.message ?? `${input.requester}이 작성한 PRB 보고서가 결재 대기 중입니다.`,
     href: `/bid/prb/${input.prbId}`,
     audience: input.nextApprover,
   })
@@ -464,12 +466,22 @@ export function getWorkflowTasks(userName: string = currentUser.name) {
   })
 
   const prbApprovalTasks = getPrbs().flatMap<WorkflowTask>((item) => {
-    if (item.status !== "검토 중" || item.nextApprover !== userName) return []
+    const pendingStep = item.approvalSteps?.find((step) => step.status === "pending")
+    if (!pendingStep) return []
+
+    const targetAudience =
+      pendingStep.key === "deploy"
+        ? item.deployOwner
+        : pendingStep.key === "share"
+          ? item.shareOwner
+          : pendingStep.assignee
+
+    if (targetAudience !== userName) return []
 
     return [
       {
         id: `task-prb-${item.id}`,
-        title: `승인 필요 · ${item.customer} PRB 보고서`,
+        title: `${pendingStep.key === "deploy" ? "배포 확인 필요" : pendingStep.key === "share" ? "공유 확인 필요" : "승인 필요"} · ${item.customer} PRB 보고서`,
         dueDate: item.updatedAt.slice(0, 10),
         priority: "high",
         statusLabel: "승인 필요",

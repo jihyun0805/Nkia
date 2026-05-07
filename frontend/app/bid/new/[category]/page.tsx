@@ -16,10 +16,10 @@ export default async function BidCategoryNewPage({
   searchParams,
 }: {
   params: Promise<{ category: BidCategory }>
-  searchParams: Promise<{ requestId?: string; standalone?: string; proposalId?: string }>
+  searchParams: Promise<{ requestId?: string; standalone?: string; proposalId?: string; cloneFrom?: string }>
 }) {
   const { category } = await params
-  const { requestId, standalone, proposalId } = await searchParams
+  const { requestId, standalone, proposalId, cloneFrom } = await searchParams
   if (!categories.includes(category)) notFound()
 
   const title = getBidCategoryLabel(category)
@@ -52,7 +52,7 @@ export default async function BidCategoryNewPage({
             ) : category === "result" ? (
               <BidResultRegistrationForm proposalId={proposalId} />
             ) : category === "prb" ? (
-              <PrbRegistrationForm />
+              <PrbRegistrationForm cloneFromId={cloneFrom} />
             ) : (
               null
             )}
