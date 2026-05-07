@@ -12,5 +12,6 @@ public enum ProductClass {
     SUPPORTING_TOOLS,
     CLOUD,
     BSM,
-    E2E
+    E2E,
+    ETC
 }
