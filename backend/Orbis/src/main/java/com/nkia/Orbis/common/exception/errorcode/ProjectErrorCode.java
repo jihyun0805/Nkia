@@ -15,7 +15,8 @@ public enum ProjectErrorCode implements ErrorCode {
     RESULT_REPORT_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "PROJECT_0006", "이미 결과보고서가 등록된 사업입니다."),
     BILLING_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_0007", "요청한 청구건을 찾을 수 없습니다."),
     BILLING_NOT_APPROVED(HttpStatus.BAD_REQUEST, "PROJECT_0008", "승인된 청구건만 발행할 수 있습니다."),
-    COLLECTION_NOT_APPROVED(HttpStatus.BAD_REQUEST, "PROJECT_0009", "세금계산서가 발행된 건만 수금할 수 있습니다.");;
+    COLLECTION_NOT_APPROVED(HttpStatus.BAD_REQUEST, "PROJECT_0009", "세금계산서가 발행된 건만 수금할 수 있습니다."),
+    RESULT_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_0010", "요청한 결과보고서를 찾을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

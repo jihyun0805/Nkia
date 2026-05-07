@@ -11,12 +11,35 @@ import { OrderDetailTables } from "./order/OrderDetailTables";
 interface OrderReportFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  inheritedData?: {
+    customerId?: string;
+    customerName?: string;
+    opportunityId?: string;
+    opportunityName?: string;
+    [key: string]: any;
+  } | null;
 }
 
-export function OrderReportForm({ onSuccess, onCancel }: OrderReportFormProps) {
+import { useEffect } from "react";
+
+export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderReportFormProps) {
+  useEffect(() => {
+    // 고객사(코드), 사업기회(코드)가 등록되지 않았다면 수주보고 등록 진행 불가
+    if (!inheritedData?.customerId || !inheritedData?.opportunityId) {
+      alert("고객사(코드) 또는 사업기회(코드)가 등록되지 않았습니다. 먼저 등록을 진행해주십시오.");
+      onCancel();
+    }
+  }, [inheritedData, onCancel]);
+
   const methods = useForm({
     defaultValues: {
-      projectName: "",
+      projectName: inheritedData?.opportunityName || "",
+      finalCustomer: {
+        name: inheritedData?.customerName || "",
+      },
+      contractPartner: {
+        name: inheritedData?.customerName || "",
+      },
       totalAmount: "",
       vatType: "",
       paymentTerms: "",

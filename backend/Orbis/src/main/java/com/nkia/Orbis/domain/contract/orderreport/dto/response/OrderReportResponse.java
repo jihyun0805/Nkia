@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
+import com.nkia.Orbis.domain.contract.license.dto.response.LicenseFromOrderReportResponse;
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
@@ -77,7 +78,7 @@ public class OrderReportResponse {
 
     private List<OrderReportMaintenanceResponse> maintenances;
 
-    private List<OrderReportLicenseResponse> licenses;
+    private List<LicenseFromOrderReportResponse> licenses;
 
     private List<OrderReportServiceResponse> services;
 
@@ -203,7 +204,7 @@ public class OrderReportResponse {
                         .map(OrderReportMaintenanceResponse::from)
                         .toList())
                 .licenses(orderReport.getLicenses().stream()
-                        .map(OrderReportLicenseResponse::from)
+                        .map(LicenseFromOrderReportResponse::from)
                         .toList())
                 .services(orderReport.getServices().stream()
                         .map(OrderReportServiceResponse::from)

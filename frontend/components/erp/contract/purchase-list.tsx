@@ -25,24 +25,20 @@ export function PurchaseList({ purchases }: PurchaseListProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">매입번호</TableHead>
-              <TableHead>매입건명</TableHead>
               <TableHead>공급사</TableHead>
+              <TableHead>매입건명</TableHead>
               <TableHead>계약일</TableHead>
               <TableHead className="text-right">매입금액</TableHead>
-              <TableHead>담당자</TableHead>
               <TableHead>상태</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {purchases.map((purchase) => (
               <TableRow key={purchase.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/purchases/${purchase.id}`)}>
-                <TableCell className="font-mono text-sm">{purchase.id}</TableCell>
-                <TableCell className="max-w-[200px] truncate font-medium">{purchase.name}</TableCell>
                 <TableCell>{purchase.supplier}</TableCell>
+                <TableCell className="max-w-[200px] truncate font-medium">{purchase.name}</TableCell>
                 <TableCell>{purchase.contractDate}</TableCell>
-                <TableCell className="text-right font-medium">₩{parseInt(purchase.amount).toLocaleString()}</TableCell>
-                <TableCell>{purchase.manager}</TableCell>
+                <TableCell className="text-right font-medium">₩{parseInt(purchase.amount.replace(/,/g, "")).toLocaleString()}</TableCell>
                 <TableCell>
                   <Badge
                     variant={purchase.status === "계약완료" ? "default" : "secondary"}
