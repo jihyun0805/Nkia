@@ -192,14 +192,15 @@ export default function BidPage() {
 
   const bidResultOverviewRows = [...pendingBidResultRows, ...completedBidResultRows]
 
-  const statusOptions = activeTab === "proposal" ? ["작성 중", "완료"] : bidStatuses
+  const statusOptions = activeTab === "proposal"
+    ? ["작성 중", "완료"]
+    : activeTab === "prb"
+      ? ["작성 중", "검토 중", "승인", "반려"]
+      : bidStatuses
   const bidFieldOptions = activeTab === "rfp"
     ? [{ key: "customer", label: "고객사", options: uniqueOptions(rfpItems, (i) => i.customer) }]
     : activeTab === "prb"
-    ? [
-      { key: "customer", label: "고객사", options: uniqueOptions(prbList, (i) => i.customer) },
-      { key: "riskLevel", label: "리스크", options: uniqueOptions(prbList, (i) => i.riskLevel) },
-    ]
+    ? [{ key: "customer", label: "고객사", options: uniqueOptions(prbList, (i) => i.customer) }]
     : activeTab === "proposal"
       ? [{ key: "customer", label: "고객사", options: uniqueOptions(proposalOverviewRows, (i) => i.customer) }]
       : [
@@ -210,7 +211,12 @@ export default function BidPage() {
   const filteredRfpList = filterRecords(rfpItems, filters, { status: (i) => i.status, owner: (i) => i.analyst, date: (i) => i.receiveDate, fields: { customer: (i) => i.customer } })
     .filter((i) => [i.id, i.customer, i.opportunity, i.requester, i.analyst].join(" ").toLowerCase().includes(q))
     .sort((a, b) => new Date(b.receiveDate).getTime() - new Date(a.receiveDate).getTime())
-  const filteredPrbList = filterRecords(prbList, filters, { status: (i) => i.result, owner: (i) => i.reviewer, date: (i) => i.submitDate, fields: { customer: (i) => i.customer, riskLevel: (i) => i.riskLevel } }).filter((i) => [i.id, i.name, i.customer, i.reviewer].join(" ").toLowerCase().includes(q))
+  const filteredPrbList = filterRecords(prbList, filters, {
+    status: (i) => i.status,
+    owner: (i) => i.author,
+    date: (i) => i.createdDate,
+    fields: { customer: (i) => i.customer },
+  }).filter((i) => [i.id, i.name, i.customer, i.author, i.status].join(" ").toLowerCase().includes(q))
   const filteredProposalList = filterRecords(proposalOverviewRows, filters, {
     status: (i) => i.status,
     owner: () => "",
@@ -257,7 +263,7 @@ export default function BidPage() {
               <div className="flex items-center justify-between">
                 <TabsList>
                   <TabsTrigger value="rfp" className="gap-2"><FileText className="w-4 h-4" />RFP 분석</TabsTrigger>
-                  <TabsTrigger value="prb" className="gap-2"><ClipboardCheck className="w-4 h-4" />PRB</TabsTrigger>
+                  <TabsTrigger value="prb" className="gap-2"><ClipboardCheck className="w-4 h-4" />PRB 현황</TabsTrigger>
                   <TabsTrigger value="proposal" className="gap-2"><Presentation className="w-4 h-4" />제안서</TabsTrigger>
                   <TabsTrigger value="result" className="gap-2"><Trophy className="w-4 h-4" />입찰결과현황</TabsTrigger>
                 </TabsList>
@@ -319,7 +325,7 @@ export default function BidPage() {
                 <Card>
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">PRB 목록</CardTitle>
+                      <CardTitle className="text-lg">PRB 현황</CardTitle>
                       <Badge variant="secondary">{filteredPrbList.length}건</Badge>
                     </div>
                   </CardHeader>
@@ -327,29 +333,38 @@ export default function BidPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[120px]">PRB 번호</TableHead>
-                          <TableHead>RFP 번호</TableHead>
-                          <TableHead>사업명</TableHead>
                           <TableHead>고객사</TableHead>
-                          <TableHead>제출일</TableHead>
-                          <TableHead>검토일</TableHead>
-                          <TableHead>리스크</TableHead>
-                          <TableHead>결과</TableHead>
-                          <TableHead>검토자</TableHead>
+                          <TableHead>사업명</TableHead>
+                          <TableHead>제안서 마감일</TableHead>
+                          <TableHead>작성일</TableHead>
+                          <TableHead>작성자</TableHead>
+                          <TableHead>상태</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredPrbList.map((prb) => (
                           <TableRow key={prb.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/prb/${prb.id}`)}>
-                            <TableCell className="font-mono text-sm">{prb.id}</TableCell>
-                            <TableCell className="font-mono text-sm">{prb.rfpId}</TableCell>
-                            <TableCell className="max-w-[200px] truncate font-medium">{prb.name}</TableCell>
                             <TableCell>{prb.customer}</TableCell>
-                            <TableCell>{prb.submitDate}</TableCell>
-                            <TableCell>{prb.reviewDate}</TableCell>
-                            <TableCell><Badge variant={prb.riskLevel === "고" ? "destructive" : prb.riskLevel === "중" ? "secondary" : "outline"}>{prb.riskLevel}</Badge></TableCell>
-                            <TableCell><Badge variant={prb.result === "승인" ? "default" : "outline"} className={prb.result === "승인" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"}>{prb.result}</Badge></TableCell>
-                            <TableCell>{prb.reviewer}</TableCell>
+                            <TableCell className="max-w-[240px] truncate font-medium">{prb.name}</TableCell>
+                            <TableCell>{prb.proposalDeadline}</TableCell>
+                            <TableCell>{prb.createdDate}</TableCell>
+                            <TableCell>{prb.author}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={prb.status === "승인" ? "default" : prb.status === "반려" ? "destructive" : "secondary"}
+                                className={
+                                  prb.status === "승인"
+                                    ? "bg-green-100 text-green-700 hover:bg-green-100"
+                                    : prb.status === "반려"
+                                      ? "bg-red-100 text-red-700 hover:bg-red-100"
+                                      : prb.status === "검토 중"
+                                        ? "bg-blue-100 text-blue-700 hover:bg-blue-100"
+                                        : "bg-amber-100 text-amber-700 hover:bg-amber-100"
+                                }
+                              >
+                                {prb.status}
+                              </Badge>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

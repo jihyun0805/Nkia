@@ -148,8 +148,10 @@ export const rfpList: RfpAnalysisRecord[] = [
   { id: "RFP-2026-002", requestId: "REQ-2026-012", customer: "국방부", customerCode: "CUS-002", opportunity: "국방부 ITSM 도입", opportunityCode: "OPP-2026-002", requester: "한서준", analyst: "이대리", receiveDate: "2026-03-05", requestDate: "2026-03-05", dueDate: "2026-03-20", status: "분석중", businessType: "ITSM", proposalType: "자체 제안" },
 ]
 export const prbList = [
-  { id: "PRB-2026-001", rfpId: "RFP-2026-001", name: "삼성전자 통합 모니터링 시스템 구축", customer: "삼성전자", submitDate: "2026-03-15", reviewDate: "2026-03-17", result: "승인", riskLevel: "중", reviewer: "본부장" },
-  { id: "PRB-2026-002", rfpId: "RFP-2026-002", name: "국방부 IT서비스관리 시스템 구축", customer: "국방부", submitDate: "2026-03-16", reviewDate: "-", result: "검토중", riskLevel: "고", reviewer: "본부장" },
+  { id: "PRB-2026-001", rfpId: "RFP-2026-001", name: "삼성전자 통합 모니터링 시스템 구축", customer: "삼성전자", proposalDeadline: "2026-03-25", createdDate: "2026-03-15", author: "김영업", status: "승인", reviewer: "본부장" },
+  { id: "PRB-2026-002", rfpId: "RFP-2026-002", name: "국방부 IT서비스관리 시스템 구축", customer: "국방부", proposalDeadline: "2026-03-20", createdDate: "2026-03-16", author: "이대리", status: "검토 중", reviewer: "본부장" },
+  { id: "PRB-2026-003", rfpId: "RFP-2026-003", name: "SK텔레콤 NMS 업그레이드", customer: "SK텔레콤", proposalDeadline: "2026-03-30", createdDate: "2026-03-18", author: "최민수", status: "작성 중", reviewer: "-" },
+  { id: "PRB-2026-004", rfpId: "RFP-2026-004", name: "현대차 Automation 확장", customer: "현대자동차", proposalDeadline: "2026-03-28", createdDate: "2026-03-19", author: "박과장", status: "반려", reviewer: "본부장" },
 ]
 export const proposalList: ProposalRecord[] = [
   {
@@ -545,7 +547,15 @@ export function getBidFields(category: BidCategory, item: any) {
     { label: "상태", value: item.status },
   ]
   if (category === "prb") return [
-    { label: "PRB 번호", value: item.id }, { label: "RFP 번호", value: item.rfpId }, { label: "검토자", value: item.reviewer }, { label: "상신일", value: item.submitDate }, { label: "검토일", value: item.reviewDate }, { label: "리스크 등급", value: item.riskLevel }, { label: "검토 의견", value: item.result }, { label: "사업명", value: item.name }, { label: "고객사", value: item.customer },
+    { label: "PRB 번호", value: item.id },
+    { label: "RFP 번호", value: item.rfpId },
+    { label: "고객사", value: item.customer },
+    { label: "사업명", value: item.name },
+    { label: "제안서 마감일", value: item.proposalDeadline },
+    { label: "작성일", value: item.createdDate },
+    { label: "작성자", value: item.author },
+    { label: "상태", value: item.status },
+    { label: "검토자", value: item.reviewer },
   ]
   if (category === "proposal") return [
     { label: "제안서 코드", value: item.id },
