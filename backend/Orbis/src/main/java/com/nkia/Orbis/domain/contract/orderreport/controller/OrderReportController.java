@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,6 +42,16 @@ public class OrderReportController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<OrderReportListResponse>>> getOrderReports() {
         List<OrderReportListResponse> response = orderReportService.getOrderReports();
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "수주보고서 상세 조회")
+    @GetMapping("/{orderReportId}")
+    public ResponseEntity<ApiResponse<OrderReportResponse>> getOrderReport(
+            @PathVariable("orderReportId") Long orderReportId
+    ) {
+        OrderReportResponse response = orderReportService.getOrderReport(orderReportId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
