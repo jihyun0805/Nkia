@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
-import { findingStatuses, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { findingStatuses, getCustomers, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, ScanLine } from "lucide-react"
@@ -94,6 +94,48 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   return currentValue ?? ""
 }
 
+function getCustomerDecisionContacts(customer: CustomerRecord | null): CustomerContact[] {
+  if (!customer) return []
+
+  if (Array.isArray(customer.contacts) && customer.contacts.length > 0) {
+    return customer.contacts.filter((contact) =>
+      [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone].some((value) => String(value ?? "").trim()),
+    )
+  }
+
+  if ([customer.contactName ?? customer.contact, customer.position, customer.department, customer.email, customer.mobilePhone ?? customer.phone, customer.landlinePhone].some((value) => String(value ?? "").trim())) {
+    return [{
+      name: customer.contactName ?? customer.contact ?? "",
+      position: customer.position ?? "",
+      department: customer.department ?? "",
+      email: customer.email ?? "",
+      mobilePhone: customer.mobilePhone ?? customer.phone ?? "",
+      landlinePhone: customer.landlinePhone ?? "",
+    }]
+  }
+
+  return []
+}
+
+function buildDecisionInfoFromCustomer(customer: CustomerRecord | null, fallback: string) {
+  const contacts = getCustomerDecisionContacts(customer)
+  if (contacts.length === 0) return fallback.trim() || "-"
+
+  return contacts
+    .map((contact, index) =>
+      [
+        `${index + 1}순위`,
+        contact.name || "-",
+        contact.position || "-",
+        contact.department || "-",
+        contact.email || "-",
+        contact.mobilePhone || "-",
+        contact.landlinePhone || "-",
+      ].join(" / "),
+    )
+    .join(" | ")
+}
+
 function createBusinessCardThumbnail(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -162,7 +204,8 @@ export default function FindingEditPage() {
       setItem(current)
       if (current && category === "opportunities") {
         const opportunity = current as OpportunityRecord
-        setSelectedCustomer({ id: opportunity.customerCode, name: opportunity.customer, category: opportunity.category, opportunities: 0, contracts: 0, contact: "", phone: "" })
+        const matchedCustomer = getCustomers().find((customer) => customer.id === opportunity.customerCode) ?? null
+        setSelectedCustomer(matchedCustomer ?? { id: opportunity.customerCode, name: opportunity.customer, category: opportunity.category, opportunities: 0, contracts: 0, contact: "", phone: "" })
         setCustomerName(opportunity.customer)
         setOpportunityName(opportunity.name)
         setRegistrant(opportunity.registrant)
@@ -322,22 +365,22 @@ export default function FindingEditPage() {
       return
     }
 
-    const result = updateOpportunity(id, {
-      customerCode: selectedCustomer.id,
-      category: customerGroup,
-      name: opportunityName,
-      registrant,
+      const result = updateOpportunity(id, {
+        customerCode: selectedCustomer.id,
+        category: customerGroup,
+        name: opportunityName,
+        registrant,
       partner: partnerName,
       expectedDate,
       expectedAmount,
       product: businessType,
-      module: moduleName,
-      issue,
-      competition,
-      decisionInfo,
-      status,
-      salesRep,
-    })
+        module: moduleName,
+        issue,
+        competition,
+        decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
+        status,
+        salesRep,
+      })
 
     if (result.status === "not_found") {
       toast({
@@ -770,8 +813,43 @@ export default function FindingEditPage() {
                       <Textarea value={competition} onChange={(event) => setCompetition(event.target.value)} rows={4} placeholder="경쟁 상황을 입력하세요" />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <Label>고객사 의사결정구조 및 담당자 정보</Label>
-                      <Textarea value={decisionInfo} onChange={(event) => setDecisionInfo(event.target.value)} rows={4} placeholder="고객사 의사결정구조 및 담당자 정보를 입력하세요" />
+                      <Label>고객사 담당자 정보</Label>
+                      <div className="overflow-hidden rounded-md border">
+                        <table className="w-full border-collapse text-sm [&_td]:border [&_th]:border">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              <th className="px-3 py-2 text-center font-medium">순위</th>
+                              <th className="px-3 py-2 text-center font-medium">성명</th>
+                              <th className="px-3 py-2 text-center font-medium">직급</th>
+                              <th className="px-3 py-2 text-center font-medium">부서명</th>
+                              <th className="px-3 py-2 text-center font-medium">전자우편</th>
+                              <th className="px-3 py-2 text-center font-medium">이동전화</th>
+                              <th className="px-3 py-2 text-center font-medium">일반전화</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getCustomerDecisionContacts(selectedCustomer).length > 0 ? (
+                              getCustomerDecisionContacts(selectedCustomer).map((contact, index) => (
+                                <tr key={`${contact.name}-${index}`}>
+                                  <td className="px-3 py-2 text-center">{index + 1}</td>
+                                  <td className="px-3 py-2 text-center">{contact.name || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.position || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.department || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.email || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.mobilePhone || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.landlinePhone || "-"}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={7} className="px-3 py-4 text-center text-muted-foreground">
+                                  선택한 고객사의 담당자 정보가 없습니다.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </section>
