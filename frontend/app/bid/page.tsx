@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { bidStatuses, getBidCreateActionLabel, getBidResults, getProposals, getRfpAnalyses, prbList, subscribeBidResultUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
+import { bidStatuses, getBidCreateActionLabel, getBidResults, getProposals, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { getOpportunities } from "@/lib/finding-data"
@@ -64,6 +64,7 @@ export default function BidPage() {
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "proposal" | "result">("rfp")
   const [rfpItems, setRfpItems] = useState<ReturnType<typeof getRfpAnalyses>>([])
+  const [prbItems, setPrbItems] = useState<ReturnType<typeof getPrbs>>([])
   const [proposalRequests, setProposalRequests] = useState<ActivityRequestRecord[]>([])
   const [proposals, setProposals] = useState<ReturnType<typeof getProposals>>([])
   const [results, setResults] = useState<ReturnType<typeof getBidResults>>([])
@@ -75,6 +76,12 @@ export default function BidPage() {
     const sync = () => setRfpItems(getRfpAnalyses())
     sync()
     return subscribeRfpAnalysesUpdates(sync)
+  }, [])
+
+  useEffect(() => {
+    const sync = () => setPrbItems(getPrbs())
+    sync()
+    return subscribePrbUpdates(sync)
   }, [])
 
   useEffect(() => {
@@ -200,7 +207,7 @@ export default function BidPage() {
   const bidFieldOptions = activeTab === "rfp"
     ? [{ key: "customer", label: "고객사", options: uniqueOptions(rfpItems, (i) => i.customer) }]
     : activeTab === "prb"
-    ? [{ key: "customer", label: "고객사", options: uniqueOptions(prbList, (i) => i.customer) }]
+    ? [{ key: "customer", label: "고객사", options: uniqueOptions(prbItems, (i) => i.customer) }]
     : activeTab === "proposal"
       ? [{ key: "customer", label: "고객사", options: uniqueOptions(proposalOverviewRows, (i) => i.customer) }]
       : [
@@ -211,12 +218,12 @@ export default function BidPage() {
   const filteredRfpList = filterRecords(rfpItems, filters, { status: (i) => i.status, owner: (i) => i.analyst, date: (i) => i.receiveDate, fields: { customer: (i) => i.customer } })
     .filter((i) => [i.id, i.customer, i.opportunity, i.requester, i.analyst].join(" ").toLowerCase().includes(q))
     .sort((a, b) => new Date(b.receiveDate).getTime() - new Date(a.receiveDate).getTime())
-  const filteredPrbList = filterRecords(prbList, filters, {
+  const filteredPrbList = filterRecords(prbItems, filters, {
     status: (i) => i.status,
     owner: (i) => i.author,
     date: (i) => i.createdDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.id, i.name, i.customer, i.author, i.status].join(" ").toLowerCase().includes(q))
+  }).filter((i) => [i.id, i.opportunity, i.customer, i.author, i.status, i.customerCode, i.opportunityCode, i.rfpAnalysisId].join(" ").toLowerCase().includes(q))
   const filteredProposalList = filterRecords(proposalOverviewRows, filters, {
     status: (i) => i.status,
     owner: () => "",
@@ -345,7 +352,7 @@ export default function BidPage() {
                         {filteredPrbList.map((prb) => (
                           <TableRow key={prb.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/prb/${prb.id}`)}>
                             <TableCell>{prb.customer}</TableCell>
-                            <TableCell className="max-w-[240px] truncate font-medium">{prb.name}</TableCell>
+                            <TableCell className="max-w-[240px] truncate font-medium">{prb.opportunity}</TableCell>
                             <TableCell>{prb.proposalDeadline}</TableCell>
                             <TableCell>{prb.createdDate}</TableCell>
                             <TableCell>{prb.author}</TableCell>

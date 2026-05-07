@@ -1,7 +1,7 @@
 "use client"
 
 import { activityRequests, type ActivityRequestRecord } from "@/lib/activity-data"
-import { getRfpAnalyses } from "@/lib/bid-data"
+import { getPrbs, getRfpAnalyses } from "@/lib/bid-data"
 import { currentUser } from "@/lib/current-user"
 
 const REQUESTS_STORAGE_KEY = "orbis.activityRequests"
@@ -384,6 +384,22 @@ export function approveActivityRequest(id: string) {
   return approvedRequestRecord
 }
 
+export function notifyPrbApprovalRequested(input: {
+  requester: string
+  nextApprover: string
+  prbId: string
+  opportunity: string
+}) {
+  pushNotification({
+    title: "PRB 결재 대기",
+    category: "PRB",
+    description: `${input.requester}이 작성한 PRB 보고서가 결재 대기 중입니다.`,
+    href: `/bid/prb/${input.prbId}`,
+    audience: input.nextApprover,
+  })
+  emitWorkflowUpdate()
+}
+
 export function getWorkflowTasks(userName: string = currentUser.name) {
   const requestTasks = getActivityRequests().flatMap<WorkflowTask>((item) => {
     if (item.receiver === userName && isOverdueRfpAnalysis(item)) {
@@ -447,7 +463,22 @@ export function getWorkflowTasks(userName: string = currentUser.name) {
     ]
   })
 
-  return [...completedRfpTasks, ...requestTasks].slice(0, 6)
+  const prbApprovalTasks = getPrbs().flatMap<WorkflowTask>((item) => {
+    if (item.status !== "검토 중" || item.nextApprover !== userName) return []
+
+    return [
+      {
+        id: `task-prb-${item.id}`,
+        title: `승인 필요 · ${item.customer} PRB 보고서`,
+        dueDate: item.updatedAt.slice(0, 10),
+        priority: "high",
+        statusLabel: "승인 필요",
+        href: `/bid/prb/${item.id}`,
+      },
+    ]
+  })
+
+  return [...prbApprovalTasks, ...completedRfpTasks, ...requestTasks].slice(0, 6)
 }
 
 export function subscribeWorkflowUpdates(callback: () => void) {
