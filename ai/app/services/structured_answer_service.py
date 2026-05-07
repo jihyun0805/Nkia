@@ -20,6 +20,7 @@ from app.models.normalization import QueryNormalization
 from app.repositories.backend_query_repository import (
     fetch_bid_result_snapshot,
     fetch_contract_snapshot,
+    fetch_quotation_snapshot,
     fetch_metric_rows_for_opportunity_codes,
     fetch_maintenance_activity_rank,
     fetch_maintenance_activity_rank_filtered,
@@ -366,6 +367,10 @@ def answer_exact_code_snapshot_query(
         return None
 
     for code in exact_codes:
+        if code.startswith("QUO-") or code.startswith("Q-"):
+            snapshot = fetch_quotation_snapshot(quotation_code=code)
+            if snapshot is not None:
+                return build_quotation_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         if code.startswith("CTR-"):
             snapshot = fetch_contract_snapshot(contract_code=code)
             if snapshot is not None:
@@ -2032,6 +2037,108 @@ def build_contract_snapshot_response(
     )
 
 
+def build_quotation_snapshot_response(
+    *,
+    query: str,
+    snapshot: dict[str, Any],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    solution_items = [item for item in (snapshot.get("solution_items") or []) if isinstance(item, dict)]
+    labor_items = [item for item in (snapshot.get("labor_items") or []) if isinstance(item, dict)]
+    top_modules = [
+        (
+            f"- {item.get('product_name') or '모듈 미기재'}"
+            f" / 수량 {item.get('quantity') or 0}"
+            f" / 공급가 {format_number(item.get('supply_total_price'))}"
+        )
+        for item in solution_items[:3]
+    ]
+
+    version_lines = build_snapshot_version_lines(snapshot)
+    lines = [
+        f"핵심 결론: {snapshot.get('quotation_code') or '견적코드 미기재'} 견적은 총 {format_number(snapshot.get('total_price'))}이며 지급 조건은 {snapshot.get('payment_condition') or '미기재'}입니다.",
+        "",
+        f"고객사: {snapshot.get('customer_name') or '미기재'}",
+        f"사업기회: {snapshot.get('opportunity_name') or snapshot.get('opportunity_code') or '미기재'}",
+        f"견적일: {snapshot.get('quotation_date') or '미기재'}",
+        f"소비자 총액: {format_number(snapshot.get('consumer_total_price'))}",
+        f"공급 총액: {format_number(snapshot.get('supply_total_price'))}",
+        f"인건비 총액: {format_number(snapshot.get('labor_total_price'))}",
+    ]
+    lines.extend(version_lines)
+    lines.append(f"비고: {snapshot.get('note') or '미기재'}")
+
+    if top_modules:
+        lines.append("주요 모듈:")
+        lines.extend(top_modules)
+
+    if labor_items:
+        lines.append(
+            f"인건비 항목 수: {len(labor_items)}건"
+        )
+
+    evidences = build_snapshot_evidences(
+        snapshot,
+        [
+            (
+                "QUOTATION",
+                "quotation_code",
+                "opportunity_name",
+                [
+                    "quotation_date",
+                    "payment_condition",
+                    "total_price",
+                    "document_series_code",
+                    "document_version",
+                    "is_latest_version",
+                ],
+            ),
+            ("PROJECT_OPPORTUNITY", "opportunity_code", "opportunity_name", ["customer_name"]),
+        ],
+        limit=max(2, limit),
+    )
+
+    for index, item in enumerate(solution_items[: max(0, limit - len(evidences))]):
+        evidences.append(
+            AnswerEvidence(
+                evidenceType="structured_evidence",
+                sourceType="MODULE",
+                sourceId=str(item.get("module_id") or item.get("product_name") or snapshot.get("quotation_code")),
+                title=f"{snapshot.get('quotation_code') or '견적'} 모듈 항목 #{index + 1}",
+                chunkIndex=index,
+                distance=0.0,
+                vectorScore=1.0,
+                keywordScore=1.0,
+                finalScore=1.0,
+                matchedBy=["structured_row"],
+                content=(
+                    f"{item.get('product_name') or '모듈 미기재'} / "
+                    f"{item.get('product_group') or '그룹 미기재'} / "
+                    f"수량 {item.get('quantity') or 0} / "
+                    f"공급가 {format_number(item.get('supply_total_price'))}"
+                ),
+                metadata={
+                    "quotationCode": snapshot.get("quotation_code"),
+                    "opportunityCode": snapshot.get("opportunity_code"),
+                },
+            )
+        )
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        route="fast_structured",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        confidenceBand="high",
+        confidenceReasons=["quotation_snapshot"],
+        excludedSourceTypes=[],
+        evidences=evidences[: max(limit, 3)],
+    )
+
+
 def build_project_snapshot_response(
     *,
     query: str,
@@ -2331,10 +2438,11 @@ def build_product_catalog_response(
         ]
         for i, row in enumerate(rows):
             price_str = format_number(row.get("unit_price"), suffix="원") if row.get("unit_price") else "가격 미기재"
+            version_suffix = build_row_version_suffix(row)
             lines.append(
                 f"- {row.get('product_name') or '미기재'}"
                 f" [{row.get('product_class') or ''} / {row.get('product_group') or ''}]"
-                f" : {price_str}"
+                f"{version_suffix} : {price_str}"
             )
             evidences.append(
                 AnswerEvidence(
@@ -2354,6 +2462,9 @@ def build_product_catalog_response(
                         "productGroup": row.get("product_group"),
                         "productName": row.get("product_name"),
                         "unitPrice": str(row.get("unit_price")) if row.get("unit_price") is not None else None,
+                        "documentSeriesCode": row.get("document_series_code"),
+                        "documentVersion": row.get("document_version"),
+                        "isLatestVersion": row.get("is_latest_version"),
                     },
                 )
             )
@@ -2384,8 +2495,10 @@ def build_product_catalog_response(
         lines.append(f"[{cls}] — {len(items)}개")
         for item in items[:8]:
             price_str = format_number(item.get("unit_price"), suffix="원") if item.get("unit_price") else "가격 미기재"
+            version_suffix = build_row_version_suffix(item)
             lines.append(
                 f"  · {item.get('product_name') or '미기재'}"
+                f"{version_suffix}"
                 f" ({item.get('product_group') or '그룹 미기재'}"
                 f" / {item.get('license_standard') or ''} {item.get('license_unit') or ''}"
                 f" / {price_str})"
@@ -2953,6 +3066,37 @@ def build_snapshot_evidences(
         if len(evidences) >= limit:
             break
     return evidences
+
+
+def build_snapshot_version_lines(snapshot: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    series_code = snapshot.get("document_series_code")
+    version = snapshot.get("document_version")
+    is_latest = snapshot.get("is_latest_version")
+    previous_version_id = snapshot.get("previous_version_id")
+
+    if series_code not in (None, ""):
+        lines.append(f"문서 계열 코드: {series_code}")
+    if version not in (None, ""):
+        lines.append(f"문서 버전: {version}")
+    if is_latest is not None:
+        lines.append(f"최신 버전 여부: {'예' if bool(is_latest) else '아니오'}")
+    if previous_version_id not in (None, ""):
+        lines.append(f"이전 버전 참조: {previous_version_id}")
+    return lines
+
+
+def build_row_version_suffix(row: dict[str, Any]) -> str:
+    version = row.get("document_version")
+    is_latest = row.get("is_latest_version")
+    details: list[str] = []
+    if version not in (None, ""):
+        details.append(f"v{version}")
+    if is_latest is not None:
+        details.append("최신" if bool(is_latest) else "이전")
+    if not details:
+        return ""
+    return f" [{', '.join(details)}]"
 
 
 def build_support_row_evidences(*, rows: list[dict[str, Any]]) -> list[AnswerEvidence]:

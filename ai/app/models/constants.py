@@ -198,6 +198,24 @@ METADATA_ALIASES: dict[str, tuple[str, ...]] = {
     "moduleType": (
         "moduleType", "module_type", "productType", "product_type",
     ),
+    # ── 버전 관리 문서 ──────────────────────────────────────────────────────
+    "documentSeriesCode": (
+        "documentSeriesCode", "document_series_code", "rootDocumentCode",
+        "root_document_code", "baseDocumentCode", "base_document_code",
+        "quoteRootCode", "quote_root_code", "quotationRootCode", "quotation_root_code",
+    ),
+    "documentVersion": (
+        "documentVersion", "document_version", "version", "version_no",
+        "versionNo", "revision", "revision_no", "revisionNo",
+        "quoteVersion", "quote_version", "quotationVersion", "quotation_version",
+    ),
+    "isLatestVersion": (
+        "isLatestVersion", "is_latest_version", "latestVersion", "latest_version",
+        "isCurrentVersion", "is_current_version",
+    ),
+    "previousVersionId": (
+        "previousVersionId", "previous_version_id", "prevVersionId", "prev_version_id",
+    ),
 }
 
 
@@ -214,36 +232,37 @@ METADATA_ALIASES: dict[str, tuple[str, ...]] = {
 
 TABLE: dict[str, str] = {
     # 사업기회 라이프사이클
-    "opportunities":           "dump_opportunities",
-    "activities":              "dump_activities",
-    "quotes":                  "dump_quotes",
-    "quote_items":             "dump_quote_items",
-    "prbs":                    "dump_prbs",
-    "prb_results":             "dump_prb_results",
-    "rfp_analyses":            "dump_rfp_analyses",
-    "proposals":               "dump_proposals",
-    "bid_results":             "dump_bid_results",
-    "won_reports":             "dump_won_reports",
-    "contracts":               "dump_contracts",
-    "projects":                "dump_projects",
-    "project_reports":         "dump_project_reports",
-    "post_sales":              "dump_post_sales",
-    "billings":                "dump_billings",
-    "collections":             "dump_collections",
+    "opportunities":           "project_opportunity",
+    "activities":              "sales_activity",
+    "quotes":                  "quotation",
+    "quote_items":             "quotation_solution_item",
+    "quote_labor_items":       "quotation_labor_item",
+    "prbs":                    "prb",
+    "prb_results":             "prb_result",
+    "rfp_analyses":            "rfp_analyze_result",
+    "proposals":               "proposal",
+    "bid_results":             "bid_result",
+    "won_reports":             "order_report",
+    "contracts":               "contract",
+    "projects":                "project",
+    "project_reports":         "project_result_report",
+    "post_sales":              "customer_support",
+    "billings":                "billing",
+    "collections":             "collection",
     # 유지보수
-    "maintenance_contracts":   "dump_maintenance_contracts",
-    "maintenance_quotes":      "dump_maintenance_quotes",
-    "maintenance_quote_items": "dump_maintenance_quote_items",
-    "customer_supports":       "dump_customer_supports",
+    "maintenance_contracts":   "maintenance",
+    "maintenance_quotes":      "maintenance_quotation",
+    "maintenance_quote_items": "maintenance_service_info",
+    "customer_supports":       "customer_support",
     # 기준 정보
-    "companies":               "dump_companies",
-    "contacts":                "dump_contacts",
-    "license_types":           "dump_license_types",
-    "licenses":                "dump_licenses",
+    "companies":               "company",
+    "contacts":                "company_manager",
+    "license_types":           "product_module",
+    "licenses":                "license",
     # 첨부파일
-    "attachments":             "dump_attachments",
+    "attachments":             "upload_file",
     # 영업활동 요청
-    "activity_requests":       "sales_activity_requests",
+    "activity_requests":       "sales_activity_request",
 }
 
 
@@ -298,4 +317,7 @@ SNAPSHOT_ALIASES: dict[str, tuple[str, ...]] = {
     "competitor_status": ("competitor_status", "competitorStatus"),
     "decision_structure":("decision_structure", "decisionStructure"),
     "contact_line":      ("contact_line", "contactLine"),
+    "document_series_code": ("document_series_code", "documentSeriesCode", "root_document_code"),
+    "document_version":  ("document_version", "documentVersion", "version", "revision"),
+    "is_latest_version": ("is_latest_version", "isLatestVersion", "latestVersion"),
 }

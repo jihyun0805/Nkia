@@ -1,5 +1,6 @@
 import logging
 import re
+from functools import lru_cache
 from typing import Any
 
 import psycopg
@@ -15,6 +16,9 @@ from app.models.constants import TABLE as _TABLE
 # ---------------------------------------------------------------------------
 _OPP  = _TABLE["opportunities"]
 _CO   = _TABLE["companies"]
+_QT   = _TABLE["quotes"]
+_QI   = _TABLE["quote_items"]
+_QL   = _TABLE["quote_labor_items"]
 _PRB  = _TABLE["prbs"]
 _PRBR = _TABLE["prb_results"]
 _RFP  = _TABLE["rfp_analyses"]
@@ -59,6 +63,37 @@ def require_env(name: str) -> str:
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
     return str(value)
+
+
+@lru_cache(maxsize=64)
+def fetch_public_table_columns(table_name: str) -> frozenset[str]:
+    with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = %(table_name)s
+                """,
+                {"table_name": table_name},
+            )
+            return frozenset(str(row["column_name"]) for row in cur.fetchall())
+
+
+def optional_column_expr(
+    *,
+    table_name: str,
+    table_alias: str,
+    output_name: str,
+    candidates: tuple[str, ...],
+    cast_type: str = "text",
+) -> str:
+    columns = fetch_public_table_columns(table_name)
+    for candidate in candidates:
+        if candidate in columns:
+            return f"{table_alias}.{candidate} AS {output_name}"
+    return f"NULL::{cast_type} AS {output_name}"
 
 
 def fetch_ranked_metric_rows(
@@ -1016,6 +1051,102 @@ def fetch_bid_result_snapshot(*, opportunity_code: str) -> dict[str, Any] | None
             return cur.fetchone()
 
 
+def fetch_quotation_snapshot(*, quotation_code: str) -> dict[str, Any] | None:
+    document_series_expr = optional_column_expr(
+        table_name=_QT,
+        table_alias="q",
+        output_name="document_series_code",
+        candidates=("document_series_code", "quotation_root_code", "quote_root_code", "root_document_code"),
+    )
+    document_version_expr = optional_column_expr(
+        table_name=_QT,
+        table_alias="q",
+        output_name="document_version",
+        candidates=("document_version", "quotation_version", "quote_version", "version_no", "revision_no", "revision"),
+    )
+    latest_version_expr = optional_column_expr(
+        table_name=_QT,
+        table_alias="q",
+        output_name="is_latest_version",
+        candidates=("is_latest_version", "latest_version", "is_current_version"),
+        cast_type="boolean",
+    )
+    previous_version_expr = optional_column_expr(
+        table_name=_QT,
+        table_alias="q",
+        output_name="previous_version_id",
+        candidates=("previous_version_id", "prev_version_id"),
+    )
+
+    with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    q.quotation_code,
+                    q.quotation_date,
+                    q.payment_condition,
+                    q.consumer_total_price,
+                    q.supply_total_price,
+                    q.labor_total_price,
+                    q.total_price,
+                    q.note,
+                    o.opportunity_code,
+                    o.opportunity_name,
+                    c.company_name AS customer_name,
+                    {document_series_expr},
+                    {document_version_expr},
+                    {latest_version_expr},
+                    {previous_version_expr},
+                    COALESCE(si.items, '[]'::json) AS solution_items,
+                    COALESCE(li.items, '[]'::json) AS labor_items
+                FROM {_QT} q
+                LEFT JOIN {_OPP} o ON o.id = q.project_opportunity_id
+                LEFT JOIN {_CO} c ON c.id = o.customer_company_id
+                LEFT JOIN LATERAL (
+                    SELECT json_agg(
+                        json_build_object(
+                            'module_id', pm.id,
+                            'product_class', pm.product_class,
+                            'product_group', pm.product_group,
+                            'product_name', pm.product_name,
+                            'quantity', qi.quantity,
+                            'consumer_price', qi.consumer_price,
+                            'supply_price', qi.supply_price,
+                            'consumer_total_price', qi.consumer_total_price,
+                            'supply_total_price', qi.supply_total_price,
+                            'free_supply', qi.free_supply
+                        )
+                        ORDER BY qi.id
+                    ) AS items
+                    FROM {_QI} qi
+                    LEFT JOIN public.product_module pm ON pm.id = qi.product_module_id
+                    WHERE qi.quotation_id = q.id
+                      AND qi.deleted = false
+                ) si ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT json_agg(
+                        json_build_object(
+                            'labor_type', ql.labor_type,
+                            'unit_price', ql.unit_price,
+                            'man_month', ql.man_month,
+                            'supply_price', ql.supply_price
+                        )
+                        ORDER BY ql.id
+                    ) AS items
+                    FROM {_QL} ql
+                    WHERE ql.quotation_id = q.id
+                      AND ql.deleted = false
+                ) li ON TRUE
+                WHERE upper(q.quotation_code) = %(quotation_code)s
+                  AND q.deleted = false
+                LIMIT 1
+                """,
+                {"quotation_code": quotation_code.upper()},
+            )
+            return cur.fetchone()
+
+
 def fetch_project_result_highlight(*, limit: int = 1) -> list[dict[str, Any]]:
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
@@ -1131,56 +1262,8 @@ def fetch_prb_risk_rows(
                     {"start_at": start_at, "end_at": end_at, "limit": limit},
                 )
                 return list(cur.fetchall())
-    except psycopg.errors.UndefinedTable:
-        # dump_* 테이블이 없으면 실제 엔티티 테이블로 폴백
-        return _fetch_prb_risk_rows_from_entity(db_url=db_url, start_at=start_at, end_at=end_at, limit=limit)
     except psycopg.Error as exc:
         logger.warning("fetch_prb_risk_rows DB error: %s", exc)
-        return []
-
-
-def _fetch_prb_risk_rows_from_entity(
-    *,
-    db_url: str,
-    start_at: str | None,
-    end_at: str | None,
-    limit: int,
-) -> list[dict[str, Any]]:
-    try:
-        with psycopg.connect(db_url, row_factory=dict_row) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        p.id::text AS prb_code,
-                        p.id::text AS opportunity_code,
-                        p.id::text AS opportunity_name,
-                        NULL::text AS customer_name,
-                        p.created_at AS prb_date,
-                        NULL::text AS risk_factors,
-                        NULL::real AS expected_win_rate,
-                        pr.id::text AS prb_result_code,
-                        NULL::text AS decision_status,
-                        pr.created_at AS result_date,
-                        NULL::text AS risk_review,
-                        NULL::text AS final_opinion
-                    FROM prb p
-                    LEFT JOIN prb_result pr ON pr.prb_id = p.id
-                    WHERE (
-                            (%(start_at)s::timestamptz IS NULL AND %(end_at)s::timestamptz IS NULL)
-                         OR (
-                                (%(start_at)s::timestamptz IS NULL OR COALESCE(pr.created_at, p.created_at) >= %(start_at)s::timestamptz)
-                            AND (%(end_at)s::timestamptz IS NULL OR COALESCE(pr.created_at, p.created_at) <= %(end_at)s::timestamptz)
-                         )
-                      )
-                    ORDER BY COALESCE(pr.created_at, p.created_at) DESC NULLS LAST, p.id DESC
-                    LIMIT %(limit)s
-                    """,
-                    {"start_at": start_at, "end_at": end_at, "limit": limit},
-                )
-                return list(cur.fetchall())
-    except psycopg.Error as exc:
-        logger.warning("_fetch_prb_risk_rows_from_entity DB error: %s", exc)
         return []
 
 
@@ -2396,47 +2479,22 @@ _ENTITY_COUNT_TABLE_MAP: dict[str, str] = {
 }
 
 
-_ENTITY_COUNT_DUMP_TABLE_MAP: dict[str, str] = {
-    "opportunity": str(_OPP),
-    "activity":    str(_ACT),
-    "rfp":         str(_RFP),
-    "bid":         str(_BID),
-    "proposal":    str(_PROP),
-}
-
-
 def fetch_entity_count(entity_type: str) -> int | None:
     db_url = build_backend_database_url()
-
-    def _count(table: str, *, use_deleted_filter: bool = True) -> int | None:
-        try:
-            with psycopg.connect(db_url, row_factory=dict_row) as conn:
-                with conn.cursor() as cur:
-                    sql = f"SELECT COUNT(*) AS cnt FROM {table}"
-                    if use_deleted_filter:
-                        sql += " WHERE deleted = false"
-                    cur.execute(sql)
-                    row = cur.fetchone()
-                    return int(row["cnt"]) if row else None
-        except psycopg.errors.UndefinedTable:
-            return None
-        except psycopg.Error as exc:
-            logger.warning("fetch_entity_count(%s) DB error: %s", entity_type, exc)
-            return None
-
-    # dump 테이블 우선 (배포서버) — deleted 컬럼 없음
-    dump_table = _ENTITY_COUNT_DUMP_TABLE_MAP.get(entity_type)
-    if dump_table:
-        result = _count(dump_table, use_deleted_filter=False)
-        if result is not None:
-            return result
-
-    # entity 테이블 폴백 (로컬)
-    entity_table = _ENTITY_COUNT_TABLE_MAP.get(entity_type)
-    if entity_table:
-        return _count(entity_table, use_deleted_filter=True)
-
-    return None
+    table = _ENTITY_COUNT_TABLE_MAP.get(entity_type)
+    if not table:
+        return None
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT COUNT(*) AS cnt FROM {table} WHERE deleted = false")
+                row = cur.fetchone()
+                return int(row["cnt"]) if row else None
+    except psycopg.errors.UndefinedTable:
+        return None
+    except psycopg.Error as exc:
+        logger.warning("fetch_entity_count(%s) DB error: %s", entity_type, exc)
+        return None
 
 
 def fetch_opportunity_list_rows(*, limit: int = 50) -> list[dict[str, Any]]:
@@ -2476,18 +2534,45 @@ def fetch_product_catalog_rows(
     limit: int = 200,
 ) -> list[dict[str, Any]]:
     db_url = build_backend_database_url()
+    document_series_expr = optional_column_expr(
+        table_name="product_module",
+        table_alias="pm",
+        output_name="document_series_code",
+        candidates=("document_series_code", "module_root_code", "product_root_code", "root_document_code"),
+    )
+    document_version_expr = optional_column_expr(
+        table_name="product_module",
+        table_alias="pm",
+        output_name="document_version",
+        candidates=("document_version", "module_version", "product_version", "version_no", "revision_no", "revision"),
+    )
+    latest_version_expr = optional_column_expr(
+        table_name="product_module",
+        table_alias="pm",
+        output_name="is_latest_version",
+        candidates=("is_latest_version", "latest_version", "is_current_version"),
+        cast_type="boolean",
+    )
     try:
         with psycopg.connect(db_url, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
                 if name_term:
                     cur.execute(
                         """
-                        SELECT id, product_class, product_group, product_name,
-                               license_standard, license_unit, unit_price
+                        SELECT pm.id, pm.product_class, pm.product_group, pm.product_name,
+                               pm.license_standard, pm.license_unit, pm.unit_price,
+                               """
+                        + document_series_expr
+                        + ", "
+                        + document_version_expr
+                        + ", "
+                        + latest_version_expr
+                        + """
                         FROM public.product_module
-                        WHERE deleted = false
-                          AND (product_name ILIKE %(term)s OR product_group ILIKE %(term)s)
-                        ORDER BY product_class, product_group, product_name
+                        AS pm
+                        WHERE pm.deleted = false
+                          AND (pm.product_name ILIKE %(term)s OR pm.product_group ILIKE %(term)s)
+                        ORDER BY pm.product_class, pm.product_group, pm.product_name
                         LIMIT %(limit)s
                         """,
                         {"term": f"%{name_term}%", "limit": limit},
@@ -2495,11 +2580,19 @@ def fetch_product_catalog_rows(
                 elif product_class:
                     cur.execute(
                         """
-                        SELECT id, product_class, product_group, product_name,
-                               license_standard, license_unit, unit_price
+                        SELECT pm.id, pm.product_class, pm.product_group, pm.product_name,
+                               pm.license_standard, pm.license_unit, pm.unit_price,
+                               """
+                        + document_series_expr
+                        + ", "
+                        + document_version_expr
+                        + ", "
+                        + latest_version_expr
+                        + """
                         FROM public.product_module
-                        WHERE deleted = false AND product_class = %(product_class)s
-                        ORDER BY product_class, product_group, product_name
+                        AS pm
+                        WHERE pm.deleted = false AND pm.product_class = %(product_class)s
+                        ORDER BY pm.product_class, pm.product_group, pm.product_name
                         LIMIT %(limit)s
                         """,
                         {"product_class": product_class, "limit": limit},
@@ -2507,11 +2600,19 @@ def fetch_product_catalog_rows(
                 else:
                     cur.execute(
                         """
-                        SELECT id, product_class, product_group, product_name,
-                               license_standard, license_unit, unit_price
+                        SELECT pm.id, pm.product_class, pm.product_group, pm.product_name,
+                               pm.license_standard, pm.license_unit, pm.unit_price,
+                               """
+                        + document_series_expr
+                        + ", "
+                        + document_version_expr
+                        + ", "
+                        + latest_version_expr
+                        + """
                         FROM public.product_module
-                        WHERE deleted = false
-                        ORDER BY product_class, product_group, product_name
+                        AS pm
+                        WHERE pm.deleted = false
+                        ORDER BY pm.product_class, pm.product_group, pm.product_name
                         LIMIT %(limit)s
                         """,
                         {"limit": limit},

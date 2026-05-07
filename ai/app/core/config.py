@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     gms_timeout_seconds: int = 30
     langgraph_use_official_runtime: bool = True
     langgraph_checkpoint_url: str | None = None
-    langgraph_checkpoint_schema: str = "langgraph"
+    langgraph_checkpoint_schema: str = "ai"
     ai_enable_draft_actions: bool = False
     postgres_host: str | None = None
     postgres_port: int = 5432
