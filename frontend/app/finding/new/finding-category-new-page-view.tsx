@@ -84,6 +84,48 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   return currentValue ?? ""
 }
 
+function getCustomerDecisionContacts(customer: CustomerRecord | null): CustomerContact[] {
+  if (!customer) return []
+
+  if (Array.isArray(customer.contacts) && customer.contacts.length > 0) {
+    return customer.contacts.filter((contact) =>
+      [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone].some((value) => String(value ?? "").trim()),
+    )
+  }
+
+  if ([customer.contactName ?? customer.contact, customer.position, customer.department, customer.email, customer.mobilePhone ?? customer.phone, customer.landlinePhone].some((value) => String(value ?? "").trim())) {
+    return [{
+      name: customer.contactName ?? customer.contact ?? "",
+      position: customer.position ?? "",
+      department: customer.department ?? "",
+      email: customer.email ?? "",
+      mobilePhone: customer.mobilePhone ?? customer.phone ?? "",
+      landlinePhone: customer.landlinePhone ?? "",
+    }]
+  }
+
+  return []
+}
+
+function buildDecisionInfoFromCustomer(customer: CustomerRecord | null) {
+  const contacts = getCustomerDecisionContacts(customer)
+  if (contacts.length === 0) return "-"
+
+  return contacts
+    .map((contact, index) =>
+      [
+        `${index + 1}순위`,
+        contact.name || "-",
+        contact.position || "-",
+        contact.department || "-",
+        contact.email || "-",
+        contact.mobilePhone || "-",
+        contact.landlinePhone || "-",
+      ].join(" / "),
+    )
+    .join(" | ")
+}
+
 function createBusinessCardThumbnail(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -162,7 +204,6 @@ export function FindingCategoryNewPageView({
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
-  const [decisionInfo, setDecisionInfo] = useState("")
   const [opportunityStatus, setOpportunityStatus] = useState("발굴")
   const [customerRegistrationGuideOpen, setCustomerRegistrationGuideOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
@@ -640,7 +681,7 @@ export function FindingCategoryNewPageView({
         module: moduleName,
         issue,
         competition,
-        decisionInfo,
+        decisionInfo: buildDecisionInfoFromCustomer(selectedOpportunityCustomer),
         status: opportunityStatus,
         salesRep: opportunitySalesRep,
         rfpAttachments: rfpAttachments.map(({ file, ...attachment }) => attachment),
@@ -791,8 +832,43 @@ export function FindingCategoryNewPageView({
                         <Textarea value={competition} onChange={(event) => setCompetition(event.target.value)} rows={4} placeholder="경쟁 상황을 입력하세요" />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label>고객사 의사결정구조 및 담당자 정보</Label>
-                        <Textarea value={decisionInfo} onChange={(event) => setDecisionInfo(event.target.value)} rows={4} placeholder="고객사 의사결정구조 및 담당자 정보를 입력하세요" />
+                        <Label>고객사 담당자 정보</Label>
+                        <div className="overflow-hidden rounded-md border">
+                          <table className="w-full border-collapse text-sm [&_td]:border [&_th]:border">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th className="px-3 py-2 text-center font-medium">순위</th>
+                                <th className="px-3 py-2 text-center font-medium">성명</th>
+                                <th className="px-3 py-2 text-center font-medium">직급</th>
+                                <th className="px-3 py-2 text-center font-medium">부서명</th>
+                                <th className="px-3 py-2 text-center font-medium">전자우편</th>
+                                <th className="px-3 py-2 text-center font-medium">이동전화</th>
+                                <th className="px-3 py-2 text-center font-medium">일반전화</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {getCustomerDecisionContacts(selectedOpportunityCustomer).length > 0 ? (
+                                getCustomerDecisionContacts(selectedOpportunityCustomer).map((contact, index) => (
+                                  <tr key={`${contact.name}-${index}`}>
+                                    <td className="px-3 py-2 text-center">{index + 1}</td>
+                                    <td className="px-3 py-2 text-center">{contact.name || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.position || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.department || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.email || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.mobilePhone || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.landlinePhone || "-"}</td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={7} className="px-3 py-4 text-center text-muted-foreground">
+                                    선택한 고객사의 담당자 정보가 없습니다.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   </section>

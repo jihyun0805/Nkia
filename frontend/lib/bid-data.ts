@@ -64,6 +64,69 @@ export type ProposalRecord = {
   updatedAt: string
 }
 
+export type PrbStatus = "작성 중" | "검토 중" | "승인" | "반려"
+
+export type PrbLineItem = {
+  id: string
+  category?: string
+  item?: string
+  value?: string
+  amount?: string
+  note?: string
+}
+
+export type PrbApprovalLine = {
+  role: string
+  name: string
+}
+
+export type PrbApprovalStepKey = "author" | "firstApproval" | "secondApproval" | "deploy" | "share"
+
+export type PrbApprovalStepStatus = "completed" | "pending" | "waiting"
+
+export type PrbApprovalStep = {
+  key: PrbApprovalStepKey
+  label: string
+  assignee: string
+  status: PrbApprovalStepStatus
+  completedAt?: string
+}
+
+export type PrbRecord = {
+  id: string
+  customerCode: string
+  customer: string
+  opportunityCode: string
+  opportunity: string
+  rfpAnalysisId: string
+  author: string
+  reviewer: string
+  nextApprover: string
+  deployOwner: string
+  shareOwner: string
+  proposalDeadline: string
+  createdDate: string
+  status: PrbStatus
+  notificationsSent?: boolean
+  approvalSteps: PrbApprovalStep[]
+  revisionGroupId: string
+  revisionNumber: number
+  parentPrbId?: string
+  formData: Record<string, string>
+  salesItems: PrbLineItem[]
+  expenseItems: PrbLineItem[]
+  purchaseItems: PrbLineItem[]
+  productItems: PrbLineItem[]
+  personnelItems: PrbLineItem[]
+  indirectItems: PrbLineItem[]
+  generalItems: PrbLineItem[]
+  approvalLines: PrbApprovalLine[]
+  attendeeOpinions: string[]
+  version: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type BidOutcome = "수주" | "실주"
 export type BidResultAttachment = {
   name: string
@@ -141,16 +204,71 @@ const PROPOSALS_STORAGE_KEY = "orbis.proposals"
 const PROPOSALS_EVENT_NAME = "orbis-proposals-updated"
 const BID_RESULTS_STORAGE_KEY = "orbis.bidResults"
 const BID_RESULTS_EVENT_NAME = "orbis-bid-results-updated"
+const PRBS_STORAGE_KEY = "orbis.prbs"
+const PRBS_EVENT_NAME = "orbis-prbs-updated"
 
 export const rfpList: RfpAnalysisRecord[] = [
   { id: "RFP-2026-003", requestId: "REQ-2026-010", customer: "SK텔레콤", customerCode: "CUS-004", opportunity: "SK텔레콤 NMS 업그레이드", opportunityCode: "OPP-2026-004", requester: "최민수", analyst: "김영업", receiveDate: "2026-03-12", requestDate: "2026-03-12", dueDate: "2026-03-30", status: "접수", businessType: "EMS", proposalType: "SI 제안" },
   { id: "RFP-2026-001", requestId: "REQ-2026-011", customer: "삼성전자", customerCode: "CUS-001", opportunity: "삼성전자 EMS 구축", opportunityCode: "OPP-2026-001", requester: "박지은", analyst: "김영업", receiveDate: "2026-03-10", requestDate: "2026-03-10", dueDate: "2026-03-25", status: "완료", businessType: "EMS", proposalType: "SI 제안" },
   { id: "RFP-2026-002", requestId: "REQ-2026-012", customer: "국방부", customerCode: "CUS-002", opportunity: "국방부 ITSM 도입", opportunityCode: "OPP-2026-002", requester: "한서준", analyst: "이대리", receiveDate: "2026-03-05", requestDate: "2026-03-05", dueDate: "2026-03-20", status: "분석중", businessType: "ITSM", proposalType: "자체 제안" },
 ]
-export const prbList = [
-  { id: "PRB-2026-001", rfpId: "RFP-2026-001", name: "삼성전자 통합 모니터링 시스템 구축", customer: "삼성전자", submitDate: "2026-03-15", reviewDate: "2026-03-17", result: "승인", riskLevel: "중", reviewer: "본부장" },
-  { id: "PRB-2026-002", rfpId: "RFP-2026-002", name: "국방부 IT서비스관리 시스템 구축", customer: "국방부", submitDate: "2026-03-16", reviewDate: "-", result: "검토중", riskLevel: "고", reviewer: "본부장" },
+const seedPrbList = [
+  { id: "PRB-2026-001", rfpId: "RFP-2026-001", name: "삼성전자 통합 모니터링 시스템 구축", customer: "삼성전자", proposalDeadline: "2026-03-25", createdDate: "2026-03-15", author: "김영업", status: "승인", reviewer: "본부장" },
+  { id: "PRB-2026-002", rfpId: "RFP-2026-002", name: "국방부 IT서비스관리 시스템 구축", customer: "국방부", proposalDeadline: "2026-03-20", createdDate: "2026-03-16", author: "이대리", status: "검토 중", reviewer: "본부장" },
+  { id: "PRB-2026-003", rfpId: "RFP-2026-003", name: "SK텔레콤 NMS 업그레이드", customer: "SK텔레콤", proposalDeadline: "2026-03-30", createdDate: "2026-03-18", author: "최민수", status: "작성 중", reviewer: "-" },
+  { id: "PRB-2026-004", rfpId: "RFP-2026-004", name: "현대차 Automation 확장", customer: "현대자동차", proposalDeadline: "2026-03-28", createdDate: "2026-03-19", author: "박과장", status: "반려", reviewer: "본부장" },
 ]
+
+export const prbList: PrbRecord[] = seedPrbList.map((item, index) => ({
+  id: item.id,
+  customerCode: `CUS-PRB-${String(index + 1).padStart(3, "0")}`,
+  customer: item.customer,
+  opportunityCode: `OPP-PRB-${String(index + 1).padStart(3, "0")}`,
+  opportunity: item.name,
+  rfpAnalysisId: item.rfpId,
+  author: item.author,
+  reviewer: item.reviewer,
+  nextApprover: item.reviewer === "-" ? "영업팀장" : item.reviewer,
+  deployOwner: "배포 권한 보유자",
+  shareOwner: "공유 권한 보유자",
+  proposalDeadline: item.proposalDeadline,
+  createdDate: item.createdDate,
+  status: item.status as PrbStatus,
+  notificationsSent: item.status === "검토 중",
+  approvalSteps: [
+    { key: "author", label: "작성자", assignee: "영업대표", status: "completed", completedAt: item.createdDate },
+    { key: "firstApproval", label: "1차 승인", assignee: "팀장", status: item.status === "작성 중" ? "waiting" : item.status === "승인" ? "completed" : "pending" },
+    { key: "secondApproval", label: "2차 승인", assignee: "본부장", status: item.status === "승인" ? "completed" : "waiting" },
+    { key: "deploy", label: "배포", assignee: "권한 보유자", status: "waiting" },
+    { key: "share", label: "공유", assignee: "권한 보유자", status: "waiting" },
+  ],
+  revisionGroupId: `PRB-GROUP-${index + 1}`,
+  revisionNumber: 1,
+  formData: {
+    reportDate: item.createdDate,
+    businessName: item.name,
+    customerName: item.customer,
+    authorDepartment: "영업본부",
+  },
+  salesItems: [],
+  expenseItems: [],
+  purchaseItems: [],
+  productItems: [],
+  personnelItems: [],
+  indirectItems: [],
+  generalItems: [],
+  approvalLines: [
+    { role: "영업대표", name: item.author },
+    { role: "팀장", name: "영업팀장" },
+    { role: "본부장", name: item.reviewer === "-" ? "본부장" : item.reviewer },
+    { role: "배포", name: "권한 보유자" },
+    { role: "공유", name: "권한 보유자" },
+  ],
+  attendeeOpinions: ["", "", ""],
+  version: "v1.0",
+  createdAt: `${item.createdDate}T09:00:00.000Z`,
+  updatedAt: `${item.createdDate}T09:00:00.000Z`,
+}))
 export const proposalList: ProposalRecord[] = [
   {
     id: "PRO-2026-001",
@@ -233,6 +351,11 @@ function emitProposalsUpdate() {
 function emitBidResultsUpdate() {
   if (!isBrowser()) return
   window.dispatchEvent(new Event(BID_RESULTS_EVENT_NAME))
+}
+
+function emitPrbsUpdate() {
+  if (!isBrowser()) return
+  window.dispatchEvent(new Event(PRBS_EVENT_NAME))
 }
 
 function readStoredRfpAnalyses() {
@@ -348,6 +471,64 @@ function writeStoredBidResults(items: BidResultRecord[]) {
   window.localStorage.setItem(BID_RESULTS_STORAGE_KEY, JSON.stringify(items))
 }
 
+function buildDefaultPrbApprovalSteps(item: Partial<PrbRecord>): PrbApprovalStep[] {
+  const status = item.status ?? "작성 중"
+  return [
+    { key: "author", label: "작성자", assignee: "영업대표", status: "completed" as const, completedAt: item.createdDate },
+    { key: "firstApproval", label: "1차 승인", assignee: "팀장", status: status === "작성 중" ? "waiting" as const : status === "승인" ? "completed" as const : "pending" as const },
+    { key: "secondApproval", label: "2차 승인", assignee: "본부장", status: status === "승인" ? "completed" as const : "waiting" as const },
+    { key: "deploy", label: "배포", assignee: "권한 보유자", status: "waiting" as const },
+    { key: "share", label: "공유", assignee: "권한 보유자", status: "waiting" as const },
+  ]
+}
+
+function normalizePrbRecord(item: PrbRecord, fallback?: PrbRecord): PrbRecord {
+  return {
+    ...fallback,
+    ...item,
+    deployOwner: item.deployOwner ?? fallback?.deployOwner ?? "배포 권한 보유자",
+    shareOwner: item.shareOwner ?? fallback?.shareOwner ?? "공유 권한 보유자",
+    approvalSteps: Array.isArray(item.approvalSteps) && item.approvalSteps.length > 0
+      ? item.approvalSteps
+      : buildDefaultPrbApprovalSteps(item),
+    revisionGroupId: item.revisionGroupId ?? fallback?.revisionGroupId ?? `PRB-GROUP-${item.id}`,
+    revisionNumber: item.revisionNumber ?? fallback?.revisionNumber ?? 1,
+  }
+}
+
+function readStoredPrbs() {
+  if (!isBrowser()) return prbList
+
+  const stored = window.localStorage.getItem(PRBS_STORAGE_KEY)
+  if (!stored) return prbList
+
+  try {
+    const parsed = JSON.parse(stored) as PrbRecord[]
+    const storedItems = Array.isArray(parsed)
+      ? parsed.filter(
+          (item) =>
+            item &&
+            typeof item.id === "string" &&
+            typeof item.customerCode === "string" &&
+            typeof item.opportunityCode === "string" &&
+            typeof item.rfpAnalysisId === "string",
+        ).map((item) => normalizePrbRecord(item))
+      : []
+
+    const merged = new Map<string, PrbRecord>()
+    for (const item of prbList) merged.set(item.id, item)
+    for (const item of storedItems) merged.set(item.id, normalizePrbRecord(item, merged.get(item.id)))
+    return [...merged.values()]
+  } catch {
+    return prbList
+  }
+}
+
+function writeStoredPrbs(items: PrbRecord[]) {
+  if (!isBrowser()) return
+  window.localStorage.setItem(PRBS_STORAGE_KEY, JSON.stringify(items))
+}
+
 export function getRfpAnalyses() {
   const items = readStoredRfpAnalyses()
   if (isBrowser() && !window.localStorage.getItem(RFP_ANALYSES_STORAGE_KEY)) {
@@ -380,6 +561,14 @@ export function getBidResults() {
   return items
 }
 
+export function getPrbs() {
+  const items = readStoredPrbs()
+  if (isBrowser() && !window.localStorage.getItem(PRBS_STORAGE_KEY)) {
+    writeStoredPrbs(items)
+  }
+  return items
+}
+
 export function getProposalById(id: string) {
   return getProposals().find((item) => item.id === id) ?? null
 }
@@ -390,6 +579,19 @@ export function getProposalByRequestId(requestId: string) {
 
 export function getBidResultById(id: string) {
   return getBidResults().find((item) => item.id === id) ?? null
+}
+
+export function getPrbById(id: string) {
+  return getPrbs().find((item) => item.id === id) ?? null
+}
+
+export function getPrbRevisionHistory(prbId: string) {
+  const current = getPrbById(prbId)
+  if (!current) return []
+
+  return getPrbs()
+    .filter((item) => item.revisionGroupId === current.revisionGroupId)
+    .sort((a, b) => a.revisionNumber - b.revisionNumber)
 }
 
 export function getBidResultByProposalId(proposalId: string) {
@@ -429,6 +631,17 @@ export function subscribeBidResultUpdates(callback: () => void) {
   }
 }
 
+export function subscribePrbUpdates(callback: () => void) {
+  if (!isBrowser()) return () => undefined
+
+  const listener = () => callback()
+  window.addEventListener(PRBS_EVENT_NAME, listener)
+
+  return () => {
+    window.removeEventListener(PRBS_EVENT_NAME, listener)
+  }
+}
+
 function nextRfpAnalysisId(items: RfpAnalysisRecord[]) {
   const max = items.reduce((acc, item) => {
     const current = Number.parseInt(item.id.split("-").at(-1) ?? "0", 10)
@@ -454,6 +667,15 @@ function nextBidResultId(items: BidResultRecord[]) {
   }, 0)
 
   return `BID-2026-${String(max + 1).padStart(3, "0")}`
+}
+
+function nextPrbId(items: PrbRecord[]) {
+  const max = items.reduce((acc, item) => {
+    const current = Number.parseInt(item.id.split("-").at(-1) ?? "0", 10)
+    return Number.isNaN(current) ? acc : Math.max(acc, current)
+  }, 0)
+
+  return `PRB-2026-${String(max + 1).padStart(3, "0")}`
 }
 
 export function saveRfpAnalysis(record: Omit<RfpAnalysisRecord, "id"> & { id?: string }) {
@@ -526,9 +748,86 @@ export function saveBidResult(record: Omit<BidResultRecord, "id" | "createdAt" |
   return nextRecord
 }
 
+export function savePrb(record: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
+  const items = getPrbs()
+  const existingById = record.id ? items.find((item) => item.id === record.id) ?? null : null
+  const existingByRfp = !record.id && !record.parentPrbId
+    ? items.find((item) => item.rfpAnalysisId === record.rfpAnalysisId && item.opportunityCode === record.opportunityCode && item.revisionNumber === 1) ?? null
+    : null
+  const parentPrb = record.parentPrbId ? items.find((item) => item.id === record.parentPrbId) ?? null : null
+  const siblingRevisions = parentPrb
+    ? items.filter((item) => item.revisionGroupId === parentPrb.revisionGroupId)
+    : existingById
+      ? items.filter((item) => item.revisionGroupId === existingById.revisionGroupId)
+      : existingByRfp
+        ? items.filter((item) => item.revisionGroupId === existingByRfp.revisionGroupId)
+        : []
+  const targetId = existingById?.id ?? existingByRfp?.id ?? record.id ?? nextPrbId(items)
+  const createdAt = existingById?.createdAt ?? existingByRfp?.createdAt ?? new Date().toISOString()
+  const nextRecord: PrbRecord = {
+    ...record,
+    id: targetId,
+    deployOwner: record.deployOwner || existingById?.deployOwner || parentPrb?.deployOwner || "배포 권한 보유자",
+    shareOwner: record.shareOwner || existingById?.shareOwner || parentPrb?.shareOwner || "공유 권한 보유자",
+    approvalSteps: record.approvalSteps,
+    revisionGroupId: existingById?.revisionGroupId ?? existingByRfp?.revisionGroupId ?? parentPrb?.revisionGroupId ?? `PRB-GROUP-${targetId}`,
+    revisionNumber: existingById?.revisionNumber ?? existingByRfp?.revisionNumber ?? (parentPrb ? siblingRevisions.length + 1 : 1),
+    parentPrbId: record.parentPrbId ?? existingById?.parentPrbId ?? undefined,
+    createdAt,
+    updatedAt: new Date().toISOString(),
+  }
+
+  const nextItems = items.some((item) => item.id === targetId)
+    ? items.map((item) => (item.id === targetId ? nextRecord : item))
+    : [nextRecord, ...items]
+
+  writeStoredPrbs(nextItems)
+  emitPrbsUpdate()
+
+  return nextRecord
+}
+
+export function approvePrbStep(prbId: string, actor: string) {
+  const items = getPrbs()
+  const target = items.find((item) => item.id === prbId) ?? null
+  if (!target) return null
+
+  const currentStepIndex = target.approvalSteps.findIndex((step) => step.status === "pending")
+  if (currentStepIndex < 0) return target
+
+  const nextSteps = target.approvalSteps.map((step, index) => {
+    if (index === currentStepIndex) {
+      return { ...step, assignee: actor || step.assignee, status: "completed" as const, completedAt: new Date().toISOString().slice(0, 10) }
+    }
+    if (index === currentStepIndex + 1) {
+      return { ...step, status: "pending" as const }
+    }
+    return step
+  })
+
+  const nextPending = nextSteps.find((step) => step.status === "pending")
+  const nextStatus: PrbStatus = currentStepIndex >= 1 ? "승인" : "검토 중"
+
+  const nextRecord: PrbRecord = {
+    ...target,
+    approvalSteps: nextSteps,
+    nextApprover: nextPending?.key === "deploy"
+      ? target.deployOwner
+      : nextPending?.key === "share"
+        ? target.shareOwner
+        : nextPending?.assignee ?? target.nextApprover,
+    status: nextStatus,
+    updatedAt: new Date().toISOString(),
+  }
+
+  writeStoredPrbs(items.map((item) => (item.id === prbId ? nextRecord : item)))
+  emitPrbsUpdate()
+  return nextRecord
+}
+
 export function getBidItem(category: BidCategory, id: string) {
   if (category === "rfp") return getRfpAnalysisById(id)
-  if (category === "prb") return prbList.find((item) => item.id === id) ?? null
+  if (category === "prb") return getPrbById(id)
   if (category === "proposal") return getProposalById(id)
   return getBidResultById(id)
 }
@@ -545,7 +844,17 @@ export function getBidFields(category: BidCategory, item: any) {
     { label: "상태", value: item.status },
   ]
   if (category === "prb") return [
-    { label: "PRB 번호", value: item.id }, { label: "RFP 번호", value: item.rfpId }, { label: "검토자", value: item.reviewer }, { label: "상신일", value: item.submitDate }, { label: "검토일", value: item.reviewDate }, { label: "리스크 등급", value: item.riskLevel }, { label: "검토 의견", value: item.result }, { label: "사업명", value: item.name }, { label: "고객사", value: item.customer },
+    { label: "PRB 번호", value: item.id },
+    { label: "RFP 번호", value: item.rfpAnalysisId },
+    { label: "고객사 코드", value: item.customerCode },
+    { label: "사업기회 코드", value: item.opportunityCode },
+    { label: "고객사", value: item.customer },
+    { label: "사업명", value: item.opportunity },
+    { label: "제안서 마감일", value: item.proposalDeadline },
+    { label: "작성일", value: item.createdDate },
+    { label: "작성자", value: item.author },
+    { label: "상태", value: item.status },
+    { label: "검토자", value: item.reviewer },
   ]
   if (category === "proposal") return [
     { label: "제안서 코드", value: item.id },

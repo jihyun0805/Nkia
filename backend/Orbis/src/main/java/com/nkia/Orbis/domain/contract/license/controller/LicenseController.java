@@ -2,14 +2,17 @@ package com.nkia.Orbis.domain.contract.license.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseRequest;
+import com.nkia.Orbis.domain.contract.license.dto.response.LicenseListResponse;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseResponse;
 import com.nkia.Orbis.domain.contract.license.service.LicenseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,5 +36,13 @@ public class LicenseController {
         LicenseResponse response = licenseService.create(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "라이선스 목록 조회")
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<LicenseListResponse>>> getLicenses() {
+        List<LicenseListResponse> response = licenseService.getlicenses();
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
