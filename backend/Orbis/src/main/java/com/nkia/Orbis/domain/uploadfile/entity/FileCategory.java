@@ -15,7 +15,7 @@ public enum FileCategory {
     MAINTENANCE_CONTRACT("maintenance-contracts"),
     BILLING("billings"),
     CUSTOMER_SUPPORT("customer-supports"),
-
+    RFP("rfps"),
     PURCHASE_ORDER("purchase_orders");
 
     private final String directory;
