@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.contract.orderreport.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportLicenseRequest;
@@ -172,5 +173,12 @@ public class OrderReportService {
                 .stream()
                 .map(OrderReportListResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public OrderReportResponse getOrderReport(Long orderReportId) {
+        OrderReport orderReport = orderReportRepository.findById(orderReportId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
+        return OrderReportResponse.from(orderReport);
     }
 }
