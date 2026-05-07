@@ -63,8 +63,8 @@ public class Project extends BaseEntity {
     private User manager;
 
     // 사업 결과 보고서
-    @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    private ProjectResultReport projectResultReport;
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProjectResultReport> resultReports = new ArrayList<>();
 
     // 유지보수
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)

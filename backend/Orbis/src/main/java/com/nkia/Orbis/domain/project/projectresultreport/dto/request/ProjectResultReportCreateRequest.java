@@ -25,6 +25,8 @@ public class ProjectResultReportCreateRequest {
     @NotNull(message = "사업 완료일은 필수입니다.")
     private LocalDate endDate;
 
+    private String content;
+
     private Long fileId;
 
     @AssertTrue(message = "완료일은 개시일 이후여야 합니다.")
