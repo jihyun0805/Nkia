@@ -7,6 +7,7 @@ import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseRequest;
+import com.nkia.Orbis.domain.contract.license.dto.request.LicenseUpdateRequest;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseListResponse;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseResponse;
 import com.nkia.Orbis.domain.contract.license.entity.License;
@@ -69,5 +70,29 @@ public class LicenseService {
                 .orElseThrow(() -> new ApiException(ContractErrorCode.LICENSE_NOT_FOUND));
 
         license.delete();
+    }
+
+    @Transactional
+    public LicenseResponse update(Long licenseId, LicenseUpdateRequest request) {
+        License license = licenseRepository.findById(licenseId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.LICENSE_NOT_FOUND));
+
+        Company customerCompany = companyRepository.findById(request.getCustomerCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
+
+        ProductModule productModule = productModuleRepository.findById(request.getProductModuleId())
+                .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
+
+        license.update(
+                customerCompany,
+                productModule,
+                request.getQuantity(),
+                request.getLicenseType(),
+                request.getLicenseStatus(),
+                request.getStartDate(),
+                request.getEndDate()
+        );
+
+        return LicenseResponse.from(license);
     }
 }
