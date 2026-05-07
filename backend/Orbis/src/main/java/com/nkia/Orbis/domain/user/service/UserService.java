@@ -5,12 +5,14 @@ import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.JwtProvider;
 import com.nkia.Orbis.domain.department.entity.Department;
 import com.nkia.Orbis.domain.user.dto.request.SignupRequest;
+import com.nkia.Orbis.domain.user.dto.request.UserUpdateRequest;
 import com.nkia.Orbis.domain.user.dto.response.UserResponse;
 import com.nkia.Orbis.domain.user.entity.Role;
 import com.nkia.Orbis.domain.user.entity.Status;
 import com.nkia.Orbis.domain.user.entity.User;
 import com.nkia.Orbis.domain.user.repository.UserRepository;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +26,8 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
     private final StringRedisTemplate redisTemplate;
+//    private final DepartmentRepository departmentRepository;
+    // TODO: 부서 엔티티 구현후 연동 예정
 
     public static final String REFRESH_TOKEN = "RefreshToken:";
     public static final String LOGOUT = "logout";
@@ -81,5 +85,29 @@ public class UserService {
                 .stream()
                 .map(UserResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public UserResponse update(UUID userId, UserUpdateRequest request) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+//            Department department = departmentRepository.findById(request.getDepartmentId())
+//                    .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
+        Department department = null;
+
+        user.update(
+                request.getEmployeeNumber(),
+                request.getPosition(),
+                request.getName(),
+                request.getPhone(),
+                request.getRole(),
+                request.getStatus(),
+                department
+        );
+
+        return UserResponse.from(user);
+
     }
 }
