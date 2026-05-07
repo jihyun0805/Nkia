@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.contract.license.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.repository.CompanyRepository;
@@ -47,10 +48,18 @@ public class LicenseService {
     }
 
     @Transactional
-    public List<LicenseListResponse> getlicenses() {
+    public List<LicenseListResponse> getLicenses() {
         return licenseRepository.findAll()
                 .stream()
                 .map(LicenseListResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public LicenseResponse getLicense(Long licenseId) {
+        License license = licenseRepository.findById(licenseId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.LICENSE_NOT_FOUND));
+
+        return LicenseResponse.from(license);
     }
 }

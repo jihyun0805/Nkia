@@ -41,7 +41,7 @@ public class LicenseController {
     @Operation(summary = "라이선스 목록 조회")
     @GetMapping
     public ResponseEntity<ApiResponse<List<LicenseListResponse>>> getLicenses() {
-        List<LicenseListResponse> response = licenseService.getlicenses();
+        List<LicenseListResponse> response = licenseService.getLicenses();
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
