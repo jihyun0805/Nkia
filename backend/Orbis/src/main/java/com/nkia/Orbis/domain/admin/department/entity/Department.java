@@ -12,25 +12,34 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Getter
-@Builder
+@SQLRestriction("deleted = false")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Department extends BaseEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Builder.Default
+    private String name;
+
     @OneToMany(mappedBy = "department")
     private List<User> users = new ArrayList<>();
 
-    @Builder.Default
     @OneToMany(mappedBy = "department")
     private List<Permission> permissions = new ArrayList<>();
+
+    public static Department create(
+            String name
+    ) {
+        Department department = new Department();
+        department.name = name;
+        return department;
+    }
 }
