@@ -77,6 +77,10 @@ public class LicenseService {
         License license = licenseRepository.findById(licenseId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.LICENSE_NOT_FOUND));
 
+        if (license.getOrderReport() != null) {
+            throw new ApiException(ContractErrorCode.LICENSE_UPDATE_NOT_ALLOWED);
+        }
+
         Company customerCompany = companyRepository.findById(request.getCustomerCompanyId())
                 .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
 
