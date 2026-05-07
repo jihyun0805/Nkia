@@ -14,11 +14,9 @@ public record ProjectOpportunityUpdateRequest(
         ProductClass projectType,
 
         LocalDate expectedBidDate,
-        LocalDate expectedContractDate,
         BigDecimal expectedBudget,
 
         String description,
-        String issueNote,
         String competitionStatus
 ) {
 }

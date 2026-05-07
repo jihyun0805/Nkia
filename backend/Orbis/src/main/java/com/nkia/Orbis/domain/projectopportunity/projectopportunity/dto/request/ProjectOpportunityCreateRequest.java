@@ -19,10 +19,8 @@ public record ProjectOpportunityCreateRequest(
         ProductClass projectType,
 
         LocalDate expectedBidDate,
-        LocalDate expectedContractDate,
         BigDecimal expectedBudget,
         String description,
-        String issueNote,
         String competitionStatus,
 
         @NotNull(message = "고객사 ID는 필수입니다.")
@@ -34,10 +32,8 @@ public record ProjectOpportunityCreateRequest(
                 .opportunityName(this.opportunityName())
                 .projectType(this.projectType())
                 .expectedBidDate(this.expectedBidDate())
-                .expectedContractDate(this.expectedContractDate())
                 .expectedBudget(this.expectedBudget())
                 .description(this.description())
-                .issueNote(this.issueNote())
                 .competitionStatus(this.competitionStatus())
                 // 상태는 기본값(FINDING)이 들어가도록 엔티티 빌더에 처리되어 있음
                 .customerCompany(customerCompany) // Service에서 조회해온 객체 주입!
