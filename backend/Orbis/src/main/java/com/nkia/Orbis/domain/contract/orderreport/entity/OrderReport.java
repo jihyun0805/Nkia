@@ -41,6 +41,20 @@ public class OrderReport extends BaseEntity {
     @Column(nullable = false, unique = true)
     private String orderReportCode;
 
+    private Long totalAmount;
+
+    private String paymentCondition;
+
+    private boolean quotationProvided;
+
+    private boolean contractProvided;
+
+    private boolean purchaseOrderProvided;
+
+    private boolean prbReportProvided;
+
+    private String additionalDocuments;
+
     @Enumerated(EnumType.STRING)
     private OrderReportType type;
 
@@ -51,7 +65,7 @@ public class OrderReport extends BaseEntity {
 
     private LocalDate contractDate;
 
-    private Integer freeMaintenacePeriodMonths;
+    private Integer freeMaintenancePeriodMonths;
 
     private LocalDate contractStartDate;
 
@@ -70,6 +84,10 @@ public class OrderReport extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pm_user_id")
     private User pm;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contract_counterpart_company_id")
+    private Company contractCounterpartCompany;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_counterpart_manager_id")
@@ -147,13 +165,33 @@ public class OrderReport extends BaseEntity {
     // OrderReportLicense 중 ProductClass가 앞의 분류에 해당하지 않는것들의 totalPrice들의 총합
     private Long otherSummary;
 
+    // 아래는 유지보수 only 부분의 합계 영역
+    private Long itemTotalAmount;
+
+    private Long itemTotalLicense;
+
+    private Long itemTotalThirdParty;
+
+    private Long itemTotalService;
+
+    private Long itemTotalMaintenance;
+
+    private Double itemTotalMaintenanceRate;
+
+
     public static OrderReport create(
             String orderReportCode,
             OrderReportType type,
+            String paymentCondition,
+            boolean quotationProvided,
+            boolean contractProvided,
+            boolean purchaseOrderProvided,
+            boolean prbReportProvided,
+            String additionalDocuments,
             boolean channel,
             CodeType codeType,
             LocalDate contractDate,
-            Integer freeMaintenacePeriodMonths,
+            Integer freeMaintenancePeriodMonths,
             LocalDate contractStartDate,
             LocalDate contractEndDate,
             Integer contractPeriodMonths,
@@ -163,18 +201,25 @@ public class OrderReport extends BaseEntity {
             User pm,
             CompanyManager contractCounterpartManager,
             Company finalCustomerCompany,
-            CompanyManager finalCustomerManager
+            CompanyManager finalCustomerManager,
+            Double itemTotalMaintenanceRate
             // Todo: 연관관계 메서드 필요
 //            Contract contract,
 //            Project project
     ) {
         OrderReport orderReport = new OrderReport();
         orderReport.orderReportCode = orderReportCode;
+        orderReport.paymentCondition = paymentCondition;
+        orderReport.quotationProvided = quotationProvided;
+        orderReport.contractProvided = contractProvided;
+        orderReport.purchaseOrderProvided = purchaseOrderProvided;
+        orderReport.prbReportProvided = prbReportProvided;
+        orderReport.additionalDocuments = additionalDocuments;
         orderReport.type = type;
         orderReport.channel = channel;
         orderReport.codeType = codeType;
         orderReport.contractDate = contractDate;
-        orderReport.freeMaintenacePeriodMonths = freeMaintenacePeriodMonths;
+        orderReport.freeMaintenancePeriodMonths = freeMaintenancePeriodMonths;
         orderReport.contractStartDate = contractStartDate;
         orderReport.contractEndDate = contractEndDate;
         orderReport.contractPeriodMonths = contractPeriodMonths;
@@ -185,6 +230,8 @@ public class OrderReport extends BaseEntity {
         orderReport.contractCounterpartManager = contractCounterpartManager;
         orderReport.finalCustomerCompany = finalCustomerCompany;
         orderReport.finalCustomerManager = finalCustomerManager;
+        orderReport.itemTotalMaintenanceRate = itemTotalMaintenanceRate;
+        orderReport.totalAmount = 0L;
         orderReport.licenseTotal = 0L;
         orderReport.serviceTotal = 0L;
         orderReport.maintenanceTotal = 0L;
@@ -198,6 +245,11 @@ public class OrderReport extends BaseEntity {
         orderReport.itgMaintenanceSummary = 0L;
         orderReport.itoSummary = 0L;
         orderReport.otherSummary = 0L;
+        orderReport.itemTotalAmount = 0L;
+        orderReport.itemTotalLicense = 0L;
+        orderReport.itemTotalThirdParty = 0L;
+        orderReport.itemTotalService = 0L;
+        orderReport.itemTotalMaintenance = 0L;
 
         return orderReport;
     }
@@ -227,6 +279,8 @@ public class OrderReport extends BaseEntity {
     public void addMaintenanceOnlyItem(OrderReportMaintenanceOnlyItem maintenanceOnlyItem) {
         this.maintenanceOnlyItems.add(maintenanceOnlyItem);
         maintenanceOnlyItem.setOrderReport(this);
+
+        calculateItemTotal();
     }
 
     public void addOther(OrderReportOther other) {
@@ -295,4 +349,35 @@ public class OrderReport extends BaseEntity {
         }
     }
 
+    public void calculateTotalAmount() {
+        this.totalAmount =
+                (licenseTotal == null ? 0L : licenseTotal)
+                        + (serviceTotal == null ? 0L : serviceTotal)
+                        + (maintenanceTotal == null ? 0L : maintenanceTotal)
+                        + (otherTotal == null ? 0L : otherTotal)
+                        + (purchaseTotal == null ? 0L : purchaseTotal);
+    }
+
+    private void calculateItemTotal() {
+        this.itemTotalAmount = maintenanceOnlyItems.stream()
+                .mapToLong(item -> item.getAmount() == null ? 0L
+                        : item.getAmount())
+                .sum();
+        this.itemTotalLicense = maintenanceOnlyItems.stream()
+                .mapToLong(item -> item.getLicense() == null ? 0L
+                        : item.getLicense())
+                .sum();
+        this.itemTotalThirdParty = maintenanceOnlyItems.stream()
+                .mapToLong(item -> item.getThirdParty() == null ? 0L
+                        : item.getThirdParty())
+                .sum();
+        this.itemTotalService = maintenanceOnlyItems.stream()
+                .mapToLong(item -> item.getService() == null ? 0L
+                        : item.getService())
+                .sum();
+        this.itemTotalMaintenance = maintenanceOnlyItems.stream()
+                .mapToLong(item -> item.getMaintenance() == null ? 0L
+                        : item.getMaintenance())
+                .sum();
+    }
 }

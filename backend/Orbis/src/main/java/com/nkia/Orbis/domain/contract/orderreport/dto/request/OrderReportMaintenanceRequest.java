@@ -10,8 +10,6 @@ public class OrderReportMaintenanceRequest {
 
     private VisitCycle visitCycle;
 
-    private Integer quantity;
-
     private Integer month;
 
     private Long price;

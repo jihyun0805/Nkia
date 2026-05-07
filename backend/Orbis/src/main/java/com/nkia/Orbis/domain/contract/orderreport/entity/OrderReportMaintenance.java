@@ -33,8 +33,6 @@ public class OrderReportMaintenance extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private VisitCycle visitCycle;
 
-    private Integer quantity;
-
     private Integer month;
 
     private Long price;
@@ -44,17 +42,15 @@ public class OrderReportMaintenance extends BaseEntity {
     public static OrderReportMaintenance create(
             String content,
             VisitCycle visitCycle,
-            Integer quantity,
             Integer month,
             Long price
     ) {
         OrderReportMaintenance orderReportMaintenance = new OrderReportMaintenance();
         orderReportMaintenance.content = content;
         orderReportMaintenance.visitCycle = visitCycle;
-        orderReportMaintenance.quantity = quantity;
         orderReportMaintenance.month = month;
         orderReportMaintenance.price = price;
-        orderReportMaintenance.totalPrice = price * quantity;
+        orderReportMaintenance.totalPrice = price * month;
 
         return orderReportMaintenance;
     }

@@ -11,10 +11,15 @@ import lombok.Getter;
 public class OrderReportRequest {
 
     private OrderReportType type;
+    private boolean quotationProvided;
+    private boolean contractProvided;
+    private boolean purchaseOrderProvided;
+    private boolean prbReportProvided;
+    private String additionalDocuments;
     private boolean channel;
     private CodeType codeType;
     private LocalDate contractDate;
-    private Integer freeMaintenacePeriodMonths;
+    private Integer freeMaintenancePeriodMonths;
     private LocalDate contractStartDate;
     private LocalDate contractEndDate;
     private Integer contractPeriodMonths;
@@ -23,6 +28,7 @@ public class OrderReportRequest {
     private Long projectOpportunityId;
     private UUID pmId;
     private Long contractCounterpartManagerId;
+    private Long contractCounterpartCompanyId;
     private Long finalCustomerCompanyId;
     private Long finalCustomerManagerId;
     private List<OrderReportMaintenanceRequest> maintenances;
@@ -33,4 +39,5 @@ public class OrderReportRequest {
     private List<OrderReportPurchaseRequest> purchases;
     private Long emsMaintenanceSummary;
     private Long itgMaintenanceSummary;
+    private Double itemTotalMaintenanceRate;
 }

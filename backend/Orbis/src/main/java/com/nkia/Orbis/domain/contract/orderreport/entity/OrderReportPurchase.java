@@ -34,7 +34,7 @@ public class OrderReportPurchase extends BaseEntity {
 
     private Long totalPrice;
 
-    public static OrderReportPurchase creat(
+    public static OrderReportPurchase create(
             String content,
             Integer quantity,
             Long price
