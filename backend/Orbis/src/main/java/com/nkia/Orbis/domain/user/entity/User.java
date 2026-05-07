@@ -7,7 +7,6 @@ import com.nkia.Orbis.domain.alarm.entity.Alarm;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.department.entity.Department;
-import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupportOtherDepartmentUser;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
 import jakarta.persistence.Column;
@@ -54,7 +53,6 @@ public class User extends BaseEntity {
     private String name;
 
     private String phone;
-
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -128,5 +126,23 @@ public class User extends BaseEntity {
                 .status(status)
                 .department(department)
                 .build();
+    }
+
+    public void update(
+            String employeeNumber,
+            Position position,
+            String name,
+            String phone,
+            Role role,
+            Status status,
+            Department department
+    ) {
+        this.employeeNumber = employeeNumber;
+        this.position = position;
+        this.name = name;
+        this.phone = phone;
+        this.role = role;
+        this.status = status;
+        this.department = department;
     }
 }
