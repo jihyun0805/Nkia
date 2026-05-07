@@ -1,0 +1,35 @@
+package com.nkia.Orbis.domain.admin.department.controller;
+
+import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.department.dto.request.DepartmentRequest;
+import com.nkia.Orbis.domain.admin.department.dto.response.DepartmentResponse;
+import com.nkia.Orbis.domain.admin.department.service.DepartmentService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = "Department", description = "부서 관리 API")
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/admin/departments")
+public class DepartmentController {
+    private final DepartmentService departmentService;
+
+    @Operation(summary = "부서 생성")
+    @PostMapping
+    public ResponseEntity<ApiResponse<DepartmentResponse>> createDepartment(
+            @Valid
+            @RequestBody DepartmentRequest request
+    ) {
+        DepartmentResponse response = departmentService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+}
