@@ -78,12 +78,12 @@ public class License extends BaseEntity {
         license.applyProduct(productModule);
         license.applyPrice(quantity);
         license.licenseType = LicenseType.OFFICIAL;
-        license.licenseStatus = LicenseStatus.ACTIVE;
+        license.licenseStatus = LicenseStatus.ISSUED;
 
         return license;
     }
 
-    public static License createManual(
+    public static License create(
             Company customerCompany,
             ProductModule productModule,
             Integer quantity,
@@ -98,8 +98,8 @@ public class License extends BaseEntity {
 
         license.applyProduct(productModule);
         license.applyPrice(quantity);
-        license.licenseType = licenseType != null ? licenseType : LicenseType.OFFICIAL;
-        license.licenseStatus = LicenseStatus.ACTIVE;
+        license.licenseType = licenseType;
+        license.licenseStatus = LicenseStatus.REQUESTED;
 
         return license;
     }
