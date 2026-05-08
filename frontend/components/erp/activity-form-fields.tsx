@@ -30,6 +30,37 @@ type ActivityFormFieldsProps = {
   requesterValue?: string
   onRequesterChange?: (value: string) => void
   requestIdValue?: string
+  values?: {
+    date: string
+    activityMode: string
+    activityContent: string
+    location: string
+    attendees: string
+    content: string
+    issues: string
+    nextAction: string
+  }
+  onValuesChange?: (
+    updater: (current: {
+      date: string
+      activityMode: string
+      activityContent: string
+      location: string
+      attendees: string
+      content: string
+      issues: string
+      nextAction: string
+    }) => {
+      date: string
+      activityMode: string
+      activityContent: string
+      location: string
+      attendees: string
+      content: string
+      issues: string
+      nextAction: string
+    },
+  ) => void
 }
 
 export function ActivityFormFields({
@@ -45,17 +76,80 @@ export function ActivityFormFields({
   requesterValue,
   onRequesterChange,
   requestIdValue,
+  values,
+  onValuesChange,
 }: ActivityFormFieldsProps) {
   const [activityMode, setActivityMode] = useState(defaultValues?.activityMode ?? "")
   const [activityContent, setActivityContent] = useState(defaultValues?.activityContent ?? "")
   const [location, setLocation] = useState(defaultValues?.location ?? "")
+  const [date, setDate] = useState(defaultValues?.date ?? "")
+  const [attendees, setAttendees] = useState(defaultValues?.attendees ?? "")
+  const [content, setContent] = useState(defaultValues?.content ?? "")
+  const [issues, setIssues] = useState(defaultValues?.issues ?? "")
+  const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
   const registrant = defaultValues?.registrant ?? currentUser.name
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
   const linkedRequestId = typeof requestIdValue === "string" ? requestIdValue : defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
-  const isAutomaticLocation = automaticLocationModes.includes(activityMode)
-  const locationValue = isAutomaticLocation ? activityMode : location
-  const needsActivityRequest = activityContent !== "" && !requestOptionalActivityContents.includes(activityContent)
+  const resolvedDate = values?.date ?? date
+  const resolvedActivityMode = values?.activityMode ?? activityMode
+  const resolvedActivityContent = values?.activityContent ?? activityContent
+  const resolvedLocation = values?.location ?? location
+  const resolvedAttendees = values?.attendees ?? attendees
+  const resolvedContent = values?.content ?? content
+  const resolvedIssues = values?.issues ?? issues
+  const resolvedNextAction = values?.nextAction ?? nextAction
+  const isAutomaticLocation = automaticLocationModes.includes(resolvedActivityMode)
+  const locationValue = isAutomaticLocation ? resolvedActivityMode : resolvedLocation
+  const needsActivityRequest = resolvedActivityContent !== "" && !requestOptionalActivityContents.includes(resolvedActivityContent)
+
+  const updateValues = (
+    updater: (current: {
+      date: string
+      activityMode: string
+      activityContent: string
+      location: string
+      attendees: string
+      content: string
+      issues: string
+      nextAction: string
+    }) => {
+      date: string
+      activityMode: string
+      activityContent: string
+      location: string
+      attendees: string
+      content: string
+      issues: string
+      nextAction: string
+    },
+  ) => {
+    const current = {
+      date: resolvedDate,
+      activityMode: resolvedActivityMode,
+      activityContent: resolvedActivityContent,
+      location: resolvedLocation,
+      attendees: resolvedAttendees,
+      content: resolvedContent,
+      issues: resolvedIssues,
+      nextAction: resolvedNextAction,
+    }
+    const next = updater(current)
+
+    if (onValuesChange) {
+      onValuesChange(() => next)
+      return
+    }
+
+    setDate(next.date)
+    setActivityMode(next.activityMode)
+    setActivityContent(next.activityContent)
+    setLocation(next.location)
+    setAttendees(next.attendees)
+    setContent(next.content)
+    setIssues(next.issues)
+    setNextAction(next.nextAction)
+  }
 
   useEffect(() => {
     setActivityMode(defaultValues?.activityMode ?? "")
@@ -69,16 +163,36 @@ export function ActivityFormFields({
     setLocation(defaultValues?.location ?? "")
   }, [defaultValues?.location])
 
-  const handleActivityModeChange = (nextMode: string) => {
-    setActivityMode(nextMode)
-    if (automaticLocationModes.includes(nextMode)) {
-      setLocation(nextMode)
-      return
-    }
+  useEffect(() => {
+    setDate(defaultValues?.date ?? "")
+  }, [defaultValues?.date])
 
-    if (automaticLocationModes.includes(activityMode)) {
-      setLocation("")
-    }
+  useEffect(() => {
+    setAttendees(defaultValues?.attendees ?? "")
+  }, [defaultValues?.attendees])
+
+  useEffect(() => {
+    setContent(defaultValues?.content ?? "")
+  }, [defaultValues?.content])
+
+  useEffect(() => {
+    setIssues(defaultValues?.issues ?? "")
+  }, [defaultValues?.issues])
+
+  useEffect(() => {
+    setNextAction(defaultValues?.nextAction ?? "")
+  }, [defaultValues?.nextAction])
+
+  const handleActivityModeChange = (nextMode: string) => {
+    updateValues((current) => ({
+      ...current,
+      activityMode: nextMode,
+      location: automaticLocationModes.includes(nextMode)
+        ? nextMode
+        : automaticLocationModes.includes(current.activityMode)
+          ? ""
+          : current.location,
+    }))
   }
 
   return (
@@ -165,12 +279,12 @@ export function ActivityFormFields({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>활동일 *</Label>
-          <Input type="date" defaultValue={defaultValues?.date} />
+          <Input type="date" value={resolvedDate} onChange={(event) => updateValues((current) => ({ ...current, date: event.target.value }))} />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>활동형태 *</Label>
-            <Select value={activityMode} onValueChange={handleActivityModeChange}>
+            <Select value={resolvedActivityMode} onValueChange={handleActivityModeChange}>
               <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
               <SelectContent>
                 {activityModeOptions.map((option) => (
@@ -183,7 +297,7 @@ export function ActivityFormFields({
           </div>
           <div className="space-y-2">
             <Label>활동내용 *</Label>
-            <Select value={activityContent} onValueChange={setActivityContent}>
+            <Select value={resolvedActivityContent} onValueChange={(value) => updateValues((current) => ({ ...current, activityContent: value }))}>
               <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
               <SelectContent>
                 {activityContentOptions.map((option) => (
@@ -198,7 +312,7 @@ export function ActivityFormFields({
                 상담/기타를 제외한 활동내용은 일반적으로 활동 요청을 받아 진행합니다.
               </p>
             )}
-            {activityContent !== "" && !needsActivityRequest && (
+            {resolvedActivityContent !== "" && !needsActivityRequest && (
               <p className="text-sm text-muted-foreground">
                 상담/기타 유형은 활동 요청 없이 영업대표가 직접 등록하는 경우가 많습니다.
               </p>
@@ -211,27 +325,27 @@ export function ActivityFormFields({
           <Label>장소</Label>
           <Input
             value={locationValue}
-            onChange={(event) => setLocation(event.target.value)}
+            onChange={(event) => updateValues((current) => ({ ...current, location: event.target.value }))}
             placeholder="활동 장소를 입력하세요"
             readOnly={isAutomaticLocation}
           />
         </div>
         <div className="space-y-2">
           <Label>참석자</Label>
-          <Input defaultValue={defaultValues?.attendees} placeholder="참석자를 입력하세요" />
+          <Input value={resolvedAttendees} onChange={(event) => updateValues((current) => ({ ...current, attendees: event.target.value }))} placeholder="참석자를 입력하세요" />
         </div>
       </div>
       <div className="space-y-2">
         <Label>주요 내용 *</Label>
-        <Textarea defaultValue={defaultValues?.content} rows={4} />
+        <Textarea value={resolvedContent} onChange={(event) => updateValues((current) => ({ ...current, content: event.target.value }))} rows={4} />
       </div>
       <div className="space-y-2">
         <Label>고객 관심 사항 / 이슈</Label>
-        <Textarea defaultValue={defaultValues?.issues} rows={3} />
+        <Textarea value={resolvedIssues} onChange={(event) => updateValues((current) => ({ ...current, issues: event.target.value }))} rows={3} />
       </div>
       <div className="space-y-2">
         <Label>다음 할 일</Label>
-        <Textarea defaultValue={defaultValues?.nextAction} rows={3} />
+        <Textarea value={resolvedNextAction} onChange={(event) => updateValues((current) => ({ ...current, nextAction: event.target.value }))} rows={3} />
       </div>
     </>
   )

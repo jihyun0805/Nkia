@@ -124,10 +124,16 @@ function normalizeRequests(requests: ActivityRequestRecord[]) {
   const requestMap = new Map<string, ActivityRequestRecord>()
 
   requests.forEach((item) => {
+    const normalizedItem: ActivityRequestRecord = {
+      ...item,
+      attachments: Array.isArray(item.attachments)
+        ? item.attachments.filter((attachment) => attachment && typeof attachment.id === "string" && typeof attachment.name === "string")
+        : [],
+    }
     const existing = requestMap.get(item.id)
 
-    if (!existing || getRequestPriority(item) >= getRequestPriority(existing)) {
-      requestMap.set(item.id, item)
+    if (!existing || getRequestPriority(normalizedItem) >= getRequestPriority(existing)) {
+      requestMap.set(item.id, normalizedItem)
     }
   })
 

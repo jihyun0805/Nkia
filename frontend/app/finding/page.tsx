@@ -17,6 +17,7 @@ import { Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
 const PREVIEW_CARD_COUNT = 10
+const FINDING_ACTIVE_TAB_STORAGE_KEY = "orbis.finding.active-tab"
 
 function FindingPageContent() {
   const router = useRouter()
@@ -37,11 +38,25 @@ function FindingPageContent() {
     const tab = searchParams.get("tab")
     if (tab === "opportunities" || tab === "customers" || tab === "partners") {
       setActiveTab(tab)
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(FINDING_ACTIVE_TAB_STORAGE_KEY, tab)
+      }
+      return
+    }
+
+    if (typeof window !== "undefined") {
+      const storedTab = window.sessionStorage.getItem(FINDING_ACTIVE_TAB_STORAGE_KEY)
+      if (storedTab === "opportunities" || storedTab === "customers" || storedTab === "partners") {
+        setActiveTab(storedTab)
+      }
     }
   }, [searchParams])
 
   const handleTabChange = (value: FindingTab) => {
     setActiveTab(value)
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(FINDING_ACTIVE_TAB_STORAGE_KEY, value)
+    }
     router.replace(`/finding?tab=${value}`, { scroll: false })
   }
 
@@ -222,7 +237,7 @@ function FindingPageContent() {
                           key={opp.id}
                           type="button"
                           className="min-h-[168px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
-                          onClick={() => router.push(`/activity/customers/${opp.customerCode}`)}
+                          onClick={() => router.push(`/activity/customers/${opp.customerCode}?opportunityId=${opp.id}`)}
                         >
                           <div className="flex h-full flex-col justify-between">
                             <div>

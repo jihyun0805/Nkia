@@ -25,7 +25,8 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { ActivityFormFields } from "@/components/erp/activity-form-fields"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
-import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
+import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
+import { activityRequestTypeOptions, createActivity, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { createActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
 import { getPresalesUsers } from "@/lib/admin-data"
@@ -41,6 +42,7 @@ import { createQuotation } from "@/lib/quotation-workflow"
 import { X } from "lucide-react"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
+type AttachmentDraft = StoredFileAttachment
 
 function ActivityCategoryNewPageContent() {
   const params = useParams<{ category: ActivityCategory }>()
@@ -55,8 +57,20 @@ function ActivityCategoryNewPageContent() {
   const [activityOpportunityCode, setActivityOpportunityCode] = useState("")
   const [activityRequester, setActivityRequester] = useState("")
   const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
+  const [activityAttachments, setActivityAttachments] = useState<AttachmentDraft[]>([])
+  const [requestAttachments, setRequestAttachments] = useState<AttachmentDraft[]>([])
   const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
+  const [activityForm, setActivityForm] = useState({
+    date: "",
+    activityMode: "",
+    activityContent: "",
+    location: "",
+    attendees: "",
+    content: "",
+    issues: "",
+    nextAction: "",
+  })
   const [form, setForm] = useState({
     date: "",
     type: "",
@@ -127,6 +141,10 @@ function ActivityCategoryNewPageContent() {
       setActivityCustomerCode(normalizedCustomer?.id ?? request?.customerCode ?? "")
       setActivityOpportunity(request?.opportunity ?? "")
       setActivityOpportunityCode(request?.opportunityCode ?? "")
+      setActivityForm((prev) => ({
+        ...prev,
+        activityContent: request?.type ?? prev.activityContent,
+      }))
     }
 
     sync()
@@ -149,12 +167,31 @@ function ActivityCategoryNewPageContent() {
   const matchedCustomer = category === "requests" ? getCustomerByName(form.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(form.customer) : []
   const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
+  const currentAttachments = category === "activities" ? activityAttachments : requestAttachments
 
   const ensureRegisteredCustomer = () => {
     if (hasRegisteredCustomer(targetCustomer)) return true
 
     setIsCustomerAlertOpen(true)
     return false
+  }
+
+  const handleAttachmentChange = async (
+    files: FileList | null | undefined,
+    onComplete: (updater: (prev: AttachmentDraft[]) => AttachmentDraft[]) => void,
+  ) => {
+    const selectedFiles = Array.from(files ?? [])
+    if (selectedFiles.length === 0) return
+
+    try {
+      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
+      onComplete((prev) => [...prev, ...nextAttachments])
+    } catch (error) {
+      toast({
+        title: "첨부파일 등록 실패",
+        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
+      })
+    }
   }
 
   const handleSubmit = () => {
@@ -181,12 +218,51 @@ function ActivityCategoryNewPageContent() {
       return
     }
 
+    if (category === "activities") {
+      if (!activityCustomer || !activityForm.date || !activityForm.activityMode || !activityForm.activityContent || !activityForm.content) {
+        toast({
+          title: "활동 필수값 확인",
+          description: "고객사, 활동일, 활동형태, 활동내용, 주요 내용을 입력해주십시오.",
+        })
+        return
+      }
+
+      const created = createActivity({
+        date: activityForm.date,
+        requestId: (linkedRequest?.id ?? linkedRequestId) || undefined,
+        registrant: currentUser.name,
+        requester: activityRequester.trim(),
+        customerCode: activityCustomerCode,
+        businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
+        activityMode: activityForm.activityMode,
+        activityContent: activityForm.activityContent,
+        customer: activityCustomer,
+        opportunity: activityOpportunity || "미확인",
+        location: activityForm.location,
+        attendees: activityForm.attendees,
+        content: activityForm.content,
+        issues: activityForm.issues,
+        nextAction: activityForm.nextAction,
+        status: "완료",
+        attachments: activityAttachments,
+      })
+      toast({
+        title: "영업활동 등록 완료",
+        description: `${created.customer} 영업활동이 등록되었습니다.`,
+      })
+      router.push(`/activity/activities/${created.id}`)
+      return
+    }
+
     if (category !== "requests") {
       router.push("/activity")
       return
     }
 
-    const created = createActivityRequest(form)
+    const created = createActivityRequest({
+      ...form,
+      attachments: requestAttachments,
+    })
     toast({
       title: "활동 요청 등록 완료",
       description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
@@ -253,6 +329,8 @@ function ActivityCategoryNewPageContent() {
                     requesterValue={activityRequester}
                     onRequesterChange={setActivityRequester}
                     requestIdValue={linkedRequest?.id ?? linkedRequestId}
+                    values={activityForm}
+                    onValuesChange={setActivityForm}
                   />
                 )}
 
@@ -376,7 +454,48 @@ function ActivityCategoryNewPageContent() {
                 {category !== "quotations" && (
                   <div className="space-y-2">
                     <Label>첨부파일</Label>
-                    <Input type="file" multiple />
+                    <Input
+                      type="file"
+                      multiple
+                      onChange={(event) => {
+                        void handleAttachmentChange(
+                          event.target.files,
+                          category === "activities" ? setActivityAttachments : setRequestAttachments,
+                        )
+                        event.target.value = ""
+                      }}
+                    />
+                    {currentAttachments.length > 0 ? (
+                      <div className="space-y-2 rounded-md border border-border p-3">
+                        {currentAttachments.map((attachment) => (
+                          <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                            <div className="min-w-0 flex-1">
+                              <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                                {attachment.name}
+                              </a>
+                              <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (category === "activities") {
+                                  setActivityAttachments((prev) => prev.filter((item) => item.id !== attachment.id))
+                                  return
+                                }
+
+                                setRequestAttachments((prev) => prev.filter((item) => item.id !== attachment.id))
+                              }}
+                            >
+                              삭제
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <Input readOnly value="등록된 첨부파일이 없습니다." />
+                    )}
                   </div>
                 )}
 
