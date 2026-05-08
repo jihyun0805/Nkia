@@ -13,7 +13,13 @@ public class QuotationResponse {
 
     private String quotationCode;
 
+    private String refNo;
+
     private Long projectOpportunityId;
+
+    private String companyName;
+
+    private String projectOpportunityName;
 
     private LocalDate quotationDate;
 
@@ -37,11 +43,10 @@ public class QuotationResponse {
         return QuotationResponse.builder()
                 .id(quotation.getId())
                 .quotationCode(quotation.getQuotationCode())
-                .projectOpportunityId(
-                        quotation.getProjectOpportunity() == null
-                                ? null
-                                : quotation.getProjectOpportunity().getId()
-                )
+                .refNo(quotation.getRefNo())
+                .projectOpportunityId(quotation.getProjectOpportunity().getId())
+                .companyName(quotation.getProjectOpportunity().getCustomerCompany().getName())
+                .projectOpportunityName(quotation.getProjectOpportunity().getOpportunityName())
                 .quotationDate(quotation.getQuotationDate())
                 .paymentCondition(quotation.getPaymentCondition())
                 .consumerTotalPrice(quotation.getConsumerTotalPrice())

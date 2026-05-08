@@ -14,6 +14,10 @@ public class QuotationListResponse {
 
     private Long projectOpportunityId;
 
+    private String companyName;
+
+    private String projectOpportunityName;
+
     private LocalDate quotationDate;
 
     private Long consumerTotalPrice;
@@ -28,11 +32,9 @@ public class QuotationListResponse {
         return QuotationListResponse.builder()
                 .id(quotation.getId())
                 .quotationCode(quotation.getQuotationCode())
-                .projectOpportunityId(
-                        quotation.getProjectOpportunity() == null
-                                ? null
-                                : quotation.getProjectOpportunity().getId()
-                )
+                .projectOpportunityId(quotation.getProjectOpportunity().getId())
+                .companyName(quotation.getProjectOpportunity().getCustomerCompany().getName())
+                .projectOpportunityName(quotation.getProjectOpportunity().getOpportunityName())
                 .quotationDate(quotation.getQuotationDate())
                 .consumerTotalPrice(quotation.getConsumerTotalPrice())
                 .supplyTotalPrice(quotation.getSupplyTotalPrice())

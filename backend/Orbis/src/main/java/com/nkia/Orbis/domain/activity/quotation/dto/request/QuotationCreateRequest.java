@@ -10,6 +10,8 @@ public class QuotationCreateRequest {
 
     private Long projectOpportunityId;
 
+    private String refNo;
+
     private LocalDate quotationDate;
 
     private String paymentCondition;
