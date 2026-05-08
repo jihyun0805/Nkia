@@ -32,8 +32,6 @@ public class SalesActivityRequest extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-// TODO: 희 title 필드 추가 했음 처리 로직 수정 필요
-
     private String title;
 
     @OneToOne(fetch = FetchType.LAZY)
@@ -43,6 +41,10 @@ public class SalesActivityRequest extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "target_user_id", nullable = false)
     private User targetUser;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "request_user_id", nullable = false)
+    private User requestUser;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -57,14 +59,18 @@ public class SalesActivityRequest extends BaseEntity {
     private String requestContent;
 
     public static SalesActivityRequest create(
+            String title,
             User targetUser,
+            User requestUser,
             ActivityPurpose activityPurpose,
             ActivityType activityType,
             LocalDateTime activityDateTime,
             String requestContent
     ) {
         SalesActivityRequest salesActivityRequest = new SalesActivityRequest();
+        salesActivityRequest.title = title;
         salesActivityRequest.targetUser = targetUser;
+        salesActivityRequest.requestUser = requestUser;
         salesActivityRequest.activityPurpose = activityPurpose;
         salesActivityRequest.activityType = activityType;
         salesActivityRequest.activityDateTime = activityDateTime;

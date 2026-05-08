@@ -9,6 +9,8 @@ import lombok.Getter;
 @Getter
 public class SalesActivityRequestCreateRequest {
 
+    private String title;
+
     private UUID targetUserId;
 
     private ActivityPurpose activityPurpose;

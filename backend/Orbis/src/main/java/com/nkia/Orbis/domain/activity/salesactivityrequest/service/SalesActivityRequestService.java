@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.activity.salesactivityrequest.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.request.SalesActivityRequestCreateRequest;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response.SalesActivityRequestListResponse;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response.SalesActivityRequestResponse;
@@ -11,6 +12,7 @@ import com.nkia.Orbis.domain.activity.salesactivityrequest.repository.SalesActiv
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,8 +30,13 @@ public class SalesActivityRequestService {
         User targetUser = userRepository.findById(request.getTargetUserId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
+        User requestUser = userRepository.findById(UUID.fromString(SecurityUtil.getCurrentUserId()))
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
         SalesActivityRequest salesActivityRequest = SalesActivityRequest.create(
+                request.getTitle(),
                 targetUser,
+                requestUser,
                 request.getActivityPurpose(),
                 request.getActivityType(),
                 request.getActivityDateTime(),
