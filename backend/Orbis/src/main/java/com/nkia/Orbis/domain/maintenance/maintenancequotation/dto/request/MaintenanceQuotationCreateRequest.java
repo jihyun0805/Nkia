@@ -11,7 +11,7 @@ import java.util.List;
 
 @Getter
 @NoArgsConstructor
-public class QuotationCreateRequest {
+public class MaintenanceQuotationCreateRequest {
 
     @NotBlank(message = "견적서 번호는 필수입니다")
     private String refNo;
