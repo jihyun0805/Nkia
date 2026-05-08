@@ -15,6 +15,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogTrigger,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -70,7 +71,7 @@ function createEmptyContactDraft(): ContactDraft {
 }
 
 function hasContactValue(contact: ContactDraft) {
-  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.fax, contact.duty, contact.memo].some(
+  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.duty, contact.memo].some(
     (value) => value.trim(),
   )
 }
@@ -255,7 +256,7 @@ export function FindingCategoryNewPageView({
         email: keepExistingValue(currentContact.email, result.email),
         mobilePhone: keepExistingValue(currentContact.mobilePhone, result.mobile),
         landlinePhone: keepExistingValue(currentContact.landlinePhone, result.phone),
-        fax: keepExistingValue(currentContact.fax, result.fax),
+        fax: "",
         duty: keepExistingValue(currentContact.duty, result.role),
         businessCardImage,
       }
@@ -535,10 +536,29 @@ export function FindingCategoryNewPageView({
                                 {ocrLoadingIndex === index ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
                                 명함 등록
                               </Button>
-                            <Button type="button" variant="outline" size="sm" onClick={() => setDeleteIndex(index)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              담당자 삭제
-                            </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button type="button" variant="outline" size="sm">
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    담당자 삭제
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogCancel className="absolute top-4 right-4 h-9 w-9 p-0">
+                                    <X className="h-4 w-4" />
+                                  </AlertDialogCancel>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>담당자 삭제</AlertDialogTitle>
+                                    <AlertDialogDescription>담당자 정보 전체를 삭제합니다. 진행하시겠습니까?</AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => setContacts((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}>
+                                      삭제
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </div>
                           {contact.businessCardImage ? (
@@ -794,13 +814,7 @@ export function FindingCategoryNewPageView({
                         )}
                       </div>
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label>협력사명</Label>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setOpportunityPartnerNames((prev) => [...prev, ""])}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            협력사 추가
-                          </Button>
-                        </div>
+                        <Label>협력사명</Label>
                         <div className="space-y-2">
                           {opportunityPartnerNames.map((partnerName, index) => (
                             <div key={`opportunity-partner-${index}`} className="flex items-center gap-2">
@@ -822,6 +836,12 @@ export function FindingCategoryNewPageView({
                               </Button>
                             </div>
                           ))}
+                        </div>
+                        <div className="flex justify-end">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setOpportunityPartnerNames((prev) => [...prev, ""])}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            협력사 추가
+                          </Button>
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -1241,16 +1261,6 @@ export function FindingCategoryNewPageView({
                               placeholder="02-0000-0000"
                             />
                           </div>
-                          <div className="space-y-2">
-                            <Label>FAX</Label>
-                            <Input
-                              value={contact.fax}
-                              onChange={(event) =>
-                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, fax: event.target.value } : item)))
-                              }
-                              placeholder="02-0000-0000"
-                            />
-                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label>담당 직무</Label>
@@ -1356,6 +1366,7 @@ export function FindingCategoryNewPageView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   )
 }
