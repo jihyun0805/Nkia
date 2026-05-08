@@ -6,6 +6,7 @@ import com.nkia.Orbis.domain.admin.department.dto.request.DepartmentRequest;
 import com.nkia.Orbis.domain.admin.department.dto.response.DepartmentResponse;
 import com.nkia.Orbis.domain.admin.department.entity.Department;
 import com.nkia.Orbis.domain.admin.department.repository.DepartmentRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,5 +34,13 @@ public class DepartmentService {
         Department saved = departmentRepository.save(department);
 
         return DepartmentResponse.from(saved);
+    }
+
+    @Transactional
+    public List<DepartmentResponse> getDepartments() {
+        return departmentRepository.findAll()
+                .stream()
+                .map(DepartmentResponse::from)
+                .toList();
     }
 }
