@@ -12,6 +12,8 @@ import lombok.Getter;
 public class SalesActivityRequestListResponse {
     private Long id;
 
+    private String title;
+
     private Long salesActivityId;
 
     private UUID targetUserId;
@@ -25,6 +27,7 @@ public class SalesActivityRequestListResponse {
             SalesActivityRequest salesActivityRequest) {
         return SalesActivityRequestListResponse.builder()
                 .id(salesActivityRequest.getId())
+                .title(salesActivityRequest.getTitle())
                 .salesActivityId(
                         salesActivityRequest.getSalesActivity() != null ? salesActivityRequest.getSalesActivity()
                                 .getId() : null

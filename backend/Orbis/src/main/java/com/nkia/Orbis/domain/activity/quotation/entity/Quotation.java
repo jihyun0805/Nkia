@@ -30,6 +30,8 @@ public class Quotation extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String refNo;
+
     @Column(nullable = false, unique = true)
     private String quotationCode;
 
@@ -59,6 +61,7 @@ public class Quotation extends BaseEntity {
 
     public static Quotation create(
             String quotationCode,
+            String refNo,
             ProjectOpportunity projectOpportunity,
             LocalDate quotationDate,
             String paymentCondition,
@@ -66,6 +69,7 @@ public class Quotation extends BaseEntity {
     ) {
         Quotation quotation = new Quotation();
         quotation.quotationCode = quotationCode;
+        quotation.refNo = refNo;
         quotation.projectOpportunity = projectOpportunity;
         quotation.quotationDate = quotationDate;
         quotation.paymentCondition = paymentCondition;

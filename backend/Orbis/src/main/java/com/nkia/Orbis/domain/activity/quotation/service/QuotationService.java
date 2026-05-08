@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.activity.quotation.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
@@ -15,6 +16,7 @@ import com.nkia.Orbis.domain.activity.quotation.repository.QuotationRepository;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
+import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -26,16 +28,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class QuotationService {
-    // Todo: 사업기회 구현 후 연동 예정
     private final QuotationRepository quotationRepository;
     private final ProductModuleRepository productModuleRepository;
+    private final ProjectOpportunityRepository projectOpportunityRepository;
 
     @Transactional
     public QuotationResponse create(QuotationCreateRequest request) {
-        ProjectOpportunity projectOpportunity = null;
+
+        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
+                .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
 
         Quotation quotation = Quotation.create(
                 generateQuotationCode(request.getQuotationDate()),
+                request.getRefNo(),
                 projectOpportunity,
                 request.getQuotationDate(),
                 request.getPaymentCondition(),

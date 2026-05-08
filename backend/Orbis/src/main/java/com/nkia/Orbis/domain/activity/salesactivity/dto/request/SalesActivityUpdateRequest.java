@@ -11,6 +11,8 @@ import lombok.Getter;
 @Getter
 public class SalesActivityUpdateRequest {
 
+    private Long projectOpportunityId;
+
     private ActivityType activityType;
 
     private ActivityPurpose activityPurpose;

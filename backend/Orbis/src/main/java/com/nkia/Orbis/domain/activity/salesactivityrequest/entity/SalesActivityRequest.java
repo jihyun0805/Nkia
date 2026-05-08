@@ -32,6 +32,8 @@ public class SalesActivityRequest extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String title;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sales_activity_id", unique = true)
     private SalesActivity salesActivity;
@@ -39,6 +41,10 @@ public class SalesActivityRequest extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "target_user_id", nullable = false)
     private User targetUser;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "request_user_id", nullable = false)
+    private User requestUser;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -53,14 +59,18 @@ public class SalesActivityRequest extends BaseEntity {
     private String requestContent;
 
     public static SalesActivityRequest create(
+            String title,
             User targetUser,
+            User requestUser,
             ActivityPurpose activityPurpose,
             ActivityType activityType,
             LocalDateTime activityDateTime,
             String requestContent
     ) {
         SalesActivityRequest salesActivityRequest = new SalesActivityRequest();
+        salesActivityRequest.title = title;
         salesActivityRequest.targetUser = targetUser;
+        salesActivityRequest.requestUser = requestUser;
         salesActivityRequest.activityPurpose = activityPurpose;
         salesActivityRequest.activityType = activityType;
         salesActivityRequest.activityDateTime = activityDateTime;
