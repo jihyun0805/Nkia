@@ -35,11 +35,11 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
     }
   }, [inheritedData, onCancel]);
 
-  const { register, handleSubmit } = useForm({
+  const { register, handleSubmit, setValue } = useForm({
     defaultValues: {
       customerName: inheritedData?.customerName || "",
       projectName: inheritedData?.projectName || inheritedData?.opportunityName || "",
-      projectAmount: inheritedData?.projectAmount || "",
+      projectAmount: inheritedData?.projectAmount ? Number(inheritedData.projectAmount).toLocaleString() : "",
       startDate: "",
       endDate: "",
       pmName: "",
@@ -70,7 +70,7 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
                 {...register("customerName", { required: true })}
                 readOnly
                 className="bg-muted"
-                placeholder="고객사 이름"
+                placeholder="고객사 입력"
               />
             </div>
 
@@ -89,9 +89,16 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
               <Label htmlFor="projectAmount">사업금액</Label>
               <Input
                 id="projectAmount"
-                type="number"
-                {...register("projectAmount", { required: true })}
-                placeholder="예: 50000000"
+                type="text"
+                {...register("projectAmount", {
+                  required: true,
+                  onChange: (e) => {
+                    const value = e.target.value.replace(/[^\d]/g, ""); // 숫자 이외의 문자 제거
+                    const formatted = value ? Number(value).toLocaleString() : "";
+                    setValue("projectAmount", formatted, { shouldValidate: true, shouldDirty: true });
+                  }
+                })}
+                placeholder="사업금액 입력"
               />
             </div>
 
