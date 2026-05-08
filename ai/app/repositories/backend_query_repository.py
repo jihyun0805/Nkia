@@ -432,8 +432,8 @@ def fetch_opportunity_resolution_candidates(*, limit: int = 600) -> list[dict[st
                     o.current_status,
                     o.business_type,
                     o.expected_amount,
-                    o.bid_date,
-                    o.contract_date,
+                    o.expected_bid_date AS bid_date,
+                    o.expected_date AS contract_date,
                     o.contact_line
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
@@ -610,28 +610,33 @@ def fetch_rfp_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
                     r.special_notes,
                     r.evidence_summary,
                     r.analysis_status,
-                    CASE
-                        WHEN EXISTS (
-                            SELECT 1
-                            FROM {_ATT} att
-                            JOIN {_ACT} a
-                              ON att.related_type = 'ACTIVITY'
-                             AND att.related_code ~ '^[0-9]+$'
-                             AND a.id = att.related_code::bigint
-                            WHERE a.opportunity_id = o.id
-                        ) THEN 'activity_received'
-                        WHEN EXISTS (
-                            SELECT 1
-                            FROM {_ATT} att
-                            WHERE att.related_type = 'OPPORTUNITY'
-                              AND att.related_code = o.opportunity_code
-                        ) THEN 'opportunity_registered'
-                        ELSE NULL
-                    END AS rfp_origin
+                    COALESCE(
+                        json_agg(
+                            json_build_object(
+                                'category', rr.category,
+                                'requirementCode', rr.requirement_code,
+                                'requirementTitle', rr.requirement_title,
+                                'requirementContent', rr.requirement_content,
+                                'supportStatus', rr.support_status,
+                                'reviewNote', rr.review_note,
+                                'effort', rr.effort
+                            )
+                            ORDER BY rr.id
+                        ) FILTER (WHERE rr.id IS NOT NULL),
+                        '[]'::json
+                    ) AS requirement_rows,
+                    NULL::text AS rfp_origin
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 JOIN {_RFP} r ON r.opportunity_id = o.id
+                LEFT JOIN public.rfp_analyze_requirement rr ON rr.rfp_analyze_result_id = r.id
                 WHERE o.opportunity_code = %(opportunity_code)s
+                GROUP BY
+                    o.opportunity_code, o.opportunity_name, c.company_name,
+                    r.rfp_analysis_code, r.announcement_no, r.issuer, r.received_date,
+                    r.submission_deadline, r.project_period, r.project_scope, r.requirements,
+                    r.security_requirements, r.risk_factors, r.special_notes,
+                    r.evidence_summary, r.analysis_status, o.id, r.id
                 ORDER BY r.received_date DESC NULLS LAST, r.id DESC
                 LIMIT 1
                 """,
@@ -902,22 +907,24 @@ def fetch_maintenance_history(
                     o.opportunity_name,
                     c.company_name AS customer_name,
                     mc.maintenance_code,
-                    cs.support_code,
-                    cs.primary_owner,
-                    cs.secondary_owner,
+                    ('CS-' || cs.id::text) AS support_code,
+                    u1.name AS primary_owner,
+                    u2.name AS secondary_owner,
                     cs.activity_type,
-                    cs.activity_date,
-                    cs.activity_hours,
+                    cs.activity_start_time AS activity_date,
+                    EXTRACT(EPOCH FROM (COALESCE(cs.activity_end_time, cs.activity_start_time) - cs.activity_start_time)) / 3600.0 AS activity_hours,
                     cs.activity_content,
-                    cs.performance
+                    cs.remarks AS performance
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 JOIN {_MC} mc ON mc.opportunity_id = o.id
-                JOIN {_CS} cs ON cs.maintenance_contract_id = mc.id
+                JOIN {_CS} cs ON cs.maintenance_id = mc.id
+                LEFT JOIN users u1 ON u1.id = cs.primary_manager_id
+                LEFT JOIN users u2 ON u2.id = cs.secondary_manager_id
                 WHERE o.opportunity_code = %(opportunity_code)s
-                  AND (%(start_at)s::timestamptz IS NULL OR cs.activity_date::timestamptz >= %(start_at)s::timestamptz)
-                  AND (%(end_at)s::timestamptz IS NULL OR cs.activity_date::timestamptz <= %(end_at)s::timestamptz)
-                ORDER BY cs.activity_date ASC, cs.id ASC
+                  AND (%(start_at)s::timestamptz IS NULL OR cs.activity_start_time::timestamptz >= %(start_at)s::timestamptz)
+                  AND (%(end_at)s::timestamptz IS NULL OR cs.activity_start_time::timestamptz <= %(end_at)s::timestamptz)
+                ORDER BY cs.activity_start_time ASC, cs.id ASC
                 LIMIT %(limit)s
                 """,
                 {
@@ -977,39 +984,136 @@ def fetch_maintenance_quote_snapshot(*, opportunity_code: str) -> dict[str, Any]
                     o.opportunity_name,
                     c.company_name AS customer_name,
                     mc.maintenance_code,
-                    mq.maintenance_quote_code,
-                    mq.quote_date,
+                    mq.ref_no AS maintenance_quote_code,
+                    mq.quotation_date AS quote_date,
                     mq.total_amount,
-                    mq.maintenance_start_date,
-                    mq.maintenance_end_date,
-                    mq.monthly_supply_amount,
-                    mq.quote_amount_total,
+                    mq.start_date AS maintenance_start_date,
+                    mq.end_date AS maintenance_end_date,
+                    mq.monthly_supply_price AS monthly_supply_amount,
+                    COALESCE(mq.total_quotation_amount, mq.total_amount) AS quote_amount_total,
                     mq.special_notes,
                     json_agg(
                         json_build_object(
-                            'product_name', mqi.product_name,
-                            'service_category', mqi.service_category,
-                            'service_item', mqi.service_item,
-                            'service_content', mqi.service_content,
-                            'module_name', mqi.module_name,
-                            'maintenance_amount', mqi.maintenance_amount,
-                            'months', mqi.months,
-                            'note', mqi.note
+                            'product_name', pm.product_name,
+                            'service_category', mqi.category,
+                            'service_item', mqi.item,
+                            'service_content', mqi.content,
+                            'module_name', pm.product_name,
+                            'maintenance_amount', mar.amount,
+                            'months', mar.months,
+                            'note', mar.remarks
                         )
                         ORDER BY mqi.id
                     ) AS items
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 JOIN {_MC} mc ON mc.opportunity_id = o.id
-                JOIN {_MQ} mq ON mq.maintenance_contract_id = mc.id
-                LEFT JOIN {_MQI} mqi ON mqi.maintenance_quote_id = mq.id
+                JOIN {_MQ} mq ON mq.project_id = mc.project_id
+                LEFT JOIN {_MQI} mqi ON mqi.quotation_id = mq.id
+                LEFT JOIN product_module pm ON pm.id = mqi.product_module_id
+                LEFT JOIN maintenance_amount_reason mar
+                  ON mar.quotation_id = mq.id
+                 AND mar.product_module_id = mqi.product_module_id
                 WHERE o.opportunity_code = %(opportunity_code)s
                 GROUP BY
                     o.opportunity_code, o.opportunity_name, c.company_name,
-                    mc.maintenance_code, mq.maintenance_quote_code, mq.quote_date,
-                    mq.total_amount, mq.maintenance_start_date, mq.maintenance_end_date,
-                    mq.monthly_supply_amount, mq.quote_amount_total, mq.special_notes
-                ORDER BY mq.quote_date DESC NULLS LAST, mq.maintenance_quote_code DESC
+                    mc.maintenance_code, mq.ref_no, mq.quotation_date,
+                    mq.total_amount, mq.start_date, mq.end_date,
+                    mq.monthly_supply_price, mq.total_quotation_amount, mq.special_notes
+                ORDER BY mq.quotation_date DESC NULLS LAST, mq.ref_no DESC
+                LIMIT 1
+                """,
+                {"opportunity_code": opportunity_code},
+            )
+            return cur.fetchone()
+
+
+def fetch_opportunity_delivery_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
+    with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    o.opportunity_code,
+                    o.opportunity_name,
+                    c.company_name AS customer_name,
+                    o.current_status,
+                    wr.won_report_code,
+                    wr.contract_date,
+                    wr.contract_amount,
+                    wr.payment_terms,
+                    wr.business_scope,
+                    wr.special_notes,
+                    ct.contract_code,
+                    ct.contract_status,
+                    ct.start_date AS contract_start_date,
+                    ct.end_date AS contract_end_date,
+                    ct.memo AS contract_memo,
+                    COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
+                    COALESCE(p.project_status, p.type::text) AS project_status,
+                    p.project_owner,
+                    p.team_name,
+                    p.project_overview,
+                    ('PRR-' || pr.id::text) AS project_report_code,
+                    CASE WHEN pr.result_report_file_id IS NOT NULL THEN 'UPLOADED' ELSE NULL END AS project_result_status,
+                    m.maintenance_code,
+                    m.type AS maintenance_type,
+                    m.rate AS maintenance_rate,
+                    m.contract_amount AS maintenance_contract_amount,
+                    m.start_date AS maintenance_start_date,
+                    m.end_date AS maintenance_end_date,
+                    m.remarks AS maintenance_remarks,
+                    ('CS-' || cs.id::text) AS support_code,
+                    cs.activity_type AS support_activity_type,
+                    cs.activity_start_time AS support_started_at,
+                    cs.activity_end_time AS support_ended_at,
+                    cs.activity_content AS support_content,
+                    cs.remarks AS support_result
+                FROM {_OPP} o
+                JOIN {_CO} c ON c.id = o.customer_company_id
+                LEFT JOIN LATERAL (
+                    SELECT *
+                    FROM {_WR} wr
+                    WHERE wr.opportunity_id = o.id
+                    ORDER BY wr.contract_date DESC NULLS LAST, wr.id DESC
+                    LIMIT 1
+                ) wr ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT *
+                    FROM {_CT} ct
+                    WHERE ct.order_report_id = wr.id OR ct.won_report_id = wr.id
+                    ORDER BY ct.contract_date DESC NULLS LAST, ct.id DESC
+                    LIMIT 1
+                ) ct ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT *
+                    FROM {_PROJ} p
+                    WHERE p.order_report_id = wr.id OR p.won_report_id = wr.id
+                    ORDER BY p.end_date DESC NULLS LAST, p.id DESC
+                    LIMIT 1
+                ) p ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT *
+                    FROM {_PR} pr
+                    WHERE pr.project_id = p.id
+                    ORDER BY pr.updated_at DESC NULLS LAST, pr.id DESC
+                    LIMIT 1
+                ) pr ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT *
+                    FROM {_MC} m
+                    WHERE m.opportunity_id = o.id
+                    ORDER BY m.start_date DESC NULLS LAST, m.id DESC
+                    LIMIT 1
+                ) m ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT *
+                    FROM {_CS} cs
+                    WHERE cs.maintenance_id = m.id
+                    ORDER BY cs.activity_start_time DESC NULLS LAST, cs.id DESC
+                    LIMIT 1
+                ) cs ON TRUE
+                WHERE o.opportunity_code = %(opportunity_code)s
                 LIMIT 1
                 """,
                 {"opportunity_code": opportunity_code},
@@ -1156,20 +1260,20 @@ def fetch_project_result_highlight(*, limit: int = 1) -> list[dict[str, Any]]:
                     o.opportunity_code,
                     o.opportunity_name,
                     c.company_name AS customer_name,
-                    p.project_code,
-                    p.project_status,
-                    pr.project_report_code,
-                    pr.report_date,
-                    pr.result_status,
-                    pr.detail_content
+                    COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
+                    COALESCE(p.project_status, p.type::text) AS project_status,
+                    ('PRR-' || pr.id::text) AS project_report_code,
+                    pr.updated_at::date AS report_date,
+                    CASE WHEN pr.result_report_file_id IS NOT NULL THEN 'UPLOADED' ELSE 'REGISTERED' END AS result_status,
+                    COALESCE(pr.content, p.project_overview) AS detail_content
                 FROM {_PR} pr
                 JOIN {_PROJ} p ON p.id = pr.project_id
-                JOIN {_WR} wr ON wr.id = p.won_report_id
+                JOIN {_WR} wr ON wr.id = COALESCE(p.won_report_id, p.order_report_id)
                 JOIN {_OPP} o ON o.id = wr.opportunity_id
                 JOIN {_CO} c ON c.id = o.customer_company_id
-                WHERE COALESCE(pr.result_status, '') LIKE '%%완료%%'
-                   OR COALESCE(p.project_status, '') IN ('완료', '종료')
-                ORDER BY pr.report_date DESC NULLS LAST, pr.id DESC
+                WHERE p.deleted = false
+                  AND pr.deleted = false
+                ORDER BY pr.updated_at DESC NULLS LAST, pr.id DESC
                 LIMIT %(limit)s
                 """,
                 {"limit": limit},
@@ -1192,24 +1296,22 @@ def fetch_project_result_highlight_in_range(
                         o.opportunity_code,
                         o.opportunity_name,
                         c.company_name AS customer_name,
-                        p.project_code,
-                        p.project_status,
-                        pr.project_report_code,
-                        pr.report_date,
-                        pr.result_status,
-                        pr.detail_content
+                        COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
+                        COALESCE(p.project_status, p.type::text) AS project_status,
+                        ('PRR-' || pr.id::text) AS project_report_code,
+                        pr.updated_at::date AS report_date,
+                        CASE WHEN pr.result_report_file_id IS NOT NULL THEN 'UPLOADED' ELSE 'REGISTERED' END AS result_status,
+                        COALESCE(pr.content, p.project_overview) AS detail_content
                     FROM {_PR} pr
                     JOIN {_PROJ} p ON p.id = pr.project_id
-                    JOIN {_WR} wr ON wr.id = p.won_report_id
+                    JOIN {_WR} wr ON wr.id = COALESCE(p.won_report_id, p.order_report_id)
                     JOIN {_OPP} o ON o.id = wr.opportunity_id
                     JOIN {_CO} c ON c.id = o.customer_company_id
-                    WHERE (%(start_at)s::timestamptz IS NULL OR pr.report_date >= %(start_at)s::timestamptz)
-                      AND (%(end_at)s::timestamptz IS NULL OR pr.report_date <= %(end_at)s::timestamptz)
-                      AND (
-                            COALESCE(pr.result_status, '') LIKE '%%완료%%'
-                         OR COALESCE(p.project_status, '') IN ('완료', '종료')
-                      )
-                    ORDER BY pr.report_date DESC NULLS LAST, pr.id DESC
+                    WHERE (%(start_at)s::timestamptz IS NULL OR pr.updated_at >= %(start_at)s::timestamptz)
+                      AND (%(end_at)s::timestamptz IS NULL OR pr.updated_at <= %(end_at)s::timestamptz)
+                      AND p.deleted = false
+                      AND pr.deleted = false
+                    ORDER BY pr.updated_at DESC NULLS LAST, pr.id DESC
                     LIMIT %(limit)s
                     """,
                     {"start_at": start_at, "end_at": end_at, "limit": limit},
@@ -1280,20 +1382,20 @@ def fetch_project_progress_rows(
                     o.opportunity_code,
                     o.opportunity_name,
                     c.company_name AS customer_name,
-                    p.project_code,
-                    p.project_status,
+                    COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
+                    COALESCE(p.project_status, p.type::text) AS project_status,
                     p.project_owner,
-                    pr.project_report_code,
-                    pr.report_date,
-                    pr.result_status,
-                    pr.detail_content
+                    ('PRR-' || pr.id::text) AS project_report_code,
+                    pr.updated_at::date AS report_date,
+                    CASE WHEN pr.result_report_file_id IS NOT NULL THEN 'UPLOADED' ELSE 'REGISTERED' END AS result_status,
+                    COALESCE(pr.content, p.project_overview) AS detail_content
                 FROM {_PR} pr
                 JOIN {_PROJ} p ON p.id = pr.project_id
-                JOIN {_WR} wr ON wr.id = p.won_report_id
+                JOIN {_WR} wr ON wr.id = COALESCE(p.won_report_id, p.order_report_id)
                 JOIN {_OPP} o ON o.id = wr.opportunity_id
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 WHERE o.opportunity_code = %(opportunity_code)s
-                ORDER BY pr.report_date DESC NULLS LAST, pr.id DESC
+                ORDER BY pr.updated_at DESC NULLS LAST, pr.id DESC
                 LIMIT %(limit)s
                 """,
                 {"opportunity_code": opportunity_code, "limit": limit},
@@ -1332,16 +1434,16 @@ def fetch_opportunity_evidence_inventory(*, opportunity_code: str) -> list[dict[
                     FROM target t
                     JOIN {_PRB} p ON p.opportunity_id = t.id
                     UNION ALL
-                    SELECT 'PRB_RESULT', pr.prb_result_code, t.opportunity_name, 1
+                    SELECT 'PRB_RESULT', ('PRBR-' || pr.id::text), t.opportunity_name, 1
                     FROM target t
                     JOIN {_PRB} p ON p.opportunity_id = t.id
                     JOIN {_PRBR} pr ON pr.prb_id = p.id
                     UNION ALL
-                    SELECT 'PROPOSAL', pp.proposal_code, t.opportunity_name, 1
+                    SELECT 'PROPOSAL', COALESCE(pp.proposal_code, 'PROPOSAL-' || pp.id::text), t.opportunity_name, 1
                     FROM target t
                     JOIN {_PROP} pp ON pp.opportunity_id = t.id
                     UNION ALL
-                    SELECT 'BID_RESULT', b.bid_result_code, t.opportunity_name, 1
+                    SELECT 'BID_RESULT', COALESCE(b.bid_result_code, 'BID-' || b.id::text), t.opportunity_name, 1
                     FROM target t
                     JOIN {_BID} b ON b.opportunity_id = t.id
                     UNION ALL
@@ -1374,47 +1476,32 @@ def fetch_opportunity_evidence_inventory(*, opportunity_code: str) -> list[dict[
                     SELECT 'CONTRACT', ct.contract_code, t.opportunity_name, 1
                     FROM target t
                     JOIN {_WR} wr ON wr.opportunity_id = t.id
-                    JOIN {_CT} ct ON ct.won_report_id = wr.id
+                    JOIN {_CT} ct ON ct.won_report_id = wr.id OR ct.order_report_id = wr.id
                     UNION ALL
-                    SELECT 'PROJECT', p.project_code, t.opportunity_name, 1
+                    SELECT 'PROJECT', COALESCE(p.project_code, p.pjt_number, p.code), t.opportunity_name, 1
                     FROM target t
                     JOIN {_WR} wr ON wr.opportunity_id = t.id
-                    JOIN {_PROJ} p ON p.won_report_id = wr.id
+                    JOIN {_PROJ} p ON p.won_report_id = wr.id OR p.order_report_id = wr.id
                     UNION ALL
-                    SELECT 'PROJECT_RESULT_REPORT', pr.project_report_code, t.opportunity_name, 1
+                    SELECT 'PROJECT_RESULT_REPORT', ('PRR-' || pr.id::text), t.opportunity_name, 1
                     FROM target t
                     JOIN {_WR} wr ON wr.opportunity_id = t.id
-                    JOIN {_PROJ} p ON p.won_report_id = wr.id
+                    JOIN {_PROJ} p ON p.won_report_id = wr.id OR p.order_report_id = wr.id
                     JOIN {_PR} pr ON pr.project_id = p.id
                     UNION ALL
                     SELECT 'MAINTENANCE', mc.maintenance_code, t.opportunity_name, 1
                     FROM target t
                     JOIN {_MC} mc ON mc.opportunity_id = t.id
                     UNION ALL
-                    SELECT 'MAINTENANCE_QUOTE', mq.maintenance_quote_code, t.opportunity_name, 1
+                    SELECT 'MAINTENANCE_QUOTE', mq.ref_no, t.opportunity_name, 1
                     FROM target t
                     JOIN {_MC} mc ON mc.opportunity_id = t.id
-                    JOIN {_MQ} mq ON mq.maintenance_contract_id = mc.id
+                    JOIN {_MQ} mq ON mq.project_id = mc.project_id
                     UNION ALL
-                    SELECT 'CUSTOMER_SUPPORT', cs.support_code, t.opportunity_name, 1
+                    SELECT 'CUSTOMER_SUPPORT', ('CS-' || cs.id::text), t.opportunity_name, 1
                     FROM target t
                     JOIN {_MC} mc ON mc.opportunity_id = t.id
-                    JOIN {_CS} cs ON cs.maintenance_contract_id = mc.id
-                    UNION ALL
-                    SELECT 'ATTACHMENT', att.attachment_code, t.opportunity_name, 1
-                    FROM target t
-                    JOIN {_ATT} att
-                      ON (att.related_type = 'OPPORTUNITY' AND att.related_code = t.opportunity_code)
-                      OR (
-                            att.related_type = 'ACTIVITY'
-                        AND att.related_code ~ '^[0-9]+$'
-                        AND EXISTS (
-                            SELECT 1
-                            FROM {_ACT} a
-                            WHERE a.opportunity_id = t.id
-                              AND a.id = att.related_code::bigint
-                        )
-                      )
+                    JOIN {_CS} cs ON cs.maintenance_id = mc.id
                 )
                 SELECT source_type, MIN(source_id) AS source_id, MIN(title) AS title, SUM(item_count) AS item_count
                 FROM inventory
@@ -1440,32 +1527,36 @@ def fetch_maintenance_quote_highlights(*, limit: int = 3) -> list[dict[str, Any]
                     o.opportunity_name,
                     c.company_name AS customer_name,
                     mc.maintenance_code,
-                    mq.maintenance_quote_code,
-                    mq.quote_date,
-                    mq.monthly_supply_amount,
-                    mq.quote_amount_total,
+                    mq.ref_no AS maintenance_quote_code,
+                    mq.quotation_date AS quote_date,
+                    mq.monthly_supply_price AS monthly_supply_amount,
+                    COALESCE(mq.total_quotation_amount, mq.total_amount) AS quote_amount_total,
                     mq.special_notes,
                     json_agg(
                         json_build_object(
-                            'product_name', mqi.product_name,
-                            'service_category', mqi.service_category,
-                            'service_item', mqi.service_item,
-                            'service_content', mqi.service_content,
-                            'maintenance_amount', mqi.maintenance_amount,
-                            'note', mqi.note
+                            'product_name', pm.product_name,
+                            'service_category', mqi.category,
+                            'service_item', mqi.item,
+                            'service_content', mqi.content,
+                            'maintenance_amount', mar.amount,
+                            'note', mar.remarks
                         )
                         ORDER BY mqi.id
                     ) FILTER (WHERE mqi.id IS NOT NULL) AS items
                 FROM {_MQ} mq
-                JOIN {_MC} mc ON mc.id = mq.maintenance_contract_id
+                JOIN {_MC} mc ON mc.project_id = mq.project_id
                 JOIN {_OPP} o ON o.id = mc.opportunity_id
                 JOIN {_CO} c ON c.id = o.customer_company_id
-                LEFT JOIN {_MQI} mqi ON mqi.maintenance_quote_id = mq.id
+                LEFT JOIN {_MQI} mqi ON mqi.quotation_id = mq.id
+                LEFT JOIN product_module pm ON pm.id = mqi.product_module_id
+                LEFT JOIN maintenance_amount_reason mar
+                  ON mar.quotation_id = mq.id
+                 AND mar.product_module_id = mqi.product_module_id
                 GROUP BY
                     o.opportunity_code, o.opportunity_name, c.company_name,
-                    mc.maintenance_code, mq.maintenance_quote_code, mq.quote_date,
-                    mq.monthly_supply_amount, mq.quote_amount_total, mq.special_notes
-                ORDER BY mq.quote_date DESC NULLS LAST, mq.maintenance_quote_code DESC
+                    mc.maintenance_code, mq.ref_no, mq.quotation_date,
+                    mq.monthly_supply_price, mq.total_quotation_amount, mq.total_amount, mq.special_notes
+                ORDER BY mq.quotation_date DESC NULLS LAST, mq.ref_no DESC
                 LIMIT %(limit)s
                 """,
                 {"limit": limit},
@@ -1656,21 +1747,18 @@ def fetch_contract_snapshot(*, contract_code: str) -> dict[str, Any] | None:
                     c.company_name AS customer_name,
                     ct.contract_code,
                     ct.contract_status,
-                    ct.contract_file_name,
                     ct.memo,
                     wr.won_report_code,
                     wr.contract_amount,
                     wr.payment_terms,
                     wr.revenue_category,
-                    wr.sales_type,
                     wr.contract_date,
-                    wr.contract_start_date,
-                    wr.contract_end_date,
+                    ct.start_date AS contract_start_date,
+                    ct.end_date AS contract_end_date,
                     wr.business_scope,
-                    wr.special_notes,
-                    wr.free_maintenance_period
+                    wr.special_notes
                 FROM {_CT} ct
-                JOIN {_WR} wr ON wr.id = ct.won_report_id
+                JOIN {_WR} wr ON wr.id = COALESCE(ct.won_report_id, ct.order_report_id)
                 JOIN {_OPP} o ON o.id = wr.opportunity_id
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 WHERE ct.contract_code = %(contract_code)s
@@ -1690,34 +1778,33 @@ def fetch_project_snapshot(*, project_code: str) -> dict[str, Any] | None:
                     o.opportunity_code,
                     o.opportunity_name,
                     c.company_name AS customer_name,
-                    p.project_code,
-                    p.pjt_no,
-                    p.delivery_date,
+                    COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
+                    p.pjt_number AS pjt_no,
+                    p.end_date AS delivery_date,
                     p.project_owner,
-                    p.project_status,
-                    p.prb_profit,
+                    COALESCE(p.project_status, p.type::text) AS project_status,
                     p.team_name,
-                    p.project_type,
+                    COALESCE(p.project_status, p.type::text) AS project_type,
                     latest.project_report_code,
                     latest.report_date,
                     latest.result_status,
-                    latest.detail_content
+                    COALESCE(latest.detail_content, p.project_overview) AS detail_content
                 FROM {_PROJ} p
-                JOIN {_WR} wr ON wr.id = p.won_report_id
+                JOIN {_WR} wr ON wr.id = COALESCE(p.won_report_id, p.order_report_id)
                 JOIN {_OPP} o ON o.id = wr.opportunity_id
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 LEFT JOIN LATERAL (
                     SELECT
-                        pr.project_report_code,
-                        pr.report_date,
-                        pr.result_status,
-                        pr.detail_content
+                        ('PRR-' || pr.id::text) AS project_report_code,
+                        pr.updated_at::date AS report_date,
+                        CASE WHEN pr.result_report_file_id IS NOT NULL THEN 'UPLOADED' ELSE 'REGISTERED' END AS result_status,
+                        NULL::text AS detail_content
                     FROM {_PR} pr
                     WHERE pr.project_id = p.id
-                    ORDER BY pr.report_date DESC NULLS LAST, pr.id DESC
+                    ORDER BY pr.updated_at DESC NULLS LAST, pr.id DESC
                     LIMIT 1
                 ) latest ON TRUE
-                WHERE p.project_code = %(project_code)s
+                WHERE COALESCE(p.project_code, p.pjt_number, p.code) = %(project_code)s
                 LIMIT 1
                 """,
                 {"project_code": project_code},
@@ -1832,11 +1919,16 @@ def fetch_maintenance_snapshot(*, maintenance_code: str) -> dict[str, Any] | Non
                     o.opportunity_name,
                     c.company_name AS customer_name,
                     mc.maintenance_code,
-                    mc.contract_type,
+                    mc.type AS contract_type,
                     mc.maintenance_start_date,
                     mc.maintenance_end_date,
-                    mc.status,
-                    mc.detail_content,
+                    CASE
+                        WHEN mc.start_date IS NOT NULL AND mc.end_date IS NOT NULL
+                             AND CURRENT_DATE BETWEEN mc.start_date AND mc.end_date THEN '진행중'
+                        WHEN mc.end_date IS NOT NULL AND mc.end_date < CURRENT_DATE THEN '종료'
+                        ELSE NULL
+                    END AS status,
+                    mc.remarks AS detail_content,
                     latest.support_code,
                     latest.activity_date,
                     latest.activity_type,
@@ -1850,24 +1942,24 @@ def fetch_maintenance_snapshot(*, maintenance_code: str) -> dict[str, Any] | Non
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 LEFT JOIN LATERAL (
                     SELECT
-                        cs.support_code,
-                        cs.activity_date,
+                        ('CS-' || cs.id::text) AS support_code,
+                        cs.activity_start_time AS activity_date,
                         cs.activity_type,
                         cs.activity_content,
-                        cs.performance
+                        cs.remarks AS performance
                     FROM {_CS} cs
-                    WHERE cs.maintenance_contract_id = mc.id
-                    ORDER BY cs.activity_date DESC NULLS LAST, cs.id DESC
+                    WHERE cs.maintenance_id = mc.id
+                    ORDER BY cs.activity_start_time DESC NULLS LAST, cs.id DESC
                     LIMIT 1
                 ) latest ON TRUE
                 LEFT JOIN LATERAL (
                     SELECT
-                        q.maintenance_quote_code,
-                        q.quote_amount_total,
-                        q.monthly_supply_amount
+                        q.ref_no AS maintenance_quote_code,
+                        COALESCE(q.total_quotation_amount, q.total_amount) AS quote_amount_total,
+                        q.monthly_supply_price AS monthly_supply_amount
                     FROM {_MQ} q
-                    WHERE q.maintenance_contract_id = mc.id
-                    ORDER BY q.quote_date DESC NULLS LAST, q.id DESC
+                    WHERE q.project_id = mc.project_id
+                    ORDER BY q.quotation_date DESC NULLS LAST, q.id DESC
                     LIMIT 1
                 ) mq ON TRUE
                 WHERE mc.maintenance_code = %(maintenance_code)s
@@ -1888,11 +1980,16 @@ def fetch_maintenance_snapshot_by_opportunity(*, opportunity_code: str) -> dict[
                     o.opportunity_name,
                     c.company_name AS customer_name,
                     mc.maintenance_code,
-                    mc.contract_type,
+                    mc.type AS contract_type,
                     mc.maintenance_start_date,
                     mc.maintenance_end_date,
-                    mc.status,
-                    mc.detail_content,
+                    CASE
+                        WHEN mc.start_date IS NOT NULL AND mc.end_date IS NOT NULL
+                             AND CURRENT_DATE BETWEEN mc.start_date AND mc.end_date THEN '진행중'
+                        WHEN mc.end_date IS NOT NULL AND mc.end_date < CURRENT_DATE THEN '종료'
+                        ELSE NULL
+                    END AS status,
+                    mc.remarks AS detail_content,
                     latest.support_code,
                     latest.activity_date,
                     latest.activity_type,
@@ -1906,24 +2003,24 @@ def fetch_maintenance_snapshot_by_opportunity(*, opportunity_code: str) -> dict[
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 LEFT JOIN LATERAL (
                     SELECT
-                        cs.support_code,
-                        cs.activity_date,
+                        ('CS-' || cs.id::text) AS support_code,
+                        cs.activity_start_time AS activity_date,
                         cs.activity_type,
                         cs.activity_content,
-                        cs.performance
+                        cs.remarks AS performance
                     FROM {_CS} cs
-                    WHERE cs.maintenance_contract_id = mc.id
-                    ORDER BY cs.activity_date DESC NULLS LAST, cs.id DESC
+                    WHERE cs.maintenance_id = mc.id
+                    ORDER BY cs.activity_start_time DESC NULLS LAST, cs.id DESC
                     LIMIT 1
                 ) latest ON TRUE
                 LEFT JOIN LATERAL (
                     SELECT
-                        q.maintenance_quote_code,
-                        q.quote_amount_total,
-                        q.monthly_supply_amount
+                        q.ref_no AS maintenance_quote_code,
+                        COALESCE(q.total_quotation_amount, q.total_amount) AS quote_amount_total,
+                        q.monthly_supply_price AS monthly_supply_amount
                     FROM {_MQ} q
-                    WHERE q.maintenance_contract_id = mc.id
-                    ORDER BY q.quote_date DESC NULLS LAST, q.id DESC
+                    WHERE q.project_id = mc.project_id
+                    ORDER BY q.quotation_date DESC NULLS LAST, q.id DESC
                     LIMIT 1
                 ) mq ON TRUE
                 WHERE o.opportunity_code = %(opportunity_code)s
