@@ -19,7 +19,7 @@ export default function MaintenancePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [activeTab, setActiveTab] = useState<"free" | "paid" | "support">("free")
-  const expiringCount = paidMaintenances.filter((m) => m.status === "종료예정" || m.status === "미체결").length
+
   const q = searchTerm.toLowerCase()
   const maintenanceFieldOptions = activeTab === "free"
     ? [
@@ -35,7 +35,9 @@ export default function MaintenancePage() {
         { key: "customer", label: "고객사", options: uniqueOptions(customerSupports, (item) => item.customer) },
         { key: "type", label: "지원유형", options: uniqueOptions(customerSupports, (item) => item.type) },
       ]
-  const filteredFreeMaintenances = filterRecords(freeMaintenances, filters, { status: (item) => item.status, owner: (item) => item.manager, date: (item) => item.startDate, fields: { customer: (item) => item.customer, product: (item) => item.product } }).filter((item) => [item.id, item.contractId, item.customer, item.product, item.manager, item.subManager].join(" ").toLowerCase().includes(q))
+  const filteredFreeMaintenances = filterRecords(freeMaintenances, filters, { status: (item) => item.status, owner: (item) => item.manager, date: (item) => item.startDate, fields: { customer: (item) => item.customer, product: (item) => item.product } })
+    .filter((item) => [item.customer, item.opportunity, item.product, item.salesRep, item.manager].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime())
   const filteredPaidMaintenances = filterRecords(paidMaintenances, filters, { status: (item) => item.status, owner: (item) => item.manager, date: (item) => item.startDate, fields: { customer: (item) => item.customer, product: (item) => item.product } }).filter((item) => [item.id, item.customer, item.product, item.manager, item.progress].join(" ").toLowerCase().includes(q))
   const filteredCustomerSupports = filterRecords(customerSupports, filters, { status: (item) => item.status, owner: (item) => item.manager, date: (item) => item.date, fields: { customer: (item) => item.customer, type: (item) => item.type } }).filter((item) => [item.id, item.customer, item.type, item.content, item.manager, item.supporter].join(" ").toLowerCase().includes(q))
   const maintenanceStatuses = ["진행중", "종료", "종료예정", "미체결", "완료", "예정"]
@@ -46,7 +48,7 @@ export default function MaintenancePage() {
       <div className="flex-1 flex flex-col">
         <Header title="유지보수" description="무상/유상 유지보수 계약 및 고객 지원을 관리합니다" />
         <main className="flex-1 p-6 overflow-auto">
-          {expiringCount > 0 && <Card className="mb-6 border-l-4 border-l-amber-500 bg-amber-50"><CardContent className="p-4"><div className="flex items-center gap-3"><AlertTriangle className="w-5 h-5 text-amber-600" /><p className="text-sm text-amber-800"><span className="font-semibold">{expiringCount}건</span>의 유상유지보수 계약이 종료 예정이거나 미체결 상태입니다. 확인이 필요합니다.</p></div></CardContent></Card>}
+
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "free" | "paid" | "support")} className="space-y-6">
             <div className="flex items-center justify-between">
               <TabsList>
@@ -61,7 +63,44 @@ export default function MaintenancePage() {
             </div>
 
             <TabsContent value="free">
-              <Card><CardHeader className="pb-4"><div className="flex items-center justify-between"><CardTitle className="text-lg">무상유지보수 현황</CardTitle><Badge variant="secondary">{filteredFreeMaintenances.length}건</Badge></div></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead className="w-[120px]">유지보수번호</TableHead><TableHead>계약번호</TableHead><TableHead>고객사</TableHead><TableHead>제품</TableHead><TableHead>유지보수기간</TableHead><TableHead>담당자(정)</TableHead><TableHead>담당자(부)</TableHead><TableHead className="text-center">잔여일</TableHead><TableHead>상태</TableHead></TableRow></TableHeader><TableBody>{filteredFreeMaintenances.map((item) => <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/maintenance/free/${item.id}`)}><TableCell className="font-mono text-sm">{item.id}</TableCell><TableCell className="font-mono text-sm">{item.contractId}</TableCell><TableCell className="font-medium">{item.customer}</TableCell><TableCell>{item.product}</TableCell><TableCell className="text-sm">{item.startDate} ~ {item.endDate}</TableCell><TableCell>{item.manager}</TableCell><TableCell>{item.subManager}</TableCell><TableCell className="text-center">{item.daysRemaining > 0 ? <Badge variant={item.daysRemaining < 90 ? "destructive" : "outline"}>D-{item.daysRemaining}</Badge> : <Badge variant="secondary">-</Badge>}</TableCell><TableCell><Badge variant={item.status === "진행중" ? "default" : "secondary"} className={item.status === "진행중" ? "bg-green-100 text-green-700 hover:bg-green-100" : ""}>{item.status}</Badge></TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+              <Card>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">무상유지보수 현황</CardTitle>
+                    <Badge variant="secondary">{filteredFreeMaintenances.length}건</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>고객사</TableHead>
+                        <TableHead>사업기회</TableHead>
+                        <TableHead>납품 제품</TableHead>
+                        <TableHead className="text-right">계약 금액</TableHead>
+                        <TableHead>계약개시일</TableHead>
+                        <TableHead>계약종료일</TableHead>
+                        <TableHead>영업대표</TableHead>
+                        <TableHead>유지보수 담당자</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredFreeMaintenances.map((item) => (
+                        <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/maintenance/free/${item.id}`)}>
+                          <TableCell className="font-medium">{item.customer}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{item.opportunity}</TableCell>
+                          <TableCell>{item.product}</TableCell>
+                          <TableCell className="text-right font-medium">₩{parseInt(item.amount.replace(/,/g, "")).toLocaleString()}</TableCell>
+                          <TableCell className="text-sm">{item.startDate}</TableCell>
+                          <TableCell className="text-sm">{item.endDate}</TableCell>
+                          <TableCell>{item.salesRep}</TableCell>
+                          <TableCell>{item.manager}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="paid">
