@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import {
@@ -71,7 +71,7 @@ type PrbResultOverviewRow = {
 
 const BID_ACTIVE_TAB_STORAGE_KEY = "orbis.bid.active-tab"
 
-export default function BidPage() {
+function BidPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [searchTerm, setSearchTerm] = useState("")
@@ -613,5 +613,13 @@ export default function BidPage() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  )
+}
+
+export default function BidPage() {
+  return (
+    <Suspense fallback={null}>
+      <BidPageContent />
+    </Suspense>
   )
 }
