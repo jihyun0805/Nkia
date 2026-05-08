@@ -51,4 +51,17 @@ public class DepartmentService {
 
         department.delete();
     }
+
+    @Transactional
+    public DepartmentResponse update(Long departmentId, DepartmentRequest request) {
+        Department department = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
+
+        department.update(
+                request.getHeadquarters(),
+                request.getTeam()
+        );
+
+        return DepartmentResponse.from(department);
+    }
 }

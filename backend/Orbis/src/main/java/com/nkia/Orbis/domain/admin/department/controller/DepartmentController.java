@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -55,5 +56,16 @@ public class DepartmentController {
     ) {
         departmentService.delete(departmentId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "부서 수정")
+    @PatchMapping("/{departmentId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<DepartmentResponse>> update(
+            @PathVariable("departmentId") Long departmentId,
+            @RequestBody DepartmentRequest request
+    ) {
+        DepartmentResponse response = departmentService.update(departmentId, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
