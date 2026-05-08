@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.project.project.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
 import com.nkia.Orbis.domain.project.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +30,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectController {
     private final ProjectService projectService;
 
+    /**
+     * 사업 등록
+     */
     @Operation(summary = "사업 등록")
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Long>> registerProject(@Valid @RequestBody ProjectCreateRequest request) {
@@ -46,6 +51,16 @@ public class ProjectController {
 
         Page<ProjectListResponse> response = projectService.getProjects(pageable);
 
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 사업 상세 조회
+     */
+    @Operation(summary = "사업 상세 조회")
+    @GetMapping("/{projectId}")
+    public ResponseEntity<ApiResponse<ProjectDetailResponse>> getProjectDetail(@PathVariable Long projectId) {
+        ProjectDetailResponse response = projectService.getProjectDetail(projectId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
