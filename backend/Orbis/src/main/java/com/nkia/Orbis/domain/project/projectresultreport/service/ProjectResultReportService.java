@@ -3,17 +3,13 @@ package com.nkia.Orbis.domain.project.projectresultreport.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UploadFileErrorCode;
-import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.project.projectresultreport.dto.request.ProjectResultReportCreateRequest;
-import com.nkia.Orbis.domain.project.projectresultreport.dto.request.ProjectResultReportUpdateRequest;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
 import com.nkia.Orbis.domain.project.projectresultreport.repository.ProjectResultReportRepository;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
-import com.nkia.Orbis.domain.admin.user.entity.User;
-import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProjectResultReportService {
     private final ProjectRepository projectRepository;
     private final ProjectResultReportRepository reportRepository;
-    private final UserRepository userRepository;
     private final UploadFileRepository uploadFileRepository;
 
     /**
@@ -34,41 +29,54 @@ public class ProjectResultReportService {
     public Long registerResultReport(ProjectResultReportCreateRequest dto) {
         Project project = getValidProject(dto.getProjectId());
 
-        User manager = userRepository.findById(dto.getManagerId())
-                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
-
-        project.updateResultInfo(manager, dto.getStartDate(), dto.getEndDate());
-
         UploadFile resultReportFile = getUploadFile(dto.getFileId());
 
-        ProjectResultReport report = ProjectResultReport.create(project, manager, resultReportFile, dto.getStartDate(),
-                dto.getEndDate());
+        ProjectResultReport report = ProjectResultReport.create(project, resultReportFile);
 
         return reportRepository.save(report).getId();
     }
 
     /**
-     * 사업 결과보고 정보를 수정합니다.
+     * 사업 엔티티를 기반으로 결과보고서의 첨부파일을 수정합니다.
      */
     @Transactional
-    public Long updateReport(Long reportId, ProjectResultReportUpdateRequest request) {
-        ProjectResultReport report = reportRepository.findById(reportId)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.RESULT_REPORT_NOT_FOUND));
+    public void updateReportFileByProject(Project project, Long fileId) {
+        if (fileId == null) {
+            reportRepository.findByProject(project).ifPresent(report -> {
+                if (report.getResultReportFile() != null) {
+                    report.getResultReportFile().delete();
+                }
+                report.delete();
+            });
+            return;
+        }
 
-        User manager = userRepository.findById(request.getManagerId())
-                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+        ProjectResultReport report = reportRepository.findByProject(project).orElse(null);
+        UploadFile uploadFile = getUploadFile(fileId);
 
-        UploadFile uploadFile = getUploadFile(request.getFileId());
-
-        report.updateReport(uploadFile, request.getContent(), manager,
-                request.getStartDate(), request.getEndDate()
-        );
-
-        return report.getId();
+        if (report != null) {
+            report.updateResultReport(uploadFile);
+        } else {
+            ProjectResultReport newReport = ProjectResultReport.create(project, uploadFile);
+            reportRepository.save(newReport);
+        }
     }
 
     /**
-     * 사업 결과보고를 삭제합니다. (Soft Delete)
+     * 사업에 속한 결과보고서를 삭제합니다.
+     */
+    @Transactional
+    public void deleteReportByProject(Project project) {
+        reportRepository.findByProject(project).ifPresent(report -> {
+            if (report.getResultReportFile() != null) {
+                report.getResultReportFile().delete();
+            }
+            report.delete();
+        });
+    }
+
+    /**
+     * 사업 결과보고를 삭제합니다.
      */
     @Transactional
     public void deleteReport(Long reportId) {

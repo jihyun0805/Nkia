@@ -30,9 +30,6 @@ public class ProjectResultReport extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(columnDefinition = "TEXT")
-    private String content;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
@@ -41,44 +38,23 @@ public class ProjectResultReport extends BaseEntity {
     @JoinColumn(name = "result_report_file_id")
     private UploadFile resultReportFile;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manager_id")
-    private User manager;
-
-    // 사업 기간
-    private LocalDate startDate;
-    private LocalDate endDate;
-
     @Builder
-    public ProjectResultReport(Project project, UploadFile resultReportFile, User manager, LocalDate startDate,
-                               LocalDate endDate) {
+    public ProjectResultReport(Project project, UploadFile resultReportFile) {
         this.project = project;
         this.resultReportFile = resultReportFile;
-        this.manager = manager;
-        this.startDate = startDate;
-        this.endDate = endDate;
     }
 
-    public static ProjectResultReport create(Project project, User manager, UploadFile fileId, LocalDate startDate,
-                                             LocalDate endDate) {
+    public static ProjectResultReport create(Project project, UploadFile fileId) {
         return ProjectResultReport.builder()
                 .project(project)
-                .manager(manager)
                 .resultReportFile(fileId)
-                .startDate(startDate)
-                .endDate(endDate)
                 .build();
     }
 
     /**
      * 결과 보고서 정보를 업데이트합니다.
      */
-    public void updateReport(UploadFile resultReportFile, String content, User manager, LocalDate startDate,
-                             LocalDate endDate) {
+    public void updateResultReport(UploadFile resultReportFile) {
         this.resultReportFile = resultReportFile;
-        this.content = content;
-        this.manager = manager;
-        this.startDate = startDate;
-        this.endDate = endDate;
     }
 }
