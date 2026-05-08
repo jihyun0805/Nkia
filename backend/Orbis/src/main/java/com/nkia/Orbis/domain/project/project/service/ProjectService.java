@@ -42,7 +42,7 @@ public class ProjectService {
                 .orderReport(report)
                 .code(code)
                 .type(code.getType())
-                .pjtName("0000년 엔키아 0000사업")
+                .pjtName(report.getProjectOpportunity().getOpportunityName())
                 .totalAmount(report.getTotalAmount())
                 .salesRepresentative(report.getPm())
                 .build();
