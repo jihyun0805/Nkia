@@ -106,4 +106,12 @@ public class UserService {
         return UserResponse.from(user);
 
     }
+
+    @Transactional
+    public UserResponse getUser(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+        return UserResponse.from(user);
+    }
 }
