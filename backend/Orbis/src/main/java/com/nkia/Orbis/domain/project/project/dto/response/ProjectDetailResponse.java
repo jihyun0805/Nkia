@@ -41,13 +41,11 @@ public class ProjectDetailResponse {
                 ? project.getOrderReport().getFinalCustomerCompany().getName() : null;
 
         ResultReportInfo reportInfo = null;
-        if (latestReport != null) {
-            Long fileId = latestReport.getResultReportFile().getId();
-            String name = latestReport.getResultReportFile().getOriginalFileName();
 
+        if (latestReport != null && latestReport.getResultReportFile() != null) {
             reportInfo = ResultReportInfo.builder()
-                    .id(fileId)
-                    .fileName(name)
+                    .id(latestReport.getResultReportFile().getId())
+                    .fileName(latestReport.getResultReportFile().getOriginalFileName())
                     .fileSize(latestReport.getResultReportFile().getFileSize())
                     .fileUrl("/api/v1/files/download/" + latestReport.getId())
                     .build();
