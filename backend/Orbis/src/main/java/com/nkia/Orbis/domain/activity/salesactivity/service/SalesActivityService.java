@@ -12,8 +12,8 @@ import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivityAttendee
 import com.nkia.Orbis.domain.activity.salesactivity.repository.SalesActivityRepository;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityRequest;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.repository.SalesActivityRequestRepository;
-import com.nkia.Orbis.domain.user.entity.User;
-import com.nkia.Orbis.domain.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;

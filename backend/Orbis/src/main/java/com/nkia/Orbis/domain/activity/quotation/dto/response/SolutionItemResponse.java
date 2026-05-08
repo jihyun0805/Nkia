@@ -29,7 +29,7 @@ public class SolutionItemResponse {
 
     private Boolean freeSupply;
 
-    public static SolutionItemResponse from(QuotationSolutionItem item) { // 수정됨
+    public static SolutionItemResponse from(QuotationSolutionItem item) {
         return SolutionItemResponse.builder()
                 .id(item.getId())
                 .productModuleId(

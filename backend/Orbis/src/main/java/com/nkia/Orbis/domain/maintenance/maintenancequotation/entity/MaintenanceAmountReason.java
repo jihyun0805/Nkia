@@ -12,7 +12,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 
 @Entity
 @Getter
@@ -36,13 +36,15 @@ public class MaintenanceAmountReason {
     private String remarks;             // 비고
 
     @Builder
-    public MaintenanceAmountReason(ProductModule productModule, Integer quantity, Long amount, Integer months, String remarks) {
+    public MaintenanceAmountReason(ProductModule productModule, Integer quantity, Long amount, Integer months,
+                                   String remarks) {
         this.productModule = productModule;
         this.quantity = quantity;
         this.amount = amount;
         this.months = months;
         this.remarks = remarks;
     }
+
     void setQuotation(MaintenanceQuotation quotation) {
         this.quotation = quotation;
     }

@@ -12,8 +12,8 @@ import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultRep
 import com.nkia.Orbis.domain.project.projectresultreport.repository.ProjectResultReportRepository;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
-import com.nkia.Orbis.domain.user.entity.User;
-import com.nkia.Orbis.domain.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,7 +41,8 @@ public class ProjectResultReportService {
 
         UploadFile resultReportFile = getUploadFile(dto.getFileId());
 
-        ProjectResultReport report = ProjectResultReport.create(project, manager, resultReportFile, dto.getStartDate(), dto.getEndDate());
+        ProjectResultReport report = ProjectResultReport.create(project, manager, resultReportFile, dto.getStartDate(),
+                dto.getEndDate());
 
         return reportRepository.save(report).getId();
     }
@@ -92,7 +93,9 @@ public class ProjectResultReportService {
      * 파일 ID를 통해 UploadFile 엔티티를 조회합니다.
      */
     private UploadFile getUploadFile(Long fileId) {
-        if (fileId == null) return null;
+        if (fileId == null) {
+            return null;
+        }
         return uploadFileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException(UploadFileErrorCode.FILE_NOT_FOUND));
     }

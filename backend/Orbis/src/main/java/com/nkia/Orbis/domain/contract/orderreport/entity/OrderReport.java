@@ -8,7 +8,7 @@ import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
-import com.nkia.Orbis.domain.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

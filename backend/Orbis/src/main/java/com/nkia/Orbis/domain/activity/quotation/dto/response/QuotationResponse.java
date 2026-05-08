@@ -33,7 +33,7 @@ public class QuotationResponse {
 
     private List<LaborItemResponse> quotationLaborItems;
 
-    public static QuotationResponse from(Quotation quotation) { // 수정됨
+    public static QuotationResponse from(Quotation quotation) {
         return QuotationResponse.builder()
                 .id(quotation.getId())
                 .quotationCode(quotation.getQuotationCode())
