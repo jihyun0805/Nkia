@@ -43,4 +43,12 @@ public class DepartmentService {
                 .map(DepartmentResponse::from)
                 .toList();
     }
+
+    @Transactional
+    public void delete(Long departmentId) {
+        Department department = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
+
+        department.delete();
+    }
 }
