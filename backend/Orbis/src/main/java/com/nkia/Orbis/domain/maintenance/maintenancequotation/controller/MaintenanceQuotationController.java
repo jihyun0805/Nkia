@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.maintenance.maintenancequotation.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
-import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.QuotationCreateRequest;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.QuotationCreateResponse;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.service.MaintenanceQuotationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,7 +24,7 @@ public class MaintenanceQuotationController {
 
     @Operation(summary = "유지보수 견적서 등록")
     @PostMapping
-    public ResponseEntity<ApiResponse<QuotationCreateResponse>> register(@Valid @RequestBody QuotationCreateRequest dto) {
+    public ResponseEntity<ApiResponse<QuotationCreateResponse>> register(@Valid @RequestBody MaintenanceQuotationCreateRequest dto) {
         QuotationCreateResponse response = quotationService.register(dto);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
