@@ -1,9 +1,9 @@
 export type ProjectCategory = "results" | "billing" | "collection"
 
 export const projectResults = [
-  { id: "PRJ-2026-001", contractId: "CON-2026-001", name: "농협은행 통합 모니터링 시스템", customer: "농협은행", pm: "정PM", startDate: "2026-03-15", endDate: "2026-06-30", progress: 45, status: "진행중", issues: "일정 정상 진행" },
-  { id: "PRJ-2026-002", contractId: "CON-2026-002", name: "우리은행 자동화 시스템", customer: "우리은행", pm: "최PM", startDate: "2026-03-01", endDate: "2026-05-31", progress: 70, status: "진행중", issues: "고객 요청 추가 기능 협의 중" },
-  { id: "PRJ-2025-015", contractId: "CON-2025-015", name: "신한은행 ITSM 구축", customer: "신한은행", pm: "박PM", startDate: "2025-10-01", endDate: "2026-02-28", progress: 100, status: "완료", issues: "-" },
+  { id: "PRJ-2026-001", contractId: "CON-2026-001", name: "농협은행 통합 모니터링 시스템", customer: "농협은행", amount: 150000000, startDate: "2026-03-15", endDate: "2026-06-30", pm: "정PM", salesRep: "김영업", registeredAt: "2026-06-30" },
+  { id: "PRJ-2026-002", contractId: "CON-2026-002", name: "우리은행 자동화 시스템", customer: "우리은행", amount: 175000000, startDate: "2026-03-01", endDate: "2026-05-31", pm: "최PM", salesRep: "이영업", registeredAt: "2026-06-01" },
+  { id: "PRJ-2025-015", contractId: "CON-2025-015", name: "신한은행 ITSM 구축", customer: "신한은행", amount: 200000000, startDate: "2025-10-01", endDate: "2026-02-28", pm: "박PM", salesRep: "최영업", registeredAt: "2026-03-05" },
 ]
 
 export const billings = [
@@ -39,15 +39,13 @@ export function getProjectItem(category: ProjectCategory, id: string) {
 export function getProjectFields(category: ProjectCategory, item: any) {
   if (category === "results") return [
     { label: "사업번호", value: item.id },
-    { label: "계약번호", value: item.contractId },
-    { label: "사업명", value: item.name },
     { label: "고객사", value: item.customer },
-    { label: "PM", value: item.pm },
-    { label: "시작일", value: item.startDate },
-    { label: "종료일", value: item.endDate },
-    { label: "진행률", value: `${item.progress}%` },
-    { label: "상태", value: item.status },
-    { label: "이슈", value: item.issues },
+    { label: "사업명", value: item.name },
+    { label: "사업금액", value: `₩${item.amount.toLocaleString()}` },
+    { label: "사업개시일", value: item.startDate },
+    { label: "사업완료일", value: item.endDate },
+    { label: "PM 이름", value: item.pm },
+    { label: "영업대표", value: item.salesRep },
   ]
   if (category === "billing") return [
     { label: "청구번호", value: item.id },
