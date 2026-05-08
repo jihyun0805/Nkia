@@ -15,6 +15,12 @@ public class SalesActivityResponse {
 
     private Long projectOpportunityId;
 
+    private String projectOpportunityName;
+
+    private Long companyId;
+
+    private String companyName;
+
     private ActivityType activityType;
 
     private ActivityPurpose activityPurpose;
@@ -35,14 +41,15 @@ public class SalesActivityResponse {
 
     private Long salesActivityRequestId;
 
+    private String salesActivityRequestTitle;
+
     public static SalesActivityResponse from(SalesActivity salesActivity) {
         return SalesActivityResponse.builder()
                 .id(salesActivity.getId())
-                .projectOpportunityId(
-                        salesActivity.getProjectOpportunity() != null
-                                ? salesActivity.getProjectOpportunity().getId()
-                                : null
-                )
+                .projectOpportunityId(salesActivity.getProjectOpportunity().getId())
+                .projectOpportunityName(salesActivity.getProjectOpportunity().getOpportunityName())
+                .companyId(salesActivity.getProjectOpportunity().getCustomerCompany().getId())
+                .companyName(salesActivity.getProjectOpportunity().getCustomerCompany().getName())
                 .activityType(salesActivity.getActivityType())
                 .activityPurpose(salesActivity.getActivityPurpose())
                 .activityContent(salesActivity.getActivityContent())
@@ -55,6 +62,11 @@ public class SalesActivityResponse {
                 .salesActivityRequestId(
                         salesActivity.getSalesActivityRequest() != null
                                 ? salesActivity.getSalesActivityRequest().getId()
+                                : null
+                )
+                .salesActivityRequestTitle(
+                        salesActivity.getSalesActivityRequest() != null
+                                ? salesActivity.getSalesActivityRequest().getTitle()
                                 : null
                 )
                 .build();

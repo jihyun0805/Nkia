@@ -32,6 +32,10 @@ public class SalesActivityRequest extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+// TODO: 희 title 필드 추가 했음 처리 로직 수정 필요
+
+    private String title;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sales_activity_id", unique = true)
     private SalesActivity salesActivity;
