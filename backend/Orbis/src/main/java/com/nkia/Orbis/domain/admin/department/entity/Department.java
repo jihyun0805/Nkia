@@ -46,4 +46,16 @@ public class Department extends BaseEntity {
         department.team = team;
         return department;
     }
+
+    public void update(
+            String headquarters,
+            String team
+    ) {
+        if (headquarters != null) {
+            this.headquarters = headquarters;
+        }
+        if (team != null) {
+            this.team = team;
+        }
+    }
 }
