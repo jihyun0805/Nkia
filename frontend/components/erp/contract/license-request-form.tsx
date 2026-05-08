@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { productData } from "@/lib/product-data";
 
 export interface LicenseRequestFormProps {
   onSuccess: () => void;
@@ -27,7 +28,7 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
   
   // 모듈 목록 상태
   const [modules, setModules] = useState([
-    { id: 1, product: "", module: "", quantity: 1 }
+    { id: 1, category: "", group: "", module: "", quantity: 1 }
   ]);
 
   // 오늘 날짜 포맷팅 (YYYY-MM-DD)
@@ -35,7 +36,7 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
   const requester = "현재 로그인 사용자"; // TODO: 실제 로그인 사용자로 변경 필요
 
   const handleAddModule = () => {
-    setModules([...modules, { id: Date.now(), product: "", module: "", quantity: 1 }]);
+    setModules([...modules, { id: Date.now(), category: "", group: "", module: "", quantity: 1 }]);
   };
 
   const handleRemoveModule = (id: number) => {
@@ -45,7 +46,20 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
   };
 
   const handleModuleChange = (id: number, field: string, value: any) => {
-    setModules(modules.map(m => m.id === id ? { ...m, [field]: value } : m));
+    setModules(modules.map(m => {
+      if (m.id === id) {
+        const newMod = { ...m, [field]: value };
+        // 상위 항목 변경 시 하위 항목 초기화
+        if (field === "category") {
+          newMod.group = "";
+          newMod.module = "";
+        } else if (field === "group") {
+          newMod.module = "";
+        }
+        return newMod;
+      }
+      return m;
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -55,7 +69,7 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
   };
 
   return (
-    <Card className="max-w-4xl mx-auto shadow-sm mt-8">
+    <Card className="max-w-5xl mx-auto shadow-sm mt-8">
       <CardHeader className="border-b bg-muted/20">
         <CardTitle className="text-xl">라이선스 발행 요청</CardTitle>
         <CardDescription className="mt-1">
@@ -101,35 +115,51 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
               <table className="w-full text-sm text-left">
                 <thead className="bg-muted text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 font-medium">제품군</th>
-                    <th className="px-4 py-3 font-medium">모듈명</th>
-                    <th className="px-4 py-3 font-medium w-32">수량</th>
-                    <th className="px-4 py-3 font-medium w-16 text-center">삭제</th>
+                    <th className="px-4 py-3 font-medium w-[20%]">제품분류</th>
+                    <th className="px-4 py-3 font-medium w-[25%]">제품군</th>
+                    <th className="px-4 py-3 font-medium w-[35%]">제품명</th>
+                    <th className="px-4 py-3 font-medium w-[10%]">수량</th>
+                    <th className="px-4 py-3 font-medium w-[10%] text-center">삭제</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {modules.map((mod) => (
                     <tr key={mod.id} className="bg-card">
                       <td className="px-4 py-2">
-                        <Select value={mod.product} onValueChange={(val) => handleModuleChange(mod.id, "product", val)} required>
+                        <Select value={mod.category} onValueChange={(val) => handleModuleChange(mod.id, "category", val)} required>
                           <SelectTrigger>
-                            <SelectValue placeholder="제품군 선택" />
+                            <SelectValue placeholder="분류 선택" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="ems">EMS</SelectItem>
-                            <SelectItem value="itsm">ITSM</SelectItem>
-                            <SelectItem value="automation">Automation</SelectItem>
-                            <SelectItem value="wss">WSS</SelectItem>
+                            {Object.keys(productData).map(cat => (
+                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </td>
                       <td className="px-4 py-2">
-                        <Input 
-                          placeholder="모듈명 입력" 
-                          value={mod.module}
-                          onChange={(e) => handleModuleChange(mod.id, "module", e.target.value)}
-                          required
-                        />
+                        <Select value={mod.group} onValueChange={(val) => handleModuleChange(mod.id, "group", val)} required disabled={!mod.category}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="제품군 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {mod.category && Object.keys(productData[mod.category] || {}).map(grp => (
+                              <SelectItem key={grp} value={grp}>{grp}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-4 py-2">
+                        <Select value={mod.module} onValueChange={(val) => handleModuleChange(mod.id, "module", val)} required disabled={!mod.group}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="제품명 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {mod.category && mod.group && (productData[mod.category]?.[mod.group] || []).map(m => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="px-4 py-2">
                         <Input 
