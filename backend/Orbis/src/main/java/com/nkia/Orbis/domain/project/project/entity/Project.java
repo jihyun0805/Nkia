@@ -40,6 +40,13 @@ public class Project extends BaseEntity {
     @Column(unique = true, nullable = false)
     private String pjtNumber;
 
+    // 사업명
+    @Column(nullable = false)
+    private String pjtName;
+
+    // 사업 금액
+    private Long totalAmount;
+
     // 프로젝트 타입 (솔루션, 유지보수 등)
     @Enumerated(EnumType.STRING)
     private ProjectType type;
@@ -62,6 +69,10 @@ public class Project extends BaseEntity {
     @JoinColumn(name = "manager_id")
     private User manager;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sales_representative_id")
+    private User salesRepresentative;
+
     // 사업 결과 보고서
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProjectResultReport> resultReports = new ArrayList<>();
@@ -75,10 +86,13 @@ public class Project extends BaseEntity {
     private List<MaintenanceQuotation> maintenanceQuotations = new ArrayList<>();
 
     @Builder
-    public Project(ProjectCode code, ProjectType type, OrderReport orderReport) {
+    public Project(ProjectCode code, ProjectType type, OrderReport orderReport, String pjtName, Long totalAmount, User salesRepresentative) {
         this.code = code;
         this.type = type;
         this.orderReport = orderReport;
+        this.pjtName = pjtName;
+        this.totalAmount = totalAmount;
+        this.salesRepresentative = salesRepresentative;
     }
 
     public void assignProjectNumber(String pjtNumber) {
