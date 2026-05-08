@@ -30,6 +30,8 @@ public class ContractResponse {
 
     private UUID salesRepresentativeId;
 
+    private String salesRepresentativeName;
+
     // Todo: 수주보고서, 첨부파일 구현후 연동 예정
     public static ContractResponse from(Contract contract) {
         return ContractResponse.builder()
@@ -47,6 +49,7 @@ public class ContractResponse {
                                 .map(ContractModuleItemResponse::from)
                                 .toList()
                 )
+                .salesRepresentativeName(contract.getSalesRepresentative().getName())
                 .build();
     }
 }
