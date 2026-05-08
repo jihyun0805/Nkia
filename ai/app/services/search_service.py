@@ -186,6 +186,7 @@ def search_knowledge(
     start_at: str | None,
     end_at: str | None,
     embedder: EmbeddingModel,
+    metadata_filters: dict[str, Any] | None = None,
     chat_plan: ChatQueryPlan | None = None,
     normalization: QueryNormalization | None = None,
     retrieval_plan: RetrievalExecutionPlan | None = None,
@@ -236,6 +237,7 @@ def search_knowledge(
             exact_scope=exact_scope,
             time_from=effective_time_from,
             time_to=effective_time_to,
+            metadata_filters=metadata_filters,
         )
         if not vector_rows and not keyword_rows and not explicit_source_types and normalized_source_types:
             vector_rows, keyword_rows = fetch_candidates(
@@ -249,6 +251,7 @@ def search_knowledge(
                 exact_scope=exact_scope,
                 time_from=effective_time_from,
                 time_to=effective_time_to,
+                metadata_filters=metadata_filters,
             )
 
     rows = merge_candidates(
@@ -425,6 +428,7 @@ def fetch_candidates(
     exact_scope: Any,
     time_from: str | None,
     time_to: str | None,
+    metadata_filters: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     vector_rows = fetch_vector_candidates(
         conn=conn,
@@ -436,6 +440,7 @@ def fetch_candidates(
         exact_scope=exact_scope,
         time_from=time_from,
         time_to=time_to,
+        metadata_filters=metadata_filters,
     )
     keyword_rows = fetch_keyword_candidates(
         conn=conn,
@@ -448,6 +453,7 @@ def fetch_candidates(
         exact_scope=exact_scope,
         time_from=time_from,
         time_to=time_to,
+        metadata_filters=metadata_filters,
     )
     return vector_rows, keyword_rows
 

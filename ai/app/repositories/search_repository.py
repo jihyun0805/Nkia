@@ -16,11 +16,13 @@ def fetch_vector_candidates(
     exact_scope: ExactScope,
     time_from: str | None = None,
     time_to: str | None = None,
+    metadata_filters: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     source_type_filter = "AND s.source_type = ANY(%(source_types)s::varchar[])" if source_types else ""
     exact_scope_filter = build_exact_scope_filter(exact_scope)
     attachment_visibility_filter = build_attachment_visibility_filter()
     time_filter = build_time_filter()
+    metadata_filter = build_metadata_filter(metadata_filters)
     with conn.cursor() as cur:
         cur.execute(
             f"""
@@ -41,6 +43,7 @@ def fetch_vector_candidates(
               {source_type_filter}
               {exact_scope_filter}
               {time_filter}
+              {metadata_filter}
             ORDER BY c.embedding <=> %(embedding)s::vector
             LIMIT %(limit)s
             """,
@@ -57,7 +60,7 @@ def fetch_vector_candidates(
                 "time_from": time_from,
                 "time_to": time_to,
                 "limit": limit,
-            },
+            } | build_metadata_filter_params(metadata_filters),
         )
         return list(cur.fetchall())
 
@@ -74,11 +77,13 @@ def fetch_keyword_candidates(
     exact_scope: ExactScope,
     time_from: str | None = None,
     time_to: str | None = None,
+    metadata_filters: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     source_type_filter = "AND s.source_type = ANY(%(source_types)s::varchar[])" if source_types else ""
     exact_scope_filter = build_exact_scope_filter(exact_scope)
     attachment_visibility_filter = build_attachment_visibility_filter()
     time_filter = build_time_filter()
+    metadata_filter = build_metadata_filter(metadata_filters)
     with conn.cursor() as cur:
         cur.execute(
             f"""
@@ -104,6 +109,7 @@ def fetch_keyword_candidates(
               {source_type_filter}
               {exact_scope_filter}
               {time_filter}
+              {metadata_filter}
             ORDER BY keyword_score DESC, c.embedding <=> %(embedding)s::vector
             LIMIT %(limit)s
             """,
@@ -121,7 +127,7 @@ def fetch_keyword_candidates(
                 "time_from": time_from,
                 "time_to": time_to,
                 "limit": limit,
-            },
+            } | build_metadata_filter_params(metadata_filters),
         )
         return list(cur.fetchall())
 
@@ -511,6 +517,126 @@ def fetch_quotation_evidence_for_opportunities(
 def append_scope_value(target: list[str], value: Any) -> None:
     if isinstance(value, str) and value and value not in target:
         target.append(value)
+
+
+def build_metadata_filter(metadata_filters: dict[str, Any] | None) -> str:
+    if not metadata_filters:
+        return ""
+
+    conditions: list[str] = []
+    if metadata_filters.get("customerGroup"):
+        conditions.append(
+            """
+            upper(coalesce(
+                nullif(s.metadata->>'customerGroup', ''),
+                nullif(s.metadata->>'customerType', ''),
+                nullif(c.metadata->>'customerGroup', ''),
+                nullif(c.metadata->>'customerType', '')
+            )) = ANY(%(metadata_customer_groups)s::varchar[])
+            """
+        )
+
+    if metadata_filters.get("businessTypes"):
+        conditions.append(
+            """
+            upper(coalesce(
+                nullif(s.metadata->>'rootBusinessType', ''),
+                nullif(s.metadata->>'businessType', ''),
+                nullif(s.metadata->>'projectType', ''),
+                nullif(c.metadata->>'rootBusinessType', ''),
+                nullif(c.metadata->>'businessType', ''),
+                nullif(c.metadata->>'projectType', '')
+            )) = ANY(%(metadata_business_types)s::varchar[])
+            """
+        )
+
+    if metadata_filters.get("statuses"):
+        conditions.append(
+            """
+            upper(coalesce(
+                nullif(s.metadata->>'rootOpportunityStatus', ''),
+                nullif(s.metadata->>'currentStatus', ''),
+                nullif(s.metadata->>'opportunityStatus', ''),
+                nullif(s.metadata->>'documentStage', ''),
+                nullif(c.metadata->>'rootOpportunityStatus', ''),
+                nullif(c.metadata->>'currentStatus', ''),
+                nullif(c.metadata->>'opportunityStatus', ''),
+                nullif(c.metadata->>'documentStage', '')
+            )) = ANY(%(metadata_statuses)s::varchar[])
+            """
+        )
+
+    if not conditions:
+        return ""
+    return "AND " + "\nAND ".join(f"({condition})" for condition in conditions)
+
+
+def build_metadata_filter_params(metadata_filters: dict[str, Any] | None) -> dict[str, Any]:
+    if not metadata_filters:
+        return {}
+    params: dict[str, Any] = {}
+    if customer_group := metadata_filters.get("customerGroup"):
+        params["metadata_customer_groups"] = expand_customer_group_values(str(customer_group))
+    if business_types := metadata_filters.get("businessTypes"):
+        params["metadata_business_types"] = expand_business_type_values([str(value) for value in business_types])
+    if statuses := metadata_filters.get("statuses"):
+        params["metadata_statuses"] = expand_status_values([str(value) for value in statuses])
+    return params
+
+
+def expand_customer_group_values(value: str) -> list[str]:
+    aliases = {
+        "PUBLIC": ["PUBLIC", "공공", "공공기관"],
+        "PRIVATE": ["PRIVATE", "민간", "기업"],
+        "OVERSEAS": ["OVERSEAS", "해외", "글로벌"],
+    }
+    normalized = value.upper()
+    return aliases.get(normalized, [normalized, value])
+
+
+def expand_business_type_values(values: list[str]) -> list[str]:
+    aliases = {
+        "EMS": ["EMS"],
+        "ITSM": ["ITSM", "ITG", "ITSM/ITG"],
+        "DASHBOARD": ["DASHBOARD", "대시보드"],
+        "DATACENTER": ["DATACENTER", "AIOTION"],
+        "RCA": ["RCA", "AIOTION"],
+        "DCA": ["DCA", "AIOTION"],
+        "ITAM": ["ITAM", "ITO"],
+        "SUPPORTING_TOOLS": ["SUPPORTING_TOOLS", "보조도구"],
+        "CLOUD": ["CLOUD"],
+        "BSM": ["BSM"],
+        "E2E": ["E2E"],
+        "ETC": ["ETC", "기타"],
+        "AUTOMATION": ["AUTOMATION", "Automation", "자동화"],
+        "WSS": ["WSS"],
+    }
+    expanded: list[str] = []
+    for value in values:
+        candidates = aliases.get(value.upper(), [value.upper(), value])
+        for candidate in candidates:
+            if candidate not in expanded:
+                expanded.append(candidate)
+    return expanded
+
+
+def expand_status_values(values: list[str]) -> list[str]:
+    aliases = {
+        "FINDING": ["FINDING", "발굴"],
+        "ACTIVITY": ["ACTIVITY", "활동", "영업활동"],
+        "BID": ["BID", "입찰", "경쟁중", "제안"],
+        "CONTRACT": ["CONTRACT", "계약", "수주"],
+        "PROJECT": ["PROJECT", "사업", "프로젝트"],
+        "MAINTENANCE": ["MAINTENANCE", "유지보수"],
+        "POST_SALES": ["POST_SALES", "사후영업"],
+    }
+    expanded: list[str] = []
+    for value in values:
+        candidates = aliases.get(value.upper(), [value.upper(), value])
+        for candidate in candidates:
+            if candidate not in expanded:
+                expanded.append(candidate)
+    return expanded
 
 
 def build_exact_scope_filter(exact_scope: ExactScope) -> str:
