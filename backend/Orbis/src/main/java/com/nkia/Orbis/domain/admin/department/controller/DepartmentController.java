@@ -12,7 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,8 +43,17 @@ public class DepartmentController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<DepartmentResponse>>> getDepartments() {
         List<DepartmentResponse> response = departmentService.getDepartments();
-        
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @Operation(summary = "부서 삭제")
+    @DeleteMapping("/{departmentId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable("departmentId") Long departmentId
+    ) {
+        departmentService.delete(departmentId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }
