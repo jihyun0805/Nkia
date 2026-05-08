@@ -1,6 +1,6 @@
 -- ============================================================
 -- AI 색인 변경 알림 트리거
--- 적용 대상: dump_* 색인 대상 테이블 15개 + product_module
+-- 적용 대상: 현재 public 엔티티 색인 대상 테이블 + product_module
 --
 -- 실행 방법:
 --   psql -U orbis -d orbis_db -f 002_ai_index_notify_trigger.sql
@@ -17,7 +17,8 @@ BEGIN
     json_build_object(
       'table', TG_TABLE_NAME,
       'op',    TG_OP,
-      'id',    CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END
+      'id',    CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,
+      'eventAt', clock_timestamp()
     )::text
   );
   RETURN NULL;  -- AFTER 트리거이므로 반환값 무시됨
@@ -30,23 +31,27 @@ DECLARE
   tbl text;
 BEGIN
   FOREACH tbl IN ARRAY ARRAY[
-    -- dump_* 색인 대상 (INDEXED_CONFIGS 와 동기화 유지)
-    'dump_opportunities',
-    'dump_quotes',
-    'dump_prbs',
-    'dump_prb_results',
-    'dump_proposals',
-    'dump_contracts',
-    'dump_projects',
-    'dump_project_reports',
-    'dump_maintenance_contracts',
-    'dump_maintenance_quotes',
-    'dump_customer_supports',
-    'dump_companies',
-    'dump_contacts',
-    'dump_licenses',
-    'dump_billings',
-    -- always-indexed
+    -- INDEXED_CONFIGS / CURRENT_PUBLIC_CONFIGS 와 동기화 유지
+    'project_opportunity',
+    'sales_activity',
+    'quotation',
+    'rfp_analyze_result',
+    'rfp_analyze_requirement',
+    'prb',
+    'prb_result',
+    'proposal',
+    'bid_result',
+    'order_report',
+    'contract',
+    'project',
+    'project_result_report',
+    'maintenance',
+    'maintenance_quotation',
+    'customer_support',
+    'company',
+    'company_manager',
+    'license',
+    'billing',
     'product_module'
   ] LOOP
     -- 테이블이 없으면 건너뜀 (환경별 차이 허용)

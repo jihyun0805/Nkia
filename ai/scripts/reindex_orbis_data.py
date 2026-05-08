@@ -297,6 +297,24 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "projectId": ("project_id",),
         },
     ),
+    DocumentConfig(
+        table="rfp_analyze_requirement",
+        source_type=SourceType.RFP_ANALYSIS,
+        id_fields=("requirementCode", "requirement_code", "id"),
+        title_fields=("requirement_title", "requirement_code", "id"),
+        content_fields=(
+            "category", "requirement_code", "requirement_title",
+            "requirement_content", "support_status", "review_note", "effort",
+        ),
+        payload_aliases={
+            "rfpAnalyzeResultId": ("rfp_analyze_result_id",),
+            "requirementCode": ("requirement_code",),
+            "requirementTitle": ("requirement_title",),
+            "supportStatus": ("support_status",),
+            "reviewNote": ("review_note",),
+            "effort": ("effort",),
+        },
+    ),
 )
 
 ALWAYS_CONFIGS: tuple[DocumentConfig, ...] = (
@@ -321,111 +339,12 @@ ALWAYS_CONFIGS: tuple[DocumentConfig, ...] = (
     ),
 )
 
-DUMP_CONFIGS: tuple[DocumentConfig, ...] = (
-    DocumentConfig(
-        table="dump_opportunities",
-        source_type=SourceType.PROJECT_OPPORTUNITY,
-        id_fields=("opportunity_code", "id"),
-        title_fields=("opportunity_name", "customer_name", "id"),
-    ),
-    DocumentConfig(
-        table="dump_quotes",
-        source_type=SourceType.QUOTATION,
-        id_fields=("quote_code", "quotation_code", "id"),
-        title_fields=("quote_code", "opportunity_name", "id"),
-    ),
-    DocumentConfig(
-        table="dump_prbs",
-        source_type=SourceType.PRB,
-        id_fields=("prb_code", "id"),
-        title_fields=("prb_code", "opportunity_name", "id"),
-    ),
-    DocumentConfig(
-        table="dump_prb_results",
-        source_type=SourceType.PRB_RESULT,
-        id_fields=("prb_result_code", "id"),
-        title_fields=("prb_result_code", "opportunity_name", "id"),
-    ),
-    DocumentConfig(
-        table="dump_proposals",
-        source_type=SourceType.PROPOSAL,
-        id_fields=("proposal_code", "id"),
-        title_fields=("proposal_name", "proposal_code", "id"),
-    ),
-    DocumentConfig(
-        table="dump_contracts",
-        source_type=SourceType.CONTRACT,
-        id_fields=("contract_code", "id"),
-        title_fields=("contract_code", "opportunity_name", "id"),
-    ),
-    DocumentConfig(
-        table="dump_projects",
-        source_type=SourceType.PROJECT,
-        id_fields=("project_code", "pjt_no", "id"),
-        title_fields=("project_code", "pjt_no", "id"),
-    ),
-    DocumentConfig(
-        table="dump_project_reports",
-        source_type=SourceType.PROJECT_RESULT_REPORT,
-        id_fields=("project_report_code", "id"),
-        title_fields=("project_report_code", "project_code", "id"),
-    ),
-    DocumentConfig(
-        table="dump_maintenance_contracts",
-        source_type=SourceType.MAINTENANCE,
-        id_fields=("maintenance_code", "id"),
-        title_fields=("maintenance_code", "opportunity_name", "id"),
-    ),
-    DocumentConfig(
-        table="dump_maintenance_quotes",
-        source_type=SourceType.MAINTENANCE_QUOTE,
-        id_fields=("maintenance_quote_code", "id"),
-        title_fields=("maintenance_quote_code", "maintenance_code", "id"),
-    ),
-    DocumentConfig(
-        table="dump_customer_supports",
-        source_type=SourceType.CUSTOMER_SUPPORT,
-        id_fields=("support_code", "id"),
-        title_fields=("support_code", "maintenance_code", "id"),
-    ),
-    DocumentConfig(
-        table="dump_companies",
-        source_type=SourceType.COMPANY,
-        id_fields=("company_code", "id"),
-        title_fields=("company_name", "company_code", "id"),
-    ),
-    DocumentConfig(
-        table="dump_contacts",
-        source_type=SourceType.CONTACT,
-        id_fields=("contact_code", "email", "id"),
-        title_fields=("contact_name", "name", "email", "id"),
-    ),
-    DocumentConfig(
-        table="dump_licenses",
-        source_type=SourceType.LICENSE,
-        id_fields=("license_code", "id"),
-        title_fields=("license_code", "license_name", "id"),
-    ),
-    DocumentConfig(
-        table="dump_billings",
-        source_type=SourceType.BILLING,
-        id_fields=("billing_code", "id"),
-        title_fields=("billing_code", "project_code", "id"),
-    ),
-)
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Orbis AI 재색인 스크립트")
     parser.add_argument("--db-url", required=True, help="PostgreSQL connection URL")
     parser.add_argument("--ai-base-url", required=True, help="AI API base URL")
     parser.add_argument("--ai-internal-token", required=True, help="AI internal token")
-    parser.add_argument(
-        "--mode",
-        choices=("auto", "current", "dump"),
-        default="auto",
-        help="색인 소스 모드",
-    )
     parser.add_argument("--batch-size", type=int, default=50, help="index API 배치 크기")
     parser.add_argument("--limit-per-table", type=int, default=0, help="테이블별 로우 제한. 0이면 전체")
     return parser.parse_args()
@@ -435,13 +354,9 @@ def main() -> int:
     args = parse_args()
     with psycopg.connect(args.db_url, row_factory=dict_row) as conn:
         existing_tables = fetch_existing_tables(conn)
-        mode = resolve_mode(args.mode, existing_tables)
-        print(f"[reindex] mode={mode}", flush=True)
-
         documents = build_documents(
             conn=conn,
             existing_tables=existing_tables,
-            mode=mode,
             limit_per_table=args.limit_per_table,
         )
 
@@ -477,28 +392,15 @@ def fetch_existing_tables(conn: psycopg.Connection[Any]) -> set[str]:
         return {row["table_name"] for row in cur.fetchall()}
 
 
-def resolve_mode(requested_mode: str, existing_tables: set[str]) -> str:
-    if requested_mode != "auto":
-        return requested_mode
-    if "dump_opportunities" in existing_tables:
-        return "dump"
-    return "current"
-
-
 def build_documents(
     *,
     conn: psycopg.Connection[Any],
     existing_tables: set[str],
-    mode: str,
     limit_per_table: int,
 ) -> list[dict[str, Any]]:
     documents: list[dict[str, Any]] = []
 
-    configs = list(ALWAYS_CONFIGS)
-    if mode == "dump":
-        configs.extend(DUMP_CONFIGS)
-    else:
-        configs.extend(CURRENT_PUBLIC_CONFIGS)
+    configs = list(ALWAYS_CONFIGS) + list(CURRENT_PUBLIC_CONFIGS)
 
     for config in configs:
         if config.table not in existing_tables:
@@ -513,18 +415,12 @@ def build_documents(
                 documents.extend(build_current_activity_documents(row))
             elif config.table == "rfp_analyze_result":
                 documents.extend(build_current_rfp_documents(row))
+            elif config.table == "rfp_analyze_requirement":
+                documents.extend(build_current_rfp_requirement_documents(conn=conn, row=row))
             elif config.table == "bid_result":
                 documents.extend(build_current_bid_result_documents(row))
             elif config.table == "order_report":
                 documents.extend(build_current_order_report_documents(row))
-            elif config.table == "dump_activities":
-                documents.extend(build_dump_activity_documents(row))
-            elif config.table == "dump_rfp_analyses":
-                documents.extend(build_dump_rfp_documents(row))
-            elif config.table == "dump_bid_results":
-                documents.extend(build_dump_bid_result_documents(row))
-            elif config.table == "dump_won_reports":
-                documents.extend(build_dump_won_documents(row))
             else:
                 document = build_document(config=config, row=row)
                 if document is not None:
@@ -653,6 +549,61 @@ def build_current_rfp_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
     return [doc for doc in (rfp_doc, analysis_doc) if doc is not None]
 
 
+def build_current_rfp_requirement_documents(
+    *,
+    conn: psycopg.Connection[Any],
+    row: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """rfp_analyze_requirement 행 하나를 AI 청크로 변환.
+
+    부모 RFP(rfp_analyze_result)와 사업기회(project_opportunity)의 고객사/코드 정보를
+    함께 포함하여 '삼성카드 RFP 요구사항 REQ-001은?' 등의 질문에 대응한다.
+    """
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "rfp_analyze_requirement")
+    rfp_result_id = row.get("rfp_analyze_result_id")
+
+    enriched = dict(row)
+    if rfp_result_id is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        r.id            AS rfp_id,
+                        r.rfp_code,
+                        r.rfp_analysis_code,
+                        r.project_opportunity_id,
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        c.name          AS customer_name
+                    FROM rfp_analyze_result r
+                    LEFT JOIN project_opportunity o ON o.id = r.project_opportunity_id
+                    LEFT JOIN company c ON c.id = o.customer_company_id
+                    WHERE r.id = %s
+                    """,
+                    (rfp_result_id,),
+                )
+                parent = cur.fetchone()
+                if parent:
+                    enriched.update({
+                        "rfp_code":           parent[1],
+                        "rfp_analysis_code":  parent[2],
+                        "opportunity_code":   parent[4],
+                        "opportunity_name":   parent[5],
+                        "customer_name":      parent[6],
+                    })
+        except Exception:
+            pass
+
+    status_label = {
+        "O": "지원(O)", "∆": "부분지원(∆)", "X": "미지원(X)", "?": "검토필요(?)"
+    }.get(str(enriched.get("support_status", "")), enriched.get("support_status", ""))
+    enriched["support_status_label"] = status_label
+
+    document = build_document(config=config, row=enriched)
+    return [document] if document is not None else []
+
+
 def build_current_bid_result_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
     config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "bid_result")
     documents: list[dict[str, Any]] = []
@@ -681,78 +632,6 @@ def build_current_order_report_documents(row: dict[str, Any]) -> list[dict[str, 
         override_source_type=SourceType.WON,
         override_id_fields=("wonCode", "wonReportCode", "won_report_code", "id"),
         override_title_fields=("wonCode", "wonReportCode", "id"),
-    )
-    return [doc for doc in (order_doc, won_doc) if doc is not None]
-
-
-def build_dump_activity_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
-    source_type = SourceType.SALES_ACTIVITY if first_value(row, ("opportunity_id", "opportunity_code", "opportunityCode")) not in (None, "") else SourceType.POST_SALES
-    config = DocumentConfig(
-        table="dump_activities",
-        source_type=SourceType.SALES_ACTIVITY,
-        id_fields=("activity_code", "id"),
-        title_fields=("activity_code", "opportunity_name", "id"),
-    )
-    document = build_document(config=config, row=row, override_source_type=source_type)
-    return [document] if document is not None else []
-
-
-def build_dump_rfp_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
-    config = DocumentConfig(
-        table="dump_rfp_analyses",
-        source_type=SourceType.RFP_ANALYSIS,
-        id_fields=("rfp_analysis_code", "id"),
-        title_fields=("rfp_analysis_code", "opportunity_name", "id"),
-    )
-    rfp_doc = build_document(
-        config=config,
-        row=row,
-        override_source_type=SourceType.RFP,
-        override_id_fields=("rfp_code", "rfp_analysis_code", "id"),
-        override_title_fields=("rfp_code", "opportunity_name", "id"),
-    )
-    analysis_doc = build_document(config=config, row=row)
-    return [doc for doc in (rfp_doc, analysis_doc) if doc is not None]
-
-
-def build_dump_bid_result_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
-    config = DocumentConfig(
-        table="dump_bid_results",
-        source_type=SourceType.BID_RESULT,
-        id_fields=("bid_result_code", "id"),
-        title_fields=("bid_result_code", "opportunity_name", "id"),
-    )
-    documents: list[dict[str, Any]] = []
-    bid_doc = build_document(config=config, row=row)
-    if bid_doc is not None:
-        documents.append(bid_doc)
-    if is_lost_row(row):
-        lost_doc = build_document(
-            config=config,
-            row=row,
-            override_source_type=SourceType.LOST,
-            override_id_fields=("lost_code", "bid_result_code", "id"),
-            override_title_fields=("lost_code", "bid_result_code", "opportunity_name", "id"),
-        )
-        if lost_doc is not None:
-            documents.append(lost_doc)
-    return documents
-
-
-def build_dump_won_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
-    config = DocumentConfig(
-        table="dump_won_reports",
-        source_type=SourceType.ORDER_REPORT,
-        id_fields=("won_report_code", "id"),
-        title_fields=("won_report_code", "opportunity_name", "id"),
-    )
-    order_doc = build_document(config=config, row=row)
-    won_doc = build_document(
-        config=config,
-        row=row,
-        override_source_type=SourceType.WON,
-        override_id_fields=("won_code", "won_report_code", "id"),
-        override_title_fields=("won_code", "won_report_code", "opportunity_name", "id"),
     )
     return [doc for doc in (order_doc, won_doc) if doc is not None]
 

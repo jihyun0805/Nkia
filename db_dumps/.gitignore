@@ -1,7 +1,0 @@
-# 큰 원본 dump 파일 (수백MB)
-*.dump
-orbis_db_full_*.sql
-orbis_db_testtesttt_entity_subset_*.sql
-orbis_local_testtesttt_20260505_094717.sql
-orbis_local_testtesttt_20260505_094731.sql
-__pycache__/
