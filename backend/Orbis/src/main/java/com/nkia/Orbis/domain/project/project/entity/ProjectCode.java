@@ -17,14 +17,13 @@ public enum ProjectCode {
     MA("MA", ProjectType.SOLUTION),
 
     // 2. 유지보수 (Maintenance)
-    GN_MA("GN-MA", ProjectType.MAINTENANCE),
-    GE_MA("GE-MA", ProjectType.MAINTENANCE),
-    GL_MA("GL-MA", ProjectType.MAINTENANCE),
-    MN_MA("MN-MA", ProjectType.MAINTENANCE),
-    ME_MA("ME-MA", ProjectType.MAINTENANCE),
-    ML_MA("ML-MA", ProjectType.MAINTENANCE),
+    GNMA("GN-MA", ProjectType.MAINTENANCE),
+    GEMA("GE-MA", ProjectType.MAINTENANCE),
+    GLMA("GL-MA", ProjectType.MAINTENANCE),
+    MNMA("MN-MA", ProjectType.MAINTENANCE),
+    MEMA("ME-MA", ProjectType.MAINTENANCE),
+    MLMA("ML-MA", ProjectType.MAINTENANCE),
     
-    // 3. 용역
     SERVICE("용역", ProjectType.SERVICE),;
 
     private final String value;       // 실제 사업 코드

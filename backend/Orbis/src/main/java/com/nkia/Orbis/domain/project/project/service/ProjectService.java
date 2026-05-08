@@ -3,7 +3,8 @@ package com.nkia.Orbis.domain.project.project.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-//import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
+import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
+import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.entity.ProjectCode;
@@ -19,71 +20,63 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ProjectService {
     private final ProjectRepository projectRepository;
-//    private final OrderReportRepository orderReportRepository;
+    private final OrderReportRepository orderReportRepository;
 
     @Transactional
     public Long registerProject(ProjectCreateRequest dto) {
-//        OrderReport report = validateAndGetOrderReport(dto.getOrderReportId());
-//
-//        ProjectCode code = determineProjectCode(report);
-//
-//        Project project = createProject(code, report);
-//
-//        return projectRepository.save(project).getId();
-        return 1L; // TODO: 임시 반환값
-    }
+        OrderReport report = validateAndGetOrderReport(dto.getOrderReportId());
 
-    /**
-     * 수주보고서 조회 및 중복 검증
-     */
-//    private OrderReport validateAndGetOrderReport(Long orderReportId) {
-//        OrderReport report = orderReportRepository.findById(orderReportId)
-//                .orElseThrow(() -> new ApiException(ProjectErrorCode.ORDER_REPORT_NOT_FOUND));
-//
-//        if (projectRepository.existsByOrderReport(report)) {
-//            throw new ApiException(ProjectErrorCode.PROJECT_ALREADY_REGISTERED);
-//        }
-//        return report;
-//    }
+        Project project = createProject(report);
 
-    /**
-     * 수주보고서 정보로부터 사업 코드 결정
-     */
-    private ProjectCode determineProjectCode(OrderReport report) {
-        // 용역 타입이면 SERVICE 코드 사용
-//        if ("용역".equals(report.getProjectType())) {
-//            return ProjectCode.SERVICE;
-//        }
-//
-//        // TODO: 추후 변경 필요
-//        String codeValue = extractCode(report.getSalesCategory());
-
-        if ("용역".equals("용역")) {
-            return ProjectCode.SERVICE;
-        }
-
-        // TODO: 추후 변경 필요
-        String codeValue = extractCode("코드: JA");
-
-
-        return ProjectCode.fromValue(codeValue);
+        return projectRepository.save(project).getId();
     }
 
     /**
      * 프로젝트 생성
      */
-    private Project createProject(ProjectCode code, OrderReport report) {
-        LocalDate contractDate = LocalDate.now(); // TODO: report.getContractDate() 사용
-        String pjtNumber = generatePjtNumber(contractDate);
+    private Project createProject(OrderReport report) {
+        String pjtNumber = generatePjtNumber(report.getContractDate());
+        ProjectCode code = determineProjectCode(report);
 
         Project project = Project.builder()
+                .orderReport(report)
                 .code(code)
                 .type(code.getType())
-                .orderReport(report)
+                .pjtName("0000년 엔키아 0000사업")
+                .totalAmount(report.getTotalAmount())
+                .salesRepresentative(report.getPm())
                 .build();
 
         project.assignProjectNumber(pjtNumber);
         return project;
+    }
+
+    /**
+     * 수주보고서 정보를 바탕으로 ProjectCode를 매핑합니다.
+     */
+    private ProjectCode determineProjectCode(OrderReport report) {
+        if (report.getType() == OrderReportType.SERVICE) {
+            return ProjectCode.SERVICE;
+        }
+
+        try {
+            return ProjectCode.valueOf(report.getCodeType().name());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new ApiException(ProjectErrorCode.INVALID_PROJECT_CODE);
+        }
+    }
+
+    /**
+     * 수주보고서 조회 및 중복 검증
+     */
+    private OrderReport validateAndGetOrderReport(Long orderReportId) {
+        OrderReport report = orderReportRepository.findById(orderReportId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.ORDER_REPORT_NOT_FOUND));
+
+        if (projectRepository.existsByOrderReport(report)) {
+            throw new ApiException(ProjectErrorCode.PROJECT_ALREADY_REGISTERED);
+        }
+        return report;
     }
 
     /**
@@ -102,15 +95,5 @@ public class ProjectService {
                     return yearMonthStr + String.format("%02d", nextSeq);
                 })
                 .orElse(yearMonthStr + "01");
-    }
-
-    /**
-     * 문자열에서 맨 뒤의 코드를 뽑아내는 헬퍼 메서드
-     */
-    private String extractCode(String fullString) {
-        if (fullString == null || !fullString.contains(":")) {
-            return "";
-        }
-        return fullString.substring(fullString.lastIndexOf(":") + 1).trim();
     }
 }
