@@ -6,12 +6,15 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.entity.ProjectCode;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -95,5 +98,14 @@ public class ProjectService {
                     return yearMonthStr + String.format("%02d", nextSeq);
                 })
                 .orElse(yearMonthStr + "01");
+    }
+
+    /**
+     * 사업 목록 페이징 조회
+     */
+    public Page<ProjectListResponse> getProjects(Pageable pageable) {
+        Page<Project> projects = projectRepository.findAll(pageable);
+
+        return projects.map(ProjectListResponse::from);
     }
 }
