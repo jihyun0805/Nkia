@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { BidResultRegistrationForm } from "@/components/erp/bid-result-registration-form"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
+import { PrbResultRegistrationForm } from "@/components/erp/prb-result-registration-form"
 import { ProposalDetailPage } from "@/components/erp/proposal-detail-page"
 import { DetailFormCard } from "@/components/erp/detail-form-card"
 import { RfpAnalysisSheetLoader } from "@/components/erp/rfp-analysis-sheet-loader"
@@ -37,6 +38,34 @@ export default async function BidDetailPage({ params }: { params: Promise<{ cate
                 </BreadcrumbList>
               </Breadcrumb>
               <BidResultRegistrationForm bidResultId={id} />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+  if (category === "prb-result") {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title="PRB 결과" description="PRB 결과 보고서를 등록 화면과 동일한 형식으로 확인합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-6xl space-y-6">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href="/bid">입찰</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{id}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              <PrbResultRegistrationForm prbResultId={id} />
             </div>
           </main>
         </div>

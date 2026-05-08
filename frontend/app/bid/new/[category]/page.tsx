@@ -4,12 +4,13 @@ import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { BidResultRegistrationForm } from "@/components/erp/bid-result-registration-form"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
+import { PrbResultRegistrationForm } from "@/components/erp/prb-result-registration-form"
 import { ProposalRegistrationForm } from "@/components/erp/proposal-registration-form"
 import { RfpAnalysisSheetLoader } from "@/components/erp/rfp-analysis-sheet-loader"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { type BidCategory, getBidCategoryLabel, getBidCreateActionLabel, rfpList } from "@/lib/bid-data"
 
-const categories: BidCategory[] = ["rfp", "prb", "proposal", "result"]
+const categories: BidCategory[] = ["rfp", "prb", "prb-result", "proposal", "result"]
 
 export default async function BidCategoryNewPage({
   params,
@@ -51,6 +52,8 @@ export default async function BidCategoryNewPage({
               <ProposalRegistrationForm initialRequestId={requestId} proposalId={proposalId} />
             ) : category === "result" ? (
               <BidResultRegistrationForm proposalId={proposalId} />
+            ) : category === "prb-result" ? (
+              <PrbResultRegistrationForm />
             ) : category === "prb" ? (
               <PrbRegistrationForm cloneFromId={cloneFrom} />
             ) : (

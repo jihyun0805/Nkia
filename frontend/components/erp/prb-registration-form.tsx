@@ -38,6 +38,8 @@ import { getCustomers, getOpportunities } from "@/lib/finding-data"
 type PrbRegistrationFormProps = {
   prbId?: string
   cloneFromId?: string
+  documentOnly?: boolean
+  readOnly?: boolean
 }
 
 type PrbFormState = {
@@ -216,7 +218,7 @@ function SectionRow({ title }: { title: string }) {
   )
 }
 
-export function PrbRegistrationForm({ prbId, cloneFromId }: PrbRegistrationFormProps) {
+export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, readOnly = false }: PrbRegistrationFormProps) {
   const router = useRouter()
   const [form, setForm] = useState<PrbFormState>(createEmptyForm())
   const [status, setStatus] = useState<PrbStatus>("작성 중")
@@ -470,7 +472,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId }: PrbRegistrationFormP
   }
 
   const reportTable = (
-    <div className="overflow-x-auto rounded-md border border-r-0">
+    <div className={`overflow-x-auto rounded-md border border-r-0 ${readOnly ? "pointer-events-none" : ""}`}>
       <table className="min-w-[1180px] border-collapse text-sm [&_td]:border [&_th]:border">
         <tbody>
           <tr>
@@ -829,14 +831,16 @@ export function PrbRegistrationForm({ prbId, cloneFromId }: PrbRegistrationFormP
   return (
     <>
       <Card>
-        <CardHeader className="border-b">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>PRB 보고서</CardTitle>
-            <div className="rounded-md bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">PRB 현황: {status}</div>
-          </div>
-        </CardHeader>
+        {!documentOnly && (
+          <CardHeader className="border-b">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>PRB 보고서</CardTitle>
+              <div className="rounded-md bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">PRB 현황: {status}</div>
+            </div>
+          </CardHeader>
+        )}
         <CardContent className="space-y-6 p-4 md:p-6">
-          {prbId ? (
+          {prbId && !documentOnly ? (
             <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
               <TabsList>
                 <TabsTrigger value="document">PRB 보고서</TabsTrigger>
@@ -984,28 +988,32 @@ export function PrbRegistrationForm({ prbId, cloneFromId }: PrbRegistrationFormP
             reportTable
           )}
 
-          <div className="flex justify-end gap-2 border-t pt-6">
-            <Button variant="outline" asChild>
-              <Link href={prbId ? `/bid/prb/${prbId}` : "/bid"}>취소</Link>
-            </Button>
-            <Button variant="outline" onClick={handleDraft}>수정</Button>
-            <Button variant="secondary" onClick={handleDraft}>임시저장</Button>
-            <Button onClick={handleComplete}>완료</Button>
-          </div>
+          {!documentOnly && !readOnly && (
+            <div className="flex justify-end gap-2 border-t pt-6">
+              <Button variant="outline" asChild>
+                <Link href={prbId ? `/bid/prb/${prbId}` : "/bid"}>취소</Link>
+              </Button>
+              <Button variant="outline" onClick={handleDraft}>수정</Button>
+              <Button variant="secondary" onClick={handleDraft}>임시저장</Button>
+              <Button onClick={handleComplete}>완료</Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <AlertDialog open={Boolean(popupMessage)} onOpenChange={(open) => !open && setPopupMessage("")}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>입력 확인</AlertDialogTitle>
-            <AlertDialogDescription>{popupMessage}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setPopupMessage("")}>확인</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {!documentOnly && (
+        <AlertDialog open={Boolean(popupMessage)} onOpenChange={(open) => !open && setPopupMessage("")}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>입력 확인</AlertDialogTitle>
+              <AlertDialogDescription>{popupMessage}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setPopupMessage("")}>확인</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   )
 }

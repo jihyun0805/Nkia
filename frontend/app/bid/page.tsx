@@ -23,11 +23,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { bidStatuses, getBidCreateActionLabel, getBidResults, getProposals, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
+import { bidStatuses, getBidCreateActionLabel, getBidResults, getPrbResults, getProposals, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbResultUpdates, subscribePrbUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { getOpportunities } from "@/lib/finding-data"
-import { Plus, Search, FileText, ClipboardCheck, Presentation, Trophy } from "lucide-react"
+import { Plus, Search, FileText, ClipboardCheck, Presentation, Trophy, ClipboardList } from "lucide-react"
 
 type ProposalOverviewRow = {
   key: string
@@ -58,13 +58,25 @@ type BidResultOverviewRow = {
   sortDate: string
 }
 
+type PrbResultOverviewRow = {
+  key: string
+  prbResultId: string
+  customer: string
+  opportunity: string
+  proposalDeadline: string
+  createdDate: string
+  author: string
+  sortDate: string
+}
+
 export default function BidPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
-  const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "proposal" | "result">("rfp")
+  const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "prb-result" | "proposal" | "result">("rfp")
   const [rfpItems, setRfpItems] = useState<ReturnType<typeof getRfpAnalyses>>([])
   const [prbItems, setPrbItems] = useState<ReturnType<typeof getPrbs>>([])
+  const [prbResultItems, setPrbResultItems] = useState<ReturnType<typeof getPrbResults>>([])
   const [proposalRequests, setProposalRequests] = useState<ActivityRequestRecord[]>([])
   const [proposals, setProposals] = useState<ReturnType<typeof getProposals>>([])
   const [results, setResults] = useState<ReturnType<typeof getBidResults>>([])
@@ -82,6 +94,12 @@ export default function BidPage() {
     const sync = () => setPrbItems(getPrbs())
     sync()
     return subscribePrbUpdates(sync)
+  }, [])
+
+  useEffect(() => {
+    const sync = () => setPrbResultItems(getPrbResults())
+    sync()
+    return subscribePrbResultUpdates(sync)
   }, [])
 
   useEffect(() => {
@@ -198,6 +216,18 @@ export default function BidPage() {
     .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
 
   const bidResultOverviewRows = [...pendingBidResultRows, ...completedBidResultRows]
+  const prbResultOverviewRows: PrbResultOverviewRow[] = prbResultItems
+    .map((item) => ({
+      key: `prb-result-${item.id}`,
+      prbResultId: item.id,
+      customer: item.customer,
+      opportunity: item.opportunity,
+      proposalDeadline: item.proposalDeadline,
+      createdDate: item.createdDate,
+      author: item.author,
+      sortDate: item.createdAt,
+    }))
+    .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
 
   const statusOptions = activeTab === "proposal"
     ? ["작성 중", "완료"]
@@ -208,6 +238,8 @@ export default function BidPage() {
     ? [{ key: "customer", label: "고객사", options: uniqueOptions(rfpItems, (i) => i.customer) }]
     : activeTab === "prb"
     ? [{ key: "customer", label: "고객사", options: uniqueOptions(prbItems, (i) => i.customer) }]
+    : activeTab === "prb-result"
+      ? [{ key: "customer", label: "고객사", options: uniqueOptions(prbResultOverviewRows, (i) => i.customer) }]
     : activeTab === "proposal"
       ? [{ key: "customer", label: "고객사", options: uniqueOptions(proposalOverviewRows, (i) => i.customer) }]
       : [
@@ -224,6 +256,13 @@ export default function BidPage() {
     date: (i) => i.createdDate,
     fields: { customer: (i) => i.customer },
   }).filter((i) => [i.id, i.opportunity, i.customer, i.author, i.status, i.customerCode, i.opportunityCode, i.rfpAnalysisId].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const filteredPrbResults = filterRecords(prbResultOverviewRows, filters, {
+    owner: (i) => i.author,
+    date: (i) => i.createdDate,
+    fields: { customer: (i) => i.customer },
+  }).filter((i) => [i.prbResultId, i.customer, i.opportunity, i.proposalDeadline, i.createdDate, i.author].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
   const filteredProposalList = filterRecords(proposalOverviewRows, filters, {
     status: (i) => i.status,
     owner: () => "",
@@ -266,11 +305,12 @@ export default function BidPage() {
         <div className="flex-1 flex flex-col">
           <Header title="입찰" description="RFP 분석, PRB 검토, 제안서 등록 및 입찰 결과를 관리합니다" />
           <main className="flex-1 overflow-auto p-6">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "rfp" | "prb" | "proposal" | "result")} className="space-y-6">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "rfp" | "prb" | "prb-result" | "proposal" | "result")} className="space-y-6">
               <div className="flex items-center justify-between">
                 <TabsList>
                   <TabsTrigger value="rfp" className="gap-2"><FileText className="w-4 h-4" />RFP 분석</TabsTrigger>
                   <TabsTrigger value="prb" className="gap-2"><ClipboardCheck className="w-4 h-4" />PRB 현황</TabsTrigger>
+                  <TabsTrigger value="prb-result" className="gap-2"><ClipboardList className="w-4 h-4" />PRB 결과</TabsTrigger>
                   <TabsTrigger value="proposal" className="gap-2"><Presentation className="w-4 h-4" />제안서</TabsTrigger>
                   <TabsTrigger value="result" className="gap-2"><Trophy className="w-4 h-4" />입찰결과현황</TabsTrigger>
                 </TabsList>
@@ -279,7 +319,15 @@ export default function BidPage() {
                     <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
                     <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                   </div>
-                  <FilterPopover title="입찰" statusOptions={statusOptions} value={filters} onApply={setFilters} fieldOptions={bidFieldOptions} />
+                  <FilterPopover
+                    title="입찰"
+                    statusOptions={statusOptions}
+                    value={filters}
+                    onApply={setFilters}
+                    fieldOptions={bidFieldOptions}
+                    ownerLabel={activeTab === "prb" || activeTab === "prb-result" ? "작성자" : activeTab === "result" ? "영업대표" : "담당자"}
+                    showStatusFilter={activeTab !== "prb-result"}
+                  />
                   <Button asChild>
                     <Link href={activeTab === "rfp" ? "/bid/new/rfp?standalone=1" : activeTab === "proposal" ? "/bid/new/proposal" : `/bid/new/${activeTab}`}>
                       <Plus className="mr-2 w-4 h-4" />
@@ -411,6 +459,41 @@ export default function BidPage() {
                             <TableCell>{proposal.requestDate || "-"}</TableCell>
                             <TableCell>{proposal.proposalDeadline || "-"}</TableCell>
                             <TableCell><Badge className={proposal.status === "완료" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"}>{proposal.status}</Badge></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="prb-result">
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">PRB 결과 현황</CardTitle>
+                      <Badge variant="secondary">{filteredPrbResults.length}건</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>고객사</TableHead>
+                          <TableHead>사업명</TableHead>
+                          <TableHead>제안서 마감일</TableHead>
+                          <TableHead>작성일</TableHead>
+                          <TableHead>작성자</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredPrbResults.map((prbResult) => (
+                          <TableRow key={prbResult.key} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/prb-result/${prbResult.prbResultId}`)}>
+                            <TableCell>{prbResult.customer}</TableCell>
+                            <TableCell className="max-w-[240px] truncate font-medium">{prbResult.opportunity}</TableCell>
+                            <TableCell>{prbResult.proposalDeadline}</TableCell>
+                            <TableCell>{prbResult.createdDate}</TableCell>
+                            <TableCell>{prbResult.author}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

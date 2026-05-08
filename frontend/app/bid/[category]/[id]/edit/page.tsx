@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { BidResultRegistrationForm } from "@/components/erp/bid-result-registration-form"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
+import { PrbResultRegistrationForm } from "@/components/erp/prb-result-registration-form"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { ProposalRegistrationForm } from "@/components/erp/proposal-registration-form"
@@ -66,6 +67,34 @@ export default async function BidEditPage({ params }: { params: Promise<{ catego
                 </BreadcrumbList>
               </Breadcrumb>
               <BidResultRegistrationForm bidResultId={id} />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+  if (category === "prb-result") {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title="PRB 결과 수정" description="PRB 결과 보고서 정보를 페이지에서 수정합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-6xl space-y-6">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href="/bid">입찰</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{id}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              <PrbResultRegistrationForm prbResultId={id} />
             </div>
           </main>
         </div>
