@@ -26,7 +26,8 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
-import { findingStatuses, getCustomerByName, getFindingCategoryLabel, getPartnerByName, registerCustomer, registerOpportunity, registerPartner, type CustomerRecord, type OpportunityAttachment } from "@/lib/finding-data"
+import { readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
+import { findingStatuses, getCustomerByName, getFindingCategoryLabel, getPartnerByName, registerCustomer, registerOpportunity, registerPartner, type CustomerContact, type CustomerRecord, type OpportunityAttachment } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
@@ -51,6 +52,7 @@ type ContactDraft = {
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
 }
+type AttachmentDraft = StoredFileAttachment
 
 function createEmptyContactDraft(): ContactDraft {
   return {
@@ -194,7 +196,7 @@ export function FindingCategoryNewPageView({
   const [selectedOpportunityCustomer, setSelectedOpportunityCustomer] = useState<CustomerRecord | null>(null)
   const [opportunityCustomerName, setOpportunityCustomerName] = useState("")
   const [opportunityName, setOpportunityName] = useState("")
-  const [opportunityPartnerName, setOpportunityPartnerName] = useState("")
+  const [opportunityPartnerNames, setOpportunityPartnerNames] = useState<string[]>([""])
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
@@ -210,6 +212,7 @@ export function FindingCategoryNewPageView({
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [rfpSummaryLoadingId, setRfpSummaryLoadingId] = useState<string | null>(null)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const rfpInputRef = useRef<HTMLInputElement | null>(null)
@@ -333,6 +336,21 @@ export function FindingCategoryNewPageView({
     setRfpAttachments((prev) => prev.filter((attachment) => attachment.id !== attachmentId))
   }
 
+  const handleAttachmentChange = async (files: FileList | null | undefined) => {
+    const selectedFiles = Array.from(files ?? [])
+    if (selectedFiles.length === 0) return
+
+    try {
+      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
+      setAttachments((prev) => [...prev, ...nextAttachments])
+    } catch (error) {
+      toast({
+        title: "첨부파일 등록 실패",
+        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
+      })
+    }
+  }
+
   const handleSubmit = () => {
     const normalizedName = customerName.trim()
     const filledContacts = contacts.filter(hasContactValue)
@@ -359,6 +377,7 @@ export function FindingCategoryNewPageView({
       address,
       memo,
       aliases: [],
+      attachments,
     })
 
     if (result.status === "duplicate") {
@@ -401,6 +420,7 @@ export function FindingCategoryNewPageView({
       contacts: filledContacts,
       address,
       memo,
+      attachments,
     })
 
     if (result.status === "duplicate") {
@@ -633,7 +653,30 @@ export function FindingCategoryNewPageView({
 
                   <section className="space-y-2">
                     <Label>첨부파일</Label>
-                    <Input type="file" multiple />
+                    <Input
+                      type="file"
+                      multiple
+                      onChange={(event) => {
+                        void handleAttachmentChange(event.target.files)
+                        event.target.value = ""
+                      }}
+                    />
+                    {attachments.length > 0 ? (
+                      <div className="space-y-2 rounded-md border border-border p-3">
+                        {attachments.map((attachment) => (
+                          <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                            <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                              {attachment.name}
+                            </a>
+                            <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
+                              삭제
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <Input readOnly value="등록된 첨부파일이 없습니다." />
+                    )}
                   </section>
 
                   <div className="flex justify-end gap-2 border-t pt-6">
@@ -674,7 +717,7 @@ export function FindingCategoryNewPageView({
         category: opportunityCustomerGroup,
         name: opportunityName,
         registrant: opportunityRegistrant,
-        partner: opportunityPartnerName,
+        partners: opportunityPartnerNames,
         expectedDate,
         expectedAmount,
         product: businessType,
@@ -751,8 +794,35 @@ export function FindingCategoryNewPageView({
                         )}
                       </div>
                       <div className="space-y-2">
-                        <Label>협력사명</Label>
-                        <Input value={opportunityPartnerName} onChange={(event) => setOpportunityPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                        <div className="flex items-center justify-between">
+                          <Label>협력사명</Label>
+                          <Button type="button" variant="outline" size="sm" onClick={() => setOpportunityPartnerNames((prev) => [...prev, ""])}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            협력사 추가
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          {opportunityPartnerNames.map((partnerName, index) => (
+                            <div key={`opportunity-partner-${index}`} className="flex items-center gap-2">
+                              <Input
+                                value={partnerName}
+                                onChange={(event) =>
+                                  setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                                }
+                                placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={opportunityPartnerNames.length === 1}
+                                onClick={() => setOpportunityPartnerNames((prev) => (prev.length > 1 ? prev.filter((_, itemIndex) => itemIndex !== index) : prev))}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <Label>사업명 *</Label>
@@ -1210,7 +1280,30 @@ export function FindingCategoryNewPageView({
 
                 <section className="space-y-2">
                   <Label>첨부파일</Label>
-                  <Input type="file" multiple />
+                  <Input
+                    type="file"
+                    multiple
+                    onChange={(event) => {
+                      void handleAttachmentChange(event.target.files)
+                      event.target.value = ""
+                    }}
+                  />
+                  {attachments.length > 0 ? (
+                    <div className="space-y-2 rounded-md border border-border p-3">
+                      {attachments.map((attachment) => (
+                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                          <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                            {attachment.name}
+                          </a>
+                          <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
+                            삭제
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Input readOnly value="등록된 첨부파일이 없습니다." />
+                  )}
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">

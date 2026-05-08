@@ -17,14 +17,15 @@ export default async function BidCategoryNewPage({
   searchParams,
 }: {
   params: Promise<{ category: BidCategory }>
-  searchParams: Promise<{ requestId?: string; standalone?: string; proposalId?: string; cloneFrom?: string }>
+  searchParams: Promise<{ requestId?: string; standalone?: string; proposalId?: string; cloneFrom?: string; tab?: string }>
 }) {
   const { category } = await params
-  const { requestId, standalone, proposalId, cloneFrom } = await searchParams
+  const { requestId, standalone, proposalId, cloneFrom, tab } = await searchParams
   if (!categories.includes(category)) notFound()
 
   const title = getBidCategoryLabel(category)
   const actionLabel = getBidCreateActionLabel(category)
+  const backHref = tab ? `/bid?tab=${tab}` : "/bid"
 
   return (
     <div className="min-h-screen bg-background">
@@ -37,7 +38,7 @@ export default async function BidCategoryNewPage({
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link href="/bid">입찰</Link>
+                    <Link href={backHref}>입찰</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
@@ -56,9 +57,7 @@ export default async function BidCategoryNewPage({
               <PrbResultRegistrationForm />
             ) : category === "prb" ? (
               <PrbRegistrationForm cloneFromId={cloneFrom} />
-            ) : (
-              null
-            )}
+            ) : null}
           </div>
         </main>
       </div>

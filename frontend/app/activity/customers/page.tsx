@@ -1,21 +1,30 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { activities } from "@/lib/activity-data"
+import { getActivities, subscribeActivityUpdates } from "@/lib/activity-data"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 
 export default function ActivityCustomersPage() {
+  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
   const today = new Date()
   const recentThreshold = new Date(today)
   recentThreshold.setMonth(recentThreshold.getMonth() - 1)
 
-  const customerCards = Array.from(
-    activities.reduce((map, activity) => {
+  useEffect(() => {
+    const sync = () => setActivityRecords(getActivities())
+
+    sync()
+    return subscribeActivityUpdates(sync)
+  }, [])
+
+  const customerCards = useMemo(() => Array.from(
+    activityRecords.reduce((map, activity) => {
       const existing = map.get(activity.customerCode) ?? {
         customer: activity.customer,
         customerCode: activity.customerCode,
@@ -40,7 +49,7 @@ export default function ActivityCustomersPage() {
         return b.latestActivityDate.localeCompare(a.latestActivityDate)
       }
       return a.customer.localeCompare(b.customer)
-    })
+    }), [activityRecords, recentThreshold])
 
   return (
     <div className="min-h-screen bg-background">

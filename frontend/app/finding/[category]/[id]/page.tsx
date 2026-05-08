@@ -21,9 +21,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
+import { formatAttachmentSize } from "@/lib/attachments"
 import { toast } from "@/hooks/use-toast"
 import { deletePartner, getFindingCategoryLabel, getFindingFields, getFindingItem, type FindingCategory, type FindingFormField } from "@/lib/finding-data"
-import { Download, FileText } from "lucide-react"
+import { FileText } from "lucide-react"
 
 function FindingDetailControl({ field, value }: { field: FindingFormField; value: string }) {
   if (field.type === "file") return <Input readOnly value="등록된 첨부파일이 없습니다." />
@@ -45,10 +46,6 @@ function getPartnerContacts(item: any) {
       memo: item.memo ?? "",
     },
   ]
-}
-
-function formatFileSize(size: number) {
-  return `${Math.ceil(size / 1024).toLocaleString()}KB`
 }
 
 export default function FindingDetailPage() {
@@ -216,7 +213,22 @@ export default function FindingDetailPage() {
                     </section>
                     <section className="space-y-2">
                       <Label>첨부파일</Label>
-                      <Input readOnly value="등록된 첨부파일이 없습니다." />
+                      {Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                        <div className="space-y-2 rounded-md border border-border p-3">
+                          {item.attachments.map((attachment: any) => (
+                            <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                              <div className="min-w-0 flex-1">
+                                <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                                  {attachment.name}
+                                </a>
+                                <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Input readOnly value="등록된 첨부파일이 없습니다." />
+                      )}
                     </section>
                   </>
                 ) : (
@@ -240,15 +252,11 @@ export default function FindingDetailPage() {
                               <div key={attachment.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
                                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate font-medium">{attachment.name}</p>
-                                  <p className="text-xs text-muted-foreground">{formatFileSize(attachment.size)}</p>
-                                </div>
-                                <Button variant="outline" size="sm" asChild>
-                                  <a href={attachment.dataUrl} download={attachment.name}>
-                                    <Download className="mr-2 h-4 w-4" />
-                                    다운로드
+                                  <a href={attachment.dataUrl} download={attachment.name} className="truncate font-medium text-primary hover:underline">
+                                    {attachment.name}
                                   </a>
-                                </Button>
+                                  <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                                </div>
                               </div>
                             ))}
                           </div>

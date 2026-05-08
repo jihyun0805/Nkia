@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
@@ -69,8 +69,11 @@ type PrbResultOverviewRow = {
   sortDate: string
 }
 
+const BID_ACTIVE_TAB_STORAGE_KEY = "orbis.bid.active-tab"
+
 export default function BidPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "prb-result" | "proposal" | "result">("rfp")
@@ -83,6 +86,29 @@ export default function BidPage() {
   const [proposalConfirmTarget, setProposalConfirmTarget] = useState<ProposalOverviewRow | null>(null)
   const [resultConfirmTarget, setResultConfirmTarget] = useState<BidResultOverviewRow | null>(null)
   const q = searchTerm.toLowerCase()
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const queryTab = searchParams.get("tab")
+    if (queryTab === "rfp" || queryTab === "prb" || queryTab === "prb-result" || queryTab === "proposal" || queryTab === "result") {
+      setActiveTab(queryTab)
+      window.sessionStorage.setItem(BID_ACTIVE_TAB_STORAGE_KEY, queryTab)
+      return
+    }
+
+    const storedTab = window.sessionStorage.getItem(BID_ACTIVE_TAB_STORAGE_KEY)
+    if (storedTab === "rfp" || storedTab === "prb" || storedTab === "prb-result" || storedTab === "proposal" || storedTab === "result") {
+      setActiveTab(storedTab)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.sessionStorage.setItem(BID_ACTIVE_TAB_STORAGE_KEY, activeTab)
+  }, [activeTab])
+
+  const buildBidHref = (pathname: string) => `${pathname}?tab=${activeTab}`
 
   useEffect(() => {
     const sync = () => setRfpItems(getRfpAnalyses())
@@ -282,7 +308,7 @@ export default function BidPage() {
 
   const handleProposalRowClick = (proposal: ProposalOverviewRow) => {
     if (proposal.status === "완료" && proposal.proposalId) {
-      router.push(`/bid/proposal/${proposal.proposalId}`)
+      router.push(buildBidHref(`/bid/proposal/${proposal.proposalId}`))
       return
     }
 
@@ -291,7 +317,7 @@ export default function BidPage() {
 
   const handleBidResultRowClick = (row: BidResultOverviewRow) => {
     if (row.bidResultId) {
-      router.push(`/bid/result/${row.bidResultId}`)
+      router.push(buildBidHref(`/bid/result/${row.bidResultId}`))
       return
     }
 
@@ -305,7 +331,11 @@ export default function BidPage() {
         <div className="flex-1 flex flex-col">
           <Header title="입찰" description="RFP 분석, PRB 검토, 제안서 등록 및 입찰 결과를 관리합니다" />
           <main className="flex-1 overflow-auto p-6">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "rfp" | "prb" | "prb-result" | "proposal" | "result")} className="space-y-6">
+            <Tabs value={activeTab} onValueChange={(value) => {
+              const nextTab = value as "rfp" | "prb" | "prb-result" | "proposal" | "result"
+              setActiveTab(nextTab)
+              router.replace(`/bid?tab=${nextTab}`, { scroll: false })
+            }} className="space-y-6">
               <div className="flex items-center justify-between">
                 <TabsList>
                   <TabsTrigger value="rfp" className="gap-2"><FileText className="w-4 h-4" />RFP 분석</TabsTrigger>
@@ -328,11 +358,11 @@ export default function BidPage() {
                     ownerLabel={activeTab === "prb" || activeTab === "prb-result" ? "작성자" : activeTab === "result" ? "영업대표" : "담당자"}
                     showStatusFilter={activeTab !== "prb-result"}
                   />
-                  <Button asChild>
-                    <Link href={activeTab === "rfp" ? "/bid/new/rfp?standalone=1" : activeTab === "proposal" ? "/bid/new/proposal" : `/bid/new/${activeTab}`}>
-                      <Plus className="mr-2 w-4 h-4" />
-                      {getBidCreateActionLabel(activeTab)}
-                    </Link>
+                    <Button asChild>
+                      <Link href={activeTab === "rfp" ? `/bid/new/rfp?standalone=1&tab=${activeTab}` : activeTab === "proposal" ? `/bid/new/proposal?tab=${activeTab}` : `/bid/new/${activeTab}?tab=${activeTab}`}>
+                        <Plus className="mr-2 w-4 h-4" />
+                        {getBidCreateActionLabel(activeTab)}
+                      </Link>
                   </Button>
                 </div>
               </div>
@@ -360,7 +390,7 @@ export default function BidPage() {
                       </TableHeader>
                       <TableBody>
                         {filteredRfpList.map((rfp) => (
-                          <TableRow key={rfp.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/rfp/${rfp.id}`)}>
+                          <TableRow key={rfp.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(buildBidHref(`/bid/rfp/${rfp.id}`))}>
                             <TableCell>{rfp.customer}</TableCell>
                             <TableCell className="max-w-[260px] truncate font-medium">{rfp.opportunity}</TableCell>
                             <TableCell>{rfp.requester}</TableCell>
@@ -398,7 +428,7 @@ export default function BidPage() {
                       </TableHeader>
                       <TableBody>
                         {filteredPrbList.map((prb) => (
-                          <TableRow key={prb.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/prb/${prb.id}`)}>
+                          <TableRow key={prb.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(buildBidHref(`/bid/prb/${prb.id}`))}>
                             <TableCell>{prb.customer}</TableCell>
                             <TableCell className="max-w-[240px] truncate font-medium">{prb.opportunity}</TableCell>
                             <TableCell>{prb.proposalDeadline}</TableCell>
@@ -488,7 +518,7 @@ export default function BidPage() {
                       </TableHeader>
                       <TableBody>
                         {filteredPrbResults.map((prbResult) => (
-                          <TableRow key={prbResult.key} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/prb-result/${prbResult.prbResultId}`)}>
+                          <TableRow key={prbResult.key} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(buildBidHref(`/bid/prb-result/${prbResult.prbResultId}`))}>
                             <TableCell>{prbResult.customer}</TableCell>
                             <TableCell className="max-w-[240px] truncate font-medium">{prbResult.opportunity}</TableCell>
                             <TableCell>{prbResult.proposalDeadline}</TableCell>
@@ -559,7 +589,7 @@ export default function BidPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>아니오</AlertDialogCancel>
             <AlertDialogAction asChild>
-              <Link href={proposalConfirmTarget?.requestId ? `/bid/new/proposal?requestId=${proposalConfirmTarget.requestId}` : "/bid/new/proposal"}>
+              <Link href={proposalConfirmTarget?.requestId ? `/bid/new/proposal?requestId=${proposalConfirmTarget.requestId}&tab=${activeTab}` : `/bid/new/proposal?tab=${activeTab}`}>
                 확인
               </Link>
             </AlertDialogAction>
@@ -575,7 +605,7 @@ export default function BidPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>아니오</AlertDialogCancel>
             <AlertDialogAction asChild>
-              <Link href={resultConfirmTarget?.proposalId ? `/bid/new/result?proposalId=${resultConfirmTarget.proposalId}` : "/bid/new/result"}>
+              <Link href={resultConfirmTarget?.proposalId ? `/bid/new/result?proposalId=${resultConfirmTarget.proposalId}&tab=${activeTab}` : `/bid/new/result?tab=${activeTab}`}>
                 확인
               </Link>
             </AlertDialogAction>
