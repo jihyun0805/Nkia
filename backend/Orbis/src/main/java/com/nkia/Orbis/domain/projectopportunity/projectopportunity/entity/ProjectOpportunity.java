@@ -8,7 +8,7 @@ import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.RfpAnalyzeResult;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

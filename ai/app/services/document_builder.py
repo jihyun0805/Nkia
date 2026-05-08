@@ -1,418 +1,573 @@
+"""
+실 엔티티 테이블 row → IndexDocumentRequest payload 변환 모듈.
+
+index_listener.py 에서 import 해 pg_notify 이벤트를 실시간 색인할 때 사용한다.
+"""
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from decimal import Decimal
+import html
+import re
 from typing import Any
 
-
-SENSITIVE_KEY_PARTS = {
-    "password",
-    "passwd",
-    "secret",
-    "token",
-    "key",
-    "credential",
-}
-
-ATTACHMENT_SOURCE_TYPES = {"ATTACHMENT"}
-ATTACHMENT_TEXT_KEYS = (
-    "extractedText",
-    "extracted_text",
-    "fullText",
-    "full_text",
-    "text",
-    "body",
-    "content",
-)
-ATTACHMENT_NAME_KEYS = (
-    "fileName",
-    "filename",
-    "originalFilename",
-    "originalFileName",
-    "name",
-)
-ATTACHMENT_EXTENSION_KEYS = (
-    "extension",
-    "ext",
-    "fileExtension",
-)
-ATTACHMENT_MIME_KEYS = (
-    "fileType",
-    "mimeType",
-    "contentType",
-    "mediaType",
-)
-ATTACHMENT_PARENT_TYPE_KEYS = (
-    "parentSourceType",
-    "ownerSourceType",
-    "domainSourceType",
-)
-ATTACHMENT_PARENT_ID_KEYS = (
-    "parentSourceId",
-    "ownerSourceId",
-    "domainSourceId",
-)
-ATTACHMENT_PAGE_COUNT_KEYS = (
-    "pageCount",
-    "pages",
-    "sheetCount",
-    "slideCount",
-)
-ATTACHMENT_CODE_METADATA_KEYS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("첨부코드", "attachmentCode", ("attachmentCode", "attachment_code")),
-    ("관련유형", "relatedType", ("relatedType", "related_type")),
-    ("관련코드", "relatedCode", ("relatedCode", "related_code")),
-    ("고객사코드", "customerCompanyCode", ("customerCompanyCode", "customer_company_code")),
-    ("고객사명", "customerCompanyName", ("customerCompanyName", "customer_company_name", "customerName")),
-    ("회사코드", "companyCode", ("companyCode", "company_code")),
-    ("회사명", "companyName", ("companyName", "company_name")),
-    ("사업기회ID", "opportunityId", ("opportunityId", "projectOpportunityId")),
-    ("사업기회코드", "opportunityCode", ("opportunityCode", "opportunity_code")),
-    ("사업기회명", "opportunityName", ("opportunityName", "opportunity_name")),
-    ("사업유형", "businessType", ("businessType", "business_type")),
-    ("현재상태", "currentStatus", ("currentStatus", "current_status")),
-    ("영업활동ID", "activityId", ("activityId", "salesActivityId")),
-    ("활동유형", "activityType", ("activityType", "activity_type")),
-    ("활동채널", "activityChannel", ("activityChannel", "activity_channel")),
-    ("견적코드", "quoteCode", ("quoteCode", "quotationCode", "quote_code")),
-    ("RFP코드", "rfpCode", ("rfpCode", "rfp_code")),
-    ("RFP분석코드", "rfpAnalysisCode", ("rfpAnalysisCode", "rfp_analysis_code")),
-    ("제안서코드", "proposalCode", ("proposalCode", "proposal_code")),
-    ("PRB코드", "prbCode", ("prbCode", "prb_code")),
-    ("PRB결과코드", "prbResultCode", ("prbResultCode", "prb_result_code")),
-    ("입찰결과코드", "bidResultCode", ("bidResultCode", "bid_result_code")),
-    ("수주보고코드", "wonReportCode", ("wonReportCode", "won_report_code")),
-    ("계약코드", "contractCode", ("contractCode", "contract_code")),
-    ("프로젝트코드", "projectCode", ("projectCode", "project_code")),
-    ("사업결과보고코드", "projectReportCode", ("projectReportCode", "project_report_code")),
-    ("유지보수코드", "maintenanceCode", ("maintenanceCode", "maintenance_code")),
-    ("유지보수유형", "contractType", ("contractType", "contract_type")),
-    ("고객지원코드", "supportCode", ("supportCode", "support_code")),
-    ("유지보수견적코드", "maintenanceQuoteCode", ("maintenanceQuoteCode", "maintenance_quote_code")),
-    ("라이선스코드", "licenseCode", ("licenseCode", "license_code")),
-    ("라이선스타입코드", "licenseTypeCode", ("licenseTypeCode", "license_type_code")),
-    ("청구코드", "billingCode", ("billingCode", "billing_code")),
-    ("수금코드", "collectionCode", ("collectionCode", "collection_code")),
-    ("모듈ID", "moduleId", ("moduleId", "module_id", "productModuleId", "product_module_id")),
-    ("모듈명", "moduleName", ("moduleName", "module_name", "productName", "product_name")),
-    ("모듈유형", "moduleType", ("moduleType", "module_type", "productType", "product_type")),
-)
-ATTACHMENT_FILE_ID_KEYS = (
-    "fileId",
-    "id",
-)
-ATTACHMENT_PARENT_ENTITY_KEYS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("PROJECT_OPPORTUNITY", "사업기회ID", ("projectOpportunityId",)),
-    ("SALES_ACTIVITY", "영업활동ID", ("salesActivityId",)),
-    ("POST_SALES", "사후영업ID", ("postSalesId", "salesActivityId")),
-    ("QUOTATION", "견적ID", ("quotationId",)),
-    ("RFP", "RFPID", ("rfpId", "rfpCode")),
-    ("RFP_ANALYSIS", "RFP분석ID", ("rfpAnalyzeResultId", "rfpAnalysisId")),
-    ("PRB", "PRB ID", ("prbId",)),
-    ("BID_RESULT", "입찰결과ID", ("bidResultId",)),
-    ("ORDER_REPORT", "수주보고ID", ("orderReportId",)),
-    ("CONTRACT", "계약ID", ("contractId",)),
-    ("PROJECT", "사업ID", ("projectId",)),
-    ("PROJECT_RESULT_REPORT", "사업결과보고ID", ("projectResultReportId",)),
-    ("MAINTENANCE", "유지보수ID", ("maintenanceId",)),
-    ("MAINTENANCE_QUOTE", "유지보수견적ID", ("maintenanceQuotationId",)),
-    ("CUSTOMER_SUPPORT", "고객지원ID", ("customerSupportId",)),
-    ("LICENSE", "라이선스ID", ("licenseId",)),
-    ("BILLING", "청구ID", ("billingId",)),
-)
+from app.models.constants import METADATA_ALIASES, SourceType
 
 
-_SOURCE_TYPE_PAYLOAD_FIELDS: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
-    "PROJECT_OPPORTUNITY": (
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("사업코드", ("opportunityCode", "opportunity_code")),
-        ("고객사", ("customerName", "customer_name", "customerCompanyName")),
-        ("사업유형", ("businessType", "business_type")),
-        ("현재상태", ("currentStatus", "current_status")),
-        ("예상금액", ("expectedAmount", "expected_amount")),
-        ("주요내용", ("mainContent", "main_content")),
-        ("이슈", ("issueContent", "issue_content")),
-        ("경쟁상황", ("competitorStatus", "competitor_status")),
-        ("의사결정구조", ("decisionStructure", "decision_structure")),
-        ("연락라인", ("contactLine", "contact_line")),
-    ),
-    "SALES_ACTIVITY": (
-        ("활동코드", ("activityCode", "activity_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("고객사", ("customerName", "customer_name")),
-        ("활동유형", ("activityType", "activity_type")),
-        ("활동채널", ("activityChannel", "activity_channel")),
-        ("활동일시", ("activityAt", "activity_at")),
-        ("내용", ("content",)),
-        ("고객관심사", ("customerInterest", "customer_interest")),
-        ("이슈", ("issue",)),
-        ("다음조치", ("nextAction", "next_action")),
-        ("진행상태", ("progressStatus", "progress_status")),
-    ),
-    "QUOTATION": (
-        ("견적코드", ("quoteCode", "quotationCode", "quote_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("고객사", ("customerName", "customer_name")),
-        ("견적일", ("quoteDate", "quote_date")),
-        ("총액", ("totalAmount", "total_amount")),
-        ("지급조건", ("paymentTerms", "payment_terms")),
-        ("특이사항", ("specialNote", "special_note")),
-    ),
-    "RFP": (
-        ("RFP코드", ("rfpCode", "rfp_code", "rfpAnalysisCode", "rfp_analysis_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("발주기관", ("issuer",)),
-        ("공고번호", ("announcementNo", "announcement_no")),
-        ("수령일", ("receivedDate", "received_date")),
-        ("제출마감", ("submissionDeadline", "submission_deadline")),
-        ("사업기간", ("projectPeriod", "project_period")),
-        ("사업범위", ("projectScope", "project_scope")),
-        ("요구사항", ("requirements",)),
-        ("보안요구사항", ("securityRequirements", "security_requirements")),
-    ),
-    "RFP_ANALYSIS": (
-        ("RFP분석코드", ("rfpAnalysisCode", "rfp_analysis_code")),
-        ("RFP코드", ("rfpCode", "rfp_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("발주기관", ("issuer",)),
-        ("사업기간", ("projectPeriod", "project_period")),
-        ("사업범위", ("projectScope", "project_scope")),
-        ("요구사항", ("requirements",)),
-        ("리스크", ("riskFactors", "risk_factors")),
-        ("특이사항", ("specialNotes", "special_notes")),
-    ),
-    "PRB": (
-        ("PRB코드", ("prbCode", "prb_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("고객사", ("customerName", "customer_name")),
-        ("예상수주율", ("expectedWinRate", "expected_win_rate")),
-        ("추정매출", ("estimatedRevenue", "estimated_revenue")),
-        ("추정이익률", ("estimatedProfitRate", "estimated_profit_rate")),
-        ("사업개요", ("businessOverview", "business_overview")),
-        ("리스크", ("riskFactors", "risk_factors")),
-    ),
-    "PRB_RESULT": (
-        ("PRB결과코드", ("prbResultCode", "prb_result_code")),
-        ("PRB코드", ("prbCode", "prb_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("결정상태", ("decisionStatus", "decision_status")),
-        ("최종의견", ("finalOpinion", "final_opinion")),
-        ("리스크검토", ("riskReview", "risk_review")),
-    ),
-    "PROPOSAL": (
-        ("제안서코드", ("proposalCode", "proposal_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("제안서명", ("proposalName", "proposal_name")),
-        ("제안요약", ("proposalSummary", "proposal_summary")),
-        ("전략요약", ("strategySummary", "strategy_summary")),
-    ),
-    "BID_RESULT": (
-        ("입찰결과코드", ("bidResultCode", "bid_result_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("수주여부", ("won",)),
-        ("수주/실주사유", ("winLossReason", "win_loss_reason")),
-        ("경쟁사요약", ("competitorSummary", "competitor_summary")),
-    ),
-    "WON": (
-        ("수주코드", ("wonCode", "won_code", "wonReportCode", "won_report_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("고객사", ("customerName", "customer_name")),
-        ("계약금액", ("contractAmount", "contract_amount")),
-        ("계약일", ("contractDate", "contract_date")),
-        ("사업범위", ("businessScope", "business_scope")),
-        ("결과요약", ("outcomeSummary", "outcome_summary")),
-    ),
-    "LOST": (
-        ("실주코드", ("lostCode", "lost_code", "bidResultCode", "bid_result_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("고객사", ("customerName", "customer_name")),
-        ("실주사유", ("winLossReason", "win_loss_reason")),
-        ("경쟁사요약", ("competitorSummary", "competitor_summary")),
-        ("결과요약", ("outcomeSummary", "outcome_summary")),
-    ),
-    "ORDER_REPORT": (
-        ("수주보고코드", ("wonReportCode", "won_report_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("고객사", ("customerName", "customer_name")),
-        ("계약금액", ("contractAmount", "contract_amount")),
-        ("사업범위", ("businessScope", "business_scope")),
-        ("특이사항", ("specialNotes", "special_notes")),
-    ),
-    "CONTRACT": (
-        ("계약코드", ("contractCode", "contract_code")),
-        ("수주보고코드", ("wonReportCode", "won_report_code")),
-        ("상태", ("contractStatus", "contract_status")),
-        ("메모", ("memo",)),
-    ),
-    "PROJECT": (
-        ("프로젝트코드", ("projectCode", "project_code")),
-        ("납기일", ("deliveryDate", "delivery_date")),
-        ("프로젝트책임자", ("projectOwner", "project_owner")),
-        ("상태", ("projectStatus", "project_status")),
-        ("팀명", ("teamName", "team_name")),
-    ),
-    "PROJECT_RESULT_REPORT": (
-        ("결과보고코드", ("projectReportCode", "project_report_code")),
-        ("프로젝트코드", ("projectCode", "project_code")),
-        ("결과상태", ("resultStatus", "result_status")),
-        ("상세내용", ("detailContent", "detail_content")),
-    ),
-    "POST_SALES": (
-        ("사후영업코드", ("postSalesCode", "post_sales_code")),
-        ("프로젝트코드", ("projectCode", "project_code")),
-        ("활동내용", ("activityContent", "activity_content")),
-        ("후속기회", ("nextOpportunityHint", "next_opportunity_hint")),
-    ),
-    "MAINTENANCE": (
-        ("유지보수코드", ("maintenanceCode", "maintenance_code")),
-        ("사업명", ("opportunityName", "opportunity_name")),
-        ("계약유형", ("contractType", "contract_type")),
-        ("상태", ("status",)),
-        ("상세내용", ("detailContent", "detail_content")),
-    ),
-    "MAINTENANCE_QUOTE": (
-        ("유지보수견적코드", ("maintenanceQuoteCode", "maintenance_quote_code")),
-        ("유지보수코드", ("maintenanceCode", "maintenance_code")),
-        ("총액", ("totalAmount", "total_amount")),
-        ("특이사항", ("specialNotes", "special_notes")),
-    ),
-    "CUSTOMER_SUPPORT": (
-        ("고객지원코드", ("supportCode", "support_code")),
-        ("유지보수코드", ("maintenanceCode", "maintenance_code")),
-        ("활동유형", ("activityType", "activity_type")),
-        ("활동내용", ("activityContent", "activity_content")),
-        ("성과", ("performance",)),
-    ),
-    "COMPANY": (
-        ("회사명", ("companyName", "company_name")),
-        ("회사코드", ("companyCode", "company_code")),
-        ("고객그룹", ("customerGroup", "customer_group")),
-        ("고객유형", ("customerType", "customer_type")),
-        ("사업기회 수", ("opportunityCount", "opportunity_count")),
-        ("최근 영업일", ("recentActivityAt", "recent_activity_at")),
-        ("주요 사업", ("recentOpportunityNames", "recent_opportunity_names")),
-        ("최근 상태", ("recentOpportunityStatuses", "recent_opportunity_statuses")),
-    ),
-    "CONTACT": (
-        ("이름", ("name", "contactName", "contact_name")),
-        ("직책", ("position",)),
-        ("부서", ("department",)),
-        ("회사명", ("companyName", "company_name")),
-    ),
-    "MODULE": (
-        ("모듈ID", ("moduleId", "module_id", "productModuleId", "product_module_id")),
-        ("모듈명", ("moduleName", "module_name", "productName", "product_name")),
-        ("모듈유형", ("moduleType", "module_type", "productType", "product_type")),
-        ("소비자가", ("listPrice", "list_price")),
-        ("연결 사업기회 수", ("opportunityCount", "opportunity_count")),
-        ("최근 사업기회", ("recentOpportunityNames", "recent_opportunity_names")),
-    ),
-    "LICENSE": (
-        ("라이선스코드", ("licenseCode", "license_code")),
-        ("수주보고코드", ("wonReportCode", "won_report_code")),
-        ("종류", ("licenseKind", "license_kind")),
-        ("상태", ("status",)),
-    ),
-    "BILLING": (
-        ("청구코드", ("billingCode", "billing_code")),
-        ("프로젝트코드", ("projectCode", "project_code")),
-        ("청구유형", ("billingType", "billing_type")),
-        ("청구금액", ("billingAmount", "billing_amount")),
-        ("청구상태", ("billingStatus", "billing_status")),
-    ),
-}
+# ---------------------------------------------------------------------------
+# DocumentConfig
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class DocumentConfig:
+    table: str
+    source_type: str
+    id_fields: tuple[str, ...]
+    title_fields: tuple[str, ...]
+    content_fields: tuple[str, ...] = ()
+    source_path_fields: tuple[str, ...] = ()
+    payload_aliases: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
-def _build_typed_payload_lines(source_type: str, payload: dict[str, Any]) -> list[str]:
-    field_specs = _SOURCE_TYPE_PAYLOAD_FIELDS.get(source_type.upper())
-    if not field_specs:
-        return flatten_payload(payload)
-    lines: list[str] = []
-    for label, candidate_keys in field_specs:
-        value = lookup_first_value(payload, candidate_keys)
+# ---------------------------------------------------------------------------
+# 색인 대상 테이블 설정 (reindex_orbis_data.py CURRENT_PUBLIC_CONFIGS + ALWAYS_CONFIGS 와 동일)
+# ---------------------------------------------------------------------------
+
+INDEXED_CONFIGS: tuple[DocumentConfig, ...] = (
+    # ---------- 사업기회 라이프사이클 ----------
+    DocumentConfig(
+        table="project_opportunity",
+        source_type=SourceType.PROJECT_OPPORTUNITY,
+        id_fields=("opportunityCode", "opportunity_code", "id"),
+        title_fields=("opportunityName", "opportunity_name", "id"),
+        content_fields=(
+            "current_status", "business_type", "expected_amount",
+            "main_content", "issue_content", "competitor_status",
+            "decision_structure", "contact_line",
+        ),
+        payload_aliases={
+            "opportunityId": ("id",),
+            "customerCompanyId": ("customer_company_id",),
+            "opportunityCode": ("opportunity_code",),
+            "opportunityName": ("opportunity_name",),
+            "currentStatus": ("current_status",),
+            "businessType": ("business_type",),
+            "expectedAmount": ("expected_amount",),
+        },
+    ),
+    DocumentConfig(
+        table="sales_activity",
+        source_type=SourceType.SALES_ACTIVITY,
+        id_fields=("activityCode", "activity_code", "id"),
+        title_fields=("activityCode", "activity_code", "activity_content", "id"),
+        content_fields=("activity_type", "activity_purpose", "activity_content", "customer_interest", "issue", "next_activity"),
+        payload_aliases={
+            "activityAt": ("activity_date_time",),
+            "activityType": ("activity_type",),
+            "content": ("activity_content",),
+            "opportunityId": ("project_opportunity_id",),
+        },
+    ),
+    DocumentConfig(
+        table="quotation",
+        source_type=SourceType.QUOTATION,
+        id_fields=("quotation_code", "quoteCode", "id"),
+        title_fields=("quotation_code", "id"),
+        content_fields=("payment_condition", "total_price", "note"),
+        payload_aliases={
+            "quoteCode": ("quotation_code",),
+            "totalAmount": ("total_price",),
+            "opportunityId": ("project_opportunity_id",),
+        },
+    ),
+    DocumentConfig(
+        table="rfp_analyze_result",
+        source_type=SourceType.RFP_ANALYSIS,
+        id_fields=("rfpAnalysisCode", "rfp_analysis_code", "id"),
+        title_fields=("rfpAnalysisCode", "rfp_analysis_code", "id"),
+        content_fields=(
+            "issuer", "project_scope", "project_period",
+            "requirements", "risk_factors", "special_notes",
+            "key_requirements", "analysis_summary",
+        ),
+        payload_aliases={
+            "opportunityId": ("project_opportunity_id",),
+            "rfpAnalysisCode": ("id",),
+        },
+    ),
+    DocumentConfig(
+        table="prb",
+        source_type=SourceType.PRB,
+        id_fields=("prbCode", "prb_code", "id"),
+        title_fields=("prbCode", "prb_code", "id"),
+        content_fields=(
+            "prb_date", "expected_win_rate", "estimated_revenue",
+            "business_overview", "risk_factors", "competitor_status",
+        ),
+        payload_aliases={
+            "opportunityId": ("project_opportunity_id",),
+            "prbCode": ("id",),
+        },
+    ),
+    DocumentConfig(
+        table="prb_result",
+        source_type=SourceType.PRB_RESULT,
+        id_fields=("prbResultCode", "prb_result_code", "id"),
+        title_fields=("prbResultCode", "prb_result_code", "id"),
+        content_fields=("decision_status", "result_date", "risk_review", "final_opinion"),
+        payload_aliases={
+            "prbResultCode": ("id",),
+            "prbId": ("prb_id",),
+        },
+    ),
+    DocumentConfig(
+        table="proposal",
+        source_type=SourceType.PROPOSAL,
+        id_fields=("proposalCode", "proposal_code", "id"),
+        title_fields=("proposalName", "proposal_name", "proposalCode", "id"),
+        content_fields=("proposal_summary", "strategy_summary", "key_proposal_points"),
+        payload_aliases={
+            "proposalCode": ("id",),
+        },
+    ),
+    DocumentConfig(
+        table="bid_result",
+        source_type=SourceType.BID_RESULT,
+        id_fields=("bidResultCode", "bid_result_code", "id"),
+        title_fields=("bidResultCode", "bid_result_code", "id"),
+        content_fields=("result_status", "result_date", "win_loss_reason", "competitor_summary"),
+        payload_aliases={
+            "bidResultCode": ("id",),
+            "opportunityId": ("project_opportunity_id",),
+        },
+    ),
+    DocumentConfig(
+        table="order_report",
+        source_type=SourceType.ORDER_REPORT,
+        id_fields=("wonReportCode", "won_report_code", "id"),
+        title_fields=("wonReportCode", "won_report_code", "id"),
+        content_fields=("contract_date", "contract_amount", "business_scope", "special_notes"),
+        payload_aliases={
+            "wonReportCode": ("id",),
+            "opportunityId": ("project_opportunity_id",),
+        },
+    ),
+    DocumentConfig(
+        table="contract",
+        source_type=SourceType.CONTRACT,
+        id_fields=("contractCode", "contract_code", "id"),
+        title_fields=("contractCode", "contract_code", "id"),
+        content_fields=("contract_status", "start_date", "end_date", "memo"),
+        payload_aliases={
+            "contractCode": ("id",),
+            "orderReportId": ("order_report_id",),
+        },
+    ),
+    DocumentConfig(
+        table="project",
+        source_type=SourceType.PROJECT,
+        id_fields=("code", "projectCode", "project_code", "id"),
+        title_fields=("code", "pjt_number", "id"),
+        content_fields=("type", "end_date", "project_overview", "team_name"),
+        payload_aliases={
+            "projectCode": ("code",),
+        },
+    ),
+    DocumentConfig(
+        table="project_result_report",
+        source_type=SourceType.PROJECT_RESULT_REPORT,
+        id_fields=("projectReportCode", "project_report_code", "id"),
+        title_fields=("projectReportCode", "project_report_code", "id"),
+        payload_aliases={
+            "projectReportCode": ("id",),
+            "projectId": ("project_id",),
+        },
+    ),
+    DocumentConfig(
+        table="maintenance",
+        source_type=SourceType.MAINTENANCE,
+        id_fields=("maintenanceCode", "maintenance_code", "id"),
+        title_fields=("maintenanceCode", "maintenance_code", "id"),
+        payload_aliases={
+            "maintenanceCode": ("id",),
+            "projectId": ("project_id",),
+        },
+    ),
+    DocumentConfig(
+        table="maintenance_quotation",
+        source_type=SourceType.MAINTENANCE_QUOTE,
+        id_fields=("maintenanceQuoteCode", "maintenance_quote_code", "ref_no", "id"),
+        title_fields=("ref_no", "maintenanceQuoteCode", "id"),
+        content_fields=("ref_no", "quotation_date", "payment_terms", "total_amount", "special_notes"),
+        payload_aliases={
+            "maintenanceQuoteCode": ("id",),
+            "refNo": ("ref_no",),
+        },
+    ),
+    DocumentConfig(
+        table="customer_support",
+        source_type=SourceType.CUSTOMER_SUPPORT,
+        id_fields=("supportCode", "support_code", "id"),
+        title_fields=("supportCode", "support_code", "id"),
+        payload_aliases={
+            "supportCode": ("id",),
+            "maintenanceId": ("maintenance_id",),
+        },
+    ),
+    DocumentConfig(
+        table="company",
+        source_type=SourceType.COMPANY,
+        id_fields=("companyCode", "company_code", "id"),
+        title_fields=("companyName", "company_name", "id"),
+        payload_aliases={
+            "companyCode": ("id",),
+            "customerType": ("company_type",),
+        },
+    ),
+    DocumentConfig(
+        table="company_manager",
+        source_type=SourceType.CONTACT,
+        id_fields=("contactCode", "contact_code", "email", "id"),
+        title_fields=("name", "email", "id"),
+        payload_aliases={
+            "contactCode": ("id",),
+        },
+    ),
+    DocumentConfig(
+        table="license",
+        source_type=SourceType.LICENSE,
+        id_fields=("licenseCode", "license_code", "id"),
+        title_fields=("licenseCode", "license_code", "id"),
+        payload_aliases={
+            "licenseCode": ("id",),
+            "orderReportId": ("order_report_id",),
+            "moduleId": ("product_module_id",),
+        },
+    ),
+    DocumentConfig(
+        table="billing",
+        source_type=SourceType.BILLING,
+        id_fields=("billingCode", "billing_code", "id"),
+        title_fields=("billingCode", "billing_code", "id"),
+        payload_aliases={
+            "billingCode": ("id",),
+            "projectId": ("project_id",),
+        },
+    ),
+    DocumentConfig(
+        table="rfp_analyze_requirement",
+        source_type=SourceType.RFP_ANALYSIS,
+        id_fields=("requirementCode", "requirement_code", "id"),
+        title_fields=("requirement_title", "requirement_code", "id"),
+        content_fields=(
+            "category", "requirement_code", "requirement_title",
+            "requirement_content", "support_status", "review_note", "effort",
+        ),
+        payload_aliases={
+            "rfpAnalyzeResultId": ("rfp_analyze_result_id",),
+            "requirementCode": ("requirement_code",),
+        },
+    ),
+    # ---------- 항상 색인 ----------
+    DocumentConfig(
+        table="product_module",
+        source_type=SourceType.MODULE,
+        id_fields=("moduleId", "module_id", "id"),
+        title_fields=("product_name", "moduleName", "module_name", "id"),
+        content_fields=(
+            "product_class", "product_group", "product_name",
+            "license_standard", "license_unit", "unit_price",
+        ),
+        payload_aliases={
+            "moduleId": ("id",),
+            "moduleName": ("product_name",),
+            "moduleType": ("product_group",),
+            "productClass": ("product_class",),
+            "licenseStandard": ("license_standard",),
+            "licenseUnit": ("license_unit",),
+            "listPrice": ("unit_price",),
+        },
+    ),
+)
+
+# 테이블명 → config 빠른 조회
+TABLE_TO_CONFIG: dict[str, DocumentConfig] = {cfg.table: cfg for cfg in INDEXED_CONFIGS}
+
+
+# ---------------------------------------------------------------------------
+# 변환 헬퍼 (reindex_orbis_data.py 와 동일한 로직)
+# ---------------------------------------------------------------------------
+
+def to_jsonable(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return int(value) if value == int(value) else float(value)
+    if isinstance(value, dict):
+        return {str(k): to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [to_jsonable(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def first_value(payload: dict[str, Any], field_names: tuple[str, ...]) -> Any:
+    for name in field_names:
+        if name in payload and payload[name] not in (None, ""):
+            return payload[name]
+    return None
+
+
+def first_string(payload: dict[str, Any], field_names: tuple[str, ...]) -> str | None:
+    value = first_value(payload, field_names)
+    if value in (None, ""):
+        return None
+    return str(value).strip() or None
+
+
+def normalize_payload(*, row: dict[str, Any], extra_aliases: dict[str, tuple[str, ...]]) -> dict[str, Any]:
+    payload = {str(k): to_jsonable(v) for k, v in row.items()}
+    for canonical_key, aliases in METADATA_ALIASES.items():
+        if canonical_key in payload and payload[canonical_key] not in (None, ""):
+            continue
+        value = first_value(payload, aliases)
+        if value not in (None, ""):
+            payload[canonical_key] = value
+    for canonical_key, aliases in extra_aliases.items():
+        if canonical_key in payload and payload[canonical_key] not in (None, ""):
+            continue
+        value = first_value(payload, aliases)
+        if value not in (None, ""):
+            payload[canonical_key] = value
+    return payload
+
+
+def build_source_id(payload: dict[str, Any], fields: tuple[str, ...]) -> str | None:
+    value = first_value(payload, fields)
+    if value in (None, ""):
+        return None
+    return str(value).strip() or None
+
+
+def build_title(*, payload: dict[str, Any], title_fields: tuple[str, ...], source_type: str, source_id: str) -> str:
+    value = first_value(payload, title_fields)
+    if value not in (None, ""):
+        title = str(value).strip()
+        if title:
+            return title
+    return f"{source_type}:{source_id}"
+
+
+def build_content(*, payload: dict[str, Any], content_fields: tuple[str, ...]) -> str | None:
+    parts = []
+    for fname in content_fields:
+        value = payload.get(fname)
         if value in (None, ""):
             continue
         text = str(value).strip()
         if text:
-            lines.append(f"{label}: {text}")
-    return lines
+            parts.append(f"{fname}: {text}")
+    return "\n".join(parts) if parts else None
 
 
-def build_document_text(*, source_type: str | None = None, title: str | None, content: str | None, payload: dict[str, Any]) -> str:
-    if normalize_source_type(source_type) in ATTACHMENT_SOURCE_TYPES:
+def build_metadata(*, payload: dict[str, Any], source_type: str, source_table: str) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
+        "origin": "notify",
+        "sourceType": source_type,
+        "sourceTable": source_table,
+    }
+    pk = payload.get("id")
+    if pk is not None:
+        metadata["dbPk"] = str(pk)
+    for canonical_key, aliases in METADATA_ALIASES.items():
+        value = first_value(payload, aliases)
+        if value not in (None, ""):
+            metadata[canonical_key] = value
+    return metadata
+
+
+def build_document(*, config: DocumentConfig, row: dict[str, Any]) -> dict[str, Any] | None:
+    """실 엔티티 테이블 row → /internal/index/documents 페이로드 dict."""
+    payload = normalize_payload(row=row, extra_aliases=config.payload_aliases)
+    source_type = config.source_type
+    source_id = build_source_id(payload, config.id_fields)
+    if source_id is None:
+        return None
+    title = build_title(payload=payload, title_fields=config.title_fields, source_type=source_type, source_id=source_id)
+    content = build_content(payload=payload, content_fields=config.content_fields)
+    occurred_at = first_value(payload, ("updated_at", "updatedAt", "created_at", "createdAt"))
+    deleted = bool(payload.get("deleted", False))
+    deleted_at = first_value(payload, ("deleted_at", "deletedAt"))
+    return {
+        "sourceType": source_type,
+        "sourceId": source_id,
+        "operation": "UPSERT",
+        "title": title,
+        "sourcePath": first_string(payload, config.source_path_fields),
+        "content": content,
+        "payload": payload,
+        "metadata": build_metadata(payload=payload, source_type=source_type, source_table=config.table),
+        "deleted": deleted,
+        "deletedAt": deleted_at,
+        "eventId": f"notify:{config.table}:{source_type}:{source_id}",
+        "occurredAt": occurred_at,
+    }
+
+
+def build_document_text(*, source_type: str | None, title: str | None, content: str | None, payload: dict[str, Any]) -> str:
+    normalized_source_type = (source_type or "").strip().upper()
+    if normalized_source_type == SourceType.ATTACHMENT:
         return build_attachment_document_text(title=title, content=content, payload=payload)
 
+    version_lines = build_version_lines(payload)
     if content and content.strip():
         parts = []
         if title and title.strip():
             parts.append(f"제목: {title.strip()}")
         parts.append(content.strip())
+        parts.extend(version_lines)
         return "\n".join(parts)
 
-    lines = []
+    if normalized_source_type == SourceType.RFP_ANALYSIS:
+        return build_rfp_analysis_document_text(title=title, payload=payload)
+
+    lines: list[str] = []
     if title and title.strip():
         lines.append(f"제목: {title.strip()}")
-    lines.extend(_build_typed_payload_lines(source_type or "", payload))
+    lines.extend(version_lines)
+    lines.extend(flatten_payload(payload))
     return "\n".join(lines).strip()
+
+
+def build_rfp_analysis_document_text(*, title: str | None, payload: dict[str, Any]) -> str:
+    lines: list[str] = []
+    if title and title.strip():
+        lines.append(f"제목: {title.strip()}")
+    lines.extend(build_version_lines(payload))
+
+    field_specs: tuple[tuple[str, tuple[str, ...]], ...] = (
+        ("고객사", ("customerName", "customer_name", "customerCompanyName")),
+        ("사업기회코드", ("opportunityCode", "opportunity_code")),
+        ("사업기회명", ("opportunityName", "opportunity_name")),
+        ("사업부문", ("businessDivision", "business_division", "businessType", "business_type")),
+        ("제안유형", ("proposalType", "proposal_type")),
+        ("제출마감", ("submissionDeadline", "submission_deadline")),
+        ("영업대표", ("salesRepresentative", "sales_representative")),
+        ("담당자", ("manager", "analyst")),
+        ("요청일", ("requestedAt", "requested_at", "receivedDate", "received_date")),
+        ("분석상태", ("analysisStatus", "analysis_status", "status")),
+    )
+    for label, aliases in field_specs:
+        value = first_value(payload, aliases)
+        if value not in (None, ""):
+            lines.append(f"{label}: {value}")
+
+    requirements = payload.get("requirements")
+    if isinstance(requirements, list) and requirements:
+        total_mandays = 0.0
+        for index, requirement in enumerate(requirements, start=1):
+            if not isinstance(requirement, dict):
+                continue
+            lines.append(f"요구사항 {index}")
+            row_specs: tuple[tuple[str, tuple[str, ...]], ...] = (
+                ("구분", ("category",)),
+                ("요구사항번호", ("requirementNo", "requirement_code")),
+                ("요구사항명칭", ("requirementName", "requirement_title")),
+                ("요구사항내용", ("requirementDetail", "requirement_content")),
+                ("지원여부", ("supportStatus", "support_status")),
+                ("검토 내용", ("reviewNote", "review_note")),
+                ("공수(M/D)", ("mandays", "effort")),
+            )
+            for label, aliases in row_specs:
+                value = first_value(requirement, aliases)
+                if value in (None, ""):
+                    continue
+                lines.append(f"{label}: {value}")
+            mandays = first_value(requirement, ("mandays", "effort"))
+            if isinstance(mandays, (int, float, Decimal)):
+                total_mandays += float(mandays)
+        lines.append(f"총 공수(M/D): {int(total_mandays) if total_mandays.is_integer() else total_mandays}")
+    else:
+        lines.extend(flatten_payload(payload))
+
+    return "\n".join(str(line).strip() for line in lines if str(line).strip()).strip()
 
 
 def build_attachment_document_text(*, title: str | None, content: str | None, payload: dict[str, Any]) -> str:
-    attachment_title = first_non_empty_str(title, lookup_first_string(payload, ATTACHMENT_NAME_KEYS))
-    extracted_text = first_non_empty_str(content, lookup_first_string(payload, ATTACHMENT_TEXT_KEYS))
-
     lines: list[str] = []
-    if attachment_title:
-        lines.append(f"제목: {attachment_title}")
-    lines.append("문서유형: 첨부파일")
+    if title and title.strip():
+        lines.append(f"제목: {title.strip()}")
 
-    file_extension = lookup_first_string(payload, ATTACHMENT_EXTENSION_KEYS)
-    if file_extension:
-        lines.append(f"확장자: {file_extension}")
-
-    file_type = lookup_first_string(payload, ATTACHMENT_MIME_KEYS)
+    file_type = first_string(payload, ("fileType", "mimeType", "contentType", "mediaType"))
     if file_type:
         lines.append(f"파일타입: {file_type}")
 
-    parent_source_type = lookup_first_string(payload, ATTACHMENT_PARENT_TYPE_KEYS)
-    if parent_source_type:
-        lines.append(f"원본문서유형: {parent_source_type}")
+    if content and "<table" in content.lower():
+        lines.extend(_extract_html_table_lines(content))
+    elif content and content.strip():
+        lines.append(content.strip())
+    else:
+        lines.extend(flatten_payload(payload))
 
-    modules = lookup_first_value(payload, ("modules", "moduleNames", "productModules"))
-    if modules not in (None, ""):
-        lines.append(f"모듈: {format_attachment_value(modules)}")
+    return "\n".join(line for line in lines if line).strip()
 
-    competitors = lookup_first_value(payload, ("competitors",))
-    if competitors not in (None, ""):
-        lines.append(f"경쟁사: {format_attachment_value(competitors)}")
 
-    if extracted_text:
-        lines.append("본문:")
-        lines.append(extracted_text)
+def build_version_lines(payload: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
 
-    file_id = lookup_first_value(payload, ATTACHMENT_FILE_ID_KEYS)
-    if file_id not in (None, ""):
-        lines.append(f"파일ID: {file_id}")
+    series_code = first_value(payload, ("documentSeriesCode", "document_series_code"))
+    if series_code not in (None, ""):
+        lines.append(f"문서계열코드: {series_code}")
 
-    parent_source_id = lookup_first_string(payload, ATTACHMENT_PARENT_ID_KEYS)
-    if parent_source_id:
-        lines.append(f"원본문서ID: {parent_source_id}")
+    version = first_value(payload, ("documentVersion", "document_version"))
+    if version not in (None, ""):
+        lines.append(f"문서버전: {version}")
 
-    for _, label, keys in ATTACHMENT_PARENT_ENTITY_KEYS:
-        related_id = lookup_first_value(payload, keys)
-        if related_id not in (None, ""):
-            lines.append(f"{label}: {related_id}")
+    is_latest = first_value(payload, ("isLatestVersion", "is_latest_version"))
+    latest_label = normalize_latest_version_label(is_latest)
+    if latest_label is not None:
+        lines.append(f"최신버전여부: {latest_label}")
 
-    page_count = lookup_first_value(payload, ATTACHMENT_PAGE_COUNT_KEYS)
-    if page_count not in (None, ""):
-        lines.append(f"페이지수: {page_count}")
+    previous_version_id = first_value(payload, ("previousVersionId", "previous_version_id"))
+    if previous_version_id not in (None, ""):
+        lines.append(f"이전버전참조: {previous_version_id}")
 
-    for label, _, keys in ATTACHMENT_CODE_METADATA_KEYS:
-        related_value = lookup_first_value(payload, keys)
-        if related_value in (None, ""):
-            continue
-        lines.append(f"{label}: {format_attachment_value(related_value)}")
+    return lines
 
-    if extracted_text:
-        return "\n".join(lines).strip()
 
-    lines.extend(flatten_payload(payload))
-    return "\n".join(lines).strip()
+def normalize_latest_version_label(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        return "예" if value else "아니오"
+    text = str(value).strip().lower()
+    if text in {"true", "t", "1", "y", "yes"}:
+        return "예"
+    if text in {"false", "f", "0", "n", "no"}:
+        return "아니오"
+    return str(value)
+
+
+def _extract_html_table_lines(raw_html: str) -> list[str]:
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", raw_html, flags=re.IGNORECASE | re.DOTALL)
+    extracted: list[str] = []
+    for row_html in rows:
+        cells = re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row_html, flags=re.IGNORECASE | re.DOTALL)
+        normalized_cells = [_normalize_html_cell(cell) for cell in cells]
+        normalized_cells = [cell for cell in normalized_cells if cell]
+        if normalized_cells:
+            extracted.append(" | ".join(normalized_cells))
+    return extracted
+
+
+def _normalize_html_cell(cell_html: str) -> str:
+    text = re.sub(r"<br\\s*/?>", "\n", cell_html, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"\\s+", " ", text)
+    return text.strip()
 
 
 def flatten_payload(payload: dict[str, Any]) -> list[str]:
@@ -423,7 +578,7 @@ def flatten_payload(payload: dict[str, Any]) -> list[str]:
 
 
 def flatten_value(path: str, value: Any) -> list[str]:
-    if value is None or is_sensitive_path(path):
+    if value is None:
         return []
     if isinstance(value, dict):
         lines: list[str] = []
@@ -442,42 +597,3 @@ def flatten_value(path: str, value: Any) -> list[str]:
     if not text:
         return []
     return [f"{path}: {text}"]
-
-
-def is_sensitive_path(path: str) -> bool:
-    normalized = path.lower()
-    return any(part in normalized for part in SENSITIVE_KEY_PARTS)
-
-
-def lookup_first_string(payload: dict[str, Any], keys: tuple[str, ...]) -> str | None:
-    value = lookup_first_value(payload, keys)
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def lookup_first_value(payload: dict[str, Any], keys: tuple[str, ...]) -> Any:
-    for key in keys:
-        if key in payload and payload[key] is not None:
-            return payload[key]
-    return None
-
-
-def first_non_empty_str(*values: str | None) -> str | None:
-    for value in values:
-        if value and value.strip():
-            return value.strip()
-    return None
-
-
-def normalize_source_type(source_type: str | None) -> str:
-    return (source_type or "").strip().upper()
-
-
-def format_attachment_value(value: Any) -> str:
-    if isinstance(value, list):
-        return ", ".join(str(item).strip() for item in value if str(item).strip())
-    if isinstance(value, tuple):
-        return ", ".join(str(item).strip() for item in value if str(item).strip())
-    return str(value).strip()

@@ -8,8 +8,8 @@ import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response.SalesAct
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response.SalesActivityRequestResponse;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityRequest;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.repository.SalesActivityRequestRepository;
-import com.nkia.Orbis.domain.user.entity.User;
-import com.nkia.Orbis.domain.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.maintenance.maintenance.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupport;
 import com.nkia.Orbis.domain.project.project.entity.Project;
-import com.nkia.Orbis.domain.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

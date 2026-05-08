@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.projectopportunity.projectopportunity.dto.request;
 
 import com.nkia.Orbis.domain.company.entity.Company;
-import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

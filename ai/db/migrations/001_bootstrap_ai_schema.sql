@@ -113,6 +113,34 @@ CREATE INDEX IF NOT EXISTS idx_ai_knowledge_chunks_embedding_hnsw
 
 DO $do$
 DECLARE
+    checkpoint_table text;
+BEGIN
+    FOREACH checkpoint_table IN ARRAY ARRAY[
+        'checkpoints',
+        'checkpoint_blobs',
+        'checkpoint_writes',
+        'checkpoint_migrations'
+    ]
+    LOOP
+        IF to_regclass(format('public.%I', checkpoint_table)) IS NULL THEN
+            CONTINUE;
+        END IF;
+
+        IF to_regclass(format('ai.%I', checkpoint_table)) IS NOT NULL THEN
+            RAISE EXCEPTION
+                'LangGraph checkpoint table conflict: public.% and ai.% both exist. Resolve manually before migration.',
+                checkpoint_table,
+                checkpoint_table;
+        END IF;
+
+        RAISE NOTICE 'Moving LangGraph checkpoint table public.% to ai.%', checkpoint_table, checkpoint_table;
+        EXECUTE format('ALTER TABLE public.%I SET SCHEMA ai', checkpoint_table);
+    END LOOP;
+END
+$do$;
+
+DO $do$
+DECLARE
     ai_db_user text := '__AI_DB_USER__';
 BEGIN
     EXECUTE format('GRANT USAGE ON SCHEMA ai TO %I', ai_db_user);

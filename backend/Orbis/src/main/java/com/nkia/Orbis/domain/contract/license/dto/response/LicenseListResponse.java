@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.contract.license.dto.response;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.license.entity.LicenseStatus;
 import com.nkia.Orbis.domain.contract.license.entity.LicenseType;
-import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Getter;

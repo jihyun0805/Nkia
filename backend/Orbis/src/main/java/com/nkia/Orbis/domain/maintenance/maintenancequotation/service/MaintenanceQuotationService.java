@@ -13,8 +13,8 @@ import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ServiceItem
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.repository.MaintenanceQuotationRepository;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
-import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
-import com.nkia.Orbis.domain.productmodule.repository.ProductModuleRepository;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

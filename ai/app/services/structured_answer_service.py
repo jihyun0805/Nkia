@@ -20,6 +20,8 @@ from app.models.normalization import QueryNormalization
 from app.repositories.backend_query_repository import (
     fetch_bid_result_snapshot,
     fetch_contract_snapshot,
+    fetch_opportunity_delivery_snapshot,
+    fetch_quotation_snapshot,
     fetch_metric_rows_for_opportunity_codes,
     fetch_maintenance_activity_rank,
     fetch_maintenance_activity_rank_filtered,
@@ -145,8 +147,9 @@ def answer_targeted_domain_query(
                 embedder=embedder,
             )
 
-    entity = resolve_primary_opportunity(
-        query_terms=normalization.scope_terms or normalization.entity_terms,
+    entity = resolve_primary_opportunity_with_fallback(
+        query=query,
+        normalization=normalization,
         exact_codes=exact_codes,
     )
     if entity is None:
@@ -273,6 +276,51 @@ def answer_targeted_domain_query(
                 embedder=embedder,
             )
 
+    if is_contract_maintenance_query(normalized_query):
+        snapshot = fetch_opportunity_delivery_snapshot(opportunity_code=opportunity_code)
+        if snapshot is not None:
+            return build_contract_maintenance_response(
+                query=query,
+                snapshot=snapshot,
+                limit=limit,
+                embedder=embedder,
+            )
+
+    if is_project_maintenance_summary_query(normalized_query):
+        snapshot = fetch_opportunity_delivery_snapshot(opportunity_code=opportunity_code)
+        if snapshot is not None:
+            return build_project_maintenance_summary_response(
+                query=query,
+                snapshot=snapshot,
+                limit=limit,
+                embedder=embedder,
+            )
+
+    if is_support_issue_query(normalized_query, normalization):
+        rows = fetch_maintenance_history(
+            opportunity_code=opportunity_code,
+            start_at=start_at or normalization.time_range.start_at,
+            end_at=end_at or normalization.time_range.end_at,
+            limit=max(limit * 2, 8),
+        )
+        if rows:
+            return build_support_issue_response(
+                query=query,
+                opportunity_code=opportunity_code,
+                opportunity_name=opportunity_name,
+                rows=rows,
+                limit=limit,
+                embedder=embedder,
+            )
+        snapshot = fetch_opportunity_delivery_snapshot(opportunity_code=opportunity_code)
+        if snapshot is not None:
+            return build_support_issue_snapshot_response(
+                query=query,
+                snapshot=snapshot,
+                limit=limit,
+                embedder=embedder,
+            )
+
     if is_maintenance_quote_query(normalized_query):
         snapshot = fetch_maintenance_quote_snapshot(opportunity_code=opportunity_code)
         if snapshot is not None:
@@ -366,7 +414,11 @@ def answer_exact_code_snapshot_query(
         return None
 
     for code in exact_codes:
-        if code.startswith("CTR-"):
+        if code.startswith("QUO-") or code.startswith("Q-"):
+            snapshot = fetch_quotation_snapshot(quotation_code=code)
+            if snapshot is not None:
+                return build_quotation_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
+        if code.startswith("CTR-") or code.startswith("CT-"):
             snapshot = fetch_contract_snapshot(contract_code=code)
             if snapshot is not None:
                 return build_contract_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
@@ -374,10 +426,19 @@ def answer_exact_code_snapshot_query(
             snapshot = fetch_project_snapshot(project_code=code)
             if snapshot is not None:
                 return build_project_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
-        if code.startswith("MNT-"):
+        if code.startswith("MNT-") or code.startswith("MC-"):
             snapshot = fetch_maintenance_snapshot(maintenance_code=code)
             if snapshot is not None:
                 return build_maintenance_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
+        snapshot = fetch_contract_snapshot(contract_code=code)
+        if snapshot is not None:
+            return build_contract_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
+        snapshot = fetch_project_snapshot(project_code=code)
+        if snapshot is not None:
+            return build_project_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
+        snapshot = fetch_maintenance_snapshot(maintenance_code=code)
+        if snapshot is not None:
+            return build_maintenance_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
     return None
 
 
@@ -1919,19 +1980,49 @@ def build_rfp_snapshot_response(
     limit: int,
     embedder: EmbeddingModel,
 ) -> AnswerResponse:
-    answer = "\n".join(
-        [
-            f"핵심 결론: {snapshot['opportunity_name']}의 RFP 핵심 요구는 {snapshot.get('requirements') or '미기재'}입니다.",
-            "",
-            f"발행 기관: {snapshot.get('issuer') or snapshot.get('customer_name') or '미기재'}",
-            f"RFP 확보 시점: {describe_rfp_origin(snapshot.get('rfp_origin'))}",
-            f"제출 마감: {snapshot.get('submission_deadline') or '미기재'}",
-            f"사업 범위: {snapshot.get('project_scope') or '미기재'}",
-            f"보안 요구: {snapshot.get('security_requirements') or '미기재'}",
-            f"리스크: {snapshot.get('risk_factors') or '미기재'}",
-            f"분석 상태: {snapshot.get('analysis_status') or '미기재'}",
-        ]
-    )
+    requirement_rows = extract_rfp_requirement_rows(snapshot)
+    matched_rows = select_matching_rfp_rows(query=query, rows=requirement_rows)
+    detail_requested = is_rfp_requirement_detail_query(query)
+
+    lines: list[str] = []
+    if detail_requested and matched_rows:
+        focus = matched_rows[0].get("requirementTitle") or matched_rows[0].get("category") or "요구사항"
+        lines.append(
+            f"핵심 결론: {snapshot['opportunity_name']}의 RFP 분석에서 {focus} 관련 검토 결과는 다음과 같습니다."
+        )
+        lines.append("")
+        for row in matched_rows[:3]:
+            lines.append(
+                f"- {row.get('requirementTitle') or row.get('category') or '요구사항'}"
+                f": 지원 여부 {row.get('supportStatus') or '미기재'}"
+                f", 공수 {format_effort_value(row.get('effort'))}"
+            )
+            lines.append(f"  검토 내용: {row.get('reviewNote') or row.get('requirementContent') or '미기재'}")
+    else:
+        lines.extend(
+            [
+                f"핵심 결론: {snapshot['opportunity_name']}의 RFP 핵심 요구는 {snapshot.get('requirements') or '미기재'}입니다.",
+                "",
+                f"발행 기관: {snapshot.get('issuer') or snapshot.get('customer_name') or '미기재'}",
+                f"RFP 확보 시점: {describe_rfp_origin(snapshot.get('rfp_origin'))}",
+                f"제출 마감: {snapshot.get('submission_deadline') or '미기재'}",
+                f"사업 범위: {snapshot.get('project_scope') or '미기재'}",
+                f"보안 요구: {snapshot.get('security_requirements') or '미기재'}",
+                f"리스크: {snapshot.get('risk_factors') or '미기재'}",
+                f"분석 상태: {snapshot.get('analysis_status') or '미기재'}",
+            ]
+        )
+        if requirement_rows:
+            lines.append("")
+            lines.append(f"주요 요구사항 {min(len(requirement_rows), 3)}건:")
+            for row in requirement_rows[:3]:
+                lines.append(
+                    f"- {row.get('requirementTitle') or row.get('category') or '요구사항'}"
+                    f" / 지원 여부 {row.get('supportStatus') or '미기재'}"
+                    f" / 공수 {format_effort_value(row.get('effort'))}"
+                )
+
+    answer = "\n".join(lines)
     evidences = build_snapshot_evidences(
         snapshot,
         [
@@ -1939,7 +2030,14 @@ def build_rfp_snapshot_response(
             ("RFP_ANALYSIS", "rfp_analysis_code", "opportunity_name", ["requirements", "security_requirements", "analysis_status"]),
             ("PROJECT_OPPORTUNITY", "opportunity_code", "opportunity_name", ["current_status"]),
         ],
-        limit=limit,
+        limit=max(2, limit),
+    )
+    evidences.extend(
+        build_rfp_requirement_row_evidences(
+            snapshot=snapshot,
+            rows=(matched_rows or requirement_rows)[: max(1, limit)],
+            offset=len(evidences),
+        )
     )
     return AnswerResponse(
         query=query,
@@ -1947,7 +2045,7 @@ def build_rfp_snapshot_response(
         embeddingModel=embedder.config.model_name,
         chatModel="structured-rule-engine",
         excludedSourceTypes=[],
-        evidences=evidences,
+        evidences=evidences[: max(limit, 3)],
     )
 
 
@@ -2029,6 +2127,294 @@ def build_contract_snapshot_response(
         chatModel="structured-rule-engine",
         excludedSourceTypes=[],
         evidences=evidences,
+    )
+
+
+def build_contract_maintenance_response(
+    *,
+    query: str,
+    snapshot: dict[str, Any],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    lines = [
+        (
+            f"핵심 결론: {snapshot.get('opportunity_name') or '해당 사업'}은 "
+            f"{snapshot.get('contract_code') or snapshot.get('won_report_code') or '계약 정보 미기재'} 기준으로 "
+            f"계약이 진행되었고, 현재 유지보수는 {snapshot.get('maintenance_type') or '미기재'} 조건으로 운영되고 있습니다."
+        ),
+        "",
+        f"고객사: {snapshot.get('customer_name') or '미기재'}",
+        f"수주/계약 금액: {format_number(snapshot.get('contract_amount'))}",
+        f"계약 일자: {snapshot.get('contract_date') or '미기재'}",
+        f"계약 기간: {snapshot.get('contract_start_date') or '미기재'} ~ {snapshot.get('contract_end_date') or '미기재'}",
+        f"대금 조건: {snapshot.get('payment_terms') or '미기재'}",
+        f"사업 범위: {snapshot.get('business_scope') or '미기재'}",
+        f"유지보수 코드: {snapshot.get('maintenance_code') or '미기재'}",
+        f"유지보수 기간: {snapshot.get('maintenance_start_date') or '미기재'} ~ {snapshot.get('maintenance_end_date') or '미기재'}",
+        f"유지보수 계약 금액: {format_number(snapshot.get('maintenance_contract_amount'))}",
+        f"유지보수 메모: {snapshot.get('maintenance_remarks') or '미기재'}",
+    ]
+    if snapshot.get("support_content") or snapshot.get("support_result"):
+        lines.extend(
+            [
+                f"최근 지원: {format_datetime(snapshot.get('support_started_at')) or '미기재'} / {snapshot.get('support_activity_type') or '미기재'}",
+                f"최근 지원 내용: {snapshot.get('support_content') or '미기재'}",
+                f"최근 지원 결과: {snapshot.get('support_result') or '미기재'}",
+            ]
+        )
+
+    evidences = build_snapshot_evidences(
+        snapshot,
+        [
+            ("WON", "opportunity_code", "opportunity_name", ["won_report_code", "contract_amount", "payment_terms"]),
+            ("ORDER_REPORT", "won_report_code", "opportunity_name", ["contract_date", "contract_amount", "business_scope", "special_notes"]),
+            ("CONTRACT", "contract_code", "opportunity_name", ["contract_status", "contract_start_date", "contract_end_date", "contract_memo"]),
+            ("MAINTENANCE", "maintenance_code", "opportunity_name", ["maintenance_type", "maintenance_start_date", "maintenance_end_date", "maintenance_contract_amount"]),
+            ("CUSTOMER_SUPPORT", "support_code", "opportunity_name", ["support_activity_type", "support_started_at", "support_result"]),
+        ],
+        limit=max(3, limit),
+    )
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        route="fast_structured",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        confidenceBand="high",
+        confidenceReasons=["contract_maintenance_snapshot"],
+        excludedSourceTypes=[],
+        evidences=evidences[: max(limit, 3)],
+    )
+
+
+def build_project_maintenance_summary_response(
+    *,
+    query: str,
+    snapshot: dict[str, Any],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    lines = [
+        (
+            f"핵심 결론: {snapshot.get('opportunity_name') or '해당 사업'}은 "
+            f"프로젝트 {snapshot.get('project_code') or '미기재'} 단계와 유지보수 {snapshot.get('maintenance_code') or '미기재'} 운영 상태를 함께 확인할 수 있습니다."
+        ),
+        "",
+        f"고객사: {snapshot.get('customer_name') or '미기재'}",
+        f"프로젝트 상태: {snapshot.get('project_status') or '미기재'}",
+        f"프로젝트 오너/팀: {snapshot.get('project_owner') or '미기재'} / {snapshot.get('team_name') or '미기재'}",
+        f"프로젝트 개요: {snapshot.get('project_overview') or '미기재'}",
+        f"최근 결과보고: {snapshot.get('project_report_code') or '미기재'} / {snapshot.get('project_result_status') or '미기재'}",
+        f"유지보수 유형: {snapshot.get('maintenance_type') or '미기재'}",
+        f"유지보수 기간: {snapshot.get('maintenance_start_date') or '미기재'} ~ {snapshot.get('maintenance_end_date') or '미기재'}",
+        f"최근 지원 내용: {snapshot.get('support_content') or '미기재'}",
+        f"최근 지원 결과: {snapshot.get('support_result') or '미기재'}",
+    ]
+    evidences = build_snapshot_evidences(
+        snapshot,
+        [
+            ("PROJECT", "project_code", "opportunity_name", ["project_status", "project_owner", "team_name"]),
+            ("PROJECT_RESULT_REPORT", "project_report_code", "opportunity_name", ["project_result_status"]),
+            ("MAINTENANCE", "maintenance_code", "opportunity_name", ["maintenance_type", "maintenance_start_date", "maintenance_end_date"]),
+            ("CUSTOMER_SUPPORT", "support_code", "opportunity_name", ["support_activity_type", "support_started_at", "support_result"]),
+        ],
+        limit=max(3, limit),
+    )
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        route="fast_structured",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        confidenceBand="high",
+        confidenceReasons=["project_maintenance_snapshot"],
+        excludedSourceTypes=[],
+        evidences=evidences[: max(limit, 3)],
+    )
+
+
+def build_support_issue_response(
+    *,
+    query: str,
+    opportunity_code: str,
+    opportunity_name: str,
+    rows: list[dict[str, Any]],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    incident_rows = filter_support_issue_rows(rows, query=query)
+    selected_rows = incident_rows or rows[: min(len(rows), 3)]
+    header_row = selected_rows[0]
+    lines = [
+        f"핵심 결론: {opportunity_name}의 지원/장애 대응 이력 중 관련 내용은 다음과 같습니다.",
+        "",
+        f"대표 대응: {header_row.get('activity_date') or '미기재'} / {header_row.get('activity_type') or '활동'}",
+        f"주요 내용: {header_row.get('activity_content') or '미기재'}",
+        f"조치 결과: {header_row.get('performance') or '미기재'}",
+    ]
+    if len(selected_rows) > 1:
+        lines.append("")
+        lines.append("관련 이력:")
+        for row in selected_rows[1:3]:
+            lines.append(
+                f"- {row.get('activity_date') or '미기재'} / {row.get('activity_type') or '활동'} / "
+                f"{row.get('activity_content') or '미기재'} / 결과 {row.get('performance') or '미기재'}"
+            )
+    evidences = build_support_row_evidences(rows=selected_rows[: max(limit, 1)])
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        route="fast_structured",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        confidenceBand="high",
+        confidenceReasons=["support_issue_history"],
+        excludedSourceTypes=[],
+        evidences=evidences[: max(limit, 2)],
+    )
+
+
+def build_support_issue_snapshot_response(
+    *,
+    query: str,
+    snapshot: dict[str, Any],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    lines = [
+        f"핵심 결론: {snapshot.get('opportunity_name') or '해당 사업'}의 최근 지원/장애 대응 정보는 다음과 같습니다.",
+        "",
+        f"고객사: {snapshot.get('customer_name') or '미기재'}",
+        f"지원 시각: {format_datetime(snapshot.get('support_started_at')) or '미기재'}",
+        f"지원 유형: {snapshot.get('support_activity_type') or '미기재'}",
+        f"지원 내용: {snapshot.get('support_content') or '미기재'}",
+        f"조치 결과: {snapshot.get('support_result') or '미기재'}",
+    ]
+    evidences = build_snapshot_evidences(
+        snapshot,
+        [
+            ("CUSTOMER_SUPPORT", "support_code", "opportunity_name", ["support_activity_type", "support_started_at", "support_result"]),
+            ("MAINTENANCE", "maintenance_code", "opportunity_name", ["maintenance_type", "maintenance_remarks"]),
+        ],
+        limit=max(2, limit),
+    )
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        route="fast_structured",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        confidenceBand="medium",
+        confidenceReasons=["support_issue_snapshot"],
+        excludedSourceTypes=[],
+        evidences=evidences[: max(limit, 2)],
+    )
+
+
+def build_quotation_snapshot_response(
+    *,
+    query: str,
+    snapshot: dict[str, Any],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    solution_items = [item for item in (snapshot.get("solution_items") or []) if isinstance(item, dict)]
+    labor_items = [item for item in (snapshot.get("labor_items") or []) if isinstance(item, dict)]
+    top_modules = [
+        (
+            f"- {item.get('product_name') or '모듈 미기재'}"
+            f" / 수량 {item.get('quantity') or 0}"
+            f" / 공급가 {format_number(item.get('supply_total_price'))}"
+        )
+        for item in solution_items[:3]
+    ]
+
+    version_lines = build_snapshot_version_lines(snapshot)
+    lines = [
+        f"핵심 결론: {snapshot.get('quotation_code') or '견적코드 미기재'} 견적은 총 {format_number(snapshot.get('total_price'))}이며 지급 조건은 {snapshot.get('payment_condition') or '미기재'}입니다.",
+        "",
+        f"고객사: {snapshot.get('customer_name') or '미기재'}",
+        f"사업기회: {snapshot.get('opportunity_name') or snapshot.get('opportunity_code') or '미기재'}",
+        f"견적일: {snapshot.get('quotation_date') or '미기재'}",
+        f"소비자 총액: {format_number(snapshot.get('consumer_total_price'))}",
+        f"공급 총액: {format_number(snapshot.get('supply_total_price'))}",
+        f"인건비 총액: {format_number(snapshot.get('labor_total_price'))}",
+    ]
+    lines.extend(version_lines)
+    lines.append(f"비고: {snapshot.get('note') or '미기재'}")
+
+    if top_modules:
+        lines.append("주요 모듈:")
+        lines.extend(top_modules)
+
+    if labor_items:
+        lines.append(
+            f"인건비 항목 수: {len(labor_items)}건"
+        )
+
+    evidences = build_snapshot_evidences(
+        snapshot,
+        [
+            (
+                "QUOTATION",
+                "quotation_code",
+                "opportunity_name",
+                [
+                    "quotation_date",
+                    "payment_condition",
+                    "total_price",
+                    "document_series_code",
+                    "document_version",
+                    "is_latest_version",
+                ],
+            ),
+            ("PROJECT_OPPORTUNITY", "opportunity_code", "opportunity_name", ["customer_name"]),
+        ],
+        limit=max(2, limit),
+    )
+
+    for index, item in enumerate(solution_items[: max(0, limit - len(evidences))]):
+        evidences.append(
+            AnswerEvidence(
+                evidenceType="structured_evidence",
+                sourceType="MODULE",
+                sourceId=str(item.get("module_id") or item.get("product_name") or snapshot.get("quotation_code")),
+                title=f"{snapshot.get('quotation_code') or '견적'} 모듈 항목 #{index + 1}",
+                chunkIndex=index,
+                distance=0.0,
+                vectorScore=1.0,
+                keywordScore=1.0,
+                finalScore=1.0,
+                matchedBy=["structured_row"],
+                content=(
+                    f"{item.get('product_name') or '모듈 미기재'} / "
+                    f"{item.get('product_group') or '그룹 미기재'} / "
+                    f"수량 {item.get('quantity') or 0} / "
+                    f"공급가 {format_number(item.get('supply_total_price'))}"
+                ),
+                metadata={
+                    "quotationCode": snapshot.get("quotation_code"),
+                    "opportunityCode": snapshot.get("opportunity_code"),
+                },
+            )
+        )
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        route="fast_structured",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        confidenceBand="high",
+        confidenceReasons=["quotation_snapshot"],
+        excludedSourceTypes=[],
+        evidences=evidences[: max(limit, 3)],
     )
 
 
@@ -2331,10 +2717,11 @@ def build_product_catalog_response(
         ]
         for i, row in enumerate(rows):
             price_str = format_number(row.get("unit_price"), suffix="원") if row.get("unit_price") else "가격 미기재"
+            version_suffix = build_row_version_suffix(row)
             lines.append(
                 f"- {row.get('product_name') or '미기재'}"
                 f" [{row.get('product_class') or ''} / {row.get('product_group') or ''}]"
-                f" : {price_str}"
+                f"{version_suffix} : {price_str}"
             )
             evidences.append(
                 AnswerEvidence(
@@ -2354,6 +2741,9 @@ def build_product_catalog_response(
                         "productGroup": row.get("product_group"),
                         "productName": row.get("product_name"),
                         "unitPrice": str(row.get("unit_price")) if row.get("unit_price") is not None else None,
+                        "documentSeriesCode": row.get("document_series_code"),
+                        "documentVersion": row.get("document_version"),
+                        "isLatestVersion": row.get("is_latest_version"),
                     },
                 )
             )
@@ -2384,8 +2774,10 @@ def build_product_catalog_response(
         lines.append(f"[{cls}] — {len(items)}개")
         for item in items[:8]:
             price_str = format_number(item.get("unit_price"), suffix="원") if item.get("unit_price") else "가격 미기재"
+            version_suffix = build_row_version_suffix(item)
             lines.append(
                 f"  · {item.get('product_name') or '미기재'}"
+                f"{version_suffix}"
                 f" ({item.get('product_group') or '그룹 미기재'}"
                 f" / {item.get('license_standard') or ''} {item.get('license_unit') or ''}"
                 f" / {price_str})"
@@ -2955,6 +3347,168 @@ def build_snapshot_evidences(
     return evidences
 
 
+def build_snapshot_version_lines(snapshot: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    series_code = snapshot.get("document_series_code")
+    version = snapshot.get("document_version")
+    is_latest = snapshot.get("is_latest_version")
+    previous_version_id = snapshot.get("previous_version_id")
+
+    if series_code not in (None, ""):
+        lines.append(f"문서 계열 코드: {series_code}")
+    if version not in (None, ""):
+        lines.append(f"문서 버전: {version}")
+    if is_latest is not None:
+        lines.append(f"최신 버전 여부: {'예' if bool(is_latest) else '아니오'}")
+    if previous_version_id not in (None, ""):
+        lines.append(f"이전 버전 참조: {previous_version_id}")
+    return lines
+
+
+def extract_rfp_requirement_rows(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = snapshot.get("requirement_rows") or []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def format_effort_value(value: Any) -> str:
+    if value in (None, "", 0, 0.0, Decimal("0")):
+        return "0M/D"
+    try:
+        number = Decimal(str(value))
+    except Exception:
+        return f"{value}M/D"
+    normalized = number.normalize()
+    text = format(normalized, "f").rstrip("0").rstrip(".")
+    return f"{text or '0'}M/D"
+
+
+def format_datetime(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value.astimezone(KST).strftime("%Y-%m-%d %H:%M")
+    return str(value)
+
+
+_RFP_ROW_QUERY_STOPWORDS = {
+    "rfp", "분석", "검토", "검토내용", "검토내용과", "지원", "지원여부", "여부", "공수", "내용",
+    "알려줘", "보여줘", "요약", "요약해줘", "에서", "관련", "어떻게", "되니", "것", "들", "중",
+    "사업", "사업의", "사업을", "사항", "세부", "조회", "정리", "지금", "현재",
+}
+
+
+def extract_rfp_focus_terms(query: str) -> list[str]:
+    tokens = re.findall(r"[A-Za-z0-9가-힣+#./-]+", query)
+    terms: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        lowered = token.lower()
+        normalized = lowered.strip()
+        if not normalized or normalized in _RFP_ROW_QUERY_STOPWORDS:
+            continue
+        if len(normalized) == 1 and not normalized.isupper():
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        terms.append(normalized)
+    return terms
+
+
+def compute_rfp_row_match_score(*, row: dict[str, Any], terms: list[str]) -> int:
+    haystack_title = " ".join(
+        str(row.get(key) or "") for key in ("requirementTitle", "category", "requirementCode")
+    ).lower()
+    haystack_detail = " ".join(
+        str(row.get(key) or "") for key in ("requirementContent", "reviewNote", "supportStatus")
+    ).lower()
+    score = 0
+    for term in terms:
+        if term and term in haystack_title:
+            score += 3
+        elif term and term in haystack_detail:
+            score += 1
+    return score
+
+
+def select_matching_rfp_rows(*, query: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    terms = extract_rfp_focus_terms(query)
+    if not rows or not terms:
+        return []
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for row in rows:
+        score = compute_rfp_row_match_score(row=row, terms=terms)
+        if score > 0:
+            scored.append((score, row))
+    scored.sort(
+        key=lambda item: (
+            -item[0],
+            str(item[1].get("requirementTitle") or item[1].get("category") or ""),
+        )
+    )
+    return [row for _, row in scored[:3]]
+
+
+def is_rfp_requirement_detail_query(query: str) -> bool:
+    lowered = query.lower()
+    return any(
+        keyword in lowered
+        for keyword in ["검토", "검토 내용", "검토내용", "지원 여부", "지원여부", "공수", "m/d", "effort"]
+    )
+
+
+def build_rfp_requirement_row_evidences(
+    *,
+    snapshot: dict[str, Any],
+    rows: list[dict[str, Any]],
+    offset: int = 0,
+) -> list[AnswerEvidence]:
+    evidences: list[AnswerEvidence] = []
+    source_id = str(snapshot.get("rfp_analysis_code") or snapshot.get("opportunity_code") or "rfp-analysis")
+    title = f"{snapshot.get('opportunity_name') or source_id} RFP 분석 요구사항"
+    for index, row in enumerate(rows):
+        evidences.append(
+            AnswerEvidence(
+                evidenceType="structured_evidence",
+                sourceType="RFP_ANALYSIS",
+                sourceId=source_id,
+                title=title,
+                chunkIndex=offset + index,
+                distance=0.0,
+                vectorScore=1.0,
+                keywordScore=1.0,
+                finalScore=1.0,
+                matchedBy=["structured_row"],
+                content=(
+                    f"{row.get('requirementCode') or '-'} / "
+                    f"{row.get('requirementTitle') or row.get('category') or '요구사항'} / "
+                    f"지원 여부 {row.get('supportStatus') or '미기재'} / "
+                    f"공수 {format_effort_value(row.get('effort'))} / "
+                    f"{row.get('reviewNote') or row.get('requirementContent') or '미기재'}"
+                ),
+                metadata={
+                    "opportunityCode": snapshot.get("opportunity_code"),
+                    "requirementCode": row.get("requirementCode"),
+                    "supportStatus": row.get("supportStatus"),
+                },
+            )
+        )
+    return evidences
+
+
+def build_row_version_suffix(row: dict[str, Any]) -> str:
+    version = row.get("document_version")
+    is_latest = row.get("is_latest_version")
+    details: list[str] = []
+    if version not in (None, ""):
+        details.append(f"v{version}")
+    if is_latest is not None:
+        details.append("최신" if bool(is_latest) else "이전")
+    if not details:
+        return ""
+    return f" [{', '.join(details)}]"
+
+
 def build_support_row_evidences(*, rows: list[dict[str, Any]]) -> list[AnswerEvidence]:
     evidences: list[AnswerEvidence] = []
     for row in rows:
@@ -2982,6 +3536,20 @@ def build_support_row_evidences(*, rows: list[dict[str, Any]]) -> list[AnswerEvi
             )
         )
     return evidences
+
+
+def filter_support_issue_rows(rows: list[dict[str, Any]], *, query: str) -> list[dict[str, Any]]:
+    keywords = ["긴급", "장애", "복구", "대응", "점검", "조치"]
+    query_keywords = [keyword for keyword in keywords if keyword in query]
+    selected: list[dict[str, Any]] = []
+    for row in rows:
+        haystack = " ".join(
+            str(row.get(key) or "")
+            for key in ("activity_type", "activity_content", "performance")
+        )
+        if any(keyword in haystack for keyword in query_keywords or keywords):
+            selected.append(row)
+    return selected
 
 
 def build_activity_row_evidences(*, rows: list[dict[str, Any]]) -> list[AnswerEvidence]:
@@ -3273,6 +3841,68 @@ def document_scope_label(document_scope: str | None) -> str:
     return mapping.get(document_scope or "", document_scope or "문서")
 
 
+def resolve_primary_opportunity_with_fallback(
+    *,
+    query: str,
+    normalization: QueryNormalization,
+    exact_codes: list[str],
+) -> dict[str, Any] | None:
+    entity = resolve_primary_opportunity(
+        query_terms=normalization.scope_terms or normalization.entity_terms,
+        exact_codes=exact_codes,
+    )
+    if entity is not None:
+        return entity
+
+    query_lower = query.lower()
+    candidates = fetch_opportunity_resolution_candidates(limit=300)
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for row in candidates:
+        score = score_opportunity_candidate_against_query(query_lower=query_lower, row=row)
+        if score > 0:
+            scored.append((score, row))
+    scored.sort(key=lambda item: (-item[0], str(item[1].get("opportunity_code") or "")))
+    if not scored:
+        return None
+    if len(scored) == 1 or scored[0][0] >= scored[1][0] + 3:
+        return scored[0][1]
+    return None
+
+
+def score_opportunity_candidate_against_query(*, query_lower: str, row: dict[str, Any]) -> int:
+    score = 0
+    customer_name = str(row.get("customer_name") or "").strip().lower()
+    opportunity_name = str(row.get("opportunity_name") or "").strip().lower()
+    opportunity_code = str(row.get("opportunity_code") or "").strip().lower()
+    if customer_name and customer_name in query_lower:
+        score += 12
+    if opportunity_name and opportunity_name in query_lower:
+        score += 16
+    if opportunity_code and opportunity_code in query_lower:
+        score += 20
+
+    for token in extract_candidate_resolution_tokens(customer_name):
+        if token and token in query_lower:
+            score += 3
+    for token in extract_candidate_resolution_tokens(opportunity_name):
+        if token and token in query_lower:
+            score += 2
+    return score
+
+
+def extract_candidate_resolution_tokens(value: str) -> list[str]:
+    tokens = re.findall(r"[A-Za-z0-9가-힣]+", value)
+    results: list[str] = []
+    for token in tokens:
+        normalized = token.strip().lower()
+        if len(normalized) < 2:
+            continue
+        if normalized in _RFP_ROW_QUERY_STOPWORDS:
+            continue
+        results.append(normalized)
+    return results
+
+
 def is_status_query(normalized_query: str) -> bool:
     return any(keyword in normalized_query for keyword in ["상태", "현황", "진행", "현재", "단계", "까지 갔"])
 
@@ -3311,7 +3941,20 @@ def is_prb_query(normalized_query: str) -> bool:
 def is_rfp_query(normalized_query: str) -> bool:
     return any(
         keyword in normalized_query
-        for keyword in ["rfp", "요구사항", "보안 요구", "보안요건", "제출 마감", "사업 범위", "발주"]
+        for keyword in [
+            "rfp",
+            "요구사항",
+            "보안 요구",
+            "보안요건",
+            "제출 마감",
+            "사업 범위",
+            "발주",
+            "검토내용",
+            "검토 내용",
+            "지원 여부",
+            "지원여부",
+            "공수",
+        ]
     )
 
 
@@ -3356,7 +3999,10 @@ def is_project_result_highlight_query(normalized_query: str) -> bool:
 def is_maintenance_history_query(normalized_query: str, normalization: QueryNormalization) -> bool:
     if normalization.target_hint != "maintenance":
         return False
-    return normalization.has_timeline_intent or any(keyword in normalized_query for keyword in ["누가", "언제", "이력", "조치", "지원"])
+    return normalization.has_timeline_intent or any(
+        keyword in normalized_query
+        for keyword in ["누가", "언제", "이력", "조치", "지원", "긴급", "장애", "대응", "복구"]
+    )
 
 
 def is_sales_activity_timeline_query(normalized_query: str, normalization: QueryNormalization) -> bool:
@@ -3375,6 +4021,27 @@ def is_maintenance_quote_query(normalized_query: str) -> bool:
     return "유지보수" in normalized_query and any(
         keyword in normalized_query for keyword in ["견적", "견적서", "정기점검", "긴급", "월", "분기"]
     )
+
+
+def is_contract_maintenance_query(normalized_query: str) -> bool:
+    return "계약" in normalized_query and "유지보수" in normalized_query
+
+
+def is_project_maintenance_summary_query(normalized_query: str) -> bool:
+    if "유지보수" not in normalized_query:
+        return False
+    has_project_context = any(keyword in normalized_query for keyword in ["프로젝트", "결과", "결과보고", "수행"])
+    has_summary_intent = any(keyword in normalized_query for keyword in ["요약", "상황", "현황", "정리"])
+    return has_project_context and has_summary_intent
+
+
+def is_support_issue_query(normalized_query: str, normalization: QueryNormalization) -> bool:
+    issue_keywords = ["긴급", "장애", "복구", "대응", "조치 결과", "조치", "지원 내용"]
+    if not any(keyword in normalized_query for keyword in issue_keywords):
+        return False
+    if normalization.target_hint == "maintenance":
+        return True
+    return True
 
 
 def is_generic_maintenance_quote_query(normalized_query: str) -> bool:

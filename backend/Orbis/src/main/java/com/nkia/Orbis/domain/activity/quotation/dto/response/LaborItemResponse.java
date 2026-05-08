@@ -19,7 +19,7 @@ public class LaborItemResponse {
 
     private Long supplyPrice;
 
-    public static LaborItemResponse from(QuotationLaborItem item) { // 수정됨
+    public static LaborItemResponse from(QuotationLaborItem item) {
         return LaborItemResponse.builder()
                 .id(item.getId())
                 .laborType(item.getLaborType())

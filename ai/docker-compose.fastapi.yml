@@ -37,6 +37,7 @@ services:
       AI_UVICORN_WORKERS: ${AI_UVICORN_WORKERS:-1}
       GMS_KEY: ${GMS_KEY}
       GMS_CHAT_MODEL: ${GMS_CHAT_MODEL:-gpt-5-mini}
+      LANGGRAPH_CHECKPOINT_SCHEMA: ${LANGGRAPH_CHECKPOINT_SCHEMA:-ai}
       TZ: Asia/Seoul
     volumes:
       - ai_model_cache:/models

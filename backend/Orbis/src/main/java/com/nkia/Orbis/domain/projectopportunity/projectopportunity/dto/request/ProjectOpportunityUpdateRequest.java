@@ -1,6 +1,6 @@
 package com.nkia.Orbis.domain.projectopportunity.projectopportunity.dto.request;
 
-import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunityStage;
 import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;

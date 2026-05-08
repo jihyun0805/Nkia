@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.projectopportunity.projectopportunity.dto.response;
 
 
-import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunityStage;
 import java.math.BigDecimal;

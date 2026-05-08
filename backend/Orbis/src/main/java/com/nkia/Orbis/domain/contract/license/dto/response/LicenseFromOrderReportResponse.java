@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.contract.license.dto.response;
 
 import com.nkia.Orbis.domain.contract.license.entity.License;
-import com.nkia.Orbis.domain.productmodule.entity.ProductClass;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import lombok.Builder;
 import lombok.Getter;
 
