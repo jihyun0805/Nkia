@@ -86,7 +86,8 @@ public class Project extends BaseEntity {
     private List<MaintenanceQuotation> maintenanceQuotations = new ArrayList<>();
 
     @Builder
-    public Project(ProjectCode code, ProjectType type, OrderReport orderReport, String pjtName, Long totalAmount, User salesRepresentative) {
+    public Project(ProjectCode code, ProjectType type, OrderReport orderReport, String pjtName, Long totalAmount,
+                   User salesRepresentative) {
         this.code = code;
         this.type = type;
         this.orderReport = orderReport;
@@ -102,9 +103,10 @@ public class Project extends BaseEntity {
         this.pjtNumber = pjtNumber;
     }
 
-    public void updateResultInfo(User manager, LocalDate startDate, LocalDate endDate) {
-        this.manager = manager;
+    public void updateProjectInfo(LocalDate startDate, LocalDate endDate, User manager, User salesRepresentative) {
         this.startDate = startDate;
         this.endDate = endDate;
+        this.manager = manager;
+        this.salesRepresentative = salesRepresentative;
     }
 }
