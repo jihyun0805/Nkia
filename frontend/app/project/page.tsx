@@ -15,6 +15,7 @@ import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { billings, collections, expectedRevenue, projectResults } from "@/lib/project-data"
 import { ProjectResultForm } from "@/components/erp/project/project-result-form"
+import { BillingRequestForm } from "@/components/erp/project/billing-request-form"
 
 export default function ProjectPage() {
   const router = useRouter()
@@ -67,6 +68,11 @@ export default function ProjectPage() {
                         <Plus className="mr-2 w-4 h-4" /> 사업결과보고 등록
                       </Button>
                     )}
+                    {activeTab === "billing" && (
+                      <Button onClick={() => setIsCreating(true)}>
+                        <Plus className="mr-2 w-4 h-4" /> 세금계산서 발행 요청
+                      </Button>
+                    )}
                   </>
                 ) : (
                   <Button variant="outline" onClick={() => setIsCreating(false)}>
@@ -96,7 +102,23 @@ export default function ProjectPage() {
             </TabsContent>
 
             <TabsContent value="billing">
-              <Card><CardHeader className="pb-4"><div className="flex items-center justify-between"><CardTitle className="text-lg">청구 현황</CardTitle><Badge variant="secondary">{filteredBillings.length}건</Badge></div></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead className="w-[120px]">청구번호</TableHead><TableHead>사업번호</TableHead><TableHead>고객사</TableHead><TableHead>청구유형</TableHead><TableHead className="text-right">청구금액</TableHead><TableHead>발행일</TableHead><TableHead>납기일</TableHead><TableHead>세금계산서</TableHead><TableHead>상태</TableHead></TableRow></TableHeader><TableBody>{filteredBillings.map((billing) => <TableRow key={billing.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/project/billing/${billing.id}`)}><TableCell className="font-mono text-sm">{billing.id}</TableCell><TableCell className="font-mono text-sm">{billing.projectId}</TableCell><TableCell className="font-medium">{billing.customer}</TableCell><TableCell><Badge variant="outline">{billing.type}</Badge></TableCell><TableCell className="text-right font-medium">₩{parseInt(billing.amount).toLocaleString()}</TableCell><TableCell>{billing.issueDate}</TableCell><TableCell>{billing.dueDate}</TableCell><TableCell className="font-mono text-sm">{billing.invoiceNo}</TableCell><TableCell><Badge variant={billing.status === "수금완료" ? "default" : "secondary"} className={billing.status === "수금완료" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-blue-100 text-blue-700 hover:bg-blue-100"}>{billing.status}</Badge></TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+              {!isCreating ? (
+                <Card><CardHeader className="pb-4"><div className="flex items-center justify-between"><CardTitle className="text-lg">청구 현황</CardTitle><Badge variant="secondary">{filteredBillings.length}건</Badge></div></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead className="w-[120px]">청구번호</TableHead><TableHead>사업번호</TableHead><TableHead>고객사</TableHead><TableHead>청구유형</TableHead><TableHead className="text-right">청구금액</TableHead><TableHead>발행일</TableHead><TableHead>납기일</TableHead><TableHead>세금계산서</TableHead><TableHead>상태</TableHead></TableRow></TableHeader><TableBody>{filteredBillings.map((billing) => <TableRow key={billing.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/project/billing/${billing.id}`)}><TableCell className="font-mono text-sm">{billing.id}</TableCell><TableCell className="font-mono text-sm">{billing.projectId}</TableCell><TableCell className="font-medium">{billing.customer}</TableCell><TableCell><Badge variant="outline">{billing.type}</Badge></TableCell><TableCell className="text-right font-medium">₩{parseInt(billing.amount).toLocaleString()}</TableCell><TableCell>{billing.issueDate}</TableCell><TableCell>{billing.dueDate}</TableCell><TableCell className="font-mono text-sm">{billing.invoiceNo}</TableCell><TableCell><Badge variant={billing.status === "수금완료" ? "default" : "secondary"} className={billing.status === "수금완료" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-blue-100 text-blue-700 hover:bg-blue-100"}>{billing.status}</Badge></TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+              ) : (
+                <BillingRequestForm
+                  onSuccess={() => setIsCreating(false)}
+                  onCancel={() => setIsCreating(false)}
+                  inheritedData={{
+                    customerId: "CUST-001",
+                    customerName: "삼성전자",
+                    opportunityId: "OPP-2026-001",
+                    opportunityName: "삼성전자 EMS 구축",
+                    orderReportId: "ORD-2026-001",
+                    contractId: "CTR-2026-001",
+                    projectName: "삼성전자 EMS 구축 사업"
+                  }}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="collection">
