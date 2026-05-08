@@ -1,19 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, ClipboardList, Receipt, Wallet, TrendingUp, Plus } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { billingAndCollections, expectedRevenue, projectResults } from "@/lib/project-data";
+import { billingAndCollections, projectResults } from "@/lib/project-data";
+import { orderReports, contracts } from "@/lib/contract-data";
 import { ProjectResultForm } from "@/components/erp/project/project-result-form";
 import { BillingRequestForm } from "@/components/erp/project/billing-request-form";
 
@@ -24,7 +25,63 @@ export default function ProjectPage() {
   const [activeTab, setActiveTab] = useState<"results" | "billingAndCollection" | "revenue">("results");
   const [isCreating, setIsCreating] = useState(false);
 
-  const totalRevenue = expectedRevenue.reduce((acc, row) => acc + row.ems + row.itsm + row.automation + row.wss, 0);
+  const { expectedRevenue, totalEms, totalItsm, totalAutomation, totalWss, totalRevenue } = useMemo(() => {
+    const y = 2026; // Data base year
+    const monthlyData: Record<string, { month: string; ems: number; itsm: number; automation: number; wss: number }> = {};
+    for (let i = 1; i <= 12; i++) {
+      const monthStr = `${y}-${String(i).padStart(2, "0")}`;
+      monthlyData[monthStr] = { month: monthStr, ems: 0, itsm: 0, automation: 0, wss: 0 };
+    }
+
+    contracts.forEach(contract => {
+      const order = orderReports.find(o => o.id === contract.orderId);
+      if (!order) return;
+      
+      let productKey: "ems" | "itsm" | "automation" | "wss" = "wss";
+      const prodName = order.product.toLowerCase();
+      if (prodName.includes("ems")) productKey = "ems";
+      else if (prodName.includes("itsm")) productKey = "itsm";
+      else if (prodName.includes("automation")) productKey = "automation";
+
+      const amount = parseInt(contract.amount.replace(/,/g, ""));
+      const start = new Date(contract.startDate);
+      const end = new Date(contract.endDate);
+      
+      const totalDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const dailyAmount = amount / totalDays;
+
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (d.getFullYear() === y) {
+          const monthStr = `${y}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          if (monthlyData[monthStr]) {
+            monthlyData[monthStr][productKey] += dailyAmount;
+          }
+        }
+      }
+    });
+
+    const revenueList = Object.values(monthlyData).filter(
+      row => row.ems > 0 || row.itsm > 0 || row.automation > 0 || row.wss > 0
+    );
+
+    let tEms = 0, tItsm = 0, tAutomation = 0, tWss = 0, tTotal = 0;
+    revenueList.forEach(row => {
+      tEms += row.ems;
+      tItsm += row.itsm;
+      tAutomation += row.automation;
+      tWss += row.wss;
+      tTotal += row.ems + row.itsm + row.automation + row.wss;
+    });
+
+    return { 
+      expectedRevenue: revenueList, 
+      totalEms: tEms, 
+      totalItsm: tItsm, 
+      totalAutomation: tAutomation, 
+      totalWss: tWss, 
+      totalRevenue: tTotal 
+    };
+  }, []);
   const q = searchTerm.toLowerCase();
   const projectFieldOptions =
     activeTab === "billingAndCollection"
@@ -213,39 +270,48 @@ export default function ProjectPage() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">월별 예상 매출액</CardTitle>
-                    <Badge variant="secondary">총 ₩{totalRevenue.toLocaleString()}</Badge>
+                    <CardTitle className="text-lg">제품별/월별 예상 매출액</CardTitle>
+                    <Badge variant="secondary" className="text-sm px-3 py-1">연말 총 합계 ₩{Math.round(totalRevenue).toLocaleString()}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {expectedRevenue.map((row) => (
-                      <div key={row.month} className="rounded-lg border p-4">
-                        <div className="mb-3 flex items-center justify-between">
-                          <p className="font-semibold">{row.month}</p>
-                          <p className="text-sm text-muted-foreground">합계 ₩{(row.ems + row.itsm + row.automation + row.wss).toLocaleString()}</p>
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-4">
-                          <div className="rounded-md bg-blue-50 p-3">
-                            <p className="text-sm text-muted-foreground">EMS</p>
-                            <p className="font-semibold">₩{row.ems.toLocaleString()}</p>
-                          </div>
-                          <div className="rounded-md bg-green-50 p-3">
-                            <p className="text-sm text-muted-foreground">ITSM</p>
-                            <p className="font-semibold">₩{row.itsm.toLocaleString()}</p>
-                          </div>
-                          <div className="rounded-md bg-amber-50 p-3">
-                            <p className="text-sm text-muted-foreground">Automation</p>
-                            <p className="font-semibold">₩{row.automation.toLocaleString()}</p>
-                          </div>
-                          <div className="rounded-md bg-pink-50 p-3">
-                            <p className="text-sm text-muted-foreground">WSS</p>
-                            <p className="font-semibold">₩{row.wss.toLocaleString()}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="w-[120px] font-semibold text-center">월</TableHead>
+                        <TableHead className="text-right font-semibold">EMS</TableHead>
+                        <TableHead className="text-right font-semibold">ITSM</TableHead>
+                        <TableHead className="text-right font-semibold">Automation</TableHead>
+                        <TableHead className="text-right font-semibold">WSS</TableHead>
+                        <TableHead className="text-right font-semibold text-primary">월별 합계</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {expectedRevenue.map((row) => {
+                        const monthTotal = row.ems + row.itsm + row.automation + row.wss;
+                        return (
+                          <TableRow key={row.month} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-medium text-center">{row.month}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.ems).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.itsm).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.automation).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.wss).toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-bold text-primary bg-primary/5">₩{Math.round(monthTotal).toLocaleString()}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                    <TableFooter>
+                      <TableRow className="bg-muted font-bold hover:bg-muted">
+                        <TableCell className="text-center">연말 합계</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalEms).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalItsm).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalAutomation).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalWss).toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-primary text-lg">₩{Math.round(totalRevenue).toLocaleString()}</TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
                 </CardContent>
               </Card>
             </TabsContent>
