@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.contract.contractsummary.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
-import com.nkia.Orbis.domain.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

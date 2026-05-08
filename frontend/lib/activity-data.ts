@@ -1,4 +1,8 @@
+import type { StoredFileAttachment } from "@/lib/attachments"
+
 export type ActivityCategory = "activities" | "quotations" | "requests"
+
+export type ActivityAttachment = StoredFileAttachment
 
 export type ActivityRecord = {
   id: string
@@ -19,6 +23,7 @@ export type ActivityRecord = {
   issues: string
   nextAction: string
   status: string
+  attachments?: ActivityAttachment[]
 }
 
 export type QuotationRecord = {
@@ -159,6 +164,7 @@ export type ActivityRequestRecord = {
   approvedAt?: string
   lastAction?: "created" | "updated" | "approved"
   lastActionAt?: string
+  attachments?: ActivityAttachment[]
 }
 
 export const activityModeOptions = [
@@ -219,6 +225,7 @@ export const activities: ActivityRecord[] = [
     issues: "기존 시스템과의 연동 방안 검토 필요",
     nextAction: "기술 검토 후 PoC 일정 협의",
     status: "완료",
+    attachments: [{ id: "ACT-2026-001-ATT-001", name: "삼성전자_미팅메모.pdf", size: 154320, contentType: "application/pdf", dataUrl: "data:application/pdf;base64,JVBERi0xLjQKJcfs...", createdAt: "2026-03-17" }],
   },
   {
     id: "ACT-2026-002",
@@ -237,6 +244,7 @@ export const activities: ActivityRecord[] = [
     issues: "-",
     nextAction: "회신 대기",
     status: "완료",
+    attachments: [{ id: "ACT-2026-002-ATT-001", name: "국방부_RFP_추가자료.zip", size: 332800, contentType: "application/zip", dataUrl: "data:application/zip;base64,UEsDBAoAAAAAA", createdAt: "2026-03-16" }],
   },
   {
     id: "ACT-2026-003",
@@ -536,6 +544,7 @@ export const activityRequests: ActivityRequestRecord[] = [
     approvedAt: "2026-03-13",
     lastAction: "approved",
     lastActionAt: "2026-03-13",
+    attachments: [{ id: "REQ-2026-010-ATT-001", name: "SKT_RFP_요청서.pdf", size: 287420, contentType: "application/pdf", dataUrl: "data:application/pdf;base64,JVBERi0xLjQKJcfs...", createdAt: "2026-03-12" }],
   },
   {
     id: "REQ-2026-014",
@@ -602,6 +611,7 @@ export const activityRequests: ActivityRequestRecord[] = [
     status: "요청",
     lastAction: "created",
     lastActionAt: "2026-05-06",
+    attachments: [{ id: "REQ-2026-013-ATT-001", name: "삼성전자_RFP_검토요청.docx", size: 194560, contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", dataUrl: "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,UEsDBAoAAAAAA", createdAt: "2026-05-06" }],
   },
   {
     id: "REQ-2026-001",
@@ -666,6 +676,121 @@ export const activityStatuses = [
   "삭제",
 ]
 
+const ACTIVITIES_STORAGE_KEY = "orbis.activities"
+const ACTIVITY_EVENT_NAME = "orbis-activities-updated"
+
+function isBrowser() {
+  return typeof window !== "undefined"
+}
+
+function cloneActivities() {
+  return activities.map((item) => ({
+    ...item,
+    attachments: item.attachments?.map((attachment) => ({ ...attachment })) ?? [],
+  }))
+}
+
+function readStorage<T>(key: string, fallback: T): T {
+  if (!isBrowser()) return fallback
+
+  const stored = window.localStorage.getItem(key)
+  if (!stored) return fallback
+
+  try {
+    return JSON.parse(stored) as T
+  } catch {
+    return fallback
+  }
+}
+
+function writeStorage<T>(key: string, value: T) {
+  if (!isBrowser()) return
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function emitActivityUpdate() {
+  if (!isBrowser()) return
+  window.dispatchEvent(new Event(ACTIVITY_EVENT_NAME))
+}
+
+function nextActivityId(records: ActivityRecord[]) {
+  const max = records.reduce((acc, item) => {
+    const current = Number.parseInt(item.id.split("-").at(-1) ?? "0", 10)
+    return Number.isNaN(current) ? acc : Math.max(acc, current)
+  }, 0)
+
+  return `ACT-2026-${String(max + 1).padStart(3, "0")}`
+}
+
+function normalizeActivityRecord(record: ActivityRecord): ActivityRecord {
+  return {
+    ...record,
+    attachments: Array.isArray(record.attachments)
+      ? record.attachments.filter((attachment) => attachment && typeof attachment.id === "string" && typeof attachment.name === "string")
+      : [],
+  }
+}
+
+function saveActivities(records: ActivityRecord[]) {
+  writeStorage(ACTIVITIES_STORAGE_KEY, records)
+}
+
+export function getActivities() {
+  const records = readStorage<ActivityRecord[]>(ACTIVITIES_STORAGE_KEY, cloneActivities()).map(normalizeActivityRecord)
+
+  if (isBrowser()) {
+    saveActivities(records)
+  }
+
+  return records
+}
+
+export function createActivity(input: Omit<ActivityRecord, "id">) {
+  const records = getActivities()
+  const created = normalizeActivityRecord({
+    ...input,
+    id: nextActivityId(records),
+  })
+
+  saveActivities([created, ...records])
+  emitActivityUpdate()
+  return created
+}
+
+export function updateActivity(id: string, input: Omit<ActivityRecord, "id">) {
+  const records = getActivities()
+  let updatedRecord: ActivityRecord | null = null
+
+  const updatedRecords = records.map((item) => {
+    if (item.id !== id) return item
+
+    updatedRecord = normalizeActivityRecord({
+      ...item,
+      ...input,
+      id,
+    })
+
+    return updatedRecord
+  })
+
+  if (!updatedRecord) return null
+
+  saveActivities(updatedRecords)
+  emitActivityUpdate()
+  return updatedRecord
+}
+
+export function subscribeActivityUpdates(listener: () => void) {
+  if (!isBrowser()) return () => {}
+
+  window.addEventListener(ACTIVITY_EVENT_NAME, listener)
+  window.addEventListener("storage", listener)
+  return () => {
+    window.removeEventListener(ACTIVITY_EVENT_NAME, listener)
+    window.removeEventListener("storage", listener)
+  }
+}
+
 export function getCategoryLabel(category: ActivityCategory) {
   switch (category) {
     case "activities":
@@ -680,7 +805,7 @@ export function getCategoryLabel(category: ActivityCategory) {
 export function getActivityItem(category: ActivityCategory, id: string) {
   switch (category) {
     case "activities":
-      return activities.find((item) => item.id === id) ?? null
+      return getActivities().find((item) => item.id === id) ?? null
     case "quotations":
       return quotations.find((item) => item.id === id) ?? null
     case "requests":

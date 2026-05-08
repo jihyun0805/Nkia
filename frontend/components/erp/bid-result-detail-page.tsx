@@ -34,8 +34,7 @@ function BidResultAttachmentField({ bidResult }: { bidResult: BidResultRecord })
               <a
                 key={`${attachment.name}-${index}`}
                 href={attachment.url}
-                target="_blank"
-                rel="noreferrer"
+                download={attachment.name}
                 className="block text-sm font-medium text-primary underline-offset-4 hover:underline"
               >
                 {attachment.name}

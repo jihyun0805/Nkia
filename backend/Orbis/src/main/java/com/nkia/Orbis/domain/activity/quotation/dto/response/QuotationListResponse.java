@@ -24,7 +24,7 @@ public class QuotationListResponse {
 
     private Long totalPrice;
 
-    public static QuotationListResponse from(Quotation quotation) { // 수정됨
+    public static QuotationListResponse from(Quotation quotation) {
         return QuotationListResponse.builder()
                 .id(quotation.getId())
                 .quotationCode(quotation.getQuotationCode())

@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import {
@@ -23,11 +23,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { bidStatuses, getBidCreateActionLabel, getBidResults, getProposals, getRfpAnalyses, prbList, subscribeBidResultUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
+import { bidStatuses, getBidCreateActionLabel, getBidResults, getPrbResults, getProposals, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbResultUpdates, subscribePrbUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { getOpportunities } from "@/lib/finding-data"
-import { Plus, Search, FileText, ClipboardCheck, Presentation, Trophy } from "lucide-react"
+import { Plus, Search, FileText, ClipboardCheck, Presentation, Trophy, ClipboardList } from "lucide-react"
 
 type ProposalOverviewRow = {
   key: string
@@ -58,12 +58,28 @@ type BidResultOverviewRow = {
   sortDate: string
 }
 
-export default function BidPage() {
+type PrbResultOverviewRow = {
+  key: string
+  prbResultId: string
+  customer: string
+  opportunity: string
+  proposalDeadline: string
+  createdDate: string
+  author: string
+  sortDate: string
+}
+
+const BID_ACTIVE_TAB_STORAGE_KEY = "orbis.bid.active-tab"
+
+function BidPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
-  const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "proposal" | "result">("rfp")
+  const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "prb-result" | "proposal" | "result">("rfp")
   const [rfpItems, setRfpItems] = useState<ReturnType<typeof getRfpAnalyses>>([])
+  const [prbItems, setPrbItems] = useState<ReturnType<typeof getPrbs>>([])
+  const [prbResultItems, setPrbResultItems] = useState<ReturnType<typeof getPrbResults>>([])
   const [proposalRequests, setProposalRequests] = useState<ActivityRequestRecord[]>([])
   const [proposals, setProposals] = useState<ReturnType<typeof getProposals>>([])
   const [results, setResults] = useState<ReturnType<typeof getBidResults>>([])
@@ -72,9 +88,44 @@ export default function BidPage() {
   const q = searchTerm.toLowerCase()
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const queryTab = searchParams.get("tab")
+    if (queryTab === "rfp" || queryTab === "prb" || queryTab === "prb-result" || queryTab === "proposal" || queryTab === "result") {
+      setActiveTab(queryTab)
+      window.sessionStorage.setItem(BID_ACTIVE_TAB_STORAGE_KEY, queryTab)
+      return
+    }
+
+    const storedTab = window.sessionStorage.getItem(BID_ACTIVE_TAB_STORAGE_KEY)
+    if (storedTab === "rfp" || storedTab === "prb" || storedTab === "prb-result" || storedTab === "proposal" || storedTab === "result") {
+      setActiveTab(storedTab)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.sessionStorage.setItem(BID_ACTIVE_TAB_STORAGE_KEY, activeTab)
+  }, [activeTab])
+
+  const buildBidHref = (pathname: string) => `${pathname}?tab=${activeTab}`
+
+  useEffect(() => {
     const sync = () => setRfpItems(getRfpAnalyses())
     sync()
     return subscribeRfpAnalysesUpdates(sync)
+  }, [])
+
+  useEffect(() => {
+    const sync = () => setPrbItems(getPrbs())
+    sync()
+    return subscribePrbUpdates(sync)
+  }, [])
+
+  useEffect(() => {
+    const sync = () => setPrbResultItems(getPrbResults())
+    sync()
+    return subscribePrbResultUpdates(sync)
   }, [])
 
   useEffect(() => {
@@ -191,15 +242,30 @@ export default function BidPage() {
     .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
 
   const bidResultOverviewRows = [...pendingBidResultRows, ...completedBidResultRows]
+  const prbResultOverviewRows: PrbResultOverviewRow[] = prbResultItems
+    .map((item) => ({
+      key: `prb-result-${item.id}`,
+      prbResultId: item.id,
+      customer: item.customer,
+      opportunity: item.opportunity,
+      proposalDeadline: item.proposalDeadline,
+      createdDate: item.createdDate,
+      author: item.author,
+      sortDate: item.createdAt,
+    }))
+    .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
 
-  const statusOptions = activeTab === "proposal" ? ["작성 중", "완료"] : bidStatuses
+  const statusOptions = activeTab === "proposal"
+    ? ["작성 중", "완료"]
+    : activeTab === "prb"
+      ? ["작성 중", "검토 중", "승인", "반려"]
+      : bidStatuses
   const bidFieldOptions = activeTab === "rfp"
     ? [{ key: "customer", label: "고객사", options: uniqueOptions(rfpItems, (i) => i.customer) }]
     : activeTab === "prb"
-    ? [
-      { key: "customer", label: "고객사", options: uniqueOptions(prbList, (i) => i.customer) },
-      { key: "riskLevel", label: "리스크", options: uniqueOptions(prbList, (i) => i.riskLevel) },
-    ]
+    ? [{ key: "customer", label: "고객사", options: uniqueOptions(prbItems, (i) => i.customer) }]
+    : activeTab === "prb-result"
+      ? [{ key: "customer", label: "고객사", options: uniqueOptions(prbResultOverviewRows, (i) => i.customer) }]
     : activeTab === "proposal"
       ? [{ key: "customer", label: "고객사", options: uniqueOptions(proposalOverviewRows, (i) => i.customer) }]
       : [
@@ -210,7 +276,19 @@ export default function BidPage() {
   const filteredRfpList = filterRecords(rfpItems, filters, { status: (i) => i.status, owner: (i) => i.analyst, date: (i) => i.receiveDate, fields: { customer: (i) => i.customer } })
     .filter((i) => [i.id, i.customer, i.opportunity, i.requester, i.analyst].join(" ").toLowerCase().includes(q))
     .sort((a, b) => new Date(b.receiveDate).getTime() - new Date(a.receiveDate).getTime())
-  const filteredPrbList = filterRecords(prbList, filters, { status: (i) => i.result, owner: (i) => i.reviewer, date: (i) => i.submitDate, fields: { customer: (i) => i.customer, riskLevel: (i) => i.riskLevel } }).filter((i) => [i.id, i.name, i.customer, i.reviewer].join(" ").toLowerCase().includes(q))
+  const filteredPrbList = filterRecords(prbItems, filters, {
+    status: (i) => i.status,
+    owner: (i) => i.author,
+    date: (i) => i.createdDate,
+    fields: { customer: (i) => i.customer },
+  }).filter((i) => [i.id, i.opportunity, i.customer, i.author, i.status, i.customerCode, i.opportunityCode, i.rfpAnalysisId].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const filteredPrbResults = filterRecords(prbResultOverviewRows, filters, {
+    owner: (i) => i.author,
+    date: (i) => i.createdDate,
+    fields: { customer: (i) => i.customer },
+  }).filter((i) => [i.prbResultId, i.customer, i.opportunity, i.proposalDeadline, i.createdDate, i.author].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
   const filteredProposalList = filterRecords(proposalOverviewRows, filters, {
     status: (i) => i.status,
     owner: () => "",
@@ -230,7 +308,7 @@ export default function BidPage() {
 
   const handleProposalRowClick = (proposal: ProposalOverviewRow) => {
     if (proposal.status === "완료" && proposal.proposalId) {
-      router.push(`/bid/proposal/${proposal.proposalId}`)
+      router.push(buildBidHref(`/bid/proposal/${proposal.proposalId}`))
       return
     }
 
@@ -239,7 +317,7 @@ export default function BidPage() {
 
   const handleBidResultRowClick = (row: BidResultOverviewRow) => {
     if (row.bidResultId) {
-      router.push(`/bid/result/${row.bidResultId}`)
+      router.push(buildBidHref(`/bid/result/${row.bidResultId}`))
       return
     }
 
@@ -253,11 +331,16 @@ export default function BidPage() {
         <div className="flex-1 flex flex-col">
           <Header title="입찰" description="RFP 분석, PRB 검토, 제안서 등록 및 입찰 결과를 관리합니다" />
           <main className="flex-1 overflow-auto p-6">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "rfp" | "prb" | "proposal" | "result")} className="space-y-6">
+            <Tabs value={activeTab} onValueChange={(value) => {
+              const nextTab = value as "rfp" | "prb" | "prb-result" | "proposal" | "result"
+              setActiveTab(nextTab)
+              router.replace(`/bid?tab=${nextTab}`, { scroll: false })
+            }} className="space-y-6">
               <div className="flex items-center justify-between">
                 <TabsList>
                   <TabsTrigger value="rfp" className="gap-2"><FileText className="w-4 h-4" />RFP 분석</TabsTrigger>
-                  <TabsTrigger value="prb" className="gap-2"><ClipboardCheck className="w-4 h-4" />PRB</TabsTrigger>
+                  <TabsTrigger value="prb" className="gap-2"><ClipboardCheck className="w-4 h-4" />PRB 현황</TabsTrigger>
+                  <TabsTrigger value="prb-result" className="gap-2"><ClipboardList className="w-4 h-4" />PRB 결과</TabsTrigger>
                   <TabsTrigger value="proposal" className="gap-2"><Presentation className="w-4 h-4" />제안서</TabsTrigger>
                   <TabsTrigger value="result" className="gap-2"><Trophy className="w-4 h-4" />입찰결과현황</TabsTrigger>
                 </TabsList>
@@ -266,12 +349,20 @@ export default function BidPage() {
                     <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
                     <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                   </div>
-                  <FilterPopover title="입찰" statusOptions={statusOptions} value={filters} onApply={setFilters} fieldOptions={bidFieldOptions} />
-                  <Button asChild>
-                    <Link href={activeTab === "rfp" ? "/bid/new/rfp?standalone=1" : activeTab === "proposal" ? "/bid/new/proposal" : `/bid/new/${activeTab}`}>
-                      <Plus className="mr-2 w-4 h-4" />
-                      {getBidCreateActionLabel(activeTab)}
-                    </Link>
+                  <FilterPopover
+                    title="입찰"
+                    statusOptions={statusOptions}
+                    value={filters}
+                    onApply={setFilters}
+                    fieldOptions={bidFieldOptions}
+                    ownerLabel={activeTab === "prb" || activeTab === "prb-result" ? "작성자" : activeTab === "result" ? "영업대표" : "담당자"}
+                    showStatusFilter={activeTab !== "prb-result"}
+                  />
+                    <Button asChild>
+                      <Link href={activeTab === "rfp" ? `/bid/new/rfp?standalone=1&tab=${activeTab}` : activeTab === "proposal" ? `/bid/new/proposal?tab=${activeTab}` : `/bid/new/${activeTab}?tab=${activeTab}`}>
+                        <Plus className="mr-2 w-4 h-4" />
+                        {getBidCreateActionLabel(activeTab)}
+                      </Link>
                   </Button>
                 </div>
               </div>
@@ -299,7 +390,7 @@ export default function BidPage() {
                       </TableHeader>
                       <TableBody>
                         {filteredRfpList.map((rfp) => (
-                          <TableRow key={rfp.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/rfp/${rfp.id}`)}>
+                          <TableRow key={rfp.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(buildBidHref(`/bid/rfp/${rfp.id}`))}>
                             <TableCell>{rfp.customer}</TableCell>
                             <TableCell className="max-w-[260px] truncate font-medium">{rfp.opportunity}</TableCell>
                             <TableCell>{rfp.requester}</TableCell>
@@ -319,7 +410,7 @@ export default function BidPage() {
                 <Card>
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">PRB 목록</CardTitle>
+                      <CardTitle className="text-lg">PRB 현황</CardTitle>
                       <Badge variant="secondary">{filteredPrbList.length}건</Badge>
                     </div>
                   </CardHeader>
@@ -327,29 +418,38 @@ export default function BidPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[120px]">PRB 번호</TableHead>
-                          <TableHead>RFP 번호</TableHead>
-                          <TableHead>사업명</TableHead>
                           <TableHead>고객사</TableHead>
-                          <TableHead>제출일</TableHead>
-                          <TableHead>검토일</TableHead>
-                          <TableHead>리스크</TableHead>
-                          <TableHead>결과</TableHead>
-                          <TableHead>검토자</TableHead>
+                          <TableHead>사업명</TableHead>
+                          <TableHead>제안서 마감일</TableHead>
+                          <TableHead>작성일</TableHead>
+                          <TableHead>작성자</TableHead>
+                          <TableHead>상태</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredPrbList.map((prb) => (
-                          <TableRow key={prb.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/bid/prb/${prb.id}`)}>
-                            <TableCell className="font-mono text-sm">{prb.id}</TableCell>
-                            <TableCell className="font-mono text-sm">{prb.rfpId}</TableCell>
-                            <TableCell className="max-w-[200px] truncate font-medium">{prb.name}</TableCell>
+                          <TableRow key={prb.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(buildBidHref(`/bid/prb/${prb.id}`))}>
                             <TableCell>{prb.customer}</TableCell>
-                            <TableCell>{prb.submitDate}</TableCell>
-                            <TableCell>{prb.reviewDate}</TableCell>
-                            <TableCell><Badge variant={prb.riskLevel === "고" ? "destructive" : prb.riskLevel === "중" ? "secondary" : "outline"}>{prb.riskLevel}</Badge></TableCell>
-                            <TableCell><Badge variant={prb.result === "승인" ? "default" : "outline"} className={prb.result === "승인" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"}>{prb.result}</Badge></TableCell>
-                            <TableCell>{prb.reviewer}</TableCell>
+                            <TableCell className="max-w-[240px] truncate font-medium">{prb.opportunity}</TableCell>
+                            <TableCell>{prb.proposalDeadline}</TableCell>
+                            <TableCell>{prb.createdDate}</TableCell>
+                            <TableCell>{prb.author}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={prb.status === "승인" ? "default" : prb.status === "반려" ? "destructive" : "secondary"}
+                                className={
+                                  prb.status === "승인"
+                                    ? "bg-green-100 text-green-700 hover:bg-green-100"
+                                    : prb.status === "반려"
+                                      ? "bg-red-100 text-red-700 hover:bg-red-100"
+                                      : prb.status === "검토 중"
+                                        ? "bg-blue-100 text-blue-700 hover:bg-blue-100"
+                                        : "bg-amber-100 text-amber-700 hover:bg-amber-100"
+                                }
+                              >
+                                {prb.status}
+                              </Badge>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -389,6 +489,41 @@ export default function BidPage() {
                             <TableCell>{proposal.requestDate || "-"}</TableCell>
                             <TableCell>{proposal.proposalDeadline || "-"}</TableCell>
                             <TableCell><Badge className={proposal.status === "완료" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"}>{proposal.status}</Badge></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="prb-result">
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">PRB 결과 현황</CardTitle>
+                      <Badge variant="secondary">{filteredPrbResults.length}건</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>고객사</TableHead>
+                          <TableHead>사업명</TableHead>
+                          <TableHead>제안서 마감일</TableHead>
+                          <TableHead>작성일</TableHead>
+                          <TableHead>작성자</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredPrbResults.map((prbResult) => (
+                          <TableRow key={prbResult.key} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(buildBidHref(`/bid/prb-result/${prbResult.prbResultId}`))}>
+                            <TableCell>{prbResult.customer}</TableCell>
+                            <TableCell className="max-w-[240px] truncate font-medium">{prbResult.opportunity}</TableCell>
+                            <TableCell>{prbResult.proposalDeadline}</TableCell>
+                            <TableCell>{prbResult.createdDate}</TableCell>
+                            <TableCell>{prbResult.author}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -454,7 +589,7 @@ export default function BidPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>아니오</AlertDialogCancel>
             <AlertDialogAction asChild>
-              <Link href={proposalConfirmTarget?.requestId ? `/bid/new/proposal?requestId=${proposalConfirmTarget.requestId}` : "/bid/new/proposal"}>
+              <Link href={proposalConfirmTarget?.requestId ? `/bid/new/proposal?requestId=${proposalConfirmTarget.requestId}&tab=${activeTab}` : `/bid/new/proposal?tab=${activeTab}`}>
                 확인
               </Link>
             </AlertDialogAction>
@@ -470,7 +605,7 @@ export default function BidPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>아니오</AlertDialogCancel>
             <AlertDialogAction asChild>
-              <Link href={resultConfirmTarget?.proposalId ? `/bid/new/result?proposalId=${resultConfirmTarget.proposalId}` : "/bid/new/result"}>
+              <Link href={resultConfirmTarget?.proposalId ? `/bid/new/result?proposalId=${resultConfirmTarget.proposalId}&tab=${activeTab}` : `/bid/new/result?tab=${activeTab}`}>
                 확인
               </Link>
             </AlertDialogAction>
@@ -478,5 +613,13 @@ export default function BidPage() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  )
+}
+
+export default function BidPage() {
+  return (
+    <Suspense fallback={null}>
+      <BidPageContent />
+    </Suspense>
   )
 }

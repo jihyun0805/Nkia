@@ -20,6 +20,7 @@ import { ContractForm } from "@/components/erp/contract/contract-form";
 import { PurchaseForm } from "@/components/erp/contract/purchase-form";
 import { FreeMaintenanceForm } from "@/components/erp/contract/free-maintenance-form";
 import { PaidMaintenanceForm } from "@/components/erp/contract/paid-maintenance-form";
+import { LicenseRequestForm } from "@/components/erp/contract/license-request-form";
 
 export default function ContractPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -61,11 +62,15 @@ export default function ContractPage() {
     owner: (i) => i.salesRep,
     date: (i) => i.orderDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.id, i.name, i.customer, i.product, i.salesRep].join(" ").toLowerCase().includes(q));
+  })
+    .filter((i) => [i.id, i.name, i.customer, i.product, i.salesRep].join(" ").toLowerCase().includes(q))
+    // 가장 최근에 등록된 것부터 과거 순서로 배열
+    .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
-  const filteredContracts = filterRecords(contracts, filters, { status: (i) => i.status, date: (i) => i.contractDate, fields: { customer: (i) => i.customer } }).filter((i) =>
-    [i.id, i.name, i.customer, i.orderId].join(" ").toLowerCase().includes(q),
-  );
+  const filteredContracts = filterRecords(contracts, filters, { status: (i) => i.status, date: (i) => i.contractDate, fields: { customer: (i) => i.customer } })
+    .filter((i) => [i.id, i.name, i.customer, i.orderId].join(" ").toLowerCase().includes(q))
+    // 가장 최근에 등록된 것부터 과거 순서로 배열
+    .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
 
   const filteredPurchases = filterRecords(purchaseContracts, filters, {
     status: (i) => i.status,
@@ -132,7 +137,7 @@ export default function ContractPage() {
                   activeTab !== "maintenance" && (
                     <Button onClick={() => setIsCreating(true)}>
                       <Plus className="mr-2 w-4 h-4" />
-                      {activeTab === "orders" ? "수주보고 등록" : activeTab === "contracts" ? "계약 등록" : activeTab === "purchases" ? "매입계약 등록" : "라이선스 등록"}
+                      {activeTab === "orders" ? "수주보고 등록" : activeTab === "contracts" ? "계약 등록" : activeTab === "purchases" ? "매입계약 등록" : "라이선스 발행 요청"}
                     </Button>
                   )
                 ) : (
@@ -182,7 +187,17 @@ export default function ContractPage() {
             ) : activeTab === "orders" ? (
               <TabsContent value="orders">
                 {/* TODO: 폼 컴포넌트의 제출/취소 완료 prop 이름(onSuccess, onSubmit 등)에 맞춰 연결 */}
-                <OrderReportForm onSuccess={() => setIsCreating(false)} onCancel={() => setIsCreating(false)} />
+                <OrderReportForm
+                  onSuccess={() => setIsCreating(false)}
+                  onCancel={() => setIsCreating(false)}
+                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
+                  inheritedData={{
+                    customerId: "CUST-001",
+                    customerName: "삼성전자",
+                    opportunityId: "OPP-2026-001",
+                    opportunityName: "삼성전자 EMS 구축",
+                  }}
+                />
               </TabsContent>
             ) : activeTab === "contracts" ? (
               <TabsContent value="contracts">
@@ -246,10 +261,24 @@ export default function ContractPage() {
                   }}
                 />
               </TabsContent>
+            ) : activeTab === "licenses" ? (
+              <TabsContent value="licenses">
+                <LicenseRequestForm
+                  onSuccess={() => setIsCreating(false)}
+                  onCancel={() => setIsCreating(false)}
+                  // TODO: 필요 시 앞 단계(수주/계약)에서 선택된 데이터 전달
+                  inheritedData={{
+                    customerId: "CUST-001",
+                    customerName: "삼성전자",
+                    opportunityId: "OPP-2026-001",
+                    opportunityName: "삼성전자 EMS 구축",
+                  }}
+                />
+              </TabsContent>
             ) : (
               <TabsContent value={activeTab}>
                 <div className="bg-card rounded-lg border p-6 flex min-h-[400px] flex-col items-center justify-center space-y-4">
-                  <p className="text-muted-foreground text-lg">여기에 라이선스 등록 폼 컴포넌트</p>
+                  <p className="text-muted-foreground text-lg">여기에 등록 폼 컴포넌트</p>
                   <p className="text-sm text-muted-foreground">TODO: 컴포넌트 import</p>
                 </div>
               </TabsContent>

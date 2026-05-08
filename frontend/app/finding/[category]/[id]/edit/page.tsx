@@ -14,10 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
-import { findingStatuses, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
+import { findingStatuses, getCustomers, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ScanLine } from "lucide-react"
+import { Loader2, Plus, ScanLine, Trash2 } from "lucide-react"
 
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 const customerGroupOptions = ["공공", "민간", "해외"]
@@ -35,6 +36,9 @@ type ContactDraft = {
   memo: string
   businessCardImage: string
 }
+
+type AttachmentDraft = StoredFileAttachment
+type RfpAttachmentDraft = OpportunityAttachment
 
 function createEmptyContactDraft(): ContactDraft {
   return {
@@ -94,6 +98,48 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   return currentValue ?? ""
 }
 
+function getCustomerDecisionContacts(customer: CustomerRecord | null): CustomerContact[] {
+  if (!customer) return []
+
+  if (Array.isArray(customer.contacts) && customer.contacts.length > 0) {
+    return customer.contacts.filter((contact) =>
+      [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone].some((value) => String(value ?? "").trim()),
+    )
+  }
+
+  if ([customer.contactName ?? customer.contact, customer.position, customer.department, customer.email, customer.mobilePhone ?? customer.phone, customer.landlinePhone].some((value) => String(value ?? "").trim())) {
+    return [{
+      name: customer.contactName ?? customer.contact ?? "",
+      position: customer.position ?? "",
+      department: customer.department ?? "",
+      email: customer.email ?? "",
+      mobilePhone: customer.mobilePhone ?? customer.phone ?? "",
+      landlinePhone: customer.landlinePhone ?? "",
+    }]
+  }
+
+  return []
+}
+
+function buildDecisionInfoFromCustomer(customer: CustomerRecord | null, fallback: string) {
+  const contacts = getCustomerDecisionContacts(customer)
+  if (contacts.length === 0) return fallback.trim() || "-"
+
+  return contacts
+    .map((contact, index) =>
+      [
+        `${index + 1}순위`,
+        contact.name || "-",
+        contact.position || "-",
+        contact.department || "-",
+        contact.email || "-",
+        contact.mobilePhone || "-",
+        contact.landlinePhone || "-",
+      ].join(" / "),
+    )
+    .join(" | ")
+}
+
 function createBusinessCardThumbnail(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -123,6 +169,27 @@ function createBusinessCardThumbnail(file: File) {
   })
 }
 
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error("Failed to read RFP document."))
+    reader.onload = () => resolve(String(reader.result ?? ""))
+    reader.readAsDataURL(file)
+  })
+}
+
+function createRfpAttachment(file: File, dataUrl: string): RfpAttachmentDraft {
+  return {
+    id: `${Date.now()}-${file.name}-${file.size}`,
+    name: file.name,
+    size: file.size,
+    contentType: file.type || "application/octet-stream",
+    dataUrl,
+    summary: "",
+    createdAt: new Date().toISOString(),
+  }
+}
+
 export default function FindingEditPage() {
   const params = useParams<{ category?: string | string[]; id?: string | string[] }>()
   const searchParams = useSearchParams()
@@ -138,6 +205,7 @@ export default function FindingEditPage() {
   const [opportunityName, setOpportunityName] = useState("")
   const [registrant, setRegistrant] = useState(currentUser.name)
   const [partnerName, setPartnerName] = useState("")
+  const [partnerNames, setPartnerNames] = useState<string[]>([""])
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
@@ -152,6 +220,8 @@ export default function FindingEditPage() {
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
+  const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
@@ -162,11 +232,16 @@ export default function FindingEditPage() {
       setItem(current)
       if (current && category === "opportunities") {
         const opportunity = current as OpportunityRecord
-        setSelectedCustomer({ id: opportunity.customerCode, name: opportunity.customer, category: opportunity.category, opportunities: 0, contracts: 0, contact: "", phone: "" })
+        const matchedCustomer = getCustomers().find((customer) => customer.id === opportunity.customerCode) ?? null
+        setSelectedCustomer(matchedCustomer ?? { id: opportunity.customerCode, name: opportunity.customer, category: opportunity.category, opportunities: 0, contracts: 0, contact: "", phone: "" })
         setCustomerName(opportunity.customer)
         setOpportunityName(opportunity.name)
         setRegistrant(opportunity.registrant)
-        setPartnerName(opportunity.partner === "-" ? "" : opportunity.partner)
+        setPartnerNames(
+          Array.isArray(opportunity.partners) && opportunity.partners.length > 0
+            ? opportunity.partners
+            : opportunity.partner === "-" ? [""] : opportunity.partner.split(",").map((partner) => partner.trim()),
+        )
         setExpectedDate(opportunity.expectedDate === "-" ? "" : opportunity.expectedDate)
         setExpectedAmount(opportunity.expectedAmount === "-" ? "" : opportunity.expectedAmount)
         setCustomerGroup(opportunity.category)
@@ -177,6 +252,7 @@ export default function FindingEditPage() {
         setCompetition(opportunity.competition === "-" ? "" : opportunity.competition)
         setDecisionInfo(opportunity.decisionInfo === "-" ? "" : opportunity.decisionInfo)
         setStatus(opportunity.status)
+        setRfpAttachments(opportunity.rfpAttachments ?? [])
       }
       if (current && category === "partners") {
         const partner = current as PartnerRecord
@@ -185,6 +261,7 @@ export default function FindingEditPage() {
         setAddress(partner.address ?? "")
         setMemo(partner.memo ?? "")
         setContacts(toContactDrafts(partner))
+        setAttachments(partner.attachments ?? [])
       }
     }
 
@@ -200,6 +277,38 @@ export default function FindingEditPage() {
   const openBusinessCardInput = (contactIndex: number) => {
     pendingOcrIndexRef.current = contactIndex
     businessCardInputRef.current?.click()
+  }
+
+  const handleAttachmentChange = async (files: FileList | null | undefined) => {
+    const selectedFiles = Array.from(files ?? [])
+    if (selectedFiles.length === 0) return
+
+    try {
+      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
+      setAttachments((prev) => [...prev, ...nextAttachments])
+    } catch (error) {
+      toast({
+        title: "첨부파일 등록 실패",
+        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
+      })
+    }
+  }
+
+  const handleRfpAttachmentChange = async (files: FileList | null | undefined) => {
+    const selectedFiles = Array.from(files ?? [])
+    if (selectedFiles.length === 0) return
+
+    try {
+      const nextAttachments = await Promise.all(
+        selectedFiles.map(async (file) => createRfpAttachment(file, await readFileAsDataUrl(file))),
+      )
+      setRfpAttachments((prev) => [...prev, ...nextAttachments])
+    } catch (error) {
+      toast({
+        title: "첨부파일 등록 실패",
+        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
+      })
+    }
   }
 
   const handleBusinessCardFileChange = async (file: File | undefined) => {
@@ -283,6 +392,7 @@ export default function FindingEditPage() {
         contacts: filledContacts as CustomerContact[],
         address,
         memo,
+        attachments,
       })
 
       if (result.status === "not_found") {
@@ -322,22 +432,23 @@ export default function FindingEditPage() {
       return
     }
 
-    const result = updateOpportunity(id, {
-      customerCode: selectedCustomer.id,
-      category: customerGroup,
-      name: opportunityName,
-      registrant,
-      partner: partnerName,
-      expectedDate,
-      expectedAmount,
-      product: businessType,
-      module: moduleName,
-      issue,
-      competition,
-      decisionInfo,
-      status,
-      salesRep,
-    })
+      const result = updateOpportunity(id, {
+        customerCode: selectedCustomer.id,
+        category: customerGroup,
+        name: opportunityName,
+        registrant,
+        partners: partnerNames,
+        expectedDate,
+        expectedAmount,
+        product: businessType,
+        module: moduleName,
+        issue,
+        competition,
+        decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
+        status,
+        salesRep,
+        rfpAttachments,
+      })
 
     if (result.status === "not_found") {
       toast({
@@ -594,7 +705,30 @@ export default function FindingEditPage() {
 
                   <section className="space-y-2">
                     <Label>첨부파일</Label>
-                    <Input type="file" multiple />
+                    <Input
+                      type="file"
+                      multiple
+                      onChange={(event) => {
+                        void handleAttachmentChange(event.target.files)
+                        event.target.value = ""
+                      }}
+                    />
+                    {attachments.length > 0 ? (
+                      <div className="space-y-2 rounded-md border border-border p-3">
+                        {attachments.map((attachment) => (
+                          <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                            <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                              {attachment.name}
+                            </a>
+                            <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
+                              삭제
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <Input readOnly value="등록된 첨부파일이 없습니다." />
+                    )}
                   </section>
 
                   <div className="flex justify-end gap-2 border-t pt-6">
@@ -716,8 +850,35 @@ export default function FindingEditPage() {
                       <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
                     </div>
                     <div className="space-y-2">
-                      <Label>협력사명</Label>
-                      <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                      <div className="flex items-center justify-between">
+                        <Label>협력사명</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setPartnerNames((prev) => [...prev, ""])}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          협력사 추가
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {partnerNames.map((partnerName, index) => (
+                          <div key={`edit-opportunity-partner-${index}`} className="flex items-center gap-2">
+                            <Input
+                              value={partnerName}
+                              onChange={(event) =>
+                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                              }
+                              placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={partnerNames.length === 1}
+                              onClick={() => setPartnerNames((prev) => (prev.length > 1 ? prev.filter((_, itemIndex) => itemIndex !== index) : prev))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>예상 입찰 또는 계약 시점</Label>
@@ -770,15 +931,76 @@ export default function FindingEditPage() {
                       <Textarea value={competition} onChange={(event) => setCompetition(event.target.value)} rows={4} placeholder="경쟁 상황을 입력하세요" />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <Label>고객사 의사결정구조 및 담당자 정보</Label>
-                      <Textarea value={decisionInfo} onChange={(event) => setDecisionInfo(event.target.value)} rows={4} placeholder="고객사 의사결정구조 및 담당자 정보를 입력하세요" />
+                      <Label>고객사 담당자 정보</Label>
+                      <div className="overflow-hidden rounded-md border">
+                        <table className="w-full border-collapse text-sm [&_td]:border [&_th]:border">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              <th className="px-3 py-2 text-center font-medium">순위</th>
+                              <th className="px-3 py-2 text-center font-medium">성명</th>
+                              <th className="px-3 py-2 text-center font-medium">직급</th>
+                              <th className="px-3 py-2 text-center font-medium">부서명</th>
+                              <th className="px-3 py-2 text-center font-medium">전자우편</th>
+                              <th className="px-3 py-2 text-center font-medium">이동전화</th>
+                              <th className="px-3 py-2 text-center font-medium">일반전화</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getCustomerDecisionContacts(selectedCustomer).length > 0 ? (
+                              getCustomerDecisionContacts(selectedCustomer).map((contact, index) => (
+                                <tr key={`${contact.name}-${index}`}>
+                                  <td className="px-3 py-2 text-center">{index + 1}</td>
+                                  <td className="px-3 py-2 text-center">{contact.name || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.position || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.department || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.email || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.mobilePhone || "-"}</td>
+                                  <td className="px-3 py-2 text-center">{contact.landlinePhone || "-"}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={7} className="px-3 py-4 text-center text-muted-foreground">
+                                  선택한 고객사의 담당자 정보가 없습니다.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </section>
 
                 <section className="space-y-2">
                   <Label>첨부파일</Label>
-                  <Input type="file" multiple />
+                  <Input
+                    type="file"
+                    multiple
+                    onChange={(event) => {
+                      void handleRfpAttachmentChange(event.target.files)
+                      event.target.value = ""
+                    }}
+                  />
+                  {rfpAttachments.length > 0 ? (
+                    <div className="space-y-2 rounded-md border border-border p-3">
+                      {rfpAttachments.map((attachment) => (
+                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                          <div className="min-w-0 flex-1">
+                            <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                              {attachment.name}
+                            </a>
+                            <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                          </div>
+                          <Button type="button" variant="outline" size="sm" onClick={() => setRfpAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
+                            삭제
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Input readOnly value="등록된 첨부파일이 없습니다." />
+                  )}
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">

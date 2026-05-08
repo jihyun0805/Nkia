@@ -213,7 +213,17 @@ function CustomerDetailPageContent() {
 
                 <section className="space-y-2">
                   <Label>첨부파일</Label>
-                  <Input readOnly value="등록된 첨부파일이 없습니다." />
+                  {Array.isArray(customer.attachments) && customer.attachments.length > 0 ? (
+                    <div className="space-y-2 rounded-md border p-3">
+                      {customer.attachments.map((attachment) => (
+                        <a key={attachment.id} href={attachment.dataUrl} download={attachment.name} className="block text-sm text-primary hover:underline">
+                          {attachment.name}
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <Input readOnly value="등록된 첨부파일이 없습니다." />
+                  )}
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">

@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.request;
 
+import com.nkia.Orbis.domain.contract.license.dto.request.LicenseFromOrderReportRequest;
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import java.time.LocalDate;
@@ -33,7 +34,7 @@ public class OrderReportRequest {
     private Long finalCustomerCompanyId;
     private Long finalCustomerManagerId;
     private List<OrderReportMaintenanceRequest> maintenances;
-    private List<OrderReportLicenseRequest> licenses;
+    private List<LicenseFromOrderReportRequest> licenses;
     private List<OrderReportServiceRequest> services;
     private List<OrderReportMaintenanceOnlyItemRequest> maintenanceOnlyItems;
     private List<OrderReportOtherRequest> others;

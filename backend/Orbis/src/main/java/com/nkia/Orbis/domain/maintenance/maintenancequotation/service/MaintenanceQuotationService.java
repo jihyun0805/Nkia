@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.maintenance.maintenancequotation.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
-import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.QuotationCreateRequest;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.QuotationCreateResponse;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceAmountReason;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
@@ -13,8 +13,8 @@ import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ServiceItem
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.repository.MaintenanceQuotationRepository;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
-import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
-import com.nkia.Orbis.domain.productmodule.repository.ProductModuleRepository;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,7 +31,7 @@ public class MaintenanceQuotationService {
      * 유지보수 견적서 등록
      */
     @Transactional
-    public QuotationCreateResponse register(QuotationCreateRequest dto) {
+    public QuotationCreateResponse register(MaintenanceQuotationCreateRequest dto) {
         // 1. 검증 및 부모 엔티티 생성
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
@@ -66,7 +66,7 @@ public class MaintenanceQuotationService {
     /**
      * 견적서 부모 엔티티 생성
      */
-    private MaintenanceQuotation createQuotationEntity(QuotationCreateRequest dto, Project project) {
+    private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project) {
         return MaintenanceQuotation.builder()
                 .refNo(dto.getRefNo())
                 .project(project)
@@ -85,7 +85,7 @@ public class MaintenanceQuotationService {
     /**
      * 서비스 내역 하위 엔티티 생성
      */
-    private MaintenanceServiceInfo createServiceInfo(QuotationCreateRequest.ServiceInfoRequest s) {
+    private MaintenanceServiceInfo createServiceInfo(MaintenanceQuotationCreateRequest.ServiceInfoRequest s) {
         return MaintenanceServiceInfo.builder()
                 .productModule(getProductModuleOrNull(s.getProductId()))
                 .category(ServiceCategory.fromDescription(s.getCategory()))
@@ -97,7 +97,7 @@ public class MaintenanceQuotationService {
     /**
      * 금액 산출 근거 하위 엔티티 생성
      */
-    private MaintenanceAmountReason createAmountReason(QuotationCreateRequest.AmountReasonRequest c) {
+    private MaintenanceAmountReason createAmountReason(MaintenanceQuotationCreateRequest.AmountReasonRequest c) {
         return MaintenanceAmountReason.builder()
                 .productModule(getProductModuleOrNull(c.getProductId()))
                 .quantity(c.getQuantity())

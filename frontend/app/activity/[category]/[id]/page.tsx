@@ -29,14 +29,18 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { formatAttachmentSize } from "@/lib/attachments"
 import { toast } from "@/hooks/use-toast"
 import {
+  type ActivityAttachment,
   type ActivityCategory,
+  type ActivityRecord,
   type ActivityRequestRecord,
   type QuotationRecord,
-  activities,
+  getActivities,
   getActivityItemFields,
   getCategoryLabel,
+  subscribeActivityUpdates,
 } from "@/lib/activity-data"
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
@@ -99,6 +103,7 @@ function buildQuotationDetailForm(record: QuotationRecord) {
 export default function ActivityDetailPage() {
   const params = useParams<{ category: ActivityCategory; id: string }>()
   const router = useRouter()
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -114,6 +119,13 @@ export default function ActivityDetailPage() {
       scrollContainer.scrollTo(0, 0)
     }
   }
+
+  useEffect(() => {
+    const sync = () => setActivityRecords(getActivities())
+
+    sync()
+    return subscribeActivityUpdates(sync)
+  }, [])
 
   useEffect(() => {
     const sync = () => setRequests(getActivityRequests())
@@ -133,10 +145,10 @@ export default function ActivityDetailPage() {
   const id = params.id
 
   const item = useMemo(() => {
-    if (category === "activities") return activities.find((entry) => entry.id === id) ?? null
+    if (category === "activities") return activityRecords.find((entry) => entry.id === id) ?? null
     if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
     return requests.find((entry) => entry.id === id) ?? null
-  }, [category, id, quotations, requests])
+  }, [activityRecords, category, id, quotations, requests])
   const categoryLabel = getCategoryLabel(category)
   const isRequest = category === "requests"
   const isQuotation = category === "quotations"
@@ -212,6 +224,12 @@ export default function ActivityDetailPage() {
     Boolean(activeApprovalStep) &&
     (activeApprovalStep.assignee === currentUser.name || activeApprovalStep.assignee === currentUser.role)
   const fields = item ? getActivityItemFields(category, item) : []
+  const attachments: ActivityAttachment[] =
+    category === "activities"
+      ? (((item as ActivityRecord | null)?.attachments ?? []) as ActivityAttachment[])
+      : category === "requests"
+        ? (((item as ActivityRequestRecord | null)?.attachments ?? []) as ActivityAttachment[])
+        : []
   const canEditRequest = !requestItem || requestItem.requester === currentUser.name
   const listHref =
     item && category === "activities"
@@ -514,7 +532,22 @@ export default function ActivityDetailPage() {
                     )}
                     <div className="space-y-2 md:col-span-2">
                       <Label>첨부파일</Label>
-                      <Input readOnly value="등록된 첨부파일이 없습니다." />
+                      {attachments.length > 0 ? (
+                        <div className="space-y-2 rounded-md border border-border p-3">
+                          {attachments.map((attachment) => (
+                            <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                              <div className="min-w-0 flex-1">
+                                <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                                  {attachment.name}
+                                </a>
+                                <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Input readOnly value="등록된 첨부파일이 없습니다." />
+                      )}
                     </div>
                   </div>
                 )}

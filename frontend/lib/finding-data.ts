@@ -1,4 +1,7 @@
+import type { StoredFileAttachment } from "@/lib/attachments"
+
 export type FindingCategory = "opportunities" | "customers" | "partners"
+export type CustomerAttachment = StoredFileAttachment
 export type CustomerRecord = {
   id: string
   name: string
@@ -19,6 +22,7 @@ export type CustomerRecord = {
   address?: string
   memo?: string
   aliases?: string[]
+  attachments?: CustomerAttachment[]
 }
 export type CustomerContact = {
   name: string
@@ -51,16 +55,19 @@ export type PartnerRecord = {
   duty?: string
   address?: string
   memo?: string
+  attachments?: CustomerAttachment[]
 }
 export type OpportunityRecord = {
   id: string
   createdAt: string
   customerCode: string
   partnerCode: string
+  partnerCodes?: string[]
   name: string
   registrant: string
   customer: string
   partner: string
+  partners?: string[]
   category: string
   product: string
   module: string
@@ -74,6 +81,16 @@ export type OpportunityRecord = {
   partnerPhone: string
   status: string
   salesRep: string
+  rfpAttachments?: OpportunityAttachment[]
+}
+export type OpportunityAttachment = {
+  id: string
+  name: string
+  size: number
+  contentType: string
+  dataUrl: string
+  summary: string
+  createdAt: string
 }
 export type FindingFormField = {
   label: string
@@ -94,6 +111,7 @@ type CustomerRegistrationInput = {
   address?: string
   memo?: string
   aliases?: string[]
+  attachments?: CustomerAttachment[]
 }
 
 type CustomerUpdateInput = {
@@ -103,6 +121,7 @@ type CustomerUpdateInput = {
   address?: string
   memo?: string
   aliases?: string[]
+  attachments?: CustomerAttachment[]
 }
 
 type OpportunityRegistrationInput = {
@@ -111,6 +130,7 @@ type OpportunityRegistrationInput = {
   name: string
   registrant: string
   partner?: string
+  partners?: string[]
   expectedDate?: string
   expectedAmount?: string
   product: string
@@ -120,6 +140,7 @@ type OpportunityRegistrationInput = {
   decisionInfo?: string
   status?: string
   salesRep?: string
+  rfpAttachments?: OpportunityAttachment[]
 }
 
 type OpportunityUpdateInput = OpportunityRegistrationInput
@@ -129,6 +150,7 @@ type PartnerRegistrationInput = {
   contacts: CustomerContact[]
   address?: string
   memo?: string
+  attachments?: CustomerAttachment[]
 }
 type PartnerUpdateInput = PartnerRegistrationInput
 
@@ -173,7 +195,7 @@ const baseOpportunities: OpportunityRecord[] = [
 export const opportunities: OpportunityRecord[] = baseOpportunities
 
 const baseCustomers: CustomerRecord[] = [
-  { id: "CUS-001", name: "삼성전자", category: "민간", opportunities: 3, contracts: 5, contact: "홍길동", phone: "010-1234-5678", aliases: ["samsung", "samsungelectronics"] },
+  { id: "CUS-001", name: "삼성전자", category: "민간", opportunities: 3, contracts: 5, contact: "홍길동", phone: "010-1234-5678", aliases: ["samsung", "samsungelectronics"], attachments: [{ id: "CUS-001-ATT-001", name: "삼성전자_고객사소개서.pdf", size: 182400, contentType: "application/pdf", dataUrl: "data:application/pdf;base64,JVBERi0xLjQKJcfs...", createdAt: "2026-04-30" }] },
   { id: "CUS-002", name: "국방부", category: "공공", opportunities: 2, contracts: 1, contact: "김철수", phone: "010-2345-6789", aliases: ["mnd"] },
   { id: "CUS-003", name: "현대자동차", category: "민간", opportunities: 2, contracts: 3, contact: "이영희", phone: "010-3456-7890", aliases: ["현대차", "hyundai", "hyundaimotor"] },
   { id: "CUS-004", name: "SK텔레콤", category: "민간", opportunities: 1, contracts: 4, contact: "박민수", phone: "010-4567-8901", aliases: ["skt", "sktelecom"] },
@@ -184,13 +206,53 @@ const baseCustomers: CustomerRecord[] = [
 export const customers: CustomerRecord[] = baseCustomers
 
 const basePartners: PartnerRecord[] = [
-  { id: "PTN-001", name: "LG CNS", type: "SI", opportunities: 2, projects: 3, contact: "강대표", phone: "010-5678-9012" },
+  { id: "PTN-001", name: "LG CNS", type: "SI", opportunities: 2, projects: 3, contact: "강대표", phone: "010-5678-9012", attachments: [{ id: "PTN-001-ATT-001", name: "LGCNS_파트너소개서.pdf", size: 214528, contentType: "application/pdf", dataUrl: "data:application/pdf;base64,JVBERi0xLjQKJcfs...", createdAt: "2026-05-02" }] },
   { id: "PTN-002", name: "SK C&C", type: "SI", opportunities: 1, projects: 2, contact: "윤실장", phone: "010-6789-0123" },
   { id: "PTN-003", name: "NTT DATA", type: "파트너", opportunities: 1, projects: 1, contact: "Yamamoto", phone: "+81-90-2345-6789" },
   { id: "PTN-004", name: "삼성SDS", type: "SI", opportunities: 0, projects: 4, contact: "정팀장", phone: "010-7890-1234" },
 ]
 
 export const findingStatuses: string[] = ["진행중", "발굴", "유망"]
+
+function normalizePartnerNames(partners: string[] = []) {
+  return Array.from(
+    new Set(
+      partners
+        .map((partner) => partner.trim())
+        .filter(Boolean),
+    ),
+  )
+}
+
+function buildOpportunityPartnerData(partners: string[]) {
+  const normalizedPartners = normalizePartnerNames(partners)
+  const matchedPartners = normalizedPartners
+    .map((partnerName) => getPartnerByName(partnerName))
+    .filter((partner): partner is PartnerRecord => Boolean(partner))
+
+  return {
+    partner: normalizedPartners.length > 0 ? normalizedPartners.join(", ") : "-",
+    partners: normalizedPartners,
+    partnerCode: matchedPartners.length > 0 ? matchedPartners.map((partner) => partner.id).join(", ") : "-",
+    partnerCodes: matchedPartners.map((partner) => partner.id),
+    partnerType:
+      matchedPartners.length > 1
+        ? "복수"
+        : matchedPartners[0]?.type ?? (normalizedPartners.length > 0 ? "기타" : "-"),
+    partnerContact:
+      matchedPartners.length > 0
+        ? matchedPartners
+            .map((partner) => partner.contactName ?? partner.contact ?? "-")
+            .join(", ")
+        : "-",
+    partnerPhone:
+      matchedPartners.length > 0
+        ? matchedPartners
+            .map((partner) => partner.mobilePhone ?? partner.phone ?? "-")
+            .join(", ")
+        : "-",
+  }
+}
 
 export function getFindingItem(category: FindingCategory, id: string) {
   if (category === "opportunities") return getOpportunities().find((item) => item.id === id) ?? null
@@ -363,6 +425,9 @@ function getStoredCustomers(): CustomerRecord[] {
           .map((item) => ({
             ...item,
             aliases: Array.isArray(item.aliases) ? item.aliases.filter((alias) => typeof alias === "string") : [],
+            attachments: Array.isArray(item.attachments)
+              ? item.attachments.filter((attachment) => attachment && typeof attachment.id === "string" && typeof attachment.name === "string")
+              : [],
           }))
       : []
   } catch {
@@ -394,6 +459,16 @@ function getStoredOpportunities(): OpportunityRecord[] {
             createdAt: typeof item.createdAt === "string" ? item.createdAt : "",
             registrant: typeof item.registrant === "string" ? item.registrant : "",
             salesRep: typeof item.salesRep === "string" ? item.salesRep : "",
+            partners: Array.isArray(item.partners)
+              ? normalizePartnerNames(item.partners)
+              : typeof item.partner === "string" && item.partner !== "-"
+                ? normalizePartnerNames(item.partner.split(","))
+                : [],
+            partnerCodes: Array.isArray(item.partnerCodes)
+              ? item.partnerCodes.filter((partnerCode) => typeof partnerCode === "string")
+              : typeof item.partnerCode === "string" && item.partnerCode !== "-"
+                ? item.partnerCode.split(",").map((partnerCode) => partnerCode.trim()).filter(Boolean)
+                : [],
           }))
       : []
   } catch {
@@ -410,7 +485,14 @@ function getStoredPartners(): PartnerRecord[] {
   try {
     const parsed = JSON.parse(stored) as PartnerRecord[]
     return Array.isArray(parsed)
-      ? parsed.filter((item) => item && typeof item.id === "string" && typeof item.name === "string")
+      ? parsed
+          .filter((item) => item && typeof item.id === "string" && typeof item.name === "string")
+          .map((item) => ({
+            ...item,
+            attachments: Array.isArray(item.attachments)
+              ? item.attachments.filter((attachment) => attachment && typeof attachment.id === "string" && typeof attachment.name === "string")
+              : [],
+          }))
       : []
   } catch {
     return []
@@ -574,6 +656,7 @@ export function registerCustomer(input: CustomerRegistrationInput) {
     address: input.address?.trim() ?? "",
     memo: input.memo?.trim() ?? "",
     aliases: input.aliases?.filter(Boolean) ?? [],
+    attachments: input.attachments ?? [],
   }
 
   const storedCustomers = getStoredCustomers()
@@ -586,16 +669,19 @@ export function registerCustomer(input: CustomerRegistrationInput) {
 export function registerOpportunity(input: OpportunityRegistrationInput) {
   const customer = getCustomerByCode(input.customerCode)
   if (!customer) return { status: "customer_not_found" as const }
+  const partnerData = buildOpportunityPartnerData(input.partners ?? (input.partner ? [input.partner] : []))
 
   const created: OpportunityRecord = {
     id: getNextOpportunityCode(),
     createdAt: formatDateKey(new Date()),
     customerCode: customer.id,
-    partnerCode: "-",
+    partnerCode: partnerData.partnerCode,
+    partnerCodes: partnerData.partnerCodes,
     name: input.name.trim(),
     registrant: input.registrant.trim(),
     customer: customer.name,
-    partner: input.partner?.trim() || "-",
+    partner: partnerData.partner,
+    partners: partnerData.partners,
     category: input.category,
     product: input.product,
     module: input.module?.trim() || "-",
@@ -604,11 +690,12 @@ export function registerOpportunity(input: OpportunityRegistrationInput) {
     issue: input.issue?.trim() || "-",
     competition: input.competition?.trim() || "-",
     decisionInfo: input.decisionInfo?.trim() || "-",
-    partnerType: input.partner?.trim() ? "기타" : "-",
-    partnerContact: "-",
-    partnerPhone: "-",
+    partnerType: partnerData.partnerType,
+    partnerContact: partnerData.partnerContact,
+    partnerPhone: partnerData.partnerPhone,
     status: input.status?.trim() || "발굴",
     salesRep: input.salesRep?.trim() || "미지정",
+    rfpAttachments: input.rfpAttachments ?? [],
   }
 
   setStoredOpportunities([...getStoredOpportunities(), created])
@@ -656,6 +743,7 @@ export function registerPartner(input: PartnerRegistrationInput) {
     duty: contacts[0]?.duty ?? "",
     address: input.address?.trim() ?? "",
     memo: input.memo?.trim() ?? "",
+    attachments: input.attachments ?? [],
   }
 
   setStoredPartners([...getStoredPartners(), created])
@@ -703,6 +791,7 @@ export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
     fax: contacts[0]?.fax ?? existing.fax,
     duty: contacts[0]?.duty ?? existing.duty,
     aliases: input.aliases?.filter(Boolean) ?? existing.aliases ?? [],
+    attachments: input.attachments ?? existing.attachments ?? [],
   }
 
   setStoredCustomers([...storedCustomers, nextRecord])
@@ -717,6 +806,7 @@ export function updateOpportunity(opportunityId: string, input: OpportunityUpdat
 
   const customer = getCustomerByCode(input.customerCode)
   if (!customer) return { status: "customer_not_found" as const }
+  const partnerData = buildOpportunityPartnerData(input.partners ?? (input.partner ? [input.partner] : []))
 
   const nextRecord: OpportunityRecord = {
     ...existing,
@@ -725,7 +815,8 @@ export function updateOpportunity(opportunityId: string, input: OpportunityUpdat
     category: input.category,
     name: input.name.trim(),
     registrant: input.registrant.trim(),
-    partner: input.partner?.trim() || "-",
+    partner: partnerData.partner,
+    partners: partnerData.partners,
     product: input.product,
     module: input.module?.trim() || "-",
     expectedAmount: input.expectedAmount?.trim() || "-",
@@ -735,8 +826,12 @@ export function updateOpportunity(opportunityId: string, input: OpportunityUpdat
     decisionInfo: input.decisionInfo?.trim() || "-",
     status: input.status?.trim() || existing.status,
     salesRep: input.salesRep?.trim() || existing.salesRep,
-    partnerType: input.partner?.trim() ? existing.partnerType === "-" ? "기타" : existing.partnerType : "-",
-    partnerCode: input.partner?.trim() ? existing.partnerCode : "-",
+    partnerType: partnerData.partnerType,
+    partnerCode: partnerData.partnerCode,
+    partnerCodes: partnerData.partnerCodes,
+    partnerContact: partnerData.partnerContact,
+    partnerPhone: partnerData.partnerPhone,
+    rfpAttachments: input.rfpAttachments ?? existing.rfpAttachments ?? [],
   }
 
   const storedOpportunities = getStoredOpportunities().filter((item) => item.id !== normalizedId)
@@ -781,6 +876,7 @@ export function updatePartner(partnerId: string, input: PartnerUpdateInput) {
     landlinePhone: contacts[0]?.landlinePhone ?? existing.landlinePhone,
     fax: contacts[0]?.fax ?? existing.fax,
     duty: contacts[0]?.duty ?? existing.duty,
+    attachments: input.attachments ?? existing.attachments ?? [],
   }
 
   const storedPartners = getStoredPartners().filter((item) => item.id !== normalizedId)

@@ -24,8 +24,9 @@ import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } 
 import {
   activityRequestStatusOptions,
   activityRequestTypeOptions,
-  activities,
   activityStatuses,
+  getActivities,
+  subscribeActivityUpdates,
 } from "@/lib/activity-data"
 import { useEffect, useMemo, useState } from "react"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
@@ -51,6 +52,7 @@ export default function ActivityPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
+  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
   const [activityRequests, setActivityRequests] = useState<ReturnType<typeof getActivityRequests>>([])
   const [quotationRecords, setQuotationRecords] = useState<ReturnType<typeof getQuotations>>([])
   const [month, setMonth] = useState(new Date())
@@ -78,6 +80,13 @@ export default function ActivityPage() {
   )
 
   useEffect(() => {
+    const sync = () => setActivityRecords(getActivities())
+
+    sync()
+    return subscribeActivityUpdates(sync)
+  }, [])
+
+  useEffect(() => {
     const sync = () => setActivityRequests(getActivityRequests())
 
     sync()
@@ -102,11 +111,11 @@ export default function ActivityPage() {
   }, [activeTab, isPreferenceReady])
   const activityFieldOptions = activeTab === "activities"
     ? [
-      { key: "customer", label: "고객사", options: uniqueOptions(activities, (item) => item.customer) },
-      { key: "opportunity", label: "사업기회", options: uniqueOptions(activities, (item) => item.opportunity) },
-      { key: "activityMode", label: "활동형태", options: uniqueOptions(activities, (item) => item.activityMode) },
-      { key: "activityContent", label: "활동내용", options: uniqueOptions(activities, (item) => item.activityContent) },
-      { key: "location", label: "장소", options: uniqueOptions(activities, (item) => item.location) },
+      { key: "customer", label: "고객사", options: uniqueOptions(activityRecords, (item) => item.customer) },
+      { key: "opportunity", label: "사업기회", options: uniqueOptions(activityRecords, (item) => item.opportunity) },
+      { key: "activityMode", label: "활동형태", options: uniqueOptions(activityRecords, (item) => item.activityMode) },
+      { key: "activityContent", label: "활동내용", options: uniqueOptions(activityRecords, (item) => item.activityContent) },
+      { key: "location", label: "장소", options: uniqueOptions(activityRecords, (item) => item.location) },
     ]
     : activeTab === "quotations"
       ? [
@@ -119,7 +128,7 @@ export default function ActivityPage() {
         { key: "customer", label: "고객사", options: uniqueOptions(activityRequests, (item) => item.customer) },
       ]
 
-  const filteredActivities = filterRecords(activities, filters, {
+  const filteredActivities = filterRecords(activityRecords, filters, {
     owner: (item) => item.attendees,
     date: (item) => item.date,
     fields: {

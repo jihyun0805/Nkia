@@ -20,7 +20,9 @@ ALLOWED_ATTACHMENT_EXTENSIONS = {
     "yaml",
     "yml",
     "pdf",
+    "doc",
     "docx",
+    "ppt",
     "pptx",
     "hwp",
     "hwpx",
@@ -42,7 +44,9 @@ PDF_OCR_RENDER_SCALE = 1.0
 EXTENSION_MIME_MAP = {
     "hwp": "application/x-hwp",
     "hwpx": "application/x-hwpx",
+    "doc": "application/msword",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "ppt": "application/vnd.ms-powerpoint",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "pdf": "application/pdf",
     "png": "image/png",
@@ -71,15 +75,19 @@ def extract_attachment_text(*, filename: str | None, content_type: str | None, f
     if extension not in ALLOWED_ATTACHMENT_EXTENSIONS:
         raise RuntimeError(
             "지원하지 않는 파일 형식입니다. "
-            "지원 형식: txt, md, markdown, csv, json, log, xml, yaml, yml, pdf, docx, pptx, hwp, hwpx, png, jpg, jpeg"
+            "지원 형식: txt, md, markdown, csv, json, log, xml, yaml, yml, pdf, doc, docx, ppt, pptx, hwp, hwpx, png, jpg, jpeg"
         )
 
     if extension in TEXT_EXTENSIONS:
         text = extract_text_file(file_bytes)
     elif extension == "pdf":
         text = extract_pdf_text(file_bytes)
+    elif extension == "doc":
+        text = extract_legacy_office_text(file_bytes)
     elif extension == "docx":
         text = extract_docx_text(file_bytes)
+    elif extension == "ppt":
+        text = extract_legacy_office_text(file_bytes)
     elif extension == "pptx":
         text = extract_pptx_text(file_bytes)
     elif extension == "hwp":
@@ -150,6 +158,54 @@ def extract_pptx_text(file_bytes: bytes) -> str:
         note_names = sorted(name for name in archive.namelist() if name.startswith("ppt/notesSlides/notesSlide"))
         sections = [extract_openxml_text(archive.read(name)) for name in [*part_names, *note_names]]
     return "\n".join(section for section in sections if section)
+
+
+def extract_legacy_office_text(file_bytes: bytes) -> str:
+    import olefile
+
+    buffer = io.BytesIO(file_bytes)
+    if not olefile.isOleFile(buffer):
+        raise RuntimeError("구형 Office 문서 형식을 인식할 수 없습니다.")
+
+    buffer.seek(0)
+    parts: list[str] = []
+    with olefile.OleFileIO(buffer) as ole:
+        for entry in ole.listdir(streams=True, storages=False):
+            try:
+                raw = ole.openstream(entry).read()
+            except OSError:
+                continue
+            parts.extend(extract_printable_binary_strings(raw))
+
+    return "\n".join(dict.fromkeys(parts))
+
+
+def extract_printable_binary_strings(raw: bytes) -> list[str]:
+    candidates: list[str] = []
+    for encoding in ("utf-16le", "cp949"):
+        try:
+            decoded = raw.decode(encoding, errors="ignore")
+        except LookupError:
+            continue
+        candidates.extend(find_readable_text_runs(decoded))
+    return candidates
+
+
+def find_readable_text_runs(text: str) -> list[str]:
+    normalized = normalize_extracted_text(text)
+    if not normalized:
+        return []
+
+    runs = re.findall(r"[가-힣A-Za-z0-9][가-힣A-Za-z0-9\s\.,:;()/\[\]{}<>@#%&+\-=_'\"·ㆍ•※]{3,}", normalized)
+    return [run.strip() for run in runs if is_meaningful_text_run(run)]
+
+
+def is_meaningful_text_run(text: str) -> bool:
+    compact = WHITESPACE_PATTERN.sub(" ", text).strip()
+    if len(compact) < 4:
+        return False
+    readable_chars = sum(1 for char in compact if char.isalnum() or "\uac00" <= char <= "\ud7a3")
+    return readable_chars >= 3
 
 
 def extract_docx_xml_text(xml_bytes: bytes) -> str:
@@ -276,7 +332,7 @@ def extract_pdf_text_with_ocr(file_bytes: bytes) -> str:
             page = document.load_page(page_index)
             pixmap = page.get_pixmap(matrix=fitz.Matrix(PDF_OCR_RENDER_SCALE, PDF_OCR_RENDER_SCALE), alpha=False)
             image = np.frombuffer(pixmap.samples, dtype=np.uint8).reshape(pixmap.height, pixmap.width, pixmap.n)
-            result = ocr_engine.ocr(image, cls=False)
+            result = run_paddle_ocr(ocr_engine, image)
             parts.extend(extract_paddle_ocr_lines(result))
             if sum(len(part) for part in parts) >= PDF_OCR_TARGET_CHARS:
                 break
@@ -290,7 +346,7 @@ def extract_image_text_with_ocr(file_bytes: bytes) -> str:
 
     ocr_engine = get_paddle_ocr()
     image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
-    result = ocr_engine.ocr(np.array(image), cls=False)
+    result = run_paddle_ocr(ocr_engine, np.array(image))
     return "\n".join(extract_paddle_ocr_lines(result))
 
 
@@ -301,21 +357,45 @@ def get_paddle_ocr():
     try:
         return _PADDLE_OCR_INSTANCE
     except NameError:
-        _PADDLE_OCR_INSTANCE = PaddleOCR(
-            use_angle_cls=False,
-            lang="korean",
-            show_log=False,
-            use_gpu=False,
-            cpu_threads=1,
-            enable_mkldnn=False,
-        )
+        try:
+            _PADDLE_OCR_INSTANCE = PaddleOCR(
+                use_angle_cls=False,
+                lang="korean",
+                use_gpu=False,
+                cpu_threads=1,
+                enable_mkldnn=False,
+            )
+        except ValueError:
+            _PADDLE_OCR_INSTANCE = PaddleOCR(lang="korean")
         return _PADDLE_OCR_INSTANCE
+
+
+def run_paddle_ocr(ocr_engine: object, image: object) -> object:
+    try:
+        return ocr_engine.ocr(image, cls=False)
+    except TypeError as exc:
+        if "cls" not in str(exc):
+            raise
+        return ocr_engine.ocr(image)
 
 
 def extract_paddle_ocr_lines(result: object) -> list[str]:
     lines: list[str] = []
 
     def visit(node: object) -> None:
+        if isinstance(node, dict):
+            for key in ("rec_texts", "texts", "text"):
+                value = node.get(key)
+                if isinstance(value, str) and value.strip():
+                    lines.append(value.strip())
+                elif isinstance(value, (list, tuple)):
+                    for item in value:
+                        if isinstance(item, str) and item.strip():
+                            lines.append(item.strip())
+            for value in node.values():
+                if isinstance(value, (dict, list, tuple)):
+                    visit(value)
+            return
         if isinstance(node, (list, tuple)):
             if len(node) >= 2 and isinstance(node[1], (list, tuple)) and node[1]:
                 candidate = node[1][0]

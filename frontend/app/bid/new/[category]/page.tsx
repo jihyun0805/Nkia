@@ -3,31 +3,29 @@ import { notFound } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { BidResultRegistrationForm } from "@/components/erp/bid-result-registration-form"
+import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
+import { PrbResultRegistrationForm } from "@/components/erp/prb-result-registration-form"
 import { ProposalRegistrationForm } from "@/components/erp/proposal-registration-form"
 import { RfpAnalysisSheetLoader } from "@/components/erp/rfp-analysis-sheet-loader"
-import { Button } from "@/components/ui/button"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { type BidCategory, getBidCategoryLabel, getBidCreateActionLabel, rfpList } from "@/lib/bid-data"
 
-const categories: BidCategory[] = ["rfp", "prb", "proposal", "result"]
+const categories: BidCategory[] = ["rfp", "prb", "prb-result", "proposal", "result"]
 
 export default async function BidCategoryNewPage({
   params,
   searchParams,
 }: {
   params: Promise<{ category: BidCategory }>
-  searchParams: Promise<{ requestId?: string; standalone?: string; proposalId?: string }>
+  searchParams: Promise<{ requestId?: string; standalone?: string; proposalId?: string; cloneFrom?: string; tab?: string }>
 }) {
   const { category } = await params
-  const { requestId, standalone, proposalId } = await searchParams
+  const { requestId, standalone, proposalId, cloneFrom, tab } = await searchParams
   if (!categories.includes(category)) notFound()
 
   const title = getBidCategoryLabel(category)
   const actionLabel = getBidCreateActionLabel(category)
+  const backHref = tab ? `/bid?tab=${tab}` : "/bid"
 
   return (
     <div className="min-h-screen bg-background">
@@ -40,7 +38,7 @@ export default async function BidCategoryNewPage({
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link href="/bid">입찰</Link>
+                    <Link href={backHref}>입찰</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
@@ -55,24 +53,11 @@ export default async function BidCategoryNewPage({
               <ProposalRegistrationForm initialRequestId={requestId} proposalId={proposalId} />
             ) : category === "result" ? (
               <BidResultRegistrationForm proposalId={proposalId} />
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{actionLabel}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                {category === "prb" && (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>RFP 번호 *</Label><Input /></div><div className="space-y-2"><Label>검토자 *</Label><Input /></div></div>
-                    <div className="grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>상신일 *</Label><Input type="date" /></div><div className="space-y-2"><Label>검토일</Label><Input type="date" /></div><div className="space-y-2"><Label>리스크 등급 *</Label><Input placeholder="예: 중" /></div></div>
-                    <div className="space-y-2"><Label>검토 의견 *</Label><Textarea rows={4} /></div>
-                  </>
-                )}
-                <div className="space-y-2"><Label>첨부파일</Label><Input type="file" multiple /></div>
-                <div className="flex justify-end gap-2 border-t pt-6"><Button variant="outline" asChild><Link href="/bid">취소</Link></Button><Button asChild><Link href="/bid">등록</Link></Button></div>
-                </CardContent>
-              </Card>
-            )}
+            ) : category === "prb-result" ? (
+              <PrbResultRegistrationForm />
+            ) : category === "prb" ? (
+              <PrbRegistrationForm cloneFromId={cloneFrom} />
+            ) : null}
           </div>
         </main>
       </div>

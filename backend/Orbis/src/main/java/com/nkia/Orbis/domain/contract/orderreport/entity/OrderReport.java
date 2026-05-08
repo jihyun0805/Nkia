@@ -4,10 +4,11 @@ import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
+import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
-import com.nkia.Orbis.domain.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -107,7 +108,7 @@ public class OrderReport extends BaseEntity {
     private List<OrderReportMaintenance> maintenances = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderReportLicense> licenses = new ArrayList<>();
+    private List<License> licenses = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderReportServiceItem> services = new ArrayList<>();
@@ -256,7 +257,7 @@ public class OrderReport extends BaseEntity {
         return orderReport;
     }
 
-    public void addLicense(OrderReportLicense license) {
+    public void addLicense(License license) {
         this.licenses.add(license);
         license.setOrderReport(this);
 
@@ -337,7 +338,7 @@ public class OrderReport extends BaseEntity {
         this.itoSummary = 0L;
         this.otherSummary = 0L;
 
-        for (OrderReportLicense license : licenses) {
+        for (License license : licenses) {
             Long price = license.getTotalPrice() == null ? 0L : license.getTotalPrice();
 
             switch (license.getProductClass()) {
@@ -387,7 +388,7 @@ public class OrderReport extends BaseEntity {
     public void delete() {
         super.delete();
 
-        for (OrderReportLicense item : licenses) {
+        for (License item : licenses) {
             item.delete();
         }
 

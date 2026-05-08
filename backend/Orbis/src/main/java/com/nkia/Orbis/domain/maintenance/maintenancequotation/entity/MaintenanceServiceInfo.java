@@ -14,7 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import com.nkia.Orbis.domain.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 
 @Entity
 @Getter
@@ -42,12 +42,14 @@ public class MaintenanceServiceInfo {
     private String content;             // 서비스 내용
 
     @Builder
-    public MaintenanceServiceInfo(ProductModule productModule, ServiceCategory category, ServiceItem item, String content) {
+    public MaintenanceServiceInfo(ProductModule productModule, ServiceCategory category, ServiceItem item,
+                                  String content) {
         this.productModule = productModule;
         this.category = category;
         this.item = item;
         this.content = content;
     }
+
     void setQuotation(MaintenanceQuotation quotation) {
         this.quotation = quotation;
     }

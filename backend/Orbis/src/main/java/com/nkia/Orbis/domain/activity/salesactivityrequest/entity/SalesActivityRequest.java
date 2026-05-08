@@ -4,7 +4,7 @@ import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityPurpose;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityType;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
-import com.nkia.Orbis.domain.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

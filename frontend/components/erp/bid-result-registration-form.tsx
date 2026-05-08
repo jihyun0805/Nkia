@@ -972,12 +972,34 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
                   attachments,
                   attachmentNames: attachments.map((file) => file.name),
                 }))
+                event.target.value = ""
               }}
             />
-            <Input
-              readOnly
-              value={form.attachmentNames.length > 0 ? form.attachmentNames.join(", ") : "등록된 첨부파일이 없습니다."}
-            />
+            {form.attachments.length > 0 ? (
+              <div className="space-y-2 rounded-md border px-4 py-3">
+                {form.attachments.map((attachment, index) =>
+                  attachment.url ? (
+                    <a
+                      key={`${attachment.name}-${index}`}
+                      href={attachment.url}
+                      download={attachment.name}
+                      className="block text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      {attachment.name}
+                    </a>
+                  ) : (
+                    <p key={`${attachment.name}-${index}`} className="text-sm text-muted-foreground">
+                      {attachment.name}
+                    </p>
+                  ),
+                )}
+              </div>
+            ) : (
+              <Input
+                readOnly
+                value={form.attachmentNames.length > 0 ? form.attachmentNames.join(", ") : "등록된 첨부파일이 없습니다."}
+              />
+            )}
           </div>
 
           <div className="flex justify-end gap-2 border-t pt-6">

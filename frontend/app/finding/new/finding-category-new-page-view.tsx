@@ -24,10 +24,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
-import { findingStatuses, getCustomerByName, getFindingCategoryLabel, getPartnerByName, registerCustomer, registerOpportunity, registerPartner, type CustomerRecord } from "@/lib/finding-data"
+import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
+import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
+import { readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
+import { findingStatuses, getCustomerByName, getFindingCategoryLabel, getPartnerByName, registerCustomer, registerOpportunity, registerPartner, type CustomerContact, type CustomerRecord, type OpportunityAttachment } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
+import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
 const customerGroupOptions = ["공공", "민간", "해외"]
 const partnerTypeOptions = ["SI", "파트너", "기타"]
@@ -45,6 +48,11 @@ type ContactDraft = {
   memo: string
   businessCardImage: string
 }
+
+type RfpAttachmentDraft = OpportunityAttachment & {
+  file?: File
+}
+type AttachmentDraft = StoredFileAttachment
 
 function createEmptyContactDraft(): ContactDraft {
   return {
@@ -67,10 +75,57 @@ function hasContactValue(contact: ContactDraft) {
   )
 }
 
+function formatRfpSummaryTitle(fileName: string) {
+  const title = fileName.replace(/\.[^.]+$/, "").trim()
+  return title || "RFP 문서"
+}
+
 function keepExistingValue(currentValue: string | undefined, nextValue: string | null | undefined) {
   const trimmedNext = String(nextValue ?? "").trim()
   if (trimmedNext) return trimmedNext
   return currentValue ?? ""
+}
+
+function getCustomerDecisionContacts(customer: CustomerRecord | null): CustomerContact[] {
+  if (!customer) return []
+
+  if (Array.isArray(customer.contacts) && customer.contacts.length > 0) {
+    return customer.contacts.filter((contact) =>
+      [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone].some((value) => String(value ?? "").trim()),
+    )
+  }
+
+  if ([customer.contactName ?? customer.contact, customer.position, customer.department, customer.email, customer.mobilePhone ?? customer.phone, customer.landlinePhone].some((value) => String(value ?? "").trim())) {
+    return [{
+      name: customer.contactName ?? customer.contact ?? "",
+      position: customer.position ?? "",
+      department: customer.department ?? "",
+      email: customer.email ?? "",
+      mobilePhone: customer.mobilePhone ?? customer.phone ?? "",
+      landlinePhone: customer.landlinePhone ?? "",
+    }]
+  }
+
+  return []
+}
+
+function buildDecisionInfoFromCustomer(customer: CustomerRecord | null) {
+  const contacts = getCustomerDecisionContacts(customer)
+  if (contacts.length === 0) return "-"
+
+  return contacts
+    .map((contact, index) =>
+      [
+        `${index + 1}순위`,
+        contact.name || "-",
+        contact.position || "-",
+        contact.department || "-",
+        contact.email || "-",
+        contact.mobilePhone || "-",
+        contact.landlinePhone || "-",
+      ].join(" / "),
+    )
+    .join(" | ")
 }
 
 function createBusinessCardThumbnail(file: File) {
@@ -102,6 +157,28 @@ function createBusinessCardThumbnail(file: File) {
   })
 }
 
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error("Failed to read RFP document."))
+    reader.onload = () => resolve(String(reader.result ?? ""))
+    reader.readAsDataURL(file)
+  })
+}
+
+function createRfpAttachment(file: File, dataUrl: string, summary = ""): RfpAttachmentDraft {
+  return {
+    id: `${Date.now()}-${file.name}-${file.size}`,
+    name: file.name,
+    size: file.size,
+    contentType: file.type || "application/octet-stream",
+    dataUrl,
+    summary,
+    createdAt: new Date().toISOString(),
+    file,
+  }
+}
+
 export function FindingCategoryNewPageView({
   category,
 }: {
@@ -119,7 +196,7 @@ export function FindingCategoryNewPageView({
   const [selectedOpportunityCustomer, setSelectedOpportunityCustomer] = useState<CustomerRecord | null>(null)
   const [opportunityCustomerName, setOpportunityCustomerName] = useState("")
   const [opportunityName, setOpportunityName] = useState("")
-  const [opportunityPartnerName, setOpportunityPartnerName] = useState("")
+  const [opportunityPartnerNames, setOpportunityPartnerNames] = useState<string[]>([""])
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
@@ -129,13 +206,16 @@ export function FindingCategoryNewPageView({
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
-  const [decisionInfo, setDecisionInfo] = useState("")
   const [opportunityStatus, setOpportunityStatus] = useState("발굴")
   const [customerRegistrationGuideOpen, setCustomerRegistrationGuideOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
+  const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
+  const [rfpSummaryLoadingId, setRfpSummaryLoadingId] = useState<string | null>(null)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
+  const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
 
   const openBusinessCardInput = (contactIndex: number) => {
@@ -204,6 +284,73 @@ export function FindingCategoryNewPageView({
     }
   }
 
+  const handleRfpFileChange = async (files: FileList | null | undefined) => {
+    const selectedFiles = Array.from(files ?? [])
+    if (selectedFiles.length === 0) {
+      return
+    }
+
+    try {
+      selectedFiles.forEach(assertRfpDocumentFile)
+      const attachments = await Promise.all(
+        selectedFiles.map(async (file) => createRfpAttachment(file, await readFileAsDataUrl(file))),
+      )
+      setRfpAttachments((prev) => [...prev, ...attachments])
+      if (rfpInputRef.current) rfpInputRef.current.value = ""
+    } catch (error) {
+      toast({
+        title: "RFP \ubb38\uc11c \ud655\uc778",
+        description: error instanceof Error ? error.message : "\uc9c0\uc6d0\ud558\uc9c0 \uc54a\ub294 RFP \ubb38\uc11c \ud615\uc2dd\uc785\ub2c8\ub2e4.",
+      })
+    }
+  }
+
+  const handleGenerateRfpSummary = async (attachment: RfpAttachmentDraft) => {
+    if (!attachment.file) {
+      toast({
+        title: "RFP \ubb38\uc11c \ud655\uc778",
+        description: "\uc694\uc57d\ud560 RFP \ubb38\uc11c\ub97c \ub2e4\uc2dc \uc120\ud0dd\ud558\uc138\uc694.",
+      })
+      return
+    }
+
+    setRfpSummaryLoadingId(attachment.id)
+    try {
+      const result = await summarizeRfpDocument(attachment.file)
+      setRfpAttachments((prev) => prev.map((item) => (item.id === attachment.id ? { ...item, summary: result.summary } : item)))
+      toast({
+        title: "RFP AI \uc694\uc57d \uc0dd\uc131 \uc644\ub8cc",
+        description: `${attachment.name} \ubb38\uc11c\ub97c \uc694\uc57d\ud588\uc2b5\ub2c8\ub2e4.`,
+      })
+    } catch (error) {
+      toast({
+        title: "RFP AI \uc694\uc57d \uc0dd\uc131 \uc2e4\ud328",
+        description: error instanceof Error ? error.message : "\uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+      })
+    } finally {
+      setRfpSummaryLoadingId(null)
+    }
+  }
+
+  const handleDeleteRfpAttachment = (attachmentId: string) => {
+    setRfpAttachments((prev) => prev.filter((attachment) => attachment.id !== attachmentId))
+  }
+
+  const handleAttachmentChange = async (files: FileList | null | undefined) => {
+    const selectedFiles = Array.from(files ?? [])
+    if (selectedFiles.length === 0) return
+
+    try {
+      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
+      setAttachments((prev) => [...prev, ...nextAttachments])
+    } catch (error) {
+      toast({
+        title: "첨부파일 등록 실패",
+        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
+      })
+    }
+  }
+
   const handleSubmit = () => {
     const normalizedName = customerName.trim()
     const filledContacts = contacts.filter(hasContactValue)
@@ -230,6 +377,7 @@ export function FindingCategoryNewPageView({
       address,
       memo,
       aliases: [],
+      attachments,
     })
 
     if (result.status === "duplicate") {
@@ -272,6 +420,7 @@ export function FindingCategoryNewPageView({
       contacts: filledContacts,
       address,
       memo,
+      attachments,
     })
 
     if (result.status === "duplicate") {
@@ -504,7 +653,30 @@ export function FindingCategoryNewPageView({
 
                   <section className="space-y-2">
                     <Label>첨부파일</Label>
-                    <Input type="file" multiple />
+                    <Input
+                      type="file"
+                      multiple
+                      onChange={(event) => {
+                        void handleAttachmentChange(event.target.files)
+                        event.target.value = ""
+                      }}
+                    />
+                    {attachments.length > 0 ? (
+                      <div className="space-y-2 rounded-md border border-border p-3">
+                        {attachments.map((attachment) => (
+                          <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                            <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                              {attachment.name}
+                            </a>
+                            <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
+                              삭제
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <Input readOnly value="등록된 첨부파일이 없습니다." />
+                    )}
                   </section>
 
                   <div className="flex justify-end gap-2 border-t pt-6">
@@ -545,16 +717,17 @@ export function FindingCategoryNewPageView({
         category: opportunityCustomerGroup,
         name: opportunityName,
         registrant: opportunityRegistrant,
-        partner: opportunityPartnerName,
+        partners: opportunityPartnerNames,
         expectedDate,
         expectedAmount,
         product: businessType,
         module: moduleName,
         issue,
         competition,
-        decisionInfo,
+        decisionInfo: buildDecisionInfoFromCustomer(selectedOpportunityCustomer),
         status: opportunityStatus,
         salesRep: opportunitySalesRep,
+        rfpAttachments: rfpAttachments.map(({ file, ...attachment }) => attachment),
       })
 
       if (result.status === "customer_not_found") {
@@ -621,8 +794,35 @@ export function FindingCategoryNewPageView({
                         )}
                       </div>
                       <div className="space-y-2">
-                        <Label>협력사명</Label>
-                        <Input value={opportunityPartnerName} onChange={(event) => setOpportunityPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                        <div className="flex items-center justify-between">
+                          <Label>협력사명</Label>
+                          <Button type="button" variant="outline" size="sm" onClick={() => setOpportunityPartnerNames((prev) => [...prev, ""])}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            협력사 추가
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          {opportunityPartnerNames.map((partnerName, index) => (
+                            <div key={`opportunity-partner-${index}`} className="flex items-center gap-2">
+                              <Input
+                                value={partnerName}
+                                onChange={(event) =>
+                                  setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                                }
+                                placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={opportunityPartnerNames.length === 1}
+                                onClick={() => setOpportunityPartnerNames((prev) => (prev.length > 1 ? prev.filter((_, itemIndex) => itemIndex !== index) : prev))}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <Label>사업명 *</Label>
@@ -702,15 +902,120 @@ export function FindingCategoryNewPageView({
                         <Textarea value={competition} onChange={(event) => setCompetition(event.target.value)} rows={4} placeholder="경쟁 상황을 입력하세요" />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label>고객사 의사결정구조 및 담당자 정보</Label>
-                        <Textarea value={decisionInfo} onChange={(event) => setDecisionInfo(event.target.value)} rows={4} placeholder="고객사 의사결정구조 및 담당자 정보를 입력하세요" />
+                        <Label>고객사 담당자 정보</Label>
+                        <div className="overflow-hidden rounded-md border">
+                          <table className="w-full border-collapse text-sm [&_td]:border [&_th]:border">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th className="px-3 py-2 text-center font-medium">순위</th>
+                                <th className="px-3 py-2 text-center font-medium">성명</th>
+                                <th className="px-3 py-2 text-center font-medium">직급</th>
+                                <th className="px-3 py-2 text-center font-medium">부서명</th>
+                                <th className="px-3 py-2 text-center font-medium">전자우편</th>
+                                <th className="px-3 py-2 text-center font-medium">이동전화</th>
+                                <th className="px-3 py-2 text-center font-medium">일반전화</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {getCustomerDecisionContacts(selectedOpportunityCustomer).length > 0 ? (
+                                getCustomerDecisionContacts(selectedOpportunityCustomer).map((contact, index) => (
+                                  <tr key={`${contact.name}-${index}`}>
+                                    <td className="px-3 py-2 text-center">{index + 1}</td>
+                                    <td className="px-3 py-2 text-center">{contact.name || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.position || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.department || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.email || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.mobilePhone || "-"}</td>
+                                    <td className="px-3 py-2 text-center">{contact.landlinePhone || "-"}</td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={7} className="px-3 py-4 text-center text-muted-foreground">
+                                    선택한 고객사의 담당자 정보가 없습니다.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   </section>
 
                   <section className="space-y-2">
-                    <Label>첨부파일</Label>
-                    <Input type="file" multiple />
+                    <Label>RFP 문서</Label>
+                    <div className="flex flex-col gap-2 md:flex-row">
+                      <Input
+                        ref={rfpInputRef}
+                        className="hidden"
+                        type="file"
+                        accept={RFP_DOCUMENT_ACCEPT}
+                        multiple
+                        disabled={rfpSummaryLoadingId !== null}
+                        onChange={(event) => {
+                          void handleRfpFileChange(event.target.files)
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-fit"
+                        disabled={rfpSummaryLoadingId !== null}
+                        onClick={() => rfpInputRef.current?.click()}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        파일 추가
+                      </Button>
+                    </div>
+                    {rfpAttachments.length > 0 ? (
+                      <div className="space-y-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                        {rfpAttachments.map((attachment) => (
+                          <div key={attachment.id} className="flex items-center gap-2 text-sm">
+                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="truncate font-medium">{attachment.name}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">{Math.ceil(attachment.size / 1024).toLocaleString()}KB</span>
+                            <div className="ml-auto flex shrink-0 items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8"
+                                disabled={rfpSummaryLoadingId !== null}
+                                onClick={() => {
+                                  void handleGenerateRfpSummary(attachment)
+                                }}
+                              >
+                                {rfpSummaryLoadingId === attachment.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                AI 요약
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                disabled={rfpSummaryLoadingId === attachment.id}
+                                onClick={() => handleDeleteRfpAttachment(attachment.id)}
+                                title="삭제"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {rfpAttachments.some((attachment) => attachment.summary) ? (
+                      <div className="space-y-3">
+                        {rfpAttachments.filter((attachment) => attachment.summary).map((attachment) => (
+                          <div key={attachment.id} className="space-y-3 rounded-md border border-border p-4">
+                            <h3 className="text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+                            <RfpSummaryMarkdown markdown={attachment.summary} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <p className="text-xs text-muted-foreground">사업기회와 함께 검토할 RFP 문서를 추가합니다.</p>
                   </section>
 
                   <div className="flex justify-end gap-2 border-t pt-6">
@@ -975,7 +1280,30 @@ export function FindingCategoryNewPageView({
 
                 <section className="space-y-2">
                   <Label>첨부파일</Label>
-                  <Input type="file" multiple />
+                  <Input
+                    type="file"
+                    multiple
+                    onChange={(event) => {
+                      void handleAttachmentChange(event.target.files)
+                      event.target.value = ""
+                    }}
+                  />
+                  {attachments.length > 0 ? (
+                    <div className="space-y-2 rounded-md border border-border p-3">
+                      {attachments.map((attachment) => (
+                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                          <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                            {attachment.name}
+                          </a>
+                          <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
+                            삭제
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Input readOnly value="등록된 첨부파일이 없습니다." />
+                  )}
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">

@@ -24,13 +24,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
-import { getCustomerByName, getCustomers, updateCustomer, type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
+import { getCustomerByName, getCustomers, updateCustomer, type CustomerAttachment, type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
 
 const customerGroupOptions = ["공공", "민간", "해외"]
 
 type ContactDraft = CustomerContact
+type AttachmentDraft = CustomerAttachment
 
 function createEmptyContactDraft(): ContactDraft {
   return {
@@ -109,6 +110,24 @@ function createBusinessCardThumbnail(file: File) {
   })
 }
 
+function readFileAsAttachment(file: File) {
+  return new Promise<AttachmentDraft>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error("Failed to read attachment file."))
+    reader.onload = () => {
+      resolve({
+        id: `${Date.now()}-${file.name}-${file.size}`,
+        name: file.name,
+        size: file.size,
+        contentType: file.type || "application/octet-stream",
+        dataUrl: typeof reader.result === "string" ? reader.result : "",
+        createdAt: new Date().toISOString().slice(0, 10),
+      })
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 function CustomerEditPageContent() {
   const params = useParams<{ id?: string | string[] }>()
   const searchParams = useSearchParams()
@@ -120,6 +139,7 @@ function CustomerEditPageContent() {
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
@@ -135,6 +155,7 @@ function CustomerEditPageContent() {
         setAddress(current.address ?? "")
         setMemo(current.memo ?? "")
         setContacts(normalizeContacts(current))
+        setAttachments(current.attachments ?? [])
       }
     }
 
@@ -241,6 +262,7 @@ function CustomerEditPageContent() {
       address,
       memo,
       aliases: customer?.aliases ?? [],
+      attachments,
     })
 
     if (result.status === "not_found") {
@@ -256,6 +278,13 @@ function CustomerEditPageContent() {
       description: `${result.customer.name} 고객사 정보가 수정되었습니다.`,
     })
     router.push(`/finding/customers/${result.customer.id}?tab=${searchParams.get("tab") ?? "customers"}`)
+  }
+
+  const handleAttachmentChange = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? [])
+    if (files.length === 0) return
+    const nextAttachments = await Promise.all(files.map(readFileAsAttachment))
+    setAttachments((prev) => [...prev, ...nextAttachments])
   }
 
   if (!customer) {
@@ -510,6 +539,36 @@ function CustomerEditPageContent() {
                       </section>
                     ))}
                   </div>
+                </section>
+
+                <section className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>첨부파일</Label>
+                    <Input
+                      type="file"
+                      multiple
+                      onChange={(event) => {
+                        void handleAttachmentChange(event.target.files)
+                        event.target.value = ""
+                      }}
+                    />
+                  </div>
+                  {attachments.length > 0 ? (
+                    <div className="space-y-2 rounded-md border p-3">
+                      {attachments.map((attachment) => (
+                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
+                          <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
+                            {attachment.name}
+                          </a>
+                          <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
+                            삭제
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Input readOnly value="등록된 첨부파일이 없습니다." />
+                  )}
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">
