@@ -1,16 +1,18 @@
 package com.nkia.Orbis.domain.admin.user.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.DepartmentErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.JwtProvider;
 import com.nkia.Orbis.domain.admin.department.entity.Department;
+import com.nkia.Orbis.domain.admin.department.repository.DepartmentRepository;
+import com.nkia.Orbis.domain.admin.user.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
+import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
 import com.nkia.Orbis.domain.admin.user.entity.Role;
 import com.nkia.Orbis.domain.admin.user.entity.Status;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
-import com.nkia.Orbis.domain.admin.user.dto.request.SignupRequest;
-import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -26,8 +28,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
     private final StringRedisTemplate redisTemplate;
-//    private final DepartmentRepository departmentRepository;
-    // TODO: 부서 엔티티 구현후 연동 예정
+    private final DepartmentRepository departmentRepository;
 
     public static final String REFRESH_TOKEN = "RefreshToken:";
     public static final String LOGOUT = "logout";
@@ -43,7 +44,7 @@ public class UserService {
     }
 
     public void signup(SignupRequest request, Role role) {
-        // 1. 이메일 중복 검증
+        // 이메일 중복 검증
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ApiException(UserErrorCode.EXIST_EMAIL);
         }
@@ -52,17 +53,13 @@ public class UserService {
             throw new ApiException(UserErrorCode.EXIST_EMPLOYEE_NUMBER);
         }
 
-        // Todo: Department 기능 구현 후 임시 코드 변경 예정
-//        Department department = departmentRepository.findById(request.getDepartmentId())
-//                .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
-        Department department = Department.builder()
-                .id(request.getDepartmentId())
-                .build();
+        Department department = departmentRepository.findById(request.getDepartmentId())
+                .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
 
-        // 2. 비밀번호 단방향 암호화 (Bcrypt)
+        // 비밀번호 단방향 암호화 (Bcrypt)
         String encodedPassword = passwordEncoder.encode(request.getPassword());
 
-        // 3. User 엔티티 생성
+        // User 엔티티 생성
         User newUser = User.createUser(
                 request.getEmployeeNumber(),
                 request.getPosition(),
@@ -75,7 +72,7 @@ public class UserService {
                 department
         );
 
-        // 4. DB에 저장
+        // DB에 저장
         userRepository.save(newUser);
     }
 
@@ -93,9 +90,8 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
-//            Department department = departmentRepository.findById(request.getDepartmentId())
-//                    .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
-        Department department = null;
+        Department department = departmentRepository.findById(request.getDepartmentId())
+                .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
 
         user.update(
                 request.getEmployeeNumber(),
