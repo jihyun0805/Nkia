@@ -1,5 +1,7 @@
 package com.nkia.Orbis.domain.admin.department.service;
 
+import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.DepartmentErrorCode;
 import com.nkia.Orbis.domain.admin.department.dto.request.DepartmentRequest;
 import com.nkia.Orbis.domain.admin.department.dto.response.DepartmentResponse;
 import com.nkia.Orbis.domain.admin.department.entity.Department;
@@ -15,6 +17,14 @@ public class DepartmentService {
 
     @Transactional
     public DepartmentResponse create(DepartmentRequest request) {
+
+        if (departmentRepository.existsByHeadquartersAndTeam(
+                request.getHeadquarters(),
+                request.getTeam()
+        )) {
+            throw new ApiException(DepartmentErrorCode.DEPARTMENT_EXISTS);
+        }
+
         Department department = Department.create(
                 request.getHeadquarters(),
                 request.getTeam()
