@@ -2,7 +2,7 @@ package com.nkia.Orbis.domain.project.billing.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.project.collection.entity.Collection;
+import com.nkia.Orbis.domain.project.billing.dto.request.BillingUpdateRequest;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -21,10 +21,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@SQLRestriction("deleted = false")
 public class Billing extends BaseEntity {
 
     @Id
@@ -50,9 +52,6 @@ public class Billing extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private BillingStatus status;
 
-    @OneToMany(mappedBy = "billing", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Collection> collections = new ArrayList<>();
-
     @Builder
     public Billing(OrderReport orderReport, Long billingAmount, LocalDate requestedIssueDate, String remarks, BillingStatus status) {
         this.orderReport = orderReport;
@@ -77,5 +76,27 @@ public class Billing extends BaseEntity {
     public void collect(LocalDate collectedAt) {
         this.collectedAt = collectedAt;
         this.status = BillingStatus.COLLECTED;
+    }
+
+    public void updateByStatus(BillingUpdateRequest dto) {
+        this.remarks = dto.getRemarks();
+
+        if (this.status == BillingStatus.REQUESTED) {
+            this.billingAmount = dto.getBillingAmount();
+            this.requestedIssueDate = dto.getRequestedIssueDate();
+        }
+
+        if (this.status == BillingStatus.ISSUED) {
+            this.issuedAt = dto.getIssuedAt();
+            this.invoiceImageId = dto.getInvoiceImageId();
+        }
+
+        if (this.status == BillingStatus.COLLECTED) {
+            this.collectedAt = dto.getCollectedAt();
+        }
+    }
+
+    public void delete() {
+        super.delete();
     }
 }
