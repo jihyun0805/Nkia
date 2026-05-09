@@ -68,4 +68,15 @@ public class CustomerSupportRequestController {
     public ResponseEntity<ApiResponse<List<CustomerSupportRequestListResponse>>> getRequests() {
         return ResponseEntity.ok(ApiResponse.success(customerSupportRequestService.getRequests()));
     }
+
+    /**
+     * 고객지원 요청 상세 조회
+     */
+    @Operation(summary = "고객지원 요청 상세 조회")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<CustomerSupportRequestDetailResponse>> getRequestDetail(
+            @PathVariable Long id) {
+        CustomerSupportRequestDetailResponse response = customerSupportRequestService.getRequestDetail(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

@@ -100,6 +100,17 @@ public class CustomerSupportRequestService {
                 .toList();
     }
 
+    /**
+     * 특정 고객지원 요청의 상세 정보 조회
+     */
+    @Transactional(readOnly = true)
+    public CustomerSupportRequestDetailResponse getRequestDetail(Long id) {
+        CustomerSupportRequest request = requestRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        return CustomerSupportRequestDetailResponse.from(request);
+    }
+
     private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto,
                                                        User requester, User registrant,
                                                        User salesRep, User supportManager,

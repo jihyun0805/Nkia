@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response;
 
 import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.CustomerSupportRequest;
-import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Getter;
