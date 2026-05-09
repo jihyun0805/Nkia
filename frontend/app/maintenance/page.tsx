@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { customerSupports, freeMaintenances, paidMaintenances } from "@/lib/maintenance-data";
+import { supportHistories, freeMaintenances, paidMaintenances } from "@/lib/maintenance-data";
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
 
@@ -37,8 +37,8 @@ export default function MaintenancePage() {
             { key: "product", label: "제품", options: uniqueOptions(paidMaintenances, (item) => item.product) },
           ]
         : [
-            { key: "customer", label: "고객사", options: uniqueOptions(customerSupports, (item) => item.customer) },
-            { key: "type", label: "지원유형", options: uniqueOptions(customerSupports, (item) => item.type) },
+            { key: "customer", label: "고객사", options: uniqueOptions(supportHistories, (item) => item.customer) },
+            { key: "type", label: "구분", options: [{ label: "지원 요청", value: "request" }, { label: "활동 결과", value: "result" }] },
           ];
   const filteredFreeMaintenances = filterRecords(freeMaintenances, filters, {
     status: (item) => item.status,
@@ -56,12 +56,12 @@ export default function MaintenancePage() {
   })
     .filter((item) => [item.customer, item.opportunity, item.product, item.salesRep, item.manager, item.inspectionMethod].join(" ").toLowerCase().includes(q))
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
-  const filteredCustomerSupports = filterRecords(customerSupports, filters, {
-    status: (item) => item.status,
-    owner: (item) => item.manager,
-    date: (item) => item.date,
-    fields: { customer: (item) => item.customer, type: (item) => item.type },
-  }).filter((item) => [item.id, item.customer, item.type, item.content, item.manager, item.supporter].join(" ").toLowerCase().includes(q));
+  const filteredSupportHistories = filterRecords(supportHistories, filters, {
+    date: (item) => item.registeredAt,
+    fields: { customer: (item) => item.customer, type: (item) => item.recordType },
+  })
+    .filter((item) => [item.id, item.customer, item.requestType, item.requester, item.registrant, item.salesRep, item.supportRep].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const maintenanceStatuses = ["진행중", "종료", "종료예정", "미체결", "완료", "예정"];
 
   return (
@@ -214,50 +214,47 @@ export default function MaintenancePage() {
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">고객지원 현황</CardTitle>
-                      <Badge variant="secondary">{filteredCustomerSupports.length}건</Badge>
+                      <Badge variant="secondary">{filteredSupportHistories.length}건</Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[130px]">지원번호</TableHead>
-                          <TableHead>지원일</TableHead>
+                          <TableHead className="w-[100px]">구분</TableHead>
                           <TableHead>고객사</TableHead>
-                          <TableHead>유형</TableHead>
-                          <TableHead>내용</TableHead>
-                          <TableHead className="text-center">소요시간</TableHead>
-                          <TableHead>담당자</TableHead>
-                          <TableHead>지원인력</TableHead>
-                          <TableHead>상태</TableHead>
+                          <TableHead>요청/활동구분</TableHead>
+                          <TableHead>개시일시</TableHead>
+                          <TableHead>완료일시</TableHead>
+                          <TableHead>요청/등록자</TableHead>
+                          <TableHead>영업대표</TableHead>
+                          <TableHead>고객지원 담당자</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredCustomerSupports.map((item) => (
-                          <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/maintenance/support/${item.id}`)}>
-                            <TableCell className="font-mono text-sm">{item.id}</TableCell>
-                            <TableCell>{item.date}</TableCell>
+                        {filteredSupportHistories.map((item) => (
+                          <TableRow key={item.id} className="hover:bg-muted/50 cursor-pointer">
+                            <TableCell>
+                              <Badge
+                                variant={item.recordType === "request" ? "default" : "outline"}
+                                className={item.recordType === "request" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" : "bg-purple-100 text-purple-700 hover:bg-purple-100"}
+                              >
+                                {item.recordType === "request" ? "지원 요청" : "활동 결과"}
+                              </Badge>
+                            </TableCell>
                             <TableCell className="font-medium">{item.customer}</TableCell>
                             <TableCell>
-                              <Badge
-                                variant={item.type === "장애" ? "destructive" : item.type === "정기" ? "default" : "outline"}
-                                className={item.type === "장애" ? "bg-red-100 text-red-700 hover:bg-red-100" : item.type === "정기" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" : ""}
-                              >
-                                {item.type}
-                              </Badge>
+                              {item.recordType === "request" ? "-" : (
+                                <Badge variant="secondary" className="font-normal text-xs">
+                                  {item.requestType}
+                                </Badge>
+                              )}
                             </TableCell>
-                            <TableCell className="max-w-[200px] truncate">{item.content}</TableCell>
-                            <TableCell className="text-center">{item.hours}시간</TableCell>
-                            <TableCell>{item.manager}</TableCell>
-                            <TableCell>{item.supporter}</TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={item.status === "완료" ? "default" : "outline"}
-                                className={item.status === "완료" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-purple-100 text-purple-700 hover:bg-purple-100"}
-                              >
-                                {item.status}
-                              </Badge>
-                            </TableCell>
+                            <TableCell className="text-sm">{item.startDate}</TableCell>
+                            <TableCell className="text-sm">{item.endDate}</TableCell>
+                            <TableCell>{item.recordType === "request" ? item.requester : item.registrant}</TableCell>
+                            <TableCell>{item.salesRep}</TableCell>
+                            <TableCell>{item.supportRep}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
