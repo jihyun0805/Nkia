@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -57,6 +58,10 @@ public class RfpAnalyzeResult extends BaseEntity {
     private ProposalType proposalType;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assignee_id")
+    private User assignee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_opportunity_id")
     private ProjectOpportunity projectOpportunity;
 
@@ -68,7 +73,7 @@ public class RfpAnalyzeResult extends BaseEntity {
     public RfpAnalyzeResult(String projectName, String hardwareProvider, BigDecimal budgetAmount,
         String expectedDuration, String projectLocation,
         LocalDateTime proposalDeadline, String projectDescription,
-        RfpStatus status, ProposalType proposalType, ProjectOpportunity projectOpportunity) {
+        RfpStatus status, ProposalType proposalType, User assignee, ProjectOpportunity projectOpportunity) {
         this.projectName = projectName;
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
@@ -79,6 +84,7 @@ public class RfpAnalyzeResult extends BaseEntity {
         // 생성 시 상태값이 없으면 '접수'를 기본값으로 설정
         this.status = (status != null) ? status : RfpStatus.RECEIVED;
         this.proposalType = proposalType;
+        this.assignee = assignee;
         this.projectOpportunity = projectOpportunity;
     }
 
@@ -97,7 +103,7 @@ public class RfpAnalyzeResult extends BaseEntity {
     public void update(String projectName, String hardwareProvider, BigDecimal budgetAmount,
         String expectedDuration, String projectLocation,
         LocalDateTime proposalDeadline, String projectDescription,
-        ProposalType proposalType) {
+        ProposalType proposalType, User assignee) {
         this.projectName = projectName;
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
@@ -106,5 +112,6 @@ public class RfpAnalyzeResult extends BaseEntity {
         this.proposalDeadline = proposalDeadline;
         this.projectDescription = projectDescription;
         this.proposalType = proposalType;
+        this.assignee = assignee;
     }
 }
