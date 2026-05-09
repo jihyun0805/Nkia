@@ -9,7 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import java.util.UUID;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -28,15 +28,16 @@ public class CustomerSupportOtherDepartmentUser extends BaseEntity {
     @JoinColumn(name = "customer_support_id")
     private CustomerSupport customerSupport;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Column(name = "role_description")
     private String roleDescription; // 활동 내용
 
     @Builder
-    public CustomerSupportOtherDepartmentUser(UUID userId, String roleDescription) {
-        this.userId = userId;
+    public CustomerSupportOtherDepartmentUser(User user, String roleDescription) {
+        this.user = user;
         this.roleDescription = roleDescription;
     }
 

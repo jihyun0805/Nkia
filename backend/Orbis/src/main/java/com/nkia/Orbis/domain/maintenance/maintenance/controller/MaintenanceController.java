@@ -2,13 +2,22 @@ package com.nkia.Orbis.domain.maintenance.maintenance.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceCreateRequest;
+import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
+import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceDetailResponse;
+import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceListResponse;
+import com.nkia.Orbis.domain.maintenance.maintenance.entity.MaintenanceType;
 import com.nkia.Orbis.domain.maintenance.maintenance.service.MaintenanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,5 +40,57 @@ public class MaintenanceController {
         Long maintenanceId = maintenanceService.maintenanceRegister(request);
 
         return ResponseEntity.ok(ApiResponse.success(maintenanceId));
+    }
+
+    /**
+     * 유지보수 정보 수정
+     */
+    @Operation(summary = "유지보수 수정")
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<MaintenanceDetailResponse>> update(
+            @PathVariable Long id,
+            @RequestBody MaintenanceUpdateRequest request) {
+        MaintenanceDetailResponse response =maintenanceService.updateMaintenance(id, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 유지보수 정보 삭제
+     */
+    @Operation(summary = "유지보수 삭제")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        maintenanceService.deleteMaintenance(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
+     * 유지보수 상세 조회
+     */
+    @Operation(summary = "유지보수 상세 조회")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<MaintenanceDetailResponse>> getDetail(@PathVariable Long id) {
+        MaintenanceDetailResponse response = maintenanceService.getMaintenanceDetail(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 무상 유지보수 현황 목록 조회
+     */
+    @Operation(summary = "무상 유지보수 목록 조회")
+    @GetMapping("/free")
+    public ResponseEntity<ApiResponse<List<MaintenanceListResponse>>> getFreeList() {
+        List<MaintenanceListResponse> response = maintenanceService.getMaintenanceList(MaintenanceType.FREE);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 유상 유지보수 현황 목록 조회
+     */
+    @Operation(summary = "유상 유지보수 목록 조회")
+    @GetMapping("/paid")
+    public ResponseEntity<ApiResponse<List<MaintenanceListResponse>>> getPaidList() {
+        List<MaintenanceListResponse> response = maintenanceService.getMaintenanceList(MaintenanceType.PAID);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
