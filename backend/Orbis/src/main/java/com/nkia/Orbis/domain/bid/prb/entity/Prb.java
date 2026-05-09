@@ -1,63 +1,77 @@
 package com.nkia.Orbis.domain.bid.prb.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.prbresult.entity.PrbResult;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
-import com.nkia.Orbis.domain.admin.user.entity.User;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Embedded;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import java.util.ArrayList;
-import java.util.List;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Prb extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_opportunity_id")
-    private ProjectOpportunity projectOpportunity;
+  // 1. PRB 코드
+  @Column(name = "prb_code", unique = true, nullable = false, updatable = false, length = 50)
+  private String prbCode;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sales_representative_id")
-    private User salesRepresentative;
+  // 2. PRB 일자
+  @Column(name = "prb_date", nullable = false)
+  private LocalDate prbDate;
 
-    @Embedded
-    private PrbProjectInfo projectInfo;
+  // 3. 유지보수 내용
+  @Column(name = "maintenance_description", columnDefinition = "TEXT")
+  private String maintenanceDescription;
 
-    @Embedded
-    private PrbProfitLossInfo profitLossInfo;
+  // 4. 비용 합계 (BigDecimal 사용)
+  @Column(name = "total_cost", precision = 15, scale = 2)
+  private BigDecimal totalCost;
 
-    @Embedded
-    private PersonnelExpenses personnelExpenses;
+  // 5. 영업 대표 의견
+  @Column(name = "sales_representative_opinion", columnDefinition = "TEXT")
+  private String salesRepresentativeOpinion;n;
 
-    @Embedded
-    private ProductCost productCost;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "project_opportunity_id")
+  private ProjectOpportunity projectOpportunity;
 
-    @Embedded
-    private Purchase purchase;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "sales_representative_id")
+  private User salesRepresentative;
 
-    @Embedded
-    private GeneralOverheadExpenses generalOverheadExpenses;
+  @Embedded
+  private PrbProjectInfo projectInfo;
 
-    @Embedded
-    private IndirectExpenses indirectExpenses;
+  @Embedded
+  private PrbProfitLossInfo profitLossInfo;
 
-    @OneToMany(mappedBy = "prb", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PrbResult> prbResults = new ArrayList<>();
+  @Embedded
+  private PersonnelExpenses personnelExpenses;
+
+  @Embedded
+  private ProductCost productCost;
+
+  @Embedded
+  private Purchase purchase;
+
+  @Embedded
+  private GeneralOverheadExpenses generalOverheadExpenses;
+
+  @Embedded
+  private IndirectExpenses indirectExpenses;
+
+  @OneToMany(mappedBy = "prb", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<PrbResult> prbResults = new ArrayList<>();
 }
