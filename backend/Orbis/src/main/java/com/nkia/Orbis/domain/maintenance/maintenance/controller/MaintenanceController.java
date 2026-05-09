@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -58,5 +59,15 @@ public class MaintenanceController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         maintenanceService.deleteMaintenance(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
+     * 유지보수 상세 조회
+     */
+    @Operation(summary = "유지보수 상세 조회")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<MaintenanceDetailResponse>> getDetail(@PathVariable Long id) {
+        MaintenanceDetailResponse response = maintenanceService.getMaintenanceDetail(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

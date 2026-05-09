@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.maintenance.maintenance.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceCreateRequest;
@@ -81,7 +82,7 @@ public class MaintenanceService {
     @Transactional
     public MaintenanceDetailResponse updateMaintenance(Long id, MaintenanceUpdateRequest dto) {
         Maintenance maintenance = maintenanceRepository.findById(id)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
 
         User salesRep = getUserOrNull(dto.getSalesRep());
         User primary = getUserOrNull(dto.getManagerPrimary());
@@ -96,8 +97,16 @@ public class MaintenanceService {
     @Transactional
     public void deleteMaintenance(Long id) {
         Maintenance maintenance = maintenanceRepository.findById(id)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
 
         maintenance.delete();
+    }
+
+    @Transactional(readOnly = true)
+    public MaintenanceDetailResponse getMaintenanceDetail(Long id) {
+        Maintenance maintenance = maintenanceRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
+
+        return MaintenanceDetailResponse.from(maintenance);
     }
 }
