@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.bid.rfpanalyzeresult.dto.request;
 
+import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.ProposalType;
 import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
@@ -16,6 +17,7 @@ public record RfpAnalyzeResultUpdateRequest(
     String projectLocation,
     LocalDateTime proposalDeadline,
     String projectDescription,
+    ProposalType proposalType,
 
     List<RfpRequirementRequest> requirements
 ) {}

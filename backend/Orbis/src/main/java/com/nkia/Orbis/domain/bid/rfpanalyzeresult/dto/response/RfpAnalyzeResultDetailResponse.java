@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.bid.rfpanalyzeresult.dto.response;
 
+import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.ProposalType;
 import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.RfpAnalyzeResult;
 import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.RfpStatus;
 
@@ -17,10 +18,9 @@ public record RfpAnalyzeResultDetailResponse(
     LocalDateTime proposalDeadline,
     String projectDescription,
     RfpStatus status,
+    ProposalType proposalType,
     Long projectOpportunityId,
-    List<RfpRequirementResponse> requirements,
-    LocalDateTime createdAt,
-    LocalDateTime updatedAt
+    List<RfpRequirementResponse> requirements
 ) {
   public static RfpAnalyzeResultDetailResponse from(RfpAnalyzeResult entity) {
     return new RfpAnalyzeResultDetailResponse(
@@ -33,12 +33,11 @@ public record RfpAnalyzeResultDetailResponse(
         entity.getProposalDeadline(),
         entity.getProjectDescription(),
         entity.getStatus(),
+        entity.getProposalType(),
         entity.getProjectOpportunity() != null ? entity.getProjectOpportunity().getId() : null,
         entity.getRequirements().stream()
             .map(RfpRequirementResponse::from)
-            .toList(),
-        entity.getCreatedAt(),
-        entity.getUpdatedAt()
+            .toList()
     );
   }
 }

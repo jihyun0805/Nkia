@@ -52,6 +52,10 @@ public class RfpAnalyzeResult extends BaseEntity {
     @Column(name = "status", length = 20, nullable = false)
     private RfpStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "proposal_type", length = 20)
+    private ProposalType proposalType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_opportunity_id")
     private ProjectOpportunity projectOpportunity;
@@ -64,7 +68,7 @@ public class RfpAnalyzeResult extends BaseEntity {
     public RfpAnalyzeResult(String projectName, String hardwareProvider, BigDecimal budgetAmount,
         String expectedDuration, String projectLocation,
         LocalDateTime proposalDeadline, String projectDescription,
-        RfpStatus status, ProjectOpportunity projectOpportunity) {
+        RfpStatus status, ProposalType proposalType, ProjectOpportunity projectOpportunity) {
         this.projectName = projectName;
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
@@ -72,8 +76,9 @@ public class RfpAnalyzeResult extends BaseEntity {
         this.projectLocation = projectLocation;
         this.proposalDeadline = proposalDeadline;
         this.projectDescription = projectDescription;
-        // 💡 생성 시 상태값이 없으면 '접수'를 기본값으로 설정
+        // 생성 시 상태값이 없으면 '접수'를 기본값으로 설정
         this.status = (status != null) ? status : RfpStatus.RECEIVED;
+        this.proposalType = proposalType;
         this.projectOpportunity = projectOpportunity;
     }
 
@@ -91,7 +96,8 @@ public class RfpAnalyzeResult extends BaseEntity {
     // 기존 데이터 수정 메서드 (더티 체킹용)
     public void update(String projectName, String hardwareProvider, BigDecimal budgetAmount,
         String expectedDuration, String projectLocation,
-        LocalDateTime proposalDeadline, String projectDescription) {
+        LocalDateTime proposalDeadline, String projectDescription,
+        ProposalType proposalType) {
         this.projectName = projectName;
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
@@ -99,5 +105,6 @@ public class RfpAnalyzeResult extends BaseEntity {
         this.projectLocation = projectLocation;
         this.proposalDeadline = proposalDeadline;
         this.projectDescription = projectDescription;
+        this.proposalType = proposalType;
     }
 }

@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.bid.rfpanalyzeresult.dto.request;
 
+import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.ProposalType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -17,6 +18,7 @@ public record RfpAnalyzeResultCreateRequest(
     String projectLocation,
     LocalDateTime proposalDeadline,
     String projectDescription,
+    ProposalType proposalType,
 
     @NotNull(message = "영업 기회 ID는 필수입니다.")
     Long projectOpportunityId,
