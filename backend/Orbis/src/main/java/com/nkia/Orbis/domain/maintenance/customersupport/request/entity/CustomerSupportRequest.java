@@ -17,6 +17,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ManyToOne;
+import com.nkia.Orbis.domain.company.entity.Company;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +37,9 @@ public class CustomerSupportRequest extends BaseEntity {
     @Column(name = "request_id")
     private Long id;
 
-    @Column(name = "customer_company_code", nullable = false)
-    private Long customerCompanyCode;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_company_id", nullable = false)
+    private Company customerCompany;
 
     @Column(name = "request_start_date")
     private LocalDate requestStartDate;
@@ -80,10 +82,10 @@ public class CustomerSupportRequest extends BaseEntity {
     private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
 
     @Builder
-    public CustomerSupportRequest(Long customerCompanyCode, LocalDate requestStartDate, LocalDate requestEndDate,
+    public CustomerSupportRequest(Company customerCompany, LocalDate requestStartDate, LocalDate requestEndDate,
                                   String requestContent, User requester, User registrant,
                                   User salesRep, User supportManager, String remarks) {
-        this.customerCompanyCode = customerCompanyCode;
+        this.customerCompany = customerCompany;
         this.requestStartDate = requestStartDate;
         this.requestEndDate = requestEndDate;
         this.requestContent = requestContent;
@@ -94,7 +96,8 @@ public class CustomerSupportRequest extends BaseEntity {
         this.remarks = remarks;
     }
 
-    public void update(CustomerSupportRequestUpdateRequest dto, User requester, User supportManager) {
+    public void update(CustomerSupportRequestUpdateRequest dto, User requester, User supportManager, Company customerCompany) {
+        this.customerCompany = customerCompany;
         this.requestStartDate = dto.getRequestStartDate();
         this.requestEndDate = dto.getRequestEndDate();
         this.requestContent = dto.getRequestContent();
