@@ -3,7 +3,6 @@ package com.nkia.Orbis.domain.project.billing.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingUpdateRequest;
-import com.nkia.Orbis.domain.project.collection.entity.Collection;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -52,9 +51,6 @@ public class Billing extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     private BillingStatus status;
-
-    @OneToMany(mappedBy = "billing", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Collection> collections = new ArrayList<>();
 
     @Builder
     public Billing(OrderReport orderReport, Long billingAmount, LocalDate requestedIssueDate, String remarks, BillingStatus status) {
