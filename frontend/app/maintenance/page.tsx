@@ -7,18 +7,22 @@ import { Header } from "@/components/erp/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Shield, ShieldCheck, HeadphonesIcon, AlertTriangle } from "lucide-react";
+import { Search, Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { customerSupports, freeMaintenances, paidMaintenances } from "@/lib/maintenance-data";
+import { supportHistories, freeMaintenances, paidMaintenances } from "@/lib/maintenance-data";
+import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
+import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
 
 export default function MaintenancePage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
   const [activeTab, setActiveTab] = useState<"free" | "paid" | "support">("free");
+  const [creationMode, setCreationMode] = useState<"none" | "request" | "result">("none");
 
   const q = searchTerm.toLowerCase();
   const maintenanceFieldOptions =
@@ -33,8 +37,8 @@ export default function MaintenancePage() {
             { key: "product", label: "제품", options: uniqueOptions(paidMaintenances, (item) => item.product) },
           ]
         : [
-            { key: "customer", label: "고객사", options: uniqueOptions(customerSupports, (item) => item.customer) },
-            { key: "type", label: "지원유형", options: uniqueOptions(customerSupports, (item) => item.type) },
+            { key: "customer", label: "고객사", options: uniqueOptions(supportHistories, (item) => item.customer) },
+            { key: "type", label: "구분", options: [{ label: "지원 요청", value: "request" }, { label: "활동 결과", value: "result" }] },
           ];
   const filteredFreeMaintenances = filterRecords(freeMaintenances, filters, {
     status: (item) => item.status,
@@ -52,12 +56,12 @@ export default function MaintenancePage() {
   })
     .filter((item) => [item.customer, item.opportunity, item.product, item.salesRep, item.manager, item.inspectionMethod].join(" ").toLowerCase().includes(q))
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
-  const filteredCustomerSupports = filterRecords(customerSupports, filters, {
-    status: (item) => item.status,
-    owner: (item) => item.manager,
-    date: (item) => item.date,
-    fields: { customer: (item) => item.customer, type: (item) => item.type },
-  }).filter((item) => [item.id, item.customer, item.type, item.content, item.manager, item.supporter].join(" ").toLowerCase().includes(q));
+  const filteredSupportHistories = filterRecords(supportHistories, filters, {
+    date: (item) => item.registeredAt,
+    fields: { customer: (item) => item.customer, type: (item) => item.recordType },
+  })
+    .filter((item) => [item.id, item.customer, item.requestType, item.requester, item.registrant, item.salesRep, item.supportRep].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const maintenanceStatuses = ["진행중", "종료", "종료예정", "미체결", "완료", "예정"];
 
   return (
@@ -66,7 +70,14 @@ export default function MaintenancePage() {
       <div className="flex-1 flex flex-col">
         <Header title="유지보수" description="무상/유상 유지보수 계약 및 고객 지원을 관리합니다" />
         <main className="flex-1 p-6 overflow-auto">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "free" | "paid" | "support")} className="space-y-6">
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => {
+              setActiveTab(value as "free" | "paid" | "support");
+              setCreationMode("none");
+            }}
+            className="space-y-6"
+          >
             <div className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="free" className="gap-2">
@@ -83,11 +94,29 @@ export default function MaintenancePage() {
                 </TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input placeholder="검색..." className="pl-9 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                </div>
-                <FilterPopover title="유지보수" statusOptions={maintenanceStatuses} value={filters} onApply={setFilters} fieldOptions={maintenanceFieldOptions} />
+                {creationMode === "none" ? (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input placeholder="검색..." className="pl-9 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={creationMode !== "none"} />
+                    </div>
+                    <FilterPopover title="유지보수" statusOptions={maintenanceStatuses} value={filters} onApply={setFilters} fieldOptions={maintenanceFieldOptions} />
+                    {activeTab === "support" && (
+                      <div className="flex gap-2">
+                        <Button onClick={() => setCreationMode("request")}>
+                          <Plus className="mr-2 w-4 h-4" /> 고객지원 요청 등록
+                        </Button>
+                        <Button onClick={() => setCreationMode("result")} variant="secondary">
+                          <Plus className="mr-2 w-4 h-4" /> 고객지원 활동 결과 등록
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <Button variant="outline" onClick={() => setCreationMode("none")}>
+                    목록으로 돌아가기
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -180,60 +209,61 @@ export default function MaintenancePage() {
             </TabsContent>
 
             <TabsContent value="support">
-              <Card>
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">고객지원 현황</CardTitle>
-                    <Badge variant="secondary">{filteredCustomerSupports.length}건</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[130px]">지원번호</TableHead>
-                        <TableHead>지원일</TableHead>
-                        <TableHead>고객사</TableHead>
-                        <TableHead>유형</TableHead>
-                        <TableHead>내용</TableHead>
-                        <TableHead className="text-center">소요시간</TableHead>
-                        <TableHead>담당자</TableHead>
-                        <TableHead>지원인력</TableHead>
-                        <TableHead>상태</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCustomerSupports.map((item) => (
-                        <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/maintenance/support/${item.id}`)}>
-                          <TableCell className="font-mono text-sm">{item.id}</TableCell>
-                          <TableCell>{item.date}</TableCell>
-                          <TableCell className="font-medium">{item.customer}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={item.type === "장애" ? "destructive" : item.type === "정기" ? "default" : "outline"}
-                              className={item.type === "장애" ? "bg-red-100 text-red-700 hover:bg-red-100" : item.type === "정기" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" : ""}
-                            >
-                              {item.type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate">{item.content}</TableCell>
-                          <TableCell className="text-center">{item.hours}시간</TableCell>
-                          <TableCell>{item.manager}</TableCell>
-                          <TableCell>{item.supporter}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={item.status === "완료" ? "default" : "outline"}
-                              className={item.status === "완료" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-purple-100 text-purple-700 hover:bg-purple-100"}
-                            >
-                              {item.status}
-                            </Badge>
-                          </TableCell>
+              {creationMode === "none" && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">고객지원 현황</CardTitle>
+                      <Badge variant="secondary">{filteredSupportHistories.length}건</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[100px]">구분</TableHead>
+                          <TableHead>고객사</TableHead>
+                          <TableHead>요청/활동구분</TableHead>
+                          <TableHead>개시일시</TableHead>
+                          <TableHead>완료일시</TableHead>
+                          <TableHead>요청/등록자</TableHead>
+                          <TableHead>영업대표</TableHead>
+                          <TableHead>고객지원 담당자</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredSupportHistories.map((item) => (
+                          <TableRow key={item.id} className="hover:bg-muted/50 cursor-pointer">
+                            <TableCell>
+                              <Badge
+                                variant={item.recordType === "request" ? "default" : "outline"}
+                                className={item.recordType === "request" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" : "bg-purple-100 text-purple-700 hover:bg-purple-100"}
+                              >
+                                {item.recordType === "request" ? "지원 요청" : "활동 결과"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">{item.customer}</TableCell>
+                            <TableCell>
+                              {item.recordType === "request" ? "-" : (
+                                <Badge variant="secondary" className="font-normal text-xs">
+                                  {item.requestType}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm">{item.startDate}</TableCell>
+                            <TableCell className="text-sm">{item.endDate}</TableCell>
+                            <TableCell>{item.recordType === "request" ? item.requester : item.registrant}</TableCell>
+                            <TableCell>{item.salesRep}</TableCell>
+                            <TableCell>{item.supportRep}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+              {creationMode === "request" && <SupportRequestForm onSuccess={() => setCreationMode("none")} onCancel={() => setCreationMode("none")} />}
+              {creationMode === "result" && <SupportResultForm onSuccess={() => setCreationMode("none")} onCancel={() => setCreationMode("none")} />}
             </TabsContent>
           </Tabs>
         </main>
