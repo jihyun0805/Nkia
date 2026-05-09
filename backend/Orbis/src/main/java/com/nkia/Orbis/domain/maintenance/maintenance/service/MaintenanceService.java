@@ -92,4 +92,12 @@ public class MaintenanceService {
 
         return MaintenanceDetailResponse.from(maintenance);
     }
+
+    @Transactional
+    public void deleteMaintenance(Long id) {
+        Maintenance maintenance = maintenanceRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
+
+        maintenance.delete();
+    }
 }

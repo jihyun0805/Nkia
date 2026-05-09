@@ -185,4 +185,8 @@ public class Maintenance extends BaseEntity {
         this.dbVersion = request.getDbVersion();
         this.remarks = request.getRemarks();
     }
+
+    public void delete() {
+        super.delete();
+    }
 }
