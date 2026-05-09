@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.project.billing.dto.response;
 
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -10,6 +11,12 @@ import lombok.Getter;
 public class BillingDetailResponse {
 
     private Long id;
+
+    private Long orderReportId;
+
+    private String customerName;
+
+    private String projectName;
 
     private Long billingAmount;
 
@@ -23,18 +30,27 @@ public class BillingDetailResponse {
 
     private Long invoiceImageId;
 
-    private String statusDescription;
+    private String status;
+
+    private String createdBy;
+
+    private LocalDateTime createdAt;
 
     public static BillingDetailResponse from(Billing billing) {
         return BillingDetailResponse.builder()
                 .id(billing.getId())
+                .orderReportId(billing.getOrderReport().getId())
+                .customerName(billing.getOrderReport().getFinalCustomerCompany().getName())
+                .projectName(billing.getOrderReport().getProjectOpportunity().getOpportunityName())
                 .billingAmount(billing.getBillingAmount())
                 .requestedIssueDate(billing.getRequestedIssueDate())
                 .issuedAt(billing.getIssuedAt())
                 .collectedAt(billing.getCollectedAt())
                 .remarks(billing.getRemarks())
                 .invoiceImageId(billing.getInvoiceImageId())
-                .statusDescription(billing.getStatus().getDescription())
+                .status(billing.getStatus().name())
+                .createdBy(billing.getCreatedBy())
+                .createdAt(billing.getCreatedAt())
                 .build();
     }
 }

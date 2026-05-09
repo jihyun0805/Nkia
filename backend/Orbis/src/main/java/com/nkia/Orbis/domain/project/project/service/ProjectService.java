@@ -5,6 +5,8 @@ import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
@@ -114,8 +116,8 @@ public class ProjectService {
      */
     @Transactional
     public void deleteProject(Project project) {
-        project.getMaintenances().forEach(com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance::delete);
-        project.getMaintenanceQuotations().forEach(com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation::delete);
+        project.getMaintenances().forEach(Maintenance::delete);
+        project.getMaintenanceQuotations().forEach(MaintenanceQuotation::delete);
         project.delete();
     }
 
