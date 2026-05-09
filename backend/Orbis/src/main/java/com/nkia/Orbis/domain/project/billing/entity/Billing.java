@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.project.billing.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
+import com.nkia.Orbis.domain.project.billing.dto.request.BillingUpdateRequest;
 import com.nkia.Orbis.domain.project.collection.entity.Collection;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
@@ -77,5 +78,23 @@ public class Billing extends BaseEntity {
     public void collect(LocalDate collectedAt) {
         this.collectedAt = collectedAt;
         this.status = BillingStatus.COLLECTED;
+    }
+
+    public void updateByStatus(BillingUpdateRequest dto) {
+        this.remarks = dto.getRemarks();
+
+        if (this.status == BillingStatus.REQUESTED) {
+            this.billingAmount = dto.getBillingAmount();
+            this.requestedIssueDate = dto.getRequestedIssueDate();
+        }
+
+        if (this.status == BillingStatus.ISSUED) {
+            this.issuedAt = dto.getIssuedAt();
+            this.invoiceImageId = dto.getInvoiceImageId();
+        }
+
+        if (this.status == BillingStatus.COLLECTED) {
+            this.collectedAt = dto.getCollectedAt();
+        }
     }
 }
