@@ -5,7 +5,12 @@ import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.Customer
 import com.nkia.Orbis.domain.maintenance.customersupport.request.repository.CustomerSupportRequestRepository;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,15 +22,19 @@ public class CustomerSupportRequestService {
 
     private final CustomerSupportRequestRepository requestRepository;
     private final UploadFileRepository uploadFileRepository;
+    private final UserRepository userRepository;
 
     /**
-     * 고객지원 요청을 신규 등록합니다.
-     * 등록된 요청은 결재 프로세스를 타기 위한 대기(PENDING) 상태로 시작합니다.
+     * 고객지원 요청 등록
      */
     @Transactional
     public Long createRequest(CustomerSupportRequestCreateRequest requestDto) {
+        User requester = getUserOrNull(requestDto.getRequesterId());
+        User registrant = getUserOrNull(requestDto.getRegistrantId());
+        User salesRep = getUserOrNull(requestDto.getSalesRepId());
+        User supportManager = getUserOrNull(requestDto.getSupportManagerId());
 
-        CustomerSupportRequest request = createRequestEntity(requestDto);
+        CustomerSupportRequest request = createRequestEntity(requestDto, requester, registrant, salesRep, supportManager);
 
         mapAttachedFiles(request, requestDto.getAttachedFileIds());
 
@@ -36,34 +45,35 @@ public class CustomerSupportRequestService {
         return request.getId();
     }
 
-
-    /**
-     * DTO 데이터를 바탕으로 새로운 고객지원 요청(CustomerSupportRequest) 엔티티를 빌드합니다.
-     */
-    private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto) {
+    private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto,
+                                                       User requester, User registrant,
+                                                       User salesRep, User supportManager) {
         return CustomerSupportRequest.builder()
                 .customerCompanyCode(dto.getCustomerCompanyCode())
                 .requestStartDate(dto.getRequestStartDate())
                 .requestEndDate(dto.getRequestEndDate())
                 .requestContent(dto.getRequestContent())
-                .requesterId(dto.getRequesterId())
-                .registrantId(dto.getRegistrantId())
-                .salesRepId(dto.getSalesRepId())
-                .supportManagerId(dto.getSupportManagerId())
+                .requester(requester)
+                .registrant(registrant)
+                .salesRep(salesRep)
+                .supportManager(supportManager)
                 .remarks(dto.getRemarks())
                 .build();
     }
 
-    /**
-     * 첨부파일 ID 리스트를 기반으로 실제 파일 엔티티들을 조회한 후,
-     * 연관관계 편의 메서드를 통해 요청 엔티티에 추가합니다.
-     */
-    @SuppressWarnings("DuplicatedCode")
     private void mapAttachedFiles(CustomerSupportRequest request, List<Long> fileIds) {
         if (fileIds == null || fileIds.isEmpty()) {
             return;
         }
         List<UploadFile> files = uploadFileRepository.findAllById(fileIds);
         files.forEach(request::addAttachedFile);
+    }
+
+    private User getUserOrNull(UUID userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 }

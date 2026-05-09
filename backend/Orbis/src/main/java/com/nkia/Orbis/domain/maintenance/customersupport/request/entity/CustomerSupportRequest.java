@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.request.entity;
 
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -11,12 +12,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
-import jakarta.persistence.Lob;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ManyToOne;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -43,17 +44,21 @@ public class CustomerSupportRequest {
     @Column(name = "request_content", columnDefinition = "TEXT")
     private String requestContent;
 
-    @Column(name = "requester_id")
-    private UUID requesterId; // 요청인
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requester_id")
+    private User requester; // 요청인
 
-    @Column(name = "registrant_id")
-    private UUID registrantId; // 등록자
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "registrant_id")
+    private User registrant; // 등록자
 
-    @Column(name = "sales_rep_id")
-    private UUID salesRepId; // 영업대표
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sales_rep_id")
+    private User salesRep; // 영업대표
 
-    @Column(name = "support_manager_id")
-    private UUID supportManagerId; // 고객지원 담당자
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "support_manager_id")
+    private User supportManager; // 고객지원 담당자
 
     @Column(name = "remarks", length = 1000)
     private String remarks; // 특기사항
@@ -72,16 +77,16 @@ public class CustomerSupportRequest {
 
     @Builder
     public CustomerSupportRequest(Long customerCompanyCode, LocalDate requestStartDate, LocalDate requestEndDate,
-                                  String requestContent, UUID requesterId, UUID registrantId,
-                                  UUID salesRepId, UUID supportManagerId, String remarks) {
+                                  String requestContent, User requester, User registrant,
+                                  User salesRep, User supportManager, String remarks) {
         this.customerCompanyCode = customerCompanyCode;
         this.requestStartDate = requestStartDate;
         this.requestEndDate = requestEndDate;
         this.requestContent = requestContent;
-        this.requesterId = requesterId;
-        this.registrantId = registrantId;
-        this.salesRepId = salesRepId;
-        this.supportManagerId = supportManagerId;
+        this.requester = requester;
+        this.registrant = registrant;
+        this.salesRep = salesRep;
+        this.supportManager = supportManager;
         this.remarks = remarks;
     }
 }
