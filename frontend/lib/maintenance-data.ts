@@ -18,6 +18,62 @@ export const customerSupports = [
   { id: "SUP-2026-0127", date: "2026-03-18", customer: "삼성SDS", type: "고객요청", content: "신규 모니터링 대상 추가", hours: 3, manager: "김유지", supporter: "-", status: "예정" },
 ]
 
+export const supportHistories = [
+  {
+    id: "REQ-2026-001",
+    recordType: "request", // "request" | "result"
+    customer: "농협은행",
+    requestType: "-", // For results: request code or "정기점검"
+    startDate: "2026-03-20 09:00",
+    endDate: "2026-03-20 18:00",
+    requester: "테크센터 담당자",
+    registrant: "-",
+    salesRep: "김영업",
+    supportRep: "김유지",
+    registeredAt: "2026-03-19T10:00:00Z"
+  },
+  {
+    id: "RES-2026-001",
+    recordType: "result",
+    customer: "농협은행",
+    requestType: "REQ-2026-001",
+    startDate: "2026-03-20 09:00",
+    endDate: "2026-03-20 18:00",
+    requester: "-",
+    registrant: "김유지",
+    salesRep: "-",
+    supportRep: "-",
+    registeredAt: "2026-03-20T18:30:00Z"
+  },
+  {
+    id: "RES-2026-002",
+    recordType: "result",
+    customer: "신한은행",
+    requestType: "정기점검",
+    startDate: "2026-03-15 10:00",
+    endDate: "2026-03-15 12:00",
+    requester: "-",
+    registrant: "정관리",
+    salesRep: "-",
+    supportRep: "-",
+    registeredAt: "2026-03-15T13:00:00Z"
+  },
+  {
+    id: "REQ-2026-002",
+    recordType: "request",
+    customer: "삼성SDS",
+    requestType: "-",
+    startDate: "2026-03-25 14:00",
+    endDate: "2026-03-25 18:00",
+    requester: "삼성SDS 인프라팀",
+    registrant: "-",
+    salesRep: "김영업",
+    supportRep: "김유지",
+    registeredAt: "2026-03-21T09:15:00Z"
+  }
+];
+
+
 export function getMaintenanceCategoryLabel(category: MaintenanceCategory) {
   if (category === "free") return "무상유지보수"
   if (category === "paid") return "유상유지보수"
@@ -27,7 +83,7 @@ export function getMaintenanceCategoryLabel(category: MaintenanceCategory) {
 export function getMaintenanceItem(category: MaintenanceCategory, id: string) {
   if (category === "free") return freeMaintenances.find((item) => item.id === id) ?? null
   if (category === "paid") return paidMaintenances.find((item) => item.id === id) ?? null
-  return customerSupports.find((item) => item.id === id) ?? null
+  return supportHistories.find((item) => item.id === id) ?? null
 }
 
 export function getMaintenanceFields(category: MaintenanceCategory, item: any) {
@@ -59,14 +115,14 @@ export function getMaintenanceFields(category: MaintenanceCategory, item: any) {
     { label: "상태", value: item.status },
   ]
   return [
-    { label: "지원번호", value: item.id },
-    { label: "지원일", value: item.date },
+    { label: "번호", value: item.id },
+    { label: "구분", value: item.recordType === "request" ? "지원 요청" : "활동 결과" },
     { label: "고객사", value: item.customer },
-    { label: "유형", value: item.type },
-    { label: "내용", value: item.content },
-    { label: "소요시간", value: `${item.hours}시간` },
-    { label: "담당자", value: item.manager },
-    { label: "지원인력", value: item.supporter },
-    { label: "상태", value: item.status },
+    { label: "요청/활동구분", value: item.recordType === "request" ? "-" : item.requestType },
+    { label: "개시일시", value: item.startDate },
+    { label: "완료일시", value: item.endDate },
+    { label: "요청/등록자", value: item.recordType === "request" ? item.requester : item.registrant },
+    { label: "영업대표", value: item.salesRep },
+    { label: "고객지원 담당자", value: item.supportRep },
   ]
 }
