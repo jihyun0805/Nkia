@@ -4,6 +4,7 @@ import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestCreateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.CustomerSupportRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.repository.CustomerSupportRequestRepository;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
@@ -85,6 +86,18 @@ public class CustomerSupportRequestService {
         request.getAttachedFiles().forEach(file -> uploadFileService.removeFile(file.getId()));
 
         request.delete();
+    }
+
+    /**
+     * 고객지원 요청 목록을 조회
+     */
+    @Transactional(readOnly = true)
+    public List<CustomerSupportRequestListResponse> getRequests() {
+        List<CustomerSupportRequest> requests = requestRepository.findAllByOrderByIdDesc();
+
+        return requests.stream()
+                .map(CustomerSupportRequestListResponse::from)
+                .toList();
     }
 
     private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto,
