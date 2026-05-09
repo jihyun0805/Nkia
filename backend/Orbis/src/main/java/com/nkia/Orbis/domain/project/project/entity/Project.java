@@ -95,6 +95,7 @@ public class Project extends BaseEntity {
         this.orderReport = orderReport;
         this.pjtName = pjtName;
         this.totalAmount = totalAmount;
+        this.manager = manager;
         this.salesRepresentative = salesRepresentative;
     }
 

@@ -57,6 +57,7 @@ public class ProjectService {
                 .orderReport(report)
                 .code(code)
                 .type(code.getType())
+                .manager(report.getPm())
                 .pjtName(report.getProjectOpportunity().getOpportunityName())
                 .totalAmount(report.getTotalAmount())
                 .salesRepresentative(report.getPm())
