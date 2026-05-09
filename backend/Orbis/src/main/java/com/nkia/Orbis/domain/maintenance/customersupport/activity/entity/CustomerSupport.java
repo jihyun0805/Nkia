@@ -13,14 +13,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -58,8 +57,9 @@ public class CustomerSupport extends BaseEntity {
     @Column(name = "activity_content", columnDefinition = "TEXT")
     private String activityContent; // 고객 지원 내용
 
-    @Column(name = "registrant_id")
-    private UUID registrantId; // 등록자
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "registrant_id")
+    private User registrant; // 등록자
 
     @Column(name = "remarks", length = 1000)
     private String remarks; // 특기사항
@@ -83,7 +83,7 @@ public class CustomerSupport extends BaseEntity {
     @Builder
     public CustomerSupport(CustomerSupportRequest request, Maintenance maintenance, Long customerCompanyCode,
                            ActivityType activityType, LocalDateTime activityStartTime, LocalDateTime activityEndTime,
-                           String activityContent, UUID registrantId, String remarks) {
+                           String activityContent, User registrant, String remarks) {
         this.request = request;
         this.maintenance = maintenance;
         this.customerCompanyCode = customerCompanyCode;
@@ -91,7 +91,7 @@ public class CustomerSupport extends BaseEntity {
         this.activityStartTime = activityStartTime;
         this.activityEndTime = activityEndTime;
         this.activityContent = activityContent;
-        this.registrantId = registrantId;
+        this.registrant = registrant;
         this.remarks = remarks;
     }
 }
