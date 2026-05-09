@@ -48,6 +48,10 @@ public class RfpAnalyzeResult extends BaseEntity {
     @Column(name = "project_description", columnDefinition = "TEXT")
     private String projectDescription;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20, nullable = false)
+    private RfpStatus status;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_opportunity_id")
     private ProjectOpportunity projectOpportunity;
@@ -60,7 +64,7 @@ public class RfpAnalyzeResult extends BaseEntity {
     public RfpAnalyzeResult(String projectName, String hardwareProvider, BigDecimal budgetAmount,
         String expectedDuration, String projectLocation,
         LocalDateTime proposalDeadline, String projectDescription,
-        ProjectOpportunity projectOpportunity) {
+        RfpStatus status, ProjectOpportunity projectOpportunity) {
         this.projectName = projectName;
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
@@ -68,6 +72,8 @@ public class RfpAnalyzeResult extends BaseEntity {
         this.projectLocation = projectLocation;
         this.proposalDeadline = proposalDeadline;
         this.projectDescription = projectDescription;
+        // 💡 생성 시 상태값이 없으면 '접수'를 기본값으로 설정
+        this.status = (status != null) ? status : RfpStatus.RECEIVED;
         this.projectOpportunity = projectOpportunity;
     }
 
@@ -75,5 +81,23 @@ public class RfpAnalyzeResult extends BaseEntity {
     public void addRequirement(RfpRequirement requirement) {
         this.requirements.add(requirement);
         requirement.assignRfpAnalyzeResult(this);
+    }
+
+    // 상태 변경 메서드 (비즈니스 로직)
+    public void updateStatus(RfpStatus status) {
+        this.status = status;
+    }
+
+    // 기존 데이터 수정 메서드 (더티 체킹용)
+    public void update(String projectName, String hardwareProvider, BigDecimal budgetAmount,
+        String expectedDuration, String projectLocation,
+        LocalDateTime proposalDeadline, String projectDescription) {
+        this.projectName = projectName;
+        this.hardwareProvider = hardwareProvider;
+        this.budgetAmount = budgetAmount;
+        this.expectedDuration = expectedDuration;
+        this.projectLocation = projectLocation;
+        this.proposalDeadline = proposalDeadline;
+        this.projectDescription = projectDescription;
     }
 }
