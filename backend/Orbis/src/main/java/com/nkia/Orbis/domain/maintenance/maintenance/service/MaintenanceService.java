@@ -7,12 +7,15 @@ import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceDetailResponse;
+import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceListResponse;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
+import com.nkia.Orbis.domain.maintenance.maintenance.entity.MaintenanceType;
 import com.nkia.Orbis.domain.maintenance.maintenance.repository.MaintenanceRepository;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -108,5 +111,14 @@ public class MaintenanceService {
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
 
         return MaintenanceDetailResponse.from(maintenance);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MaintenanceListResponse> getMaintenanceList(MaintenanceType type) {
+        List<Maintenance> list = maintenanceRepository.findAllByTypeOrderByIdDesc(type);
+
+        return list.stream()
+                .map(MaintenanceListResponse::from)
+                .toList();
     }
 }

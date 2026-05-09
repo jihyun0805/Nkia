@@ -4,10 +4,13 @@ import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceDetailResponse;
+import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceListResponse;
+import com.nkia.Orbis.domain.maintenance.maintenance.entity.MaintenanceType;
 import com.nkia.Orbis.domain.maintenance.maintenance.service.MaintenanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -68,6 +71,26 @@ public class MaintenanceController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<MaintenanceDetailResponse>> getDetail(@PathVariable Long id) {
         MaintenanceDetailResponse response = maintenanceService.getMaintenanceDetail(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 무상 유지보수 현황 목록 조회
+     */
+    @Operation(summary = "무상 유지보수 목록 조회")
+    @GetMapping("/free")
+    public ResponseEntity<ApiResponse<List<MaintenanceListResponse>>> getFreeList() {
+        List<MaintenanceListResponse> response = maintenanceService.getMaintenanceList(MaintenanceType.FREE);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 유상 유지보수 현황 목록 조회
+     */
+    @Operation(summary = "유상 유지보수 목록 조회")
+    @GetMapping("/paid")
+    public ResponseEntity<ApiResponse<List<MaintenanceListResponse>>> getPaidList() {
+        List<MaintenanceListResponse> response = maintenanceService.getMaintenanceList(MaintenanceType.PAID);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
