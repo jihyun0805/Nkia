@@ -10,10 +10,12 @@ import com.nkia.Orbis.domain.project.billing.dto.request.BillingCreateRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingIssueRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingUpdateRequest;
 import com.nkia.Orbis.domain.project.billing.dto.response.BillingDetailResponse;
+import com.nkia.Orbis.domain.project.billing.dto.response.BillingListResponse;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.billing.entity.BillingStatus;
 import com.nkia.Orbis.domain.project.billing.repository.BillingRepository;
 import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,5 +105,17 @@ public class BillingService {
         }
 
         billing.delete();
+    }
+
+    /**
+     * 청구 및 수금 현황 목록을 최신순으로 조회
+     */
+    @Transactional(readOnly = true)
+    public List<BillingListResponse> getBillingList() {
+        List<Billing> billings = billingRepository.findAllByOrderByIdDesc();
+
+        return billings.stream()
+                .map(BillingListResponse::from)
+                .toList();
     }
 }
