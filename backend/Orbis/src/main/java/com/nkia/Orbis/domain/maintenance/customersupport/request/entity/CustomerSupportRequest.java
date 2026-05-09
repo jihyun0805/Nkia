@@ -106,4 +106,8 @@ public class CustomerSupportRequest extends BaseEntity {
     public void clearAttachedFiles() {
         this.attachedFiles.clear();
     }
+
+    public void delete() {
+        super.delete();
+    }
 }

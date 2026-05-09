@@ -12,6 +12,7 @@ import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class CustomerSupportRequestService {
     private final CustomerSupportRequestRepository requestRepository;
     private final UploadFileRepository uploadFileRepository;
     private final UserRepository userRepository;
+    private final UploadFileService uploadFileService;
 
     /**
      * 고객지원 요청 등록
@@ -64,6 +66,19 @@ public class CustomerSupportRequestService {
         updateAttachedFiles(request, dto.getAttachedFileIds());
 
         return CustomerSupportRequestDetailResponse.from(request);
+    }
+
+    /**
+     * 요청 및 연관된 모든 첨부파일을 삭제
+     */
+    @Transactional
+    public void deleteRequest(Long id) {
+        CustomerSupportRequest request = requestRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        request.getAttachedFiles().forEach(file -> uploadFileService.removeFile(file.getId()));
+
+        request.delete();
     }
 
     private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto,

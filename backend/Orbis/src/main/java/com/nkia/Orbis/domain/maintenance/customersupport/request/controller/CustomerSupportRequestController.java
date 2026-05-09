@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -34,7 +35,7 @@ public class CustomerSupportRequestController {
     }
 
     /**
-     * 고객지원 요청 수정 API
+     * 고객지원 요청 수정
      */
     @Operation(summary = "고객지원 요청 수정")
     @PutMapping("/{id}")
@@ -44,5 +45,15 @@ public class CustomerSupportRequestController {
 
         CustomerSupportRequestDetailResponse response = customerSupportRequestService.updateRequest(id, request);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 고객지원 요청 삭제
+     */
+    @Operation(summary = "고객지원 요청 삭제")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteRequest(@PathVariable Long id) {
+        customerSupportRequestService.deleteRequest(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }
