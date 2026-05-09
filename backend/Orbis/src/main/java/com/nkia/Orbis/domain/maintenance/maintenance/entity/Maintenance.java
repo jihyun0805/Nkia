@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.maintenance.maintenance.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupport;
+import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
@@ -152,5 +153,40 @@ public class Maintenance extends BaseEntity {
         this.dbHaStatus = dbHaStatus;
         this.dbVersion = dbVersion;
         this.remarks = remarks;
+    }
+
+    public void updateMaintenance(MaintenanceUpdateRequest request, User salesRep, User primary, User secondary, User regularPm){
+        this.salesRep = salesRep;
+        this.managerPrimary = primary;
+        this.managerSecondary = secondary;
+        this.category = request.getCategory();
+        this.isRemote = request.isRemote();
+        this.inspectionCycle = request.getInspectionCycle();
+        this.importance = request.getImportance();
+        this.type = request.getType();
+        this.location = request.getLocation();
+        this.rate = request.getRate();
+        this.contractAmount = request.getContractAmount();
+        this.annualAmount = request.getAnnualAmount();
+        this.contractDate = request.getContractDate();
+        this.startDate = request.getStartDate();
+        this.endDate = request.getEndDate();
+        this.reportSubmitted = request.isReportSubmitted();
+        this.regularPm = regularPm;
+        this.productFamily = request.getProductFamily();
+        this.apVersion = request.getApVersion();
+        this.aclPatchStatus = request.isAclPatchStatus();
+        this.vulnPatchStatus = request.isVulnPatchStatus();
+        this.upgradePlan = request.getUpgradePlan();
+        this.apCount = request.getApCount();
+        this.esCount = request.getEsCount();
+        this.esVersion = request.getEsVersion();
+        this.dbHaStatus = request.isDbHaStatus();
+        this.dbVersion = request.getDbVersion();
+        this.remarks = request.getRemarks();
+    }
+
+    public void delete() {
+        super.delete();
     }
 }
