@@ -13,6 +13,7 @@ import com.nkia.Orbis.domain.project.billing.dto.response.BillingDetailResponse;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.billing.entity.BillingStatus;
 import com.nkia.Orbis.domain.project.billing.repository.BillingRepository;
+import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BillingService {
     private final BillingRepository billingRepository;
     private final OrderReportRepository orderReportRepository;
+    private final UploadFileService uploadFileService;
 
     /**
      * 청구(세금계산서 발행) 등록
@@ -86,5 +88,20 @@ public class BillingService {
         billing.updateByStatus(request);
 
         return BillingDetailResponse.from(billing);
+    }
+
+    /**
+     * 청구 정보 및 연관된 첨부파일 삭제
+     */
+    @Transactional
+    public void deleteBilling(Long billingId) {
+        Billing billing = billingRepository.findById(billingId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        if (billing.getInvoiceImageId() != null) {
+            uploadFileService.removeFile(billing.getInvoiceImageId());
+        }
+
+        billing.delete();
     }
 }

@@ -22,10 +22,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@SQLRestriction("deleted = false")
 public class Billing extends BaseEntity {
 
     @Id
@@ -96,5 +98,9 @@ public class Billing extends BaseEntity {
         if (this.status == BillingStatus.COLLECTED) {
             this.collectedAt = dto.getCollectedAt();
         }
+    }
+
+    public void delete() {
+        super.delete();
     }
 }
