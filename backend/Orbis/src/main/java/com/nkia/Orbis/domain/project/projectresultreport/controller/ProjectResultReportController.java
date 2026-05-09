@@ -1,8 +1,8 @@
 package com.nkia.Orbis.domain.project.projectresultreport.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.project.project.service.ProjectFacadeService;
 import com.nkia.Orbis.domain.project.projectresultreport.dto.request.ProjectResultReportCreateRequest;
-import com.nkia.Orbis.domain.project.projectresultreport.dto.request.ProjectResultReportUpdateRequest;
 import com.nkia.Orbis.domain.project.projectresultreport.service.ProjectResultReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectResultReportController {
 
     private final ProjectResultReportService reportService;
+    private final ProjectFacadeService projectFacadeService;
 
     /**
      * 실제 결과보고 데이터를 저장하는 API
@@ -38,18 +38,6 @@ public class ProjectResultReportController {
     }
 
     /**
-     * 사업 결과보고를 수정합니다.
-     */
-    @Operation(summary = "사업 결과 보고 수정")
-    @PatchMapping("/{reportId}")
-    public ResponseEntity<ApiResponse<Long>> updateResultReport(@PathVariable Long reportId,
-                                                                @Valid @RequestBody ProjectResultReportUpdateRequest request) {
-        Long updateReportId = reportService.updateReport(reportId, request);
-
-        return ResponseEntity.ok(ApiResponse.success(updateReportId));
-    }
-
-    /**
      * 사업 결과보고를 삭제합니다.
      */
     @Operation(summary = "사업 결과 보고 삭제")
@@ -58,5 +46,4 @@ public class ProjectResultReportController {
         reportService.deleteReport(reportId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
-
 }
