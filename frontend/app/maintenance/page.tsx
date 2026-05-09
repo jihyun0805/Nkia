@@ -7,18 +7,21 @@ import { Header } from "@/components/erp/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Shield, ShieldCheck, HeadphonesIcon, AlertTriangle } from "lucide-react";
+import { Search, Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
 import { customerSupports, freeMaintenances, paidMaintenances } from "@/lib/maintenance-data";
+import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 
 export default function MaintenancePage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
   const [activeTab, setActiveTab] = useState<"free" | "paid" | "support">("free");
+  const [isCreating, setIsCreating] = useState(false);
 
   const q = searchTerm.toLowerCase();
   const maintenanceFieldOptions =
@@ -66,7 +69,14 @@ export default function MaintenancePage() {
       <div className="flex-1 flex flex-col">
         <Header title="유지보수" description="무상/유상 유지보수 계약 및 고객 지원을 관리합니다" />
         <main className="flex-1 p-6 overflow-auto">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "free" | "paid" | "support")} className="space-y-6">
+          <Tabs 
+            value={activeTab} 
+            onValueChange={(value) => {
+              setActiveTab(value as "free" | "paid" | "support");
+              setIsCreating(false);
+            }} 
+            className="space-y-6"
+          >
             <div className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="free" className="gap-2">
@@ -83,11 +93,24 @@ export default function MaintenancePage() {
                 </TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input placeholder="검색..." className="pl-9 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                </div>
-                <FilterPopover title="유지보수" statusOptions={maintenanceStatuses} value={filters} onApply={setFilters} fieldOptions={maintenanceFieldOptions} />
+                {!isCreating ? (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input placeholder="검색..." className="pl-9 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isCreating} />
+                    </div>
+                    <FilterPopover title="유지보수" statusOptions={maintenanceStatuses} value={filters} onApply={setFilters} fieldOptions={maintenanceFieldOptions} />
+                    {activeTab === "support" && (
+                      <Button onClick={() => setIsCreating(true)}>
+                        <Plus className="mr-2 w-4 h-4" /> 고객지원 요청 등록
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <Button variant="outline" onClick={() => setIsCreating(false)}>
+                    목록으로 돌아가기
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -180,7 +203,8 @@ export default function MaintenancePage() {
             </TabsContent>
 
             <TabsContent value="support">
-              <Card>
+              {!isCreating ? (
+                <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">고객지원 현황</CardTitle>
@@ -234,6 +258,12 @@ export default function MaintenancePage() {
                   </Table>
                 </CardContent>
               </Card>
+              ) : (
+                <SupportRequestForm 
+                  onSuccess={() => setIsCreating(false)} 
+                  onCancel={() => setIsCreating(false)} 
+                />
+              )}
             </TabsContent>
           </Tabs>
         </main>
