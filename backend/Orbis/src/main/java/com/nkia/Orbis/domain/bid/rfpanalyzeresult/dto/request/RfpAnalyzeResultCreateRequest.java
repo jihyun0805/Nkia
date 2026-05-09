@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.UUID;
 
 public record RfpAnalyzeResultCreateRequest(@NotBlank(message = "프로젝트명은 필수입니다.") String projectName,
-
     String hardwareProvider, BigDecimal budgetAmount, String expectedDuration,
     String projectLocation, LocalDateTime proposalDeadline, String projectDescription,
     ProposalType proposalType,

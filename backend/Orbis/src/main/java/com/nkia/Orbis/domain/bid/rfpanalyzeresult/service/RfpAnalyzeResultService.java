@@ -58,12 +58,6 @@ public class RfpAnalyzeResultService {
     return RfpAnalyzeResultDetailResponse.from(savedResult);
   }
 
-  private ProjectOpportunity findProjectOpportunity(Long projectOpportunityId) {
-    return projectOpportunityRepository.findById(projectOpportunityId)
-        .orElseThrow(
-            () -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
-  }
-
   /**
    * 2. RFP 분석 결과 수정 (Update - 부모 및 자식 컬렉션 병합)
    */
@@ -92,6 +86,7 @@ public class RfpAnalyzeResultService {
   /**
    * 💡 핵심 로직: 요구사항 컬렉션 병합(Merge) 알고리즘
    */
+  // 요구 사항 업데이트
   private void updateRequirements(RfpAnalyzeResult rfpAnalyzeResult,
       List<RfpRequirementRequest> requestRequirements) {
     if (requestRequirements == null)
@@ -107,12 +102,14 @@ public class RfpAnalyzeResultService {
     updateAndInsertRequirements(rfpAnalyzeResult, requestRequirements, existingMap);
   }
 
+  // 기존에 있던 요구 사항 Map 형태로 만듬
   private Map<Long, RfpRequirement> getExistingRequirementsMap(RfpAnalyzeResult rfpAnalyzeResult) {
     return rfpAnalyzeResult.getRequirements()
         .stream()
         .collect(Collectors.toMap(RfpRequirement::getId, Function.identity()));
   }
 
+  // 요청에서 넘어온 요구사항 중 id가 null이 아닌 것 = 새로 생긴 것이 아니라 기존에 있던 것을 set으로 만듬
   private Set<Long> getRequestedIds(List<RfpRequirementRequest> requestRequirements) {
     return requestRequirements.stream()
         .map(RfpRequirementRequest::id)
@@ -120,11 +117,14 @@ public class RfpAnalyzeResultService {
         .collect(Collectors.toSet());
   }
 
+  // 기존에 있던 요구사항 중 요청에서 넘어온 요구사항에 없는 것들 List에서 제거
   private void removeDeletedRequirements(RfpAnalyzeResult rfpAnalyzeResult,
       Set<Long> requestedIds) {
     rfpAnalyzeResult.getRequirements().removeIf(req -> !requestedIds.contains(req.getId()));
   }
 
+  // 요청에서 넘어온 요구사항에서 id가 null인 것 = 새로 생긴 것은 insert
+  // id가 있다면 = 기존에 있던 것은 update
   private void updateAndInsertRequirements(RfpAnalyzeResult rfpAnalyzeResult,
       List<RfpRequirementRequest> requestRequirements, Map<Long, RfpRequirement> existingMap) {
     for (RfpRequirementRequest reqDto : requestRequirements) {
@@ -166,15 +166,15 @@ public class RfpAnalyzeResultService {
   public Page<RfpAnalyzeResultListResponse> getRfpAnalyzeResultList(Pageable pageable) {
     Page<RfpAnalyzeResult> page = rfpAnalyzeResultRepository.findAll(pageable);
 
-    // 💡 1. 맵 생성 로직을 프라이빗 메서드로 위임
+    // 1. 맵 생성 로직을 프라이빗 메서드로 위임
     Map<UUID, User> creatorMap = getCreatorMap(page);
 
-    // 💡 2. 매핑 로직을 프라이빗 메서드로 위임
+    // 2. 매핑 로직을 프라이빗 메서드로 위임
     return page.map(rfp -> convertToListResponse(rfp, creatorMap));
   }
 
   // --- 분리된 Helper Methods ---
-
+  // set으로 만든 작성자들 UUID를 가져와 repository에서 User들 가져오고 Map으로 만듬
   private Map<UUID, User> getCreatorMap(Page<RfpAnalyzeResult> page) {
     Set<UUID> creatorIds = getCreatorIds(page);
 
@@ -187,6 +187,8 @@ public class RfpAnalyzeResultService {
         .collect(Collectors.toMap(User::getId, Function.identity()));
   }
 
+  // RFP와 Map을 가져와서 RFP 생성한 user id 가져와서 Map에서 User 찾아옴
+  // 그리고 RFP와 User로 response dto 만듬
   private RfpAnalyzeResultListResponse convertToListResponse(RfpAnalyzeResult rfp,
       Map<UUID, User> creatorMap) {
     User creator = null;
@@ -194,7 +196,7 @@ public class RfpAnalyzeResultService {
 
     if (createdBy != null && !createdBy.isBlank()) {
       try {
-        // 💡 UUID 변환 시 발생할 수 있는 포맷 예외 안전하게 처리
+        // UUID 변환 시 발생할 수 있는 포맷 예외 안전하게 처리
         creator = creatorMap.get(UUID.fromString(createdBy));
       } catch (IllegalArgumentException e) {
         creator = null; // UUID 형식이 아닌 잘못된 값이 들어있을 경우 방어
@@ -205,6 +207,7 @@ public class RfpAnalyzeResultService {
 
   // --- Helper Methods ---
 
+  // 가져온 RFP 분석 결과에서 작성자 ID들 set으로 만듬
   private Set<UUID> getCreatorIds(Page<RfpAnalyzeResult> page) {
     return page.getContent()
         .stream()
@@ -212,6 +215,12 @@ public class RfpAnalyzeResultService {
         .filter(createdBy -> createdBy != null && !createdBy.isBlank())
         .map(UUID::fromString)
         .collect(Collectors.toSet());
+  }
+
+  private ProjectOpportunity findProjectOpportunity(Long projectOpportunityId) {
+    return projectOpportunityRepository.findById(projectOpportunityId)
+        .orElseThrow(
+            () -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
   }
 
   private User findUser(UUID userId) {
