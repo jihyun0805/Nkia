@@ -118,4 +118,15 @@ public class BillingService {
                 .map(BillingListResponse::from)
                 .toList();
     }
+
+    /**
+     * 특정 청구 건의 상세 정보 조회
+     */
+    @Transactional(readOnly = true)
+    public BillingDetailResponse getBillingDetail(Long billingId) {
+        Billing billing = billingRepository.findById(billingId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        return BillingDetailResponse.from(billing);
+    }
 }

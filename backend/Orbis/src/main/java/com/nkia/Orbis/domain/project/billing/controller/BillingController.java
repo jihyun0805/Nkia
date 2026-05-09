@@ -96,11 +96,22 @@ public class BillingController {
     /**
      * 청구 및 수금 현황 목록 조회
      */
-    @Tag(name = "Billings")
     @Operation(summary = "청구 및 수금 현황 목록 조회")
     @GetMapping
     public ResponseEntity<ApiResponse<List<BillingListResponse>>> getBillings() {
         List<BillingListResponse> response = billingService.getBillingList();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 청구 상세 조회
+     */
+    @Operation(summary = "청구 상세 조회")
+    @GetMapping("/{billingId}")
+    public ResponseEntity<ApiResponse<BillingDetailResponse>> getBilling(
+            @PathVariable Long billingId) {
+
+        BillingDetailResponse response = billingService.getBillingDetail(billingId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
