@@ -1,6 +1,9 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.request.service;
 
+import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestCreateRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestUpdateRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestDetailResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.CustomerSupportRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.repository.CustomerSupportRequestRepository;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
@@ -45,6 +48,24 @@ public class CustomerSupportRequestService {
         return request.getId();
     }
 
+    /**
+     * 고객지원 요청 수정
+     */
+    @Transactional
+    public CustomerSupportRequestDetailResponse updateRequest(Long id, CustomerSupportRequestUpdateRequest dto) {
+        CustomerSupportRequest request = requestRepository.findById(id)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        User requester = userRepository.findById(dto.getRequesterId())
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+        User supportManager = getUserOrNull(dto.getSupportManagerId());
+
+        request.update(dto, requester, supportManager);
+        updateAttachedFiles(request, dto.getAttachedFileIds());
+
+        return CustomerSupportRequestDetailResponse.from(request);
+    }
+
     private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto,
                                                        User requester, User registrant,
                                                        User salesRep, User supportManager) {
@@ -75,5 +96,13 @@ public class CustomerSupportRequestService {
         }
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    private void updateAttachedFiles(CustomerSupportRequest request, List<Long> fileIds) {
+        request.clearAttachedFiles();
+        if (fileIds != null && !fileIds.isEmpty()) {
+            List<UploadFile> files = uploadFileRepository.findAllById(fileIds);
+            files.forEach(request::addAttachedFile);
+        }
     }
 }

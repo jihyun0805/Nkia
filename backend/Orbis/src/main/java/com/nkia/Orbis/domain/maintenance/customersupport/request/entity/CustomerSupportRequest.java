@@ -1,6 +1,8 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.request.entity;
 
+import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestUpdateRequest;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -22,11 +24,13 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CustomerSupportRequest {
+@SQLRestriction("deleted = false")
+public class CustomerSupportRequest extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "request_id")
@@ -88,5 +92,18 @@ public class CustomerSupportRequest {
         this.salesRep = salesRep;
         this.supportManager = supportManager;
         this.remarks = remarks;
+    }
+
+    public void update(CustomerSupportRequestUpdateRequest dto, User requester, User supportManager) {
+        this.requestStartDate = dto.getRequestStartDate();
+        this.requestEndDate = dto.getRequestEndDate();
+        this.requestContent = dto.getRequestContent();
+        this.requester = requester;
+        this.supportManager = supportManager;
+        this.remarks = dto.getRemarks();
+    }
+
+    public void clearAttachedFiles() {
+        this.attachedFiles.clear();
     }
 }
