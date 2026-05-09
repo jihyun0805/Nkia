@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
@@ -15,6 +16,8 @@ import java.math.BigDecimal;
 @Table(name = "rfp_requirement")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @SQLRestriction("deleted = false")
+// JPA가 삭제 명령(remove)을 내릴 때, DELETE 대신 UPDATE 쿼리를 실행하도록 가로챔
+@SQLDelete(sql = "UPDATE rfp_requirement SET deleted = true WHERE id = ?")
 public class RfpRequirement extends BaseEntity {
 
   @Id
@@ -49,9 +52,8 @@ public class RfpRequirement extends BaseEntity {
   private RfpAnalyzeResult rfpAnalyzeResult;
 
   @Builder
-  public RfpRequirement(String category, String requirementCode, String name,
-      String description, SupportType supportType,
-      String reviewComment, BigDecimal effort,
+  public RfpRequirement(String category, String requirementCode, String name, String description,
+      SupportType supportType, String reviewComment, BigDecimal effort,
       RfpAnalyzeResult rfpAnalyzeResult) {
     this.category = category;
     this.requirementCode = requirementCode;
@@ -65,5 +67,16 @@ public class RfpRequirement extends BaseEntity {
 
   public void assignRfpAnalyzeResult(RfpAnalyzeResult rfpAnalyzeResult) {
     this.rfpAnalyzeResult = rfpAnalyzeResult;
+  }
+
+  public void update(String category, String requirementCode, String name, String description,
+      SupportType supportType, String reviewComment, BigDecimal effort) {
+    this.category = category;
+    this.requirementCode = requirementCode;
+    this.name = name;
+    this.description = description;
+    this.supportType = supportType;
+    this.reviewComment = reviewComment;
+    this.effort = effort;
   }
 }
