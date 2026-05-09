@@ -15,6 +15,9 @@ import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.company.entity.Company;
+import com.nkia.Orbis.domain.company.repository.CompanyRepository;
+import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import java.util.List;
 import java.util.UUID;
@@ -31,6 +34,7 @@ public class CustomerSupportActivityService {
     private final UploadFileRepository uploadFileRepository;
     private final MaintenanceRepository maintenanceRepository;
     private final UserRepository userRepository;
+    private final CompanyRepository companyRepository;
 
 
     /**
@@ -44,8 +48,9 @@ public class CustomerSupportActivityService {
         Maintenance maintenance = getMaintenanceIfNecessary(requestDto.getMaintenanceId());
 
         User registrant = getUserOrNull(requestDto.getRegistrantId());
+        Company customerCompany = getCompanyOrNull(requestDto.getCustomerCompanyCode());
 
-        CustomerSupport support = createSupportEntity(requestDto, request, maintenance, registrant);
+        CustomerSupport support = createSupportEntity(requestDto, request, maintenance, registrant, customerCompany);
 
         mapParticipants(support, requestDto.getParticipantList());
         mapAttachedFiles(support, requestDto.getAttachedFileIds());
@@ -73,11 +78,12 @@ public class CustomerSupportActivityService {
     private CustomerSupport createSupportEntity(CustomerSupportCreateRequest dto,
                                                 CustomerSupportRequest request,
                                                 Maintenance maintenance,
-                                                User registrant) {
+                                                User registrant,
+                                                Company customerCompany) {
         return CustomerSupport.builder()
                 .request(request)
                 .maintenance(maintenance)
-                .customerCompanyCode(dto.getCustomerCompanyCode())
+                .customerCompany(customerCompany)
                 .activityType(dto.getActivityType())
                 .activityStartTime(dto.getActivityStartTime())
                 .activityEndTime(dto.getActivityEndTime())
@@ -116,5 +122,13 @@ public class CustomerSupportActivityService {
         }
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    private Company getCompanyOrNull(Long companyId) {
+        if (companyId == null) {
+            return null;
+        }
+        return companyRepository.findById(companyId)
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
     }
 }

@@ -10,6 +10,9 @@ import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.company.entity.Company;
+import com.nkia.Orbis.domain.company.repository.CompanyRepository;
+import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
@@ -28,6 +31,7 @@ public class CustomerSupportRequestService {
     private final UploadFileRepository uploadFileRepository;
     private final UserRepository userRepository;
     private final UploadFileService uploadFileService;
+    private final CompanyRepository companyRepository;
 
     /**
      * 고객지원 요청 등록
@@ -38,8 +42,9 @@ public class CustomerSupportRequestService {
         User registrant = getUserOrNull(requestDto.getRegistrantId());
         User salesRep = getUserOrNull(requestDto.getSalesRepId());
         User supportManager = getUserOrNull(requestDto.getSupportManagerId());
+        Company customerCompany = getCompanyOrNull(requestDto.getCustomerCompanyCode());
 
-        CustomerSupportRequest request = createRequestEntity(requestDto, requester, registrant, salesRep, supportManager);
+        CustomerSupportRequest request = createRequestEntity(requestDto, requester, registrant, salesRep, supportManager, customerCompany);
 
         mapAttachedFiles(request, requestDto.getAttachedFileIds());
 
@@ -61,8 +66,9 @@ public class CustomerSupportRequestService {
         User requester = userRepository.findById(dto.getRequesterId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
         User supportManager = getUserOrNull(dto.getSupportManagerId());
+        Company customerCompany = getCompanyOrNull(dto.getCustomerCompanyCode());
 
-        request.update(dto, requester, supportManager);
+        request.update(dto, requester, supportManager, customerCompany);
         updateAttachedFiles(request, dto.getAttachedFileIds());
 
         return CustomerSupportRequestDetailResponse.from(request);
@@ -83,9 +89,10 @@ public class CustomerSupportRequestService {
 
     private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto,
                                                        User requester, User registrant,
-                                                       User salesRep, User supportManager) {
+                                                       User salesRep, User supportManager,
+                                                       Company customerCompany) {
         return CustomerSupportRequest.builder()
-                .customerCompanyCode(dto.getCustomerCompanyCode())
+                .customerCompany(customerCompany)
                 .requestStartDate(dto.getRequestStartDate())
                 .requestEndDate(dto.getRequestEndDate())
                 .requestContent(dto.getRequestContent())
@@ -119,5 +126,13 @@ public class CustomerSupportRequestService {
             List<UploadFile> files = uploadFileRepository.findAllById(fileIds);
             files.forEach(request::addAttachedFile);
         }
+    }
+
+    private Company getCompanyOrNull(Long companyId) {
+        if (companyId == null) {
+            return null;
+        }
+        return companyRepository.findById(companyId)
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
     }
 }

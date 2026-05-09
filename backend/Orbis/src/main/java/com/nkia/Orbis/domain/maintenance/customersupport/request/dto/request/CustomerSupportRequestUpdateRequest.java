@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 public class CustomerSupportRequestUpdateRequest {
+    private Long customerCompanyCode;
     private LocalDate requestStartDate;
     private LocalDate requestEndDate;
     private String requestContent;

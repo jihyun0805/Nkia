@@ -19,6 +19,7 @@ import jakarta.persistence.OneToOne;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -38,8 +39,9 @@ public class CustomerSupport extends BaseEntity {
     @JoinColumn(name = "maintenance_id", unique = true)
     private Maintenance maintenance;
 
-    @Column(name = "customer_company_code", nullable = false)
-    private Long customerCompanyCode; // 고객사
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_company_id", nullable = false)
+    private Company customerCompany; // 고객사
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "request_id")
@@ -81,12 +83,12 @@ public class CustomerSupport extends BaseEntity {
     }
 
     @Builder
-    public CustomerSupport(CustomerSupportRequest request, Maintenance maintenance, Long customerCompanyCode,
+    public CustomerSupport(CustomerSupportRequest request, Maintenance maintenance, Company customerCompany,
                            ActivityType activityType, LocalDateTime activityStartTime, LocalDateTime activityEndTime,
                            String activityContent, User registrant, String remarks) {
         this.request = request;
         this.maintenance = maintenance;
-        this.customerCompanyCode = customerCompanyCode;
+        this.customerCompany = customerCompany;
         this.activityType = activityType;
         this.activityStartTime = activityStartTime;
         this.activityEndTime = activityEndTime;
