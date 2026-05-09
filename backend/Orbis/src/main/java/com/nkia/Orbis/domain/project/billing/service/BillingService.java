@@ -1,15 +1,18 @@
 package com.nkia.Orbis.domain.project.billing.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
+import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCollectRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCreateRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingIssueRequest;
+import com.nkia.Orbis.domain.project.billing.dto.request.BillingUpdateRequest;
+import com.nkia.Orbis.domain.project.billing.dto.response.BillingDetailResponse;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.billing.entity.BillingStatus;
 import com.nkia.Orbis.domain.project.billing.repository.BillingRepository;
-import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,18 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class BillingService {
     private final BillingRepository billingRepository;
-//    private final OrderReportRepository orderReportRepository;
-    private final EntityManager em;
+    private final OrderReportRepository orderReportRepository;
 
     /**
      * 청구(세금계산서 발행) 등록
      */
     @Transactional
     public Long registerBilling(BillingCreateRequest request) {
-//        OrderReport orderReport = orderReportRepository.findById(request.getOrderReportId())
-//                .orElseThrow(() -> new ApiException(/* 에러코드 */));
-
-        OrderReport orderReport = em.getReference(OrderReport.class, request.getOrderReportId());
+        OrderReport orderReport = orderReportRepository.findById(request.getOrderReportId())
+                .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
 
         Billing billing = Billing.builder()
                 .orderReport(orderReport)
@@ -73,5 +73,18 @@ public class BillingService {
         }
 
         billing.collect(request.getCollectedAt());
+    }
+
+    /**
+     * 청구 정보 수정 처리
+     */
+    @Transactional
+    public BillingDetailResponse updateBilling(Long billingId, BillingUpdateRequest request) {
+        Billing billing = billingRepository.findById(billingId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        billing.updateByStatus(request);
+
+        return BillingDetailResponse.from(billing);
     }
 }
