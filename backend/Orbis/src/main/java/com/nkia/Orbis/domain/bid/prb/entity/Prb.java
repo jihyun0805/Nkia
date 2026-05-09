@@ -41,7 +41,7 @@ public class Prb extends BaseEntity {
 
   // 5. 영업 대표 의견
   @Column(name = "sales_representative_opinion", columnDefinition = "TEXT")
-  private String salesRepresentativeOpinion;n;
+  private String salesRepresentativeOpinion;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "project_opportunity_id")
