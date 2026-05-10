@@ -6,6 +6,7 @@ import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.QuotationCreateResponse;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceAmountReason;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenancePackageCost;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceServiceInfo;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ServiceCategory;
@@ -32,40 +33,15 @@ public class MaintenanceQuotationService {
      */
     @Transactional
     public QuotationCreateResponse register(MaintenanceQuotationCreateRequest dto) {
-        // 1. 검증 및 부모 엔티티 생성
-        Project project = projectRepository.findById(dto.getProjectId())
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
-
-        if (quotationRepository.existsByRefNo(dto.getRefNo())) {
-            throw new ApiException(MaintenanceErrorCode.QUOTATION_ALREADY_EXISTS);
-        }
-
+        Project project = findProject(dto.getProjectId());
         MaintenanceQuotation quotation = createQuotationEntity(dto, project);
 
-        // 2. 하위 엔티티 매핑
-        if (dto.getServiceInfos() != null) {
-            dto.getServiceInfos().forEach(s -> quotation.addServiceDetail(createServiceInfo(s)));
-        }
+        mapSubEntities(dto, quotation);
 
-        if (dto.getAmountReasons() != null) {
-            dto.getAmountReasons().forEach(c -> quotation.addCostBasis(createAmountReason(c)));
-        }
-
-        // 3. 저장
-        MaintenanceQuotation savedQuotation = quotationRepository.save(quotation);
-
-        // 4. 응답 반환
-        return QuotationCreateResponse.builder()
-                .id(savedQuotation.getId())
-                .refNo(savedQuotation.getRefNo())
-                .quotationDate(savedQuotation.getQuotationDate())
-                .totalQuotationAmount(savedQuotation.getTotalQuotationAmount())
-                .build();
+        MaintenanceQuotation saved = quotationRepository.save(quotation);
+        return QuotationCreateResponse.from(saved);
     }
 
-    /**
-     * 견적서 부모 엔티티 생성
-     */
     private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project) {
         return MaintenanceQuotation.builder()
                 .refNo(dto.getRefNo())
@@ -78,8 +54,23 @@ public class MaintenanceQuotationService {
                 .monthlySupplyPrice(dto.getMonthlySupplyPrice())
                 .totalQuotationAmount(dto.getTotalQuotationAmount())
                 .specialNotes(dto.getSpecialNotes())
-                .spMaintenanceCost(dto.getSpMaintenanceCost())
                 .build();
+    }
+
+    private void mapSubEntities(MaintenanceQuotationCreateRequest dto, MaintenanceQuotation quotation) {
+        dto.getPackageCosts().forEach(p ->
+                quotation.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
+
+        dto.getServiceInfos().forEach(s ->
+                quotation.addServiceDetail(createServiceInfo(s)));
+
+        dto.getAmountReasons().forEach(a ->
+                quotation.addCostBasis(createAmountReason(a)));
+    }
+
+    private Project findProject(Long projectId) {
+        return projectRepository.findById(projectId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
     }
 
     /**

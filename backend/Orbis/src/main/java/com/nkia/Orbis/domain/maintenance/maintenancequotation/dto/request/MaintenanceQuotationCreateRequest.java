@@ -45,15 +45,25 @@ public class MaintenanceQuotationCreateRequest {
 
     private String specialNotes;
 
-    @NotNull(message = "Solution Package 유지보수 비용은 필수입니다")
-    @PositiveOrZero(message = "유지보수 비용은 0 이상이어야 합니다")
-    private Long spMaintenanceCost;
+    @Valid
+    private List<PackageCostRequest> packageCosts;
 
     @Valid
     private List<ServiceInfoRequest> serviceInfos;
 
     @Valid
     private List<AmountReasonRequest> amountReasons;
+
+    @Getter
+    @NoArgsConstructor
+    public static class PackageCostRequest {
+        @NotBlank(message = "패키지 구분은 필수입니다")
+        private String packageName;
+
+        @NotNull(message = "비용은 필수입니다")
+        @PositiveOrZero(message = "비용은 0 이상이어야 합니다")
+        private Long amount;
+    }
 
     @Getter
     @NoArgsConstructor
