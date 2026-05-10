@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportHistory;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import lombok.Builder;
@@ -15,6 +16,8 @@ import lombok.Getter;
 public class OrderReportHistoryResponse {
 
     private Long id;
+
+    private LocalDateTime orderReportDate;
 
     private Integer version;
 
@@ -142,6 +145,7 @@ public class OrderReportHistoryResponse {
     public static OrderReportHistoryResponse from(OrderReportHistory orderReport) {
         return OrderReportHistoryResponse.builder()
                 .id(orderReport.getId())
+                .orderReportDate(orderReport.getOrderReportDate())
                 .version(orderReport.getVersion())
                 .orderReportCode(orderReport.getOrderReportCode())
                 .totalAmount(orderReport.getTotalAmount())
