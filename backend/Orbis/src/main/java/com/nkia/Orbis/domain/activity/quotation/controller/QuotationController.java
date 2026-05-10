@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -62,6 +63,17 @@ public class QuotationController {
             @PathVariable("quotationId") Long quotationId
     ) {
         QuotationResponse response = quotationService.getQuotation(quotationId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "견적서 수정")
+    @PutMapping("/{quotationId}")
+    public ResponseEntity<ApiResponse<QuotationResponse>> update(
+            @PathVariable("quotationId") Long quotationId,
+            @RequestBody QuotationCreateRequest request
+    ) {
+        QuotationResponse response = quotationService.update(quotationId, request);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

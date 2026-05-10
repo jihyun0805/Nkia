@@ -10,8 +10,12 @@ import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRe
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationListResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
+import com.nkia.Orbis.domain.activity.quotation.entity.QuotationHistory;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItem;
+import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItemHistory;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItem;
+import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItemHistory;
+import com.nkia.Orbis.domain.activity.quotation.repository.QuotationHistoryRepository;
 import com.nkia.Orbis.domain.activity.quotation.repository.QuotationRepository;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
@@ -31,7 +35,8 @@ public class QuotationService {
     private final QuotationRepository quotationRepository;
     private final ProductModuleRepository productModuleRepository;
     private final ProjectOpportunityRepository projectOpportunityRepository;
-
+    private final QuotationHistoryRepository quotationHistoryRepository;
+    
     @Transactional
     public QuotationResponse create(QuotationCreateRequest request) {
 
@@ -142,6 +147,69 @@ public class QuotationService {
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
 
         return QuotationResponse.from(quotation);
+    }
+
+    @Transactional
+    public QuotationResponse update(Long quotationId, QuotationCreateRequest request) {
+        Quotation oldQuotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
+
+        // 1. 기존 견적서 히스토리 저장
+        QuotationHistory history = QuotationHistory.create(oldQuotation);
+
+        for (QuotationSolutionItem item : oldQuotation.getQuotationSolutionItems()) {
+            history.addSolutionItem(
+                    QuotationSolutionItemHistory.create(
+                            item.getProductModule(),
+                            item.getQuantity(),
+                            item.getSupplyPrice(),
+                            item.getDiscountRate(),
+                            item.getFreeSupply()
+                    )
+            );
+        }
+
+        for (QuotationLaborItem item : oldQuotation.getQuotationLaborItems()) {
+            history.addLaborItem(
+                    QuotationLaborItemHistory.create(
+                            item.getLaborType(),
+                            item.getUnitPrice(),
+                            item.getManMonth(),
+                            item.getSupplyPrice()
+                    )
+            );
+        }
+
+        quotationHistoryRepository.save(history);
+
+        // 2. 기존 견적서 삭제
+        quotationRepository.delete(oldQuotation);
+
+        // flush: DELETE 먼저 DB에 확정(DB에 같은 유니크 코드 충돌 방지)
+        quotationRepository.flush();
+
+        // 3. 새 요청값으로 새 견적서 생성
+        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
+                .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
+
+        Quotation newQuotation = Quotation.create(
+                oldQuotation.getQuotationCode(),
+                request.getRefNo(),
+                projectOpportunity,
+                request.getQuotationDate(),
+                request.getPaymentCondition(),
+                request.getNote()
+        );
+
+        addSolutionItems(newQuotation, request.getQuotationSolutionItems());
+        addLaborItems(newQuotation, request.getQuotationLaborItems());
+
+        newQuotation.calculateTotalAmount();
+
+        Quotation saved = quotationRepository.save(newQuotation);
+
+        return QuotationResponse.from(saved);
+
     }
 }
 
