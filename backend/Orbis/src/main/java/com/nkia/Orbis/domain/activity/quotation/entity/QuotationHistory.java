@@ -32,7 +32,7 @@ public class QuotationHistory extends BaseEntity {
 
     private String refNo;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String quotationCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -60,25 +60,21 @@ public class QuotationHistory extends BaseEntity {
     private List<QuotationLaborItemHistory> quotationLaborItems = new ArrayList<>();
 
     public static QuotationHistory create(
-            String quotationCode,
-            String refNo,
-            ProjectOpportunity projectOpportunity,
-            LocalDate quotationDate,
-            String paymentCondition,
-            String note
+            Quotation quotation
     ) {
-        QuotationHistory quotation = new QuotationHistory();
-        quotation.quotationCode = quotationCode;
-        quotation.refNo = refNo;
-        quotation.projectOpportunity = projectOpportunity;
-        quotation.quotationDate = quotationDate;
-        quotation.paymentCondition = paymentCondition;
-        quotation.note = note;
-        quotation.consumerTotalPrice = 0L;
-        quotation.supplyTotalPrice = 0L;
-        quotation.laborTotalPrice = 0L;
-        quotation.totalPrice = 0L;
-        return quotation;
+        QuotationHistory history = new QuotationHistory();
+
+        history.quotationCode = quotation.getQuotationCode();
+        history.refNo = quotation.getRefNo();
+        history.projectOpportunity = quotation.getProjectOpportunity();
+        history.quotationDate = quotation.getQuotationDate();
+        history.paymentCondition = quotation.getPaymentCondition();
+        history.note = quotation.getNote();
+        history.consumerTotalPrice = quotation.getConsumerTotalPrice();
+        history.supplyTotalPrice = quotation.getSupplyTotalPrice();
+        history.laborTotalPrice = quotation.getLaborTotalPrice();
+        history.totalPrice = quotation.getTotalPrice();
+        return history;
     }
 
     public void addSolutionItem(QuotationSolutionItemHistory item) {
@@ -89,23 +85,6 @@ public class QuotationHistory extends BaseEntity {
     public void addLaborItem(QuotationLaborItemHistory item) {
         this.quotationLaborItems.add(item);
         item.setQuotation(this);
-    }
-
-
-    public void calculateTotalAmount() {
-        this.consumerTotalPrice = quotationSolutionItems.stream()
-                .mapToLong(QuotationSolutionItemHistory::getConsumerPrice)
-                .sum();
-
-        this.supplyTotalPrice = quotationSolutionItems.stream()
-                .mapToLong(QuotationSolutionItemHistory::getSupplyPrice)
-                .sum();
-
-        this.laborTotalPrice = quotationLaborItems.stream()
-                .mapToLong(QuotationLaborItemHistory::getSupplyPrice)
-                .sum();
-
-        this.totalPrice = this.supplyTotalPrice + this.laborTotalPrice;
     }
 
     @Override
