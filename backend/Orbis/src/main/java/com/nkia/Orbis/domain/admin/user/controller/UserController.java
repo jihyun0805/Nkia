@@ -43,7 +43,7 @@ public class UserController {
 
     @Operation(summary = "User 계정 생성")
     @PostMapping("/signup/user")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'USER', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> signupUser(@Valid @RequestBody SignupRequest request) {
 
         // 서비스 계층에 비즈니스 로직 위임
@@ -55,7 +55,7 @@ public class UserController {
 
     @Operation(summary = "사용자 목록 조회")
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'USER', 'READ')")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getUsers() {
         List<UserResponse> response = userService.getUsers();
 
@@ -64,7 +64,7 @@ public class UserController {
 
     @Operation(summary = "사용자 정보 수정")
     @PatchMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'USER', 'UPDATE')")
     public ResponseEntity<ApiResponse<UserResponse>> update(
             @PathVariable("userId") UUID userId,
             @RequestBody UserUpdateRequest request
@@ -76,7 +76,7 @@ public class UserController {
 
     @Operation(summary = "사용자 상세 조회")
     @GetMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'USER', 'READ')")
     public ResponseEntity<ApiResponse<UserResponse>> getUser(
             @PathVariable("userId") UUID userId
     ) {

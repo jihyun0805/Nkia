@@ -6,6 +6,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component("permissionChecker")
 @RequiredArgsConstructor
@@ -13,15 +14,20 @@ public class PermissionChecker {
 
     private final UserRepository userRepository;
 
-    public boolean hasPermission(
-            Authentication authentication,
-            String domain,
-            String action
-    ) {
-        UUID userId = UUID.fromString(authentication.getName());
+    @Transactional(readOnly = true)
+    public boolean hasPermission(Authentication authentication, String domain, String action) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow();
+        UUID userId = (UUID) authentication.getPrincipal();
+
+        User user = userRepository.findByIdWithRolesAndPermissions(userId)
+                .orElse(null);
+
+        if (user == null) {
+            return false;
+        }
 
         return user.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())
