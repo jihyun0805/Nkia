@@ -120,4 +120,28 @@ public class Quotation extends BaseEntity {
             solutionItem.delete();
         }
     }
+
+    public void update(
+            String refNo,
+            ProjectOpportunity projectOpportunity,
+            LocalDate quotationDate,
+            String paymentCondition,
+            String note
+    ) {
+        this.refNo = refNo;
+        this.projectOpportunity = projectOpportunity;
+        this.quotationDate = quotationDate;
+        this.paymentCondition = paymentCondition;
+        this.note = note;
+    }
+
+    public void clearItems() {
+        this.quotationSolutionItems.clear();
+        this.quotationLaborItems.clear();
+
+        this.consumerTotalPrice = 0L;
+        this.supplyTotalPrice = 0L;
+        this.laborTotalPrice = 0L;
+        this.totalPrice = 0L;
+    }
 }
