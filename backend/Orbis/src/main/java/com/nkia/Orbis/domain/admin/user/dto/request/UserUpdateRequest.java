@@ -1,8 +1,8 @@
 package com.nkia.Orbis.domain.admin.user.dto.request;
 
 import com.nkia.Orbis.domain.admin.user.entity.Position;
-import com.nkia.Orbis.domain.admin.user.entity.Role;
 import com.nkia.Orbis.domain.admin.user.entity.Status;
+import java.util.Set;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -18,7 +18,7 @@ public class UserUpdateRequest {
 
     private String phone;
 
-    private Role role;
+    private Set<Long> roleIds;
 
     private Status status;
 

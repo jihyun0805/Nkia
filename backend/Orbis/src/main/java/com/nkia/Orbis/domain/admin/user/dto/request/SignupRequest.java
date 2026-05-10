@@ -4,6 +4,7 @@ import com.nkia.Orbis.domain.admin.user.entity.Position;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.util.Set;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -33,4 +34,6 @@ public class SignupRequest {
 
     @NotNull(message = "부서는 필수 입력값입니다.")
     private Long departmentId;
+
+    private Set<Long> roleIds;
 }
