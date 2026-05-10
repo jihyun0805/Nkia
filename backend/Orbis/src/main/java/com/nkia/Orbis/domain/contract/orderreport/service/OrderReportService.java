@@ -26,6 +26,7 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportPurchase;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportServiceItem;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.contract.orderreporthistory.dto.response.OrderReportHistoryListResponse;
+import com.nkia.Orbis.domain.contract.orderreporthistory.dto.response.OrderReportHistoryResponse;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.LicenseHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportMaintenanceHistory;
@@ -317,5 +318,13 @@ public class OrderReportService {
         return histories.stream()
                 .map(OrderReportHistoryListResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public OrderReportHistoryResponse getOrderReportHistory(Long historyId) {
+        OrderReportHistory history = orderReportHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_HISTORY_NOT_FOUND));
+
+        return OrderReportHistoryResponse.from(history);
     }
 }
