@@ -87,89 +87,9 @@ public class OrderReportService {
                 request.getItemTotalMaintenanceRate()
         );
 
-        if (request.getLicenses() != null) {
-            for (LicenseFromOrderReportRequest licenseFromOrderReportRequest : request.getLicenses()) {
-                ProductModule productModule = productModuleRepository.findById(
-                                licenseFromOrderReportRequest.getProductModuleId())
-                        .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
-
-                License license = License.createFromOrderReport(
-                        orderReport,
-                        productModule,
-                        licenseFromOrderReportRequest.getQuantity()
-                );
-
-                orderReport.addLicense(license);
-            }
-        }
-
-        if (request.getMaintenances() != null) {
-            for (OrderReportMaintenanceRequest maintenanceRequest : request.getMaintenances()) {
-                OrderReportMaintenance maintenance = OrderReportMaintenance.create(
-                        maintenanceRequest.getContent(),
-                        maintenanceRequest.getVisitCycle(),
-                        maintenanceRequest.getMonth(),
-                        maintenanceRequest.getPrice()
-                );
-
-                orderReport.addMaintenance(maintenance);
-            }
-        }
-
-        if (request.getServices() != null) {
-            for (OrderReportServiceRequest serviceRequest : request.getServices()) {
-                OrderReportServiceItem service = OrderReportServiceItem.create(
-                        serviceRequest.getContent(),
-                        serviceRequest.getManMonth(),
-                        serviceRequest.getPrice()
-                );
-
-                orderReport.addService(service);
-            }
-        }
-
-        if (request.getMaintenanceOnlyItems() != null) {
-            for (OrderReportMaintenanceOnlyItemRequest itemRequest : request.getMaintenanceOnlyItems()) {
-                OrderReportMaintenanceOnlyItem item = OrderReportMaintenanceOnlyItem.create(
-                        itemRequest.getYear(),
-                        itemRequest.getAmount(),
-                        itemRequest.getLicense(),
-                        itemRequest.getThirdParty(),
-                        itemRequest.getService(),
-                        itemRequest.getMaintenance(),
-                        itemRequest.getMaintenanceRate()
-                );
-
-                orderReport.addMaintenanceOnlyItem(item);
-            }
-        }
-
-        if (request.getOthers() != null) {
-            for (OrderReportOtherRequest otherRequest : request.getOthers()) {
-                OrderReportOther other = OrderReportOther.create(
-                        otherRequest.getContent(),
-                        otherRequest.getQuantity(),
-                        otherRequest.getPrice()
-                );
-
-                orderReport.addOther(other);
-            }
-        }
-
-        if (request.getPurchases() != null) {
-            for (OrderReportPurchaseRequest purchaseRequest : request.getPurchases()) {
-                OrderReportPurchase purchase = OrderReportPurchase.create(
-                        purchaseRequest.getContent(),
-                        purchaseRequest.getQuantity(),
-                        purchaseRequest.getPrice()
-                );
-
-                orderReport.addPurchase(purchase);
-            }
-        }
+        addItems(orderReport, request);
 
         orderReport.calculateTotalAmount();
-        ;
 
         OrderReport savedOrderReport = orderReportRepository.save(orderReport);
 
@@ -207,8 +127,6 @@ public class OrderReportService {
         OrderReport orderReport = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
 
-        String orderReportCode = orderReport.getOrderReportCode();
-
         // 1. 기존 수주보고서 스냅샷 저장
         int nextVersion = orderReportHistoryRepository.countByOrderReportCode(
                 orderReport.getOrderReportCode()
@@ -242,12 +160,122 @@ public class OrderReportService {
 
         orderReportHistoryRepository.save(history);
 
-        // 2. 기존 하위 엔티티 제거
-        orderReportRepository.delete(orderReport);
-        orderReportRepository.flush();
+        // 2. 본문 수정
+        User pm = userRepository.findById(request.getPmId())
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
-        // 3. 요청값 기준으로 하위 엔티티 새로 생성
-        return create(request, orderReportCode);
+        orderReport.update(
+                request.getType(),
+                request.getPaymentCondition(),
+                request.isQuotationProvided(),
+                request.isContractProvided(),
+                request.isPurchaseOrderProvided(),
+                request.isPrbReportProvided(),
+                request.getAdditionalDocuments(),
+                request.isChannel(),
+                request.getCodeType(),
+                request.getContractDate(),
+                request.getFreeMaintenancePeriodMonths(),
+                request.getContractStartDate(),
+                request.getContractEndDate(),
+                request.getContractPeriodMonths(),
+                request.getScopeOfWork(),
+                request.getRemarks(),
+                null,
+                pm,
+                null,
+                null,
+                null,
+                request.getItemTotalMaintenanceRate()
+        );
 
+        // 3. 기존 하위 엔티티 제거
+        orderReport.clearItems();
+
+        // 4. 요청값으로 하위 엔티티 재구성
+        addItems(orderReport, request);
+
+        // 5. 최종 합계 계산
+        orderReport.calculateTotalAmount();
+
+        return OrderReportResponse.from(orderReport);
+    }
+
+    private void addItems(OrderReport orderReport, OrderReportRequest request) {
+        if (request.getLicenses() != null) {
+            for (LicenseFromOrderReportRequest licenseRequest : request.getLicenses()) {
+                ProductModule productModule = productModuleRepository.findById(licenseRequest.getProductModuleId())
+                        .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
+
+                orderReport.addLicense(
+                        License.createFromOrderReport(orderReport, productModule, licenseRequest.getQuantity())
+                );
+            }
+        }
+
+        if (request.getMaintenances() != null) {
+            for (OrderReportMaintenanceRequest maintenanceRequest : request.getMaintenances()) {
+                orderReport.addMaintenance(
+                        OrderReportMaintenance.create(
+                                maintenanceRequest.getContent(),
+                                maintenanceRequest.getVisitCycle(),
+                                maintenanceRequest.getMonth(),
+                                maintenanceRequest.getPrice()
+                        )
+                );
+            }
+        }
+
+        if (request.getServices() != null) {
+            for (OrderReportServiceRequest serviceRequest : request.getServices()) {
+                orderReport.addService(
+                        OrderReportServiceItem.create(
+                                serviceRequest.getContent(),
+                                serviceRequest.getManMonth(),
+                                serviceRequest.getPrice()
+                        )
+                );
+            }
+        }
+
+        if (request.getMaintenanceOnlyItems() != null) {
+            for (OrderReportMaintenanceOnlyItemRequest itemRequest : request.getMaintenanceOnlyItems()) {
+                orderReport.addMaintenanceOnlyItem(
+                        OrderReportMaintenanceOnlyItem.create(
+                                itemRequest.getYear(),
+                                itemRequest.getAmount(),
+                                itemRequest.getLicense(),
+                                itemRequest.getThirdParty(),
+                                itemRequest.getService(),
+                                itemRequest.getMaintenance(),
+                                itemRequest.getMaintenanceRate()
+                        )
+                );
+            }
+        }
+
+        if (request.getOthers() != null) {
+            for (OrderReportOtherRequest otherRequest : request.getOthers()) {
+                orderReport.addOther(
+                        OrderReportOther.create(
+                                otherRequest.getContent(),
+                                otherRequest.getQuantity(),
+                                otherRequest.getPrice()
+                        )
+                );
+            }
+        }
+
+        if (request.getPurchases() != null) {
+            for (OrderReportPurchaseRequest purchaseRequest : request.getPurchases()) {
+                orderReport.addPurchase(
+                        OrderReportPurchase.create(
+                                purchaseRequest.getContent(),
+                                purchaseRequest.getQuantity(),
+                                purchaseRequest.getPrice()
+                        )
+                );
+            }
+        }
     }
 }
