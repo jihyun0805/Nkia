@@ -4,10 +4,14 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.WorkflowErrorCode;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowStepCreateRequest;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowTemplateCreateRequest;
+import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowStepResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowTemplateResponse;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStep;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowTemplate;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowStepRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowTemplateRepository;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +24,7 @@ public class WorkflowTemplateService {
     private final WorkflowStepRepository workflowStepRepository;
 
     @Transactional
-    public WorkflowTemplate create(WorkflowTemplateCreateRequest request) {
+    public WorkflowTemplateResponse create(WorkflowTemplateCreateRequest request) {
 
         workflowTemplateRepository.findByWorkflowDomainAndActiveTrue(request.getWorkflowDomain())
                 .ifPresent(template -> {
@@ -34,6 +38,8 @@ public class WorkflowTemplateService {
 
         workflowTemplateRepository.save(template);
 
+        List<WorkflowStepResponse> stepResponses = new ArrayList<>();
+
         for (WorkflowStepCreateRequest stepRequest : request.getSteps()) {
             WorkflowStep step = WorkflowStep.create(
                     template,
@@ -44,8 +50,10 @@ public class WorkflowTemplateService {
             );
 
             workflowStepRepository.save(step);
+
+            stepResponses.add(WorkflowStepResponse.from(step));
         }
 
-        return template;
+        return WorkflowTemplateResponse.from(template, stepResponses);
     }
 }
