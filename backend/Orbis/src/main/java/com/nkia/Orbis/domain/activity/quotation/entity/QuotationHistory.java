@@ -30,6 +30,9 @@ public class QuotationHistory extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
+    private Integer version;
+
     private String refNo;
 
     @Column(nullable = false)
@@ -60,10 +63,12 @@ public class QuotationHistory extends BaseEntity {
     private List<QuotationLaborItemHistory> quotationLaborItems = new ArrayList<>();
 
     public static QuotationHistory create(
-            Quotation quotation
+            Quotation quotation,
+            Integer version
     ) {
         QuotationHistory history = new QuotationHistory();
 
+        history.version = version;
         history.quotationCode = quotation.getQuotationCode();
         history.refNo = quotation.getRefNo();
         history.projectOpportunity = quotation.getProjectOpportunity();

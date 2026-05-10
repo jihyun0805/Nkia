@@ -36,7 +36,7 @@ public class QuotationService {
     private final ProductModuleRepository productModuleRepository;
     private final ProjectOpportunityRepository projectOpportunityRepository;
     private final QuotationHistoryRepository quotationHistoryRepository;
-    
+
     @Transactional
     public QuotationResponse create(QuotationCreateRequest request) {
 
@@ -155,7 +155,9 @@ public class QuotationService {
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
 
         // 1. 기존 견적서 히스토리 저장
-        QuotationHistory history = QuotationHistory.create(oldQuotation);
+        Integer nextVersion = calculateNextHistoryVersion(oldQuotation.getQuotationCode());
+
+        QuotationHistory history = QuotationHistory.create(oldQuotation, nextVersion);
 
         for (QuotationSolutionItem item : oldQuotation.getQuotationSolutionItems()) {
             history.addSolutionItem(
@@ -210,6 +212,10 @@ public class QuotationService {
 
         return QuotationResponse.from(saved);
 
+    }
+
+    private Integer calculateNextHistoryVersion(String quotationCode) {
+        return (int) quotationHistoryRepository.countByQuotationCode(quotationCode) + 1;
     }
 }
 
