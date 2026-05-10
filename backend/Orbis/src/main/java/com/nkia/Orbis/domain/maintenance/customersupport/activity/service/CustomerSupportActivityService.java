@@ -3,6 +3,8 @@ package com.nkia.Orbis.domain.maintenance.customersupport.activity.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportCreateRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportUpdateRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportDetailResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.ActivityType;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupport;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupportOtherDepartmentUser;
@@ -19,6 +21,7 @@ import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +38,7 @@ public class CustomerSupportActivityService {
     private final MaintenanceRepository maintenanceRepository;
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
-
+    private final UploadFileService uploadFileService;
 
     /**
      * 고객지원 활동 결과 신규 등록
@@ -58,6 +61,40 @@ public class CustomerSupportActivityService {
         supportRepository.save(support);
 
         return support.getId();
+    }
+
+    /**
+     * 고객지원 활동 결과 수정
+     */
+    @Transactional
+    public CustomerSupportDetailResponse updateActivity(Long id, CustomerSupportUpdateRequest dto) {
+        CustomerSupport support = supportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        Company company = getCompanyOrNull(dto.getCustomerCompanyCode());
+        User registrant = getUserOrNull(dto.getRegistrantId());
+
+        support.update(company, dto.getActivityType(), dto.getActivityStartTime(),
+                dto.getActivityEndTime(), dto.getActivityContent(), registrant, dto.getRemarks());
+
+        support.clearCollections();
+        mapParticipants(support, dto.getParticipantList());
+        mapAttachedFiles(support, dto.getAttachedFileIds());
+
+        return CustomerSupportDetailResponse.from(support);
+    }
+
+    /**
+     * 고객지원 활동 결과 삭제
+     */
+    @Transactional
+    public void deleteActivity(Long id) {
+        CustomerSupport support = supportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        support.getAttachedFiles().forEach(file -> uploadFileService.removeFile(file.getId()));
+
+        support.delete();
     }
 
     private CustomerSupportRequest getRequestIfNecessary(ActivityType activityType, Long requestId) {
