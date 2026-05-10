@@ -40,6 +40,9 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { createQuotation } from "@/lib/quotation-workflow"
 import { X } from "lucide-react"
+import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
+import { createBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
+import { createBackendQuotationRecord } from "@/lib/sales-quotation-backend"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
 type AttachmentDraft = StoredFileAttachment
@@ -87,10 +90,13 @@ function ActivityCategoryNewPageContent() {
   useEffect(() => {
     if (category !== "quotations") return
 
-    const sync = () => {
+    let cancelled = false
+
+    const sync = (requests = getActivityRequests()) => {
+      if (cancelled) return
       if (!linkedRequestId) return
 
-      const request = getActivityRequests().find((item) => item.id === linkedRequestId) ?? null
+      const request = requests.find((item) => item.id === linkedRequestId) ?? null
       if (!request) return
 
       const matchedCustomer =
@@ -112,14 +118,25 @@ function ActivityCategoryNewPageContent() {
       )
     }
 
-    sync()
-    return subscribeWorkflowUpdates(sync)
+    loadBackendActivityRequests()
+      .then((requests) => sync(requests))
+      .catch(() => sync())
+
+    const unsubscribe = subscribeWorkflowUpdates(() => sync())
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [category, linkedRequestId])
 
   useEffect(() => {
     if (category !== "activities") return
 
-    const sync = () => {
+    let cancelled = false
+
+    const sync = (requests = getActivityRequests()) => {
+      if (cancelled) return
+
       if (!linkedRequestId) {
         setLinkedRequest(null)
         setActivityCustomerCode("")
@@ -129,7 +146,7 @@ function ActivityCategoryNewPageContent() {
         return
       }
 
-      const request = getActivityRequests().find((item) => item.id === linkedRequestId) ?? null
+      const request = requests.find((item) => item.id === linkedRequestId) ?? null
       const normalizedCustomer =
         (request?.customerCode ? getCustomerByCode(request.customerCode) : null) ??
         (request?.customer ? getCustomerByName(request.customer) : null)
@@ -147,8 +164,15 @@ function ActivityCategoryNewPageContent() {
       }))
     }
 
-    sync()
-    return subscribeWorkflowUpdates(sync)
+    loadBackendActivityRequests()
+      .then((requests) => sync(requests))
+      .catch(() => sync())
+
+    const unsubscribe = subscribeWorkflowUpdates(() => sync())
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [category, linkedRequestId])
 
   if (!categories.includes(category)) {
@@ -194,7 +218,7 @@ function ActivityCategoryNewPageContent() {
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!ensureRegisteredCustomer()) return
 
     if (category === "quotations") {
@@ -209,12 +233,22 @@ function ActivityCategoryNewPageContent() {
         return
       }
 
-      const created = createQuotation(normalized)
-      toast({
-        title: `${registrationTitle} 등록 완료`,
-        description: `${created.customer} ${registrationTitle}가 등록되었습니다.`,
-      })
-      router.push(`/activity/quotations/${created.id}`)
+      try {
+        const created = await createBackendQuotationRecord(normalized)
+        toast({
+          title: `${registrationTitle} 등록 완료`,
+          description: `${created.customer} ${registrationTitle}가 등록되었습니다.`,
+        })
+        router.push(`/activity/quotations/${created.id}`)
+        return
+      } catch {
+        const created = createQuotation(normalized)
+        toast({
+          title: `${registrationTitle} 등록 완료`,
+          description: `${created.customer} ${registrationTitle}가 등록되었습니다.`,
+        })
+        router.push(`/activity/quotations/${created.id}`)
+      }
       return
     }
 
@@ -227,30 +261,58 @@ function ActivityCategoryNewPageContent() {
         return
       }
 
-      const created = createActivity({
-        date: activityForm.date,
-        requestId: (linkedRequest?.id ?? linkedRequestId) || undefined,
-        registrant: currentUser.name,
-        requester: activityRequester.trim(),
-        customerCode: activityCustomerCode,
-        businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
-        activityMode: activityForm.activityMode,
-        activityContent: activityForm.activityContent,
-        customer: activityCustomer,
-        opportunity: activityOpportunity || "미확인",
-        location: activityForm.location,
-        attendees: activityForm.attendees,
-        content: activityForm.content,
-        issues: activityForm.issues,
-        nextAction: activityForm.nextAction,
-        status: "완료",
-        attachments: activityAttachments,
-      })
-      toast({
-        title: "영업활동 등록 완료",
-        description: `${created.customer} 영업활동이 등록되었습니다.`,
-      })
-      router.push(`/activity/activities/${created.id}`)
+      const opportunityName = activityOpportunity === "미확인" ? "" : activityOpportunity
+      const localRequestId = Number.parseInt((linkedRequest?.id ?? linkedRequestId).replace(/[^\d]/g, ""), 10)
+      const salesActivityRequestId = Number.isNaN(localRequestId) ? undefined : localRequestId
+
+      try {
+        const created = await createBackendActivityRecord({
+          customerName: activityCustomer,
+          opportunityName,
+          opportunityCode: activityOpportunityCode,
+          activityMode: activityForm.activityMode,
+          activityContent: activityForm.activityContent,
+          content: activityForm.content,
+          location: activityForm.location,
+          activityDate: activityForm.date,
+          issues: activityForm.issues,
+          nextAction: activityForm.nextAction,
+          status: "완료",
+          requestId: (linkedRequest?.id ?? linkedRequestId) || undefined,
+          salesActivityRequestId,
+        })
+        toast({
+          title: "영업활동 등록 완료",
+          description: `${created.customer} 영업활동이 등록되었습니다.`,
+        })
+        router.push(`/activity/activities/${created.id}`)
+        return
+      } catch {
+        const created = createActivity({
+          date: activityForm.date,
+          requestId: (linkedRequest?.id ?? linkedRequestId) || undefined,
+          registrant: currentUser.name,
+          requester: activityRequester.trim(),
+          customerCode: activityCustomerCode,
+          businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
+          activityMode: activityForm.activityMode,
+          activityContent: activityForm.activityContent,
+          customer: activityCustomer,
+          opportunity: activityOpportunity || "미확인",
+          location: activityForm.location,
+          attendees: activityForm.attendees,
+          content: activityForm.content,
+          issues: activityForm.issues,
+          nextAction: activityForm.nextAction,
+          status: "완료",
+          attachments: activityAttachments,
+        })
+        toast({
+          title: "영업활동 등록 완료",
+          description: `${created.customer} 영업활동이 등록되었습니다.`,
+        })
+        router.push(`/activity/activities/${created.id}`)
+      }
       return
     }
 
@@ -259,22 +321,36 @@ function ActivityCategoryNewPageContent() {
       return
     }
 
-    const created = createActivityRequest({
-      ...form,
-      attachments: requestAttachments,
-    })
-    toast({
-      title: "활동 요청 등록 완료",
-      description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
-    })
-    router.push(`/activity/requests/${created.id}`)
+    try {
+      const created = await createBackendActivityRequest({
+        ...form,
+        attachments: requestAttachments,
+      })
+      toast({
+        title: "활동 요청 등록 완료",
+        description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
+      })
+      router.push(`/activity/requests/${created.id}`)
+      return
+    } catch {
+      const created = createActivityRequest({
+        ...form,
+        attachments: requestAttachments,
+      })
+      toast({
+        title: "활동 요청 등록 완료",
+        description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
+      })
+      router.push(`/activity/requests/${created.id}`)
+    }
   }
 
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
     setActivityCustomer(customer?.name ?? "")
     setActivityCustomerCode(customer?.id ?? "")
-    setActivityOpportunity(customer ? "미확인" : "")
-    setActivityOpportunityCode("")
+    const firstOpportunity = customer ? getOpportunitiesByCustomerName(customer.name)[0] : null
+    setActivityOpportunity(firstOpportunity?.name ?? (customer ? "미확인" : ""))
+    setActivityOpportunityCode(firstOpportunity?.id ?? "")
   }
 
   const handleActivityOpportunityChange = (value: string) => {

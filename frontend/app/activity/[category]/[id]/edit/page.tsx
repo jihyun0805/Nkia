@@ -41,7 +41,6 @@ import {
   getActivities,
   activityRequestTypeOptions,
   getCategoryLabel,
-  subscribeActivityUpdates,
   updateActivity,
 } from "@/lib/activity-data"
 import { toast } from "@/hooks/use-toast"
@@ -50,6 +49,13 @@ import { getPresalesUsers } from "@/lib/admin-data"
 import { currentUser } from "@/lib/current-user"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { deleteQuotation, getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
+import { loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
+import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
+import {
+  deleteBackendQuotationRecord,
+  loadBackendQuotationRecords,
+  updateBackendQuotationRecord,
+} from "@/lib/sales-quotation-backend"
 
 const fullWidthFieldLabels = ["요청 내용"]
 type AttachmentDraft = StoredFileAttachment
@@ -60,7 +66,7 @@ export default function ActivityEditPage() {
   const category = params.category
   const id = params.id
   const presalesUsers = getPresalesUsers()
-  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>(() => getActivities())
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [activityAttachments, setActivityAttachments] = useState<AttachmentDraft[]>([])
@@ -103,24 +109,69 @@ export default function ActivityEditPage() {
   }
 
   useEffect(() => {
-    const sync = () => setActivityRecords(getActivities())
+    let cancelled = false
 
-    sync()
-    return subscribeActivityUpdates(sync)
+    loadBackendActivityRecords()
+      .then((records) => {
+        if (!cancelled) {
+          setActivityRecords(records)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityRecords(getActivities())
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
-    const sync = () => setRequests(getActivityRequests())
+    let cancelled = false
 
-    sync()
-    return subscribeWorkflowUpdates(sync)
+    const sync = () => {
+      if (!cancelled) {
+        setRequests(getActivityRequests())
+      }
+    }
+
+    loadBackendActivityRequests()
+      .then((items) => {
+        if (!cancelled) {
+          setRequests(items)
+        }
+      })
+      .catch(() => {
+        sync()
+      })
+
+    const unsubscribe = subscribeWorkflowUpdates(sync)
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
-    const sync = () => setQuotations(getQuotations())
+    let cancelled = false
 
-    sync()
-    return subscribeQuotationUpdates(sync)
+    const sync = () => {
+      if (!cancelled) {
+        setQuotations(getQuotations())
+      }
+    }
+
+    loadBackendQuotationRecords()
+      .then(() => sync())
+      .catch(() => sync())
+
+    const unsubscribe = subscribeQuotationUpdates(sync)
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   const item = useMemo(() => {
@@ -221,8 +272,9 @@ export default function ActivityEditPage() {
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
     setActivityCustomer(customer?.name ?? "")
     setActivityCustomerCode(customer?.id ?? "")
-    setActivityOpportunity(customer ? "미확인" : "")
-    setActivityOpportunityCode("")
+    const firstOpportunity = customer ? getOpportunitiesByCustomerName(customer.name)[0] : null
+    setActivityOpportunity(firstOpportunity?.name ?? (customer ? "미확인" : ""))
+    setActivityOpportunityCode(firstOpportunity?.id ?? "")
   }
 
   const handleActivityOpportunityChange = (value: string) => {
@@ -249,7 +301,7 @@ export default function ActivityEditPage() {
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (category === "quotations") {
       if (!quotationForm) return
       const normalized = normalizeQuotationForm(quotationForm)
@@ -263,15 +315,26 @@ export default function ActivityEditPage() {
         return
       }
 
-      const updatedQuotation: QuotationRecord | null = updateQuotation(id, normalized)
-      if (!updatedQuotation) return
+      try {
+        const updatedQuotation = await updateBackendQuotationRecord(id, normalized)
+        scrollToTop()
+        toast({
+          title: "견적 수정 완료",
+          description: `${updatedQuotation.customer} 견적서가 수정되었습니다.`,
+        })
+        router.push(`/activity/${category}/${id}`)
+        return
+      } catch {
+        const updatedQuotation: QuotationRecord | null = updateQuotation(id, normalized)
+        if (!updatedQuotation) return
 
-      scrollToTop()
-      toast({
-        title: "견적 수정 완료",
-        description: `${normalized.customer} 견적서가 수정되었습니다.`,
-      })
-      router.push(`/activity/${category}/${id}`)
+        scrollToTop()
+        toast({
+          title: "견적 수정 완료",
+          description: `${normalized.customer} 견적서가 수정되었습니다.`,
+        })
+        router.push(`/activity/${category}/${id}`)
+      }
       return
     }
 
@@ -284,35 +347,65 @@ export default function ActivityEditPage() {
         return
       }
 
-      const updated = updateActivity(id, {
-        date: activityForm.date,
-        requestId: (item as ActivityRecord).requestId,
-        registrant: (item as ActivityRecord).registrant ?? currentUser.name,
-        requester: (item as ActivityRecord).requester ?? "",
-        customerCode: activityCustomerCode,
-        businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
-        activityMode: activityForm.activityMode,
-        activityContent: activityForm.activityContent,
-        type: (item as ActivityRecord).type,
-        customer: activityCustomer,
-        opportunity: activityOpportunity || "미확인",
-        location: activityForm.location,
-        attendees: activityForm.attendees,
-        content: activityForm.content,
-        issues: activityForm.issues,
-        nextAction: activityForm.nextAction,
-        status: (item as ActivityRecord).status,
-        attachments: activityAttachments,
-      })
-      if (!updated) return
-      const updatedActivity = updated as ActivityRecord
+      const opportunityName = activityOpportunity === "미확인" ? "" : activityOpportunity
+      const localRequestId = Number.parseInt((item as ActivityRecord).requestId ?? "", 10)
+      const salesActivityRequestId = Number.isNaN(localRequestId) ? undefined : localRequestId
 
-      scrollToTop()
-      toast({
-        title: "영업활동 수정 완료",
-        description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
-      })
-      router.push(`/activity/${category}/${id}`)
+      try {
+        const updatedActivity = await updateBackendActivityRecord(id, {
+          projectOpportunityId: (item as ActivityRecord).projectOpportunityId,
+          customerName: activityCustomer,
+          opportunityName,
+          opportunityCode: activityOpportunityCode,
+          activityMode: activityForm.activityMode,
+          activityContent: activityForm.activityContent,
+          content: activityForm.content,
+          location: activityForm.location,
+          activityDate: activityForm.date,
+          issues: activityForm.issues,
+          nextAction: activityForm.nextAction,
+          status: (item as ActivityRecord).status,
+          salesActivityRequestId,
+        })
+
+        scrollToTop()
+        toast({
+          title: "영업활동 수정 완료",
+          description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
+        })
+        router.push(`/activity/${category}/${id}`)
+        return
+      } catch {
+        const updated = updateActivity(id, {
+          date: activityForm.date,
+          requestId: (item as ActivityRecord).requestId,
+          registrant: (item as ActivityRecord).registrant ?? currentUser.name,
+          requester: (item as ActivityRecord).requester ?? "",
+          customerCode: activityCustomerCode,
+          businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
+          activityMode: activityForm.activityMode,
+          activityContent: activityForm.activityContent,
+          type: (item as ActivityRecord).type,
+          customer: activityCustomer,
+          opportunity: activityOpportunity || "미확인",
+          location: activityForm.location,
+          attendees: activityForm.attendees,
+          content: activityForm.content,
+          issues: activityForm.issues,
+          nextAction: activityForm.nextAction,
+          status: (item as ActivityRecord).status,
+          attachments: activityAttachments,
+        })
+        if (!updated) return
+        const updatedActivity = updated as ActivityRecord
+
+        scrollToTop()
+        toast({
+          title: "영업활동 수정 완료",
+          description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
+        })
+        router.push(`/activity/${category}/${id}`)
+      }
       return
     }
 
@@ -337,15 +430,28 @@ export default function ActivityEditPage() {
   const handleDeleteQuotation = () => {
     if (category !== "quotations") return
 
-    const deleted = deleteQuotation(id)
-    if (!deleted) return
+    void (async () => {
+      try {
+        await deleteBackendQuotationRecord(id)
+        scrollToTop()
+        toast({
+          title: "견적 삭제 완료",
+          description: `${id} 견적서가 삭제되었습니다.`,
+        })
+        router.push("/activity")
+        return
+      } catch {
+        const deleted = deleteQuotation(id)
+        if (!deleted) return
 
-    scrollToTop()
-    toast({
-      title: "견적 삭제 완료",
-      description: `${id} 견적서가 삭제되었습니다.`,
-    })
-    router.push("/activity")
+        scrollToTop()
+        toast({
+          title: "견적 삭제 완료",
+          description: `${id} 견적서가 삭제되었습니다.`,
+        })
+        router.push("/activity")
+      }
+    })()
   }
 
   return (
