@@ -14,6 +14,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,6 +34,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'CREATE')")
     public ResponseEntity<ApiResponse<OrderReportResponse>> createOrderReport(
             @Valid
             @RequestBody
@@ -44,6 +46,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
     public ResponseEntity<ApiResponse<List<OrderReportListResponse>>> getOrderReports() {
         List<OrderReportListResponse> response = orderReportService.getOrderReports();
 
@@ -52,6 +55,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 상세 조회")
     @GetMapping("/{orderReportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
     public ResponseEntity<ApiResponse<OrderReportResponse>> getOrderReport(
             @PathVariable("orderReportId") Long orderReportId
     ) {
@@ -62,6 +66,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 삭제")
     @DeleteMapping("/{orderReportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable("orderReportId") Long orderReportId
     ) {
@@ -71,6 +76,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 수정")
     @PutMapping("/{orderReportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'UPDATE')")
     public ResponseEntity<ApiResponse<OrderReportResponse>> update(
             @PathVariable("orderReportId") Long orderReportId,
             @RequestBody OrderReportRequest request
@@ -82,6 +88,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 변경 이력 목록 조회")
     @GetMapping("/{orderReportId}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
     public ResponseEntity<ApiResponse<List<OrderReportHistoryListResponse>>> getOrderReportHistories(
             @PathVariable("orderReportId") Long orderReportId
     ) {
@@ -92,6 +99,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 변경 이력 상세 조회")
     @GetMapping("/histories/{orderReportHistoryId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
     public ResponseEntity<ApiResponse<OrderReportHistoryResponse>> getOrderReportHistory(
             @PathVariable("orderReportHistoryId") Long orderReportHistoryId
     ) {

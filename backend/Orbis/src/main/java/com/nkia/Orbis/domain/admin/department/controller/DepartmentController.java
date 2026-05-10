@@ -30,7 +30,7 @@ public class DepartmentController {
 
     @Operation(summary = "부서 생성")
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'DEPARTMENT', 'CREATE')")
     public ResponseEntity<ApiResponse<DepartmentResponse>> createDepartment(
             @Valid
             @RequestBody DepartmentRequest request
@@ -41,7 +41,7 @@ public class DepartmentController {
 
     @Operation(summary = "부서 목록 조회")
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'DEPARTMENT', 'READ')")
     public ResponseEntity<ApiResponse<List<DepartmentResponse>>> getDepartments() {
         List<DepartmentResponse> response = departmentService.getDepartments();
 
@@ -50,7 +50,7 @@ public class DepartmentController {
 
     @Operation(summary = "부서 삭제")
     @DeleteMapping("/{departmentId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'DEPARTMENT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable("departmentId") Long departmentId
     ) {
@@ -60,7 +60,7 @@ public class DepartmentController {
 
     @Operation(summary = "부서 수정")
     @PatchMapping("/{departmentId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'DEPARTMENT', 'UPDATE')")
     public ResponseEntity<ApiResponse<DepartmentResponse>> update(
             @PathVariable("departmentId") Long departmentId,
             @RequestBody DepartmentRequest request

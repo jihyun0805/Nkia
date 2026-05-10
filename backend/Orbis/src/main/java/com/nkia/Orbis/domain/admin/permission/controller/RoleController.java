@@ -22,13 +22,13 @@ public class RoleController {
     private final RoleService roleService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'READ')")
     public ResponseEntity<ApiResponse<List<RoleResponse>>> getRoles() {
         return ResponseEntity.ok(ApiResponse.success(roleService.getRoles()));
     }
 
     @PutMapping("/{roleId}/permissions")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'UPDATE')")
     public ResponseEntity<ApiResponse<RoleResponse>> updateRolePermissions(
             @PathVariable Long roleId,
             @RequestBody RolePermissionRequest request
