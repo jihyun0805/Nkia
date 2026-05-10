@@ -52,25 +52,25 @@ public class Prb extends BaseEntity {
   private User salesRepresentative;
 
   @Embedded
-  private PrbProjectInfo projectInfo;
+  private PrbProjectInfo projectInfo = new PrbProjectInfo();
 
   @Embedded
-  private PrbProfitLossInfo profitLossInfo;
+  private PrbProfitLossInfo profitLossInfo = new PrbProfitLossInfo();
 
   @Embedded
-  private PersonnelExpenses personnelExpenses;
+  private PersonnelExpenses personnelExpenses = new PersonnelExpenses();
 
   @Embedded
-  private ProductCost productCost;
+  private ProductCost productCost = new ProductCost();
 
   @Embedded
-  private Purchase purchase;
+  private Purchase purchase = new Purchase();
 
   @Embedded
-  private GeneralOverheadExpenses generalOverheadExpenses;
+  private GeneralOverheadExpenses generalOverheadExpenses = new GeneralOverheadExpenses();
 
   @Embedded
-  private IndirectExpenses indirectExpenses;
+  private IndirectExpenses indirectExpenses = new IndirectExpenses();
 
   @OneToMany(mappedBy = "prb", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<PrbResult> prbResults = new ArrayList<>();
