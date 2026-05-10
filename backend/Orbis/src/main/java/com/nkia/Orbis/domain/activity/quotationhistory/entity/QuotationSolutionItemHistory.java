@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.activity.quotationhistory.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItem;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -25,7 +26,7 @@ public class QuotationSolutionItemHistory extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quotation_history_id")
-    private QuotationHistory quotation;
+    private QuotationHistory quotationHistory;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_module_id")
@@ -49,34 +50,22 @@ public class QuotationSolutionItemHistory extends BaseEntity {
     private Boolean freeSupply;
 
     public static QuotationSolutionItemHistory create(
-            ProductModule productModule,
-            Integer quantity,
-            Long supplyPrice,
-            Double discountRate,
-            Boolean freeSupply
+            QuotationSolutionItem item
     ) {
-        QuotationSolutionItemHistory item = new QuotationSolutionItemHistory();
-        item.productModule = productModule;
-        item.quantity = quantity;
-        item.consumerPrice = productModule.getUnitPrice();
-        item.consumerTotalPrice = item.consumerPrice * quantity;
-        item.supplyPrice = supplyPrice;
-        item.discountRate = discountRate == null ? 0.0 : discountRate;
-        item.freeSupply = Boolean.TRUE.equals(freeSupply);
-        item.supplyTotalPrice = item.calculateSupplyTotalPrice();
-        return item;
+        QuotationSolutionItemHistory historyItem = new QuotationSolutionItemHistory();
+        historyItem.productModule = item.getProductModule();
+        historyItem.quantity = item.getQuantity();
+        historyItem.consumerPrice = item.getConsumerPrice();
+        historyItem.consumerTotalPrice = item.getConsumerTotalPrice();
+        historyItem.supplyPrice = item.getSupplyPrice();
+        historyItem.discountRate = item.getDiscountRate();
+        historyItem.freeSupply = item.getFreeSupply();
+        historyItem.supplyTotalPrice = item.getSupplyTotalPrice();
+        return historyItem;
     }
 
     public void setQuotation(QuotationHistory quotation) {
-        this.quotation = quotation;
+        this.quotationHistory = quotation;
     }
 
-    //
-    private Long calculateSupplyTotalPrice() {
-        if (Boolean.TRUE.equals(this.freeSupply)) {
-            return 0L;
-        }
-
-        return this.supplyPrice * this.quantity;
-    }
 }

@@ -7,20 +7,34 @@ import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { getActivities, subscribeActivityUpdates } from "@/lib/activity-data"
+import { getActivities } from "@/lib/activity-data"
+import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 
 export default function ActivityCustomersPage() {
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
+  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
   const today = new Date()
   const recentThreshold = new Date(today)
   recentThreshold.setMonth(recentThreshold.getMonth() - 1)
 
   useEffect(() => {
-    const sync = () => setActivityRecords(getActivities())
+    let cancelled = false
 
-    sync()
-    return subscribeActivityUpdates(sync)
+    loadBackendActivityRecords()
+      .then((records) => {
+        if (!cancelled) {
+          setActivityRecords(records)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityRecords(getActivities())
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const customerCards = useMemo(() => Array.from(

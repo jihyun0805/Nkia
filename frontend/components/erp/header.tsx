@@ -20,6 +20,7 @@ import {
   subscribeWorkflowUpdates,
   type WorkflowNotification,
 } from "@/lib/activity-request-workflow"
+import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 
 interface HeaderProps {
   title: string
@@ -30,10 +31,23 @@ export function Header({ title, description }: HeaderProps) {
   const [notifications, setNotifications] = useState<WorkflowNotification[]>([])
 
   useEffect(() => {
+    let cancelled = false
+
     const sync = () => setNotifications(getWorkflowNotifications(currentUser.name))
 
+    loadBackendActivityRequests().catch(() => undefined)
     sync()
-    return subscribeWorkflowUpdates(sync)
+
+    const unsubscribe = subscribeWorkflowUpdates(() => {
+      if (!cancelled) {
+        sync()
+      }
+    })
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   return (

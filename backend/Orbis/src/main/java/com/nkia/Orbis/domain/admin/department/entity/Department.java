@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.admin.department.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.admin.permission.entity.Permission;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -33,9 +32,6 @@ public class Department extends BaseEntity {
 
     @OneToMany(mappedBy = "department")
     private List<User> users = new ArrayList<>();
-
-    @OneToMany(mappedBy = "department")
-    private List<Permission> permissions = new ArrayList<>();
 
     public static Department create(
             String headquarters,

@@ -153,51 +153,18 @@ public class QuotationService {
 
     @Transactional
     public QuotationResponse update(Long quotationId, QuotationCreateRequest request) {
-        Quotation oldQuotation = quotationRepository.findById(quotationId)
+        Quotation quotation = quotationRepository.findById(quotationId)
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
 
-        // 1. 기존 견적서 히스토리 저장
-        Integer nextVersion = calculateNextHistoryVersion(oldQuotation.getQuotationCode());
+        // 1. 수정 전 견적서 스냅샷 저장
+        saveSnapshot(quotation);
 
-        QuotationHistory history = QuotationHistory.create(oldQuotation, nextVersion);
-
-        for (QuotationSolutionItem item : oldQuotation.getQuotationSolutionItems()) {
-            history.addSolutionItem(
-                    QuotationSolutionItemHistory.create(
-                            item.getProductModule(),
-                            item.getQuantity(),
-                            item.getSupplyPrice(),
-                            item.getDiscountRate(),
-                            item.getFreeSupply()
-                    )
-            );
-        }
-
-        for (QuotationLaborItem item : oldQuotation.getQuotationLaborItems()) {
-            history.addLaborItem(
-                    QuotationLaborItemHistory.create(
-                            item.getLaborType(),
-                            item.getUnitPrice(),
-                            item.getManMonth(),
-                            item.getSupplyPrice()
-                    )
-            );
-        }
-
-        quotationHistoryRepository.save(history);
-
-        // 2. 기존 견적서 삭제
-        quotationRepository.delete(oldQuotation);
-
-        // flush: DELETE 먼저 DB에 확정(DB에 같은 유니크 코드 충돌 방지)
-        quotationRepository.flush();
-
-        // 3. 새 요청값으로 새 견적서 생성
+        // 2. 수정할 사업기회 조회
         ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
                 .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
 
-        Quotation newQuotation = Quotation.create(
-                oldQuotation.getQuotationCode(),
+        // 3. 기존 견적서 자체 수정
+        quotation.update(
                 request.getRefNo(),
                 projectOpportunity,
                 request.getQuotationDate(),
@@ -205,15 +172,15 @@ public class QuotationService {
                 request.getNote()
         );
 
-        addSolutionItems(newQuotation, request.getQuotationSolutionItems());
-        addLaborItems(newQuotation, request.getQuotationLaborItems());
+        // 4. 기존 품목 제거 후 새 품목 추가
+        quotation.clearItems();
 
-        newQuotation.calculateTotalAmount();
+        addSolutionItems(quotation, request.getQuotationSolutionItems());
+        addLaborItems(quotation, request.getQuotationLaborItems());
 
-        Quotation saved = quotationRepository.save(newQuotation);
+        quotation.calculateTotalAmount();
 
-        return QuotationResponse.from(saved);
-
+        return QuotationResponse.from(quotation);
     }
 
     private Integer calculateNextHistoryVersion(String quotationCode) {
@@ -245,6 +212,26 @@ public class QuotationService {
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_HISTORY_NOT_FOUND));
 
         return QuotationHistoryResponse.from(history);
+    }
+
+    private void saveSnapshot(Quotation quotation) {
+        Integer nextVersion = calculateNextHistoryVersion(quotation.getQuotationCode());
+
+        QuotationHistory history = QuotationHistory.create(quotation, nextVersion);
+
+        for (QuotationSolutionItem item : quotation.getQuotationSolutionItems()) {
+            history.addSolutionItem(
+                    QuotationSolutionItemHistory.create(item)
+            );
+        }
+
+        for (QuotationLaborItem item : quotation.getQuotationLaborItems()) {
+            history.addLaborItem(
+                    QuotationLaborItemHistory.create(item)
+            );
+        }
+
+        quotationHistoryRepository.save(history);
     }
 }
 

@@ -13,6 +13,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -31,6 +32,7 @@ public class SalesActivityController {
 
     @Operation(summary = "영업 활동 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY', 'CREATE')")
     public ResponseEntity<ApiResponse<SalesActivityResponse>> createSalesActivity(
             @Valid
             @RequestBody
@@ -42,6 +44,7 @@ public class SalesActivityController {
 
     @Operation(summary = "영업 활동 수정")
     @PatchMapping("/{salesActivityId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY', 'UPDATE')")
     public ResponseEntity<ApiResponse<SalesActivityResponse>> updateSalesActivity(
             @PathVariable("salesActivityId") Long salesActivityId,
             @RequestBody SalesActivityUpdateRequest request
@@ -53,6 +56,7 @@ public class SalesActivityController {
 
     @Operation(summary = "영업 활동 삭제")
     @DeleteMapping("/{salesActivityId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteSalesActivity(
             @PathVariable("salesActivityId") Long salesActivityId
     ) {
@@ -62,6 +66,7 @@ public class SalesActivityController {
 
     @Operation(summary = "영업 활동 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY', 'READ')")
     public ResponseEntity<ApiResponse<List<SalesActivityListResponse>>> getSalesActivities() {
         List<SalesActivityListResponse> response = salesActivityService.getSalesActivities();
 
@@ -70,6 +75,7 @@ public class SalesActivityController {
 
     @Operation(summary = "영업 활동 상세 조회")
     @GetMapping("/{salesActivityId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY', 'READ')")
     public ResponseEntity<ApiResponse<SalesActivityResponse>> getSalesActivity(
             @PathVariable("salesActivityId") Long salesActivityId
     ) {

@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getActivities, getActivityDisplayType, subscribeActivityUpdates } from "@/lib/activity-data"
+import { getActivities, getActivityDisplayType } from "@/lib/activity-data"
+import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { getFindingFields, getOpportunities, getCustomerByCode } from "@/lib/finding-data"
 import { Mail, Phone, Users } from "lucide-react"
 
@@ -30,15 +31,38 @@ export default function ActivityCustomerDetailPage() {
   const customerCode = params.customerCode
   const opportunityId = searchParams.get("opportunityId") ?? ""
   const [page, setPage] = useState(1)
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
+  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
 
   const customer = getCustomerByCode(customerCode)
+  const displayCustomer =
+    customer ?? {
+      id: customerCode,
+      name: customerCode,
+      category: "-",
+      opportunities: 0,
+      contracts: 0,
+      contact: "-",
+      phone: "-",
+    }
 
   useEffect(() => {
-    const sync = () => setActivityRecords(getActivities())
+    let cancelled = false
 
-    sync()
-    return subscribeActivityUpdates(sync)
+    loadBackendActivityRecords()
+      .then((records) => {
+        if (!cancelled) {
+          setActivityRecords(records)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityRecords(getActivities())
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const customerActivities = useMemo(
@@ -70,15 +94,11 @@ export default function ActivityCustomerDetailPage() {
     return customerActivities.slice(startIndex, startIndex + activitiesPerPage)
   }, [customerActivities, page])
 
-  if (!customer) {
-    return null
-  }
-
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header title={`${customer.name} 활동 현황`} description="고객사 하위의 모든 활동 이력을 최신순으로 확인합니다" />
+        <Header title={`${displayCustomer.name} 활동 현황`} description="고객사 하위의 모든 활동 이력을 최신순으로 확인합니다" />
         <main className="flex-1 overflow-auto p-6">
           <div className="mx-auto max-w-6xl space-y-6">
             <Breadcrumb>
@@ -96,7 +116,7 @@ export default function ActivityCustomerDetailPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{customer.name}</BreadcrumbPage>
+                  <BreadcrumbPage>{displayCustomer.name}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
@@ -128,13 +148,13 @@ export default function ActivityCustomerDetailPage() {
 
             <Card>
               <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">활동 목록</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">{customer.name} / {customer.id}</p>
-                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">활동 목록</CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">{displayCustomer.name} / {displayCustomer.id}</p>
+                    </div>
                   <Badge variant="secondary">{customerActivities.length}건</Badge>
-                </div>
+                  </div>
               </CardHeader>
               <CardContent>
                 <Table>

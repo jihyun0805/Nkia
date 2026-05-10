@@ -5,6 +5,8 @@ import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportRequest
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportListResponse;
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportResponse;
 import com.nkia.Orbis.domain.contract.orderreport.service.OrderReportService;
+import com.nkia.Orbis.domain.contract.orderreporthistory.dto.response.OrderReportHistoryListResponse;
+import com.nkia.Orbis.domain.contract.orderreporthistory.dto.response.OrderReportHistoryResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -12,10 +14,12 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,6 +34,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'CREATE')")
     public ResponseEntity<ApiResponse<OrderReportResponse>> createOrderReport(
             @Valid
             @RequestBody
@@ -41,6 +46,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
     public ResponseEntity<ApiResponse<List<OrderReportListResponse>>> getOrderReports() {
         List<OrderReportListResponse> response = orderReportService.getOrderReports();
 
@@ -49,6 +55,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 상세 조회")
     @GetMapping("/{orderReportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
     public ResponseEntity<ApiResponse<OrderReportResponse>> getOrderReport(
             @PathVariable("orderReportId") Long orderReportId
     ) {
@@ -59,10 +66,45 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 삭제")
     @DeleteMapping("/{orderReportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable("orderReportId") Long orderReportId
     ) {
         orderReportService.delete(orderReportId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "수주보고서 수정")
+    @PutMapping("/{orderReportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'UPDATE')")
+    public ResponseEntity<ApiResponse<OrderReportResponse>> update(
+            @PathVariable("orderReportId") Long orderReportId,
+            @RequestBody OrderReportRequest request
+    ) {
+        OrderReportResponse response = orderReportService.update(orderReportId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "수주보고서 변경 이력 목록 조회")
+    @GetMapping("/{orderReportId}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
+    public ResponseEntity<ApiResponse<List<OrderReportHistoryListResponse>>> getOrderReportHistories(
+            @PathVariable("orderReportId") Long orderReportId
+    ) {
+        List<OrderReportHistoryListResponse> response = orderReportService.getOrderReportHistories(orderReportId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "수주보고서 변경 이력 상세 조회")
+    @GetMapping("/histories/{orderReportHistoryId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
+    public ResponseEntity<ApiResponse<OrderReportHistoryResponse>> getOrderReportHistory(
+            @PathVariable("orderReportHistoryId") Long orderReportHistoryId
+    ) {
+        OrderReportHistoryResponse response = orderReportService.getOrderReportHistory(orderReportHistoryId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

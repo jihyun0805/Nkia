@@ -6,7 +6,6 @@ import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
 import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
 import com.nkia.Orbis.domain.admin.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -32,7 +31,6 @@ public class UserController {
     private final UserService userService;
 
     @Operation(summary = "Admin 회원가입")
-    @SecurityRequirements()
     @PostMapping("/signup/admin")
     public ResponseEntity<ApiResponse<String>> signupAdmin(@Valid @RequestBody SignupRequest request) {
 
@@ -45,7 +43,7 @@ public class UserController {
 
     @Operation(summary = "User 계정 생성")
     @PostMapping("/signup/user")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'USER', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> signupUser(@Valid @RequestBody SignupRequest request) {
 
         // 서비스 계층에 비즈니스 로직 위임
@@ -57,7 +55,7 @@ public class UserController {
 
     @Operation(summary = "사용자 목록 조회")
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'USER', 'READ')")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getUsers() {
         List<UserResponse> response = userService.getUsers();
 
@@ -66,7 +64,7 @@ public class UserController {
 
     @Operation(summary = "사용자 정보 수정")
     @PatchMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'USER', 'UPDATE')")
     public ResponseEntity<ApiResponse<UserResponse>> update(
             @PathVariable("userId") UUID userId,
             @RequestBody UserUpdateRequest request
@@ -78,7 +76,7 @@ public class UserController {
 
     @Operation(summary = "사용자 상세 조회")
     @GetMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'USER', 'READ')")
     public ResponseEntity<ApiResponse<UserResponse>> getUser(
             @PathVariable("userId") UUID userId
     ) {

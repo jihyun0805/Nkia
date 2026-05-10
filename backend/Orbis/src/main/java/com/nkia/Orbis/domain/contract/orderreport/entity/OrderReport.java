@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.contract.orderreport.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
@@ -8,7 +9,6 @@ import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
-import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -412,5 +412,82 @@ public class OrderReport extends BaseEntity {
             item.delete();
         }
 
+    }
+
+    public void update(
+            OrderReportType type,
+            String paymentCondition,
+            boolean quotationProvided,
+            boolean contractProvided,
+            boolean purchaseOrderProvided,
+            boolean prbReportProvided,
+            String additionalDocuments,
+            boolean channel,
+            CodeType codeType,
+            LocalDate contractDate,
+            Integer freeMaintenancePeriodMonths,
+            LocalDate contractStartDate,
+            LocalDate contractEndDate,
+            Integer contractPeriodMonths,
+            String scopeOfWork,
+            String remarks,
+            ProjectOpportunity projectOpportunity,
+            User pm,
+            CompanyManager contractCounterpartManager,
+            Company finalCustomerCompany,
+            CompanyManager finalCustomerManager,
+            Double itemTotalMaintenanceRate
+    ) {
+        this.type = type;
+        this.paymentCondition = paymentCondition;
+        this.quotationProvided = quotationProvided;
+        this.contractProvided = contractProvided;
+        this.purchaseOrderProvided = purchaseOrderProvided;
+        this.prbReportProvided = prbReportProvided;
+        this.additionalDocuments = additionalDocuments;
+        this.channel = channel;
+        this.codeType = codeType;
+        this.contractDate = contractDate;
+        this.freeMaintenancePeriodMonths = freeMaintenancePeriodMonths;
+        this.contractStartDate = contractStartDate;
+        this.contractEndDate = contractEndDate;
+        this.contractPeriodMonths = contractPeriodMonths;
+        this.scopeOfWork = scopeOfWork;
+        this.remarks = remarks;
+        this.projectOpportunity = projectOpportunity;
+        this.pm = pm;
+        this.contractCounterpartManager = contractCounterpartManager;
+        this.finalCustomerCompany = finalCustomerCompany;
+        this.finalCustomerManager = finalCustomerManager;
+        this.itemTotalMaintenanceRate = itemTotalMaintenanceRate;
+    }
+
+    public void clearItems() {
+        this.licenses.clear();
+        this.maintenances.clear();
+        this.services.clear();
+        this.maintenanceOnlyItems.clear();
+        this.others.clear();
+        this.purchases.clear();
+
+        this.totalAmount = 0L;
+        this.licenseTotal = 0L;
+        this.serviceTotal = 0L;
+        this.maintenanceTotal = 0L;
+        this.otherTotal = 0L;
+        this.purchaseTotal = 0L;
+        this.emsSummary = 0L;
+        this.itgSummary = 0L;
+        this.dashboardSummary = 0L;
+        this.aiotionSummary = 0L;
+        this.emsMaintenanceSummary = 0L;
+        this.itgMaintenanceSummary = 0L;
+        this.itoSummary = 0L;
+        this.otherSummary = 0L;
+        this.itemTotalAmount = 0L;
+        this.itemTotalLicense = 0L;
+        this.itemTotalThirdParty = 0L;
+        this.itemTotalService = 0L;
+        this.itemTotalMaintenance = 0L;
     }
 }

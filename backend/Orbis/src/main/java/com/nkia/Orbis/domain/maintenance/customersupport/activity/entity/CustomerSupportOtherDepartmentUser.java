@@ -14,10 +14,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@SQLRestriction("deleted = false")
 public class CustomerSupportOtherDepartmentUser extends BaseEntity {
 
     @Id
@@ -43,5 +45,9 @@ public class CustomerSupportOtherDepartmentUser extends BaseEntity {
 
     protected void assignCustomerSupport(CustomerSupport customerSupport) {
         this.customerSupport = customerSupport;
+    }
+
+    public void delete() {
+        super.delete();
     }
 }

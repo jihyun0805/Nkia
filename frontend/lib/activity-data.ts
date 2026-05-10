@@ -8,6 +8,7 @@ export type ActivityRecord = {
   id: string
   date: string
   requestId?: string
+  projectOpportunityId?: number
   registrant?: string
   requester?: string
   customerCode: string

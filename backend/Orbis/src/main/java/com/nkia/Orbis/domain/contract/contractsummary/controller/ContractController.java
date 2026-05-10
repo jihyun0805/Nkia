@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -30,6 +31,7 @@ public class ContractController {
 
     @Operation(summary = "계약 내역 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CONTRACT', 'CREATE')")
     public ResponseEntity<ApiResponse<ContractResponse>> createContract(
             @Valid
             @RequestBody
@@ -42,6 +44,7 @@ public class ContractController {
 
     @Operation(summary = "계약 내역 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CONTRACT', 'READ')")
     public ResponseEntity<ApiResponse<List<ContractListResponse>>> getContracts() {
         List<ContractListResponse> response = contractService.getContracts();
 
@@ -50,6 +53,7 @@ public class ContractController {
 
     @Operation(summary = "계약 내역 상세 조회")
     @GetMapping("/{contractId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CONTRACT', 'READ')")
     public ResponseEntity<ApiResponse<ContractResponse>> getContract(
             @PathVariable("contractId") Long contractId
     ) {
@@ -59,6 +63,7 @@ public class ContractController {
 
     @Operation(summary = "계약 내역 삭제")
     @DeleteMapping("/{contractId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CONTRACT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable("contractId") Long contractId
     ) {
@@ -68,6 +73,7 @@ public class ContractController {
 
     @Operation(summary = "계약 내역 수정")
     @PatchMapping("/{contractId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CONTRACT', 'UPDATE')")
     public ResponseEntity<ApiResponse<ContractResponse>> update(
             @PathVariable("contractId") Long contractId,
             @RequestBody ContractRequest request
