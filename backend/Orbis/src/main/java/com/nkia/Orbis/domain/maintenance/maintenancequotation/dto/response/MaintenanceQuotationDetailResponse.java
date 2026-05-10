@@ -12,6 +12,8 @@ import lombok.Getter;
 public class MaintenanceQuotationDetailResponse {
 
     private Long id;
+    private String companyName;
+    private String projectName;
     private String refNo;
     private LocalDate quotationDate;
     private String paymentTerms;
@@ -29,6 +31,8 @@ public class MaintenanceQuotationDetailResponse {
     public static MaintenanceQuotationDetailResponse from(MaintenanceQuotation entity) {
         return MaintenanceQuotationDetailResponse.builder()
                 .id(entity.getId())
+                .companyName(entity.getProject().getOrderReport().getProjectOpportunity().getCustomerCompany().getName())
+                .companyName(entity.getProject().getPjtName())
                 .refNo(entity.getRefNo())
                 .quotationDate(entity.getQuotationDate())
                 .paymentTerms(entity.getPaymentTerms())

@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,9 +36,6 @@ public class MaintenanceQuotationController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * 특정 유지보수 견적서 수정
-     */
     @Operation(summary = "유지보수 견적서 수정")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<MaintenanceQuotationDetailResponse>> update(
@@ -47,13 +45,17 @@ public class MaintenanceQuotationController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * 유지보수 견적서 논리 삭제
-     */
     @Operation(summary = "유지보수 견적서 삭제")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         quotationService.delete(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "유지보수 견적서 상세 조회")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<MaintenanceQuotationDetailResponse>> getDetail(@PathVariable Long id) {
+        MaintenanceQuotationDetailResponse response = quotationService.getDetail(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

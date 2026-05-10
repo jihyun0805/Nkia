@@ -69,6 +69,17 @@ public class MaintenanceQuotationService {
         quotation.delete();
     }
 
+    /**
+     * 유지보수 견적서의 상세 내역 조회
+     */
+    @Transactional(readOnly = true)
+    public MaintenanceQuotationDetailResponse getDetail(Long id) {
+        MaintenanceQuotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
+
+        return MaintenanceQuotationDetailResponse.from(quotation);
+    }
+
     private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project) {
         return MaintenanceQuotation.builder()
                 .refNo(dto.getRefNo())
