@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.admin.workflow.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.admin.permission.entity.Role;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -35,10 +34,6 @@ public class WorkflowStep extends BaseEntity {
     @Column(nullable = false)
     private String stepName;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "workflow_role_id", nullable = false)
-    private Role workflowRole;
-
     @Column(nullable = false)
     private Boolean required;
 
@@ -49,14 +44,12 @@ public class WorkflowStep extends BaseEntity {
             WorkflowTemplate workflowTemplate,
             Integer stepOrder,
             String stepName,
-            Role approverRole,
             Boolean required
     ) {
         WorkflowStep step = new WorkflowStep();
         step.workflowTemplate = workflowTemplate;
         step.stepOrder = stepOrder;
         step.stepName = stepName;
-        step.workflowRole = approverRole;
         step.required = required;
         step.active = true;
         return step;
@@ -65,13 +58,11 @@ public class WorkflowStep extends BaseEntity {
     public void update(
             Integer stepOrder,
             String stepName,
-            Role approverRole,
             Boolean required,
             Boolean active
     ) {
         this.stepOrder = stepOrder;
         this.stepName = stepName;
-        this.workflowRole = approverRole;
         this.required = required;
         this.active = active;
     }
