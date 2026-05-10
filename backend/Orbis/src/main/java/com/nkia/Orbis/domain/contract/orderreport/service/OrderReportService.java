@@ -4,6 +4,10 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseFromOrderReportRequest;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportMaintenanceOnlyItemRequest;
@@ -21,10 +25,14 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportOther;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportPurchase;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportServiceItem;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
-import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
-import com.nkia.Orbis.domain.admin.user.entity.User;
-import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.LicenseHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportMaintenanceHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportMaintenanceOnlyItemHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportOtherHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportPurchaseHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportServiceItemHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.repository.OrderReportHistoryRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,17 +46,20 @@ public class OrderReportService {
     //    private final ProjectOpportunityRepository projectOpportunityRepository;
     private final UserRepository userRepository;
     private final ProductModuleRepository productModuleRepository;
+    private final OrderReportHistoryRepository orderReportHistoryRepository;
 
     // TODO: 사업기회, 회사, 회사직원 구현 후 연동 예정
     public OrderReportResponse create(OrderReportRequest request) {
+        return create(request, generateOrderReportCode());
+    }
+
+    private OrderReportResponse create(OrderReportRequest request, String orderReportCode) {
 
 //        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
 //                .orElseThrow(() -> new IllegalArgumentException("사업기회를 찾을 수 없습니다."));
 
         User pm = userRepository.findById(request.getPmId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
-
-        String orderReportCode = generateOrderReportCode();
 
         OrderReport orderReport = OrderReport.create(
                 orderReportCode,
@@ -189,5 +200,54 @@ public class OrderReportService {
         OrderReport orderReport = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
         orderReport.delete();
+    }
+
+    @Transactional
+    public OrderReportResponse update(Long orderReportId, OrderReportRequest request) {
+        OrderReport orderReport = orderReportRepository.findById(orderReportId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
+
+        String orderReportCode = orderReport.getOrderReportCode();
+
+        // 1. 기존 수주보고서 스냅샷 저장
+        int nextVersion = orderReportHistoryRepository.countByOrderReportCode(
+                orderReport.getOrderReportCode()
+        ) + 1;
+
+        OrderReportHistory history = OrderReportHistory.create(orderReport, nextVersion);
+
+        orderReport.getLicenses().forEach(license ->
+                history.addLicense(LicenseHistory.create(license))
+        );
+
+        orderReport.getMaintenances().forEach(maintenance ->
+                history.addMaintenance(OrderReportMaintenanceHistory.create(maintenance))
+        );
+
+        orderReport.getServices().forEach(service ->
+                history.addService(OrderReportServiceItemHistory.create(service))
+        );
+
+        orderReport.getMaintenanceOnlyItems().forEach(item ->
+                history.addMaintenanceOnlyItem(OrderReportMaintenanceOnlyItemHistory.create(item))
+        );
+
+        orderReport.getOthers().forEach(other ->
+                history.addOther(OrderReportOtherHistory.create(other))
+        );
+
+        orderReport.getPurchases().forEach(purchase ->
+                history.addPurchase(OrderReportPurchaseHistory.create(purchase))
+        );
+
+        orderReportHistoryRepository.save(history);
+
+        // 2. 기존 하위 엔티티 제거
+        orderReportRepository.delete(orderReport);
+        orderReportRepository.flush();
+
+        // 3. 요청값 기준으로 하위 엔티티 새로 생성
+        return create(request, orderReportCode);
+
     }
 }
