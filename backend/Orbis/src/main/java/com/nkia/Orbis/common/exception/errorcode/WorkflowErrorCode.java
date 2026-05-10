@@ -25,7 +25,10 @@ public enum WorkflowErrorCode implements ErrorCode {
     INVALID_WORKFLOW_APPROVER(HttpStatus.FORBIDDEN, "WORKFLOW_0008",
             "현재 결재자가 아닙니다."),
     INVALID_WORKFLOW_STATUS(HttpStatus.BAD_REQUEST, "WORKFLOW_0009",
-            "결재 대기 상태가 아닙니다.");
+            "결재 대기 상태가 아닙니다."),
+    DUPLICATE_WORKFLOW_TEMPLATE(HttpStatus.BAD_REQUEST, "WORKFLOW_0010",
+            "중복된 결재 프로세스 입니다.");
+
 
     private final HttpStatus httpStatus;
     private final String code;
