@@ -24,7 +24,8 @@ public class MaintenanceQuotationController {
 
     @Operation(summary = "유지보수 견적서 등록")
     @PostMapping
-    public ResponseEntity<ApiResponse<QuotationCreateResponse>> register(@Valid @RequestBody MaintenanceQuotationCreateRequest dto) {
+    public ResponseEntity<ApiResponse<QuotationCreateResponse>> register(
+            @Valid @RequestBody MaintenanceQuotationCreateRequest dto) {
         QuotationCreateResponse response = quotationService.register(dto);
         return ResponseEntity.ok(ApiResponse.success(response));
     }

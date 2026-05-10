@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response;
 
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -12,4 +13,13 @@ public class QuotationCreateResponse {
     private String refNo;
     private LocalDate quotationDate;
     private Long totalQuotationAmount;
+
+    public static QuotationCreateResponse from(MaintenanceQuotation entity) {
+        return QuotationCreateResponse.builder()
+                .id(entity.getId())
+                .refNo(entity.getRefNo())
+                .quotationDate(entity.getQuotationDate())
+                .totalQuotationAmount(entity.getTotalQuotationAmount())
+                .build();
+    }
 }

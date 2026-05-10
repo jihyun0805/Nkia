@@ -41,12 +41,15 @@ public class MaintenanceQuotation extends BaseEntity {
     private Long totalAmount;           // 합계 금액
     private LocalDate startDate;        // 유지보수 시작일
     private LocalDate endDate;          // 유지보수 종료일
-    private Long spMaintenanceCost;     // Solution Package 유지보수 비용 합계
     private Long monthlySupplyPrice;    // 월 공급가
     private Long totalQuotationAmount;  // 견적 금액 합계
 
     @Column(columnDefinition = "TEXT")
     private String specialNotes;        // 특기사항
+
+    // 패키지
+    @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MaintenancePackageCost> packageCosts = new ArrayList<>();
 
     // 서비스 내용 리스트
     @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -65,10 +68,14 @@ public class MaintenanceQuotation extends BaseEntity {
         this.totalAmount = totalAmount;
         this.startDate = startDate;
         this.endDate = endDate;
-        this.spMaintenanceCost = spMaintenanceCost;
         this.monthlySupplyPrice = monthlySupplyPrice;
         this.totalQuotationAmount = totalQuotationAmount;
         this.specialNotes = specialNotes;
+    }
+
+    public void addPackageCost(MaintenancePackageCost packageCost) {
+        this.packageCosts.add(packageCost);
+        packageCost.setQuotation(this);
     }
 
     public void addServiceDetail(MaintenanceServiceInfo Info) {
