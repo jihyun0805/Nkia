@@ -221,24 +221,13 @@ public class QuotationService {
 
         for (QuotationSolutionItem item : quotation.getQuotationSolutionItems()) {
             history.addSolutionItem(
-                    QuotationSolutionItemHistory.create(
-                            item.getProductModule(),
-                            item.getQuantity(),
-                            item.getSupplyPrice(),
-                            item.getDiscountRate(),
-                            item.getFreeSupply()
-                    )
+                    QuotationSolutionItemHistory.create(item)
             );
         }
 
         for (QuotationLaborItem item : quotation.getQuotationLaborItems()) {
             history.addLaborItem(
-                    QuotationLaborItemHistory.create(
-                            item.getLaborType(),
-                            item.getUnitPrice(),
-                            item.getManMonth(),
-                            item.getSupplyPrice()
-                    )
+                    QuotationLaborItemHistory.create(item)
             );
         }
 
