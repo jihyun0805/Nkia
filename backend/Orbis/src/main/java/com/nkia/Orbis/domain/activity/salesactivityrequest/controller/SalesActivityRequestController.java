@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +30,7 @@ public class SalesActivityRequestController {
 
     @Operation(summary = "영업 활동 요청 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY_REQUEST', 'CREATE')")
     public ResponseEntity<ApiResponse<SalesActivityRequestResponse>> createSalesActivityRequest(
             @Valid
             @RequestBody
@@ -40,6 +42,7 @@ public class SalesActivityRequestController {
 
     @Operation(summary = "영업 활동 요청 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY_REQUEST', 'READ')")
     public ResponseEntity<ApiResponse<List<SalesActivityRequestListResponse>>> getSalesActivityRequests() {
         List<SalesActivityRequestListResponse> response = salesActivityRequestService.getSalesActivityRequests();
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -47,6 +50,7 @@ public class SalesActivityRequestController {
 
     @Operation(summary = "영업 활동 요청 상세 조회")
     @GetMapping("/{salesActivityRequestId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY_REQUEST', 'READ')")
     public ResponseEntity<ApiResponse<SalesActivityRequestResponse>> getSalesActivityRequest(
             @PathVariable("salesActivityRequestId") Long salesActivityRequestId
     ) {

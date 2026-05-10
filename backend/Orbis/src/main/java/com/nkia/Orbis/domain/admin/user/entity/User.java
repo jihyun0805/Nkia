@@ -3,10 +3,11 @@ package com.nkia.Orbis.domain.admin.user.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivityAttendee;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityRequest;
+import com.nkia.Orbis.domain.admin.department.entity.Department;
+import com.nkia.Orbis.domain.admin.permission.entity.Role;
 import com.nkia.Orbis.domain.alarm.entity.Alarm;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.admin.department.entity.Department;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,11 +16,15 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -41,6 +46,14 @@ public class User extends BaseEntity {
     @Column(columnDefinition = "UUID")
     private UUID id;
 
+    @ManyToMany
+    @JoinTable(
+            name = "user_role",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    private Set<Role> roles = new HashSet<>();
+
     @Column(nullable = false, unique = true)
     private String employeeNumber;
 
@@ -58,10 +71,6 @@ public class User extends BaseEntity {
 
     @Column(nullable = false)
     private String password;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -106,7 +115,7 @@ public class User extends BaseEntity {
             String phone,
             String email,
             String password,
-            Role role,
+            Set<Role> roles,
             Status status,
             Department department
     ) {
@@ -117,7 +126,7 @@ public class User extends BaseEntity {
                 .phone(phone)
                 .email(email)
                 .password(password)
-                .role(role)
+                .roles(roles)
                 .status(status)
                 .department(department)
                 .build();
@@ -128,7 +137,7 @@ public class User extends BaseEntity {
             Position position,
             String name,
             String phone,
-            Role role,
+            Set<Role> roles,
             Status status,
             Department department
     ) {
@@ -136,7 +145,7 @@ public class User extends BaseEntity {
         this.position = position;
         this.name = name;
         this.phone = phone;
-        this.role = role;
+        this.roles = roles;
         this.status = status;
         this.department = department;
     }

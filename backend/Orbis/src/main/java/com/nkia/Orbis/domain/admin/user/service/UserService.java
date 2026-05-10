@@ -6,14 +6,17 @@ import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.JwtProvider;
 import com.nkia.Orbis.domain.admin.department.entity.Department;
 import com.nkia.Orbis.domain.admin.department.repository.DepartmentRepository;
+import com.nkia.Orbis.domain.admin.permission.entity.Role;
+import com.nkia.Orbis.domain.admin.permission.repository.RoleRepository;
 import com.nkia.Orbis.domain.admin.user.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
 import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
-import com.nkia.Orbis.domain.admin.user.entity.Role;
 import com.nkia.Orbis.domain.admin.user.entity.Status;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -29,21 +32,35 @@ public class UserService {
     private final JwtProvider jwtProvider;
     private final StringRedisTemplate redisTemplate;
     private final DepartmentRepository departmentRepository;
+    private final RoleRepository roleRepository;
 
     public static final String REFRESH_TOKEN = "RefreshToken:";
     public static final String LOGOUT = "logout";
 
     @Transactional
     public void signupAdmin(SignupRequest request) {
-        signup(request, Role.ADMIN);
+        Role adminRole = roleRepository.findByName("ADMIN")
+                .orElseThrow(() -> new ApiException(UserErrorCode.ROLE_NOT_FOUND));
+
+        signup(request, Set.of(adminRole));
     }
 
     @Transactional
     public void signupUser(SignupRequest request) {
-        signup(request, Role.USER);
+        Set<Role> roles = new HashSet<>();
+
+        if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+            roles.addAll(roleRepository.findAllById(request.getRoleIds()));
+        } else {
+            Role userRole = roleRepository.findByName("USER")
+                    .orElseThrow(() -> new ApiException(UserErrorCode.ROLE_NOT_FOUND));
+            roles.add(userRole);
+        }
+
+        signup(request, roles);
     }
 
-    public void signup(SignupRequest request, Role role) {
+    public void signup(SignupRequest request, Set<Role> roles) {
         // 이메일 중복 검증
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ApiException(UserErrorCode.EXIST_EMAIL);
@@ -67,7 +84,7 @@ public class UserService {
                 request.getPhone(),
                 request.getEmail(),
                 encodedPassword,
-                role,
+                roles,
                 Status.ACTIVE,
                 department
         );
@@ -93,12 +110,21 @@ public class UserService {
         Department department = departmentRepository.findById(request.getDepartmentId())
                 .orElseThrow(() -> new ApiException(DepartmentErrorCode.DEPARTMENT_NOT_FOUND));
 
+        Set<Role> roles = new HashSet<>();
+
+        // 역할 변경 없으면 기존 유지
+        if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+            roles.addAll(roleRepository.findAllById(request.getRoleIds()));
+        } else {
+            roles.addAll(user.getRoles());
+        }
+
         user.update(
                 request.getEmployeeNumber(),
                 request.getPosition(),
                 request.getName(),
                 request.getPhone(),
-                request.getRole(),
+                roles,
                 request.getStatus(),
                 department
         );

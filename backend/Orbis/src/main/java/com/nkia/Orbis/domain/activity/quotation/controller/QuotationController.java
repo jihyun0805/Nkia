@@ -14,6 +14,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,6 +34,7 @@ public class QuotationController {
 
     @Operation(summary = "견적서 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'CREATE')")
     public ResponseEntity<ApiResponse<QuotationResponse>> createQuotation(
             @Valid
             @RequestBody
@@ -44,6 +46,7 @@ public class QuotationController {
 
     @Operation(summary = "견적서 삭제")
     @DeleteMapping("/{quotationId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteQuotation(
             @PathVariable("quotationId") Long quotationId
     ) {
@@ -51,8 +54,10 @@ public class QuotationController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+
     @Operation(summary = "견적서 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'READ')")
     public ResponseEntity<ApiResponse<List<QuotationListResponse>>> getQuotations() {
         List<QuotationListResponse> response = quotationService.getQuotations();
 
@@ -61,6 +66,7 @@ public class QuotationController {
 
     @Operation(summary = "견적서 상세 조회")
     @GetMapping("/{quotationId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'READ')")
     public ResponseEntity<ApiResponse<QuotationResponse>> getQuotation(
             @PathVariable("quotationId") Long quotationId
     ) {
@@ -71,6 +77,7 @@ public class QuotationController {
 
     @Operation(summary = "견적서 수정")
     @PutMapping("/{quotationId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'UPDATE')")
     public ResponseEntity<ApiResponse<QuotationResponse>> update(
             @PathVariable("quotationId") Long quotationId,
             @RequestBody QuotationCreateRequest request
@@ -82,6 +89,7 @@ public class QuotationController {
 
     @Operation(summary = "견적서 변경 이력 목록 조회")
     @GetMapping("/{quotationId}/histories/")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'READ')")
     public ResponseEntity<ApiResponse<List<QuotationHistoryListResponse>>> getQuotationHistories(
             @PathVariable("quotationId") Long quotationId
     ) {
@@ -92,6 +100,7 @@ public class QuotationController {
 
     @Operation(summary = "견적서 변경 이력 상세 조회")
     @GetMapping("/histories/{quotationHistoryId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'READ')")
     public ResponseEntity<ApiResponse<QuotationHistoryResponse>> getquotationHistory(
             @PathVariable("quotationHistoryId") Long quotationHistoryId
     ) {

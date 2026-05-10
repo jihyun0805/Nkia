@@ -1,0 +1,28 @@
+package com.nkia.Orbis.domain.admin.permission.entity;
+
+public enum PermissionDomain {
+    PROJECT_OPPORTUNITY,
+    COMPANY,
+    SALES_ACTIVITY,
+    SALES_ACTIVITY_REQUEST,
+    QUOTATION,
+    RFP_ANALYSE_RESULT,
+    PRB,
+    PRB_RESULT,
+    BID_RESULT,
+    ORDER_REPORT,
+    CONTRACT,
+    LICENSE,
+    PROJECT,
+    PROJECT_RESULT,
+    BILLING,
+    PROJECT_RESULT_REPORT,
+    MAINTENANCE,
+    MAINTENANCE_QUOTATION,
+    CUSTOMER_SUPPORT,
+    PRODUCT_MODULE,
+    DEPARTMENT,
+    WORKFLOW,
+    PERMISSION,
+    USER
+}
