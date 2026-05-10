@@ -6,6 +6,7 @@ import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowStepCreateReques
 import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowTemplateCreateRequest;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowTemplateUpdateRequest;
 import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowStepResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowTemplateListResponse;
 import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowTemplateResponse;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStep;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowTemplate;
@@ -126,21 +127,11 @@ public class WorkflowTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public List<WorkflowTemplateResponse> getTemplates() {
+    public List<WorkflowTemplateListResponse> getTemplates() {
 
         return workflowTemplateRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
-                .map(template -> {
-
-                    List<WorkflowStepResponse> steps =
-                            workflowStepRepository
-                                    .findByWorkflowTemplateAndActiveTrueOrderByStepOrderAsc(template)
-                                    .stream()
-                                    .map(WorkflowStepResponse::from)
-                                    .toList();
-
-                    return WorkflowTemplateResponse.from(template, steps);
-                })
+                .map(WorkflowTemplateListResponse::from)
                 .toList();
     }
 }

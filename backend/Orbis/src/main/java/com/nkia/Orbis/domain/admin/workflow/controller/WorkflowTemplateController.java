@@ -3,10 +3,12 @@ package com.nkia.Orbis.domain.admin.workflow.controller;
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowTemplateCreateRequest;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowTemplateUpdateRequest;
+import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowTemplateListResponse;
 import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowTemplateResponse;
 import com.nkia.Orbis.domain.admin.workflow.service.WorkflowTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,7 +50,7 @@ public class WorkflowTemplateController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @Operation(summary = "내 결재 프로세스 상세 조회")
+    @Operation(summary = "결재 프로세스 상세 조회")
     @GetMapping("/{workflowTemplateId}")
     public ResponseEntity<ApiResponse<WorkflowTemplateResponse>> getTemplate(
             @PathVariable("workflowTemplateId") Long workflowTemplateId
@@ -59,4 +61,14 @@ public class WorkflowTemplateController {
                 )
         );
     }
+
+    @Operation(summary = "결재 프로세스 목록 조회")
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<WorkflowTemplateListResponse>>> getTemplates() {
+
+        List<WorkflowTemplateListResponse> response = workflowTemplateService.getTemplates();
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
 }
