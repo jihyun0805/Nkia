@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportRequest
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportListResponse;
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportResponse;
 import com.nkia.Orbis.domain.contract.orderreport.service.OrderReportService;
+import com.nkia.Orbis.domain.contract.orderreporthistory.dto.response.OrderReportHistoryListResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -74,6 +75,16 @@ public class OrderReportController {
             @RequestBody OrderReportRequest request
     ) {
         OrderReportResponse response = orderReportService.update(orderReportId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "수주보고서 변경 이력 목록 조회")
+    @GetMapping("/{orderReportId}/histories")
+    public ResponseEntity<ApiResponse<List<OrderReportHistoryListResponse>>> getOrderReportHistories(
+            @PathVariable("orderReportId") Long orderReportId
+    ) {
+        List<OrderReportHistoryListResponse> response = orderReportService.getOrderReportHistories(orderReportId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
