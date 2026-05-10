@@ -1,8 +1,11 @@
 package com.nkia.Orbis.domain.bid.prb.dto.response;
 
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.prb.dto.vo.*;
+import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.company.entity.CompanyCategory;
+import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -54,4 +57,64 @@ public class PrbResponseDto {
   private PurchaseDto purchase;                         // 매입 용역/제품 리스트 + 매입 합계
   private GeneralOverheadExpensesDto overheadExpenses;  // 제경비 리스트 + 제경비 합계
   private IndirectExpensesDto indirectExpenses;         // 대상 금액, 간접비율, 간접비 합계
+
+  public static PrbResponseDto from(Prb entity) {
+    if (entity == null)
+      return null;
+
+    PrbResponseDtoBuilder builder = PrbResponseDto.builder();
+
+    mapBaseInfo(builder, entity);
+    mapSalesRepresentativeInfo(builder, entity.getSalesRepresentative());
+    mapProjectOpportunityInfo(builder, entity.getProjectOpportunity());
+    mapValueObjects(builder, entity);
+
+    return builder.build();
+  }
+
+  // --- Private Helper Methods ---
+
+  private static void mapBaseInfo(PrbResponseDtoBuilder builder, Prb entity) {
+    builder.prbId(entity.getId())
+        .prbCode(entity.getPrbCode())
+        .createdAt(entity.getCreatedAt())
+        .prbDate(entity.getPrbDate())
+        .maintenanceDescription(entity.getMaintenanceDescription())
+        .salesRepresentativeOpinion(entity.getSalesRepresentativeOpinion())
+        .totalCost(entity.getTotalCost());
+  }
+
+  private static void mapSalesRepresentativeInfo(PrbResponseDtoBuilder builder, User salesRep) {
+    if (salesRep == null)
+      return;
+    builder.salesRepresentativeId(salesRep.getId())
+        .salesRepresentativeName(salesRep.getName())
+        .salesRepresentativeDepartmentName(
+            salesRep.getDepartment() != null ? salesRep.getDepartment().getTeam() : null);
+  }
+
+  private static void mapProjectOpportunityInfo(PrbResponseDtoBuilder builder,
+      ProjectOpportunity opp) {
+    if (opp == null)
+      return;
+    builder.projectOpportunityId(opp.getId())
+        .opportunityName(opp.getOpportunityName())
+        .projectType(opp.getProjectType())
+        .projectDescription(opp.getDescription());
+
+    if (opp.getCustomerCompany() != null) {
+      builder.customerCompanyName(opp.getCustomerCompany().getName())
+          .customerCompanyCategory(opp.getCustomerCompany().getCategory());
+    }
+  }
+
+  private static void mapValueObjects(PrbResponseDtoBuilder builder, Prb entity) {
+    builder.projectInfo(PrbProjectInfoDto.from(entity.getProjectInfo()))
+        .profitLossInfo(PrbProfitLossInfoDto.from(entity.getProfitLossInfo()))
+        .personnelExpenses(PersonnelExpensesDto.from(entity.getPersonnelExpenses()))
+        .productCost(ProductCostDto.from(entity.getProductCost()))
+        .purchase(PurchaseDto.from(entity.getPurchase()))
+        .overheadExpenses(GeneralOverheadExpensesDto.from(entity.getGeneralOverheadExpenses()))
+        .indirectExpenses(IndirectExpensesDto.from(entity.getIndirectExpenses()));
+  }
 }

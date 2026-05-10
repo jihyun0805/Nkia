@@ -1,6 +1,9 @@
 package com.nkia.Orbis.domain.bid.prb.dto.request;
 
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.prb.dto.vo.*;
+import com.nkia.Orbis.domain.bid.prb.entity.Prb;
+import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -12,6 +15,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
 
 @Getter
 @Builder
@@ -62,4 +66,63 @@ public class PrbCreateRequestDto {
 
   @Valid
   private List<GeneralOverheadExpenseItemDto> overheadExpenses;
+
+  public Prb toEntity(String prbCode, User salesRepresentative, ProjectOpportunity opportunity) {
+    Prb prb = buildBasePrb(prbCode, salesRepresentative, opportunity);
+    mapSingleValueObjects(prb);
+    mapCollectionValueObjects(prb);
+    return prb;
+  }
+
+  // --- Private Helper Methods ---
+
+  private Prb buildBasePrb(String prbCode, User salesRepresentative,
+      ProjectOpportunity opportunity) {
+    return Prb.builder()
+        .prbCode(prbCode)
+        .prbDate(this.prbDate)
+        .maintenanceDescription(this.maintenanceDescription)
+        .salesRepresentativeOpinion(this.salesRepresentativeOpinion)
+        .salesRepresentative(salesRepresentative)
+        .projectOpportunity(opportunity)
+        .build();
+  }
+
+  private void mapSingleValueObjects(Prb prb) {
+    if (this.projectInfo != null)
+      prb.updateProjectInfo(this.projectInfo.toEntity());
+    if (this.profitLossInfo != null)
+      prb.updateProfitLossInfo(this.profitLossInfo.toEntity());
+  }
+
+  private void mapCollectionValueObjects(Prb prb) {
+    if (this.residentExpenses != null || this.nonResidentExpenses != null) {
+      prb.getPersonnelExpenses()
+          .updateExpenses(mapListSafely(this.residentExpenses, PersonnelExpenseItemDto::toEntity),
+              mapListSafely(this.nonResidentExpenses, PersonnelExpenseItemDto::toEntity));
+    }
+
+    if (this.productCostItems != null) {
+      prb.getProductCost()
+          .updateItems(mapListSafely(this.productCostItems, ProductCostItemDto::toEntity));
+    }
+
+    if (this.purchaseHumanResources != null || this.purchaseProducts != null) {
+      prb.getPurchase()
+          .updatePurchases(
+              mapListSafely(this.purchaseHumanResources, PurchaseHumanResourceItemDto::toEntity),
+              mapListSafely(this.purchaseProducts, PurchaseProductItemDto::toEntity));
+    }
+
+    if (this.overheadExpenses != null) {
+      prb.getGeneralOverheadExpenses()
+          .updateExpenses(
+              mapListSafely(this.overheadExpenses, GeneralOverheadExpenseItemDto::toEntity));
+    }
+  }
+
+  // List Null-safe 매핑 유틸리티
+  private <T, R> List<R> mapListSafely(List<T> list, Function<T, R> mapper) {
+    return list == null ? null : list.stream().map(mapper).toList();
+  }
 }

@@ -5,9 +5,7 @@ import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.prbresult.entity.PrbResult;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
@@ -17,7 +15,9 @@ import java.util.List;
 
 @Getter
 @Entity
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 @SQLRestriction("deleted = false")
 public class Prb extends BaseEntity {
 
@@ -113,5 +113,24 @@ public class Prb extends BaseEntity {
   // NullPointerException 방지를 위한 내부 유틸 메서드
   private BigDecimal getSafeAmount(BigDecimal amount) {
     return amount == null ? BigDecimal.ZERO : amount;
+  }
+
+  // 기본 정보 수정 메서드
+  public void updateBasicInfo(LocalDate prbDate, String maintenanceDescription,
+      String salesRepresentativeOpinion, User salesRepresentative) {
+    this.prbDate = prbDate;
+    this.maintenanceDescription = maintenanceDescription;
+    this.salesRepresentativeOpinion = salesRepresentativeOpinion;
+    if (salesRepresentative != null) {
+      this.salesRepresentative = salesRepresentative;
+    }
+  }
+
+  public void updateProjectInfo(PrbProjectInfo projectInfo) {
+    this.projectInfo = projectInfo;
+  }
+
+  public void updateProfitLossInfo(PrbProfitLossInfo profitLossInfo) {
+    this.profitLossInfo = profitLossInfo;
   }
 }
