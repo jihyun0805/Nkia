@@ -2,8 +2,10 @@ package com.nkia.Orbis.domain.admin.workflow.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.WorkflowErrorCode;
+import com.nkia.Orbis.domain.admin.user.entity.Position;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowResponse;
 import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLine;
@@ -265,8 +267,21 @@ public class WorkflowService {
             WorkflowStep workflowStep,
             User approver
     ) {
-        if (approver.getPosition() != workflowStep.getApproverPosition()) {
+        Position requiredPosition = workflowStep.getApproverPosition();
+
+        if (!approver.getPosition().isAtLeast(requiredPosition)) {
             throw new ApiException(WorkflowErrorCode.INVALID_WORKFLOW_APPROVER);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkflowResponse> getMyWorkflows(UUID userId) {
+        return workflowRepository.findMyRelatedWorkflows(
+                        userId.toString(),
+                        userId
+                )
+                .stream()
+                .map(WorkflowResponse::from)
+                .toList();
     }
 }

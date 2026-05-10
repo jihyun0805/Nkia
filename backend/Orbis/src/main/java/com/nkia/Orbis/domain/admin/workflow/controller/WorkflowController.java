@@ -7,9 +7,13 @@ import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowRejectRequest;
 import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowResponse;
 import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
 import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,12 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/admin/workflows")
-@Tag(name = "Workflow", description = "워크플로우 API")
+@Tag(name = "Workflow", description = "워크플로우 결재 API")
 public class WorkflowController {
 
     private final WorkflowService workflowService;
 
+    @Operation(summary = "초기 결재 요청 생성")
     @PostMapping("/start")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'CREATE')")
     public ResponseEntity<ApiResponse<WorkflowResponse>> start(
             @RequestBody StartWorkflowRequest request
     ) {
@@ -40,7 +46,9 @@ public class WorkflowController {
         );
     }
 
+    @Operation(summary = "결재 승인")
     @PostMapping("/{workflowId}/approve")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'APPROVE')")
     public ResponseEntity<ApiResponse<String>> approve(
             @PathVariable("workflowId") Long workflowId,
             @RequestBody WorkflowApproveRequest request
@@ -55,7 +63,9 @@ public class WorkflowController {
         return ResponseEntity.ok(ApiResponse.success("승인 완료"));
     }
 
+    @Operation(summary = "결재 반려")
     @PostMapping("/{workflowId}/reject")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'APPROVE')")
     public ResponseEntity<ApiResponse<String>> reject(
             @PathVariable("workflowId") Long workflowId,
             @RequestBody WorkflowRejectRequest request
@@ -69,7 +79,9 @@ public class WorkflowController {
         return ResponseEntity.ok(ApiResponse.success("반려 완료"));
     }
 
+    @Operation(summary = "결재 취소")
     @PostMapping("/{workflowId}/cancel")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> cancel(
             @PathVariable("workflowId") Long workflowId
     ) {
@@ -78,13 +90,15 @@ public class WorkflowController {
         return ResponseEntity.ok(ApiResponse.success("취소 완료"));
     }
 
-    @GetMapping("/{workflowId}")
-    public ResponseEntity<ApiResponse<WorkflowResponse>> getWorkflow(
-            @PathVariable("workflowId") Long workflowId
+    @Operation(summary = "내 결재 목록 조회")
+    @GetMapping("/my/{userId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'READ')")
+    public ResponseEntity<ApiResponse<List<WorkflowResponse>>> getMyWorkflows(
+            @PathVariable("userId") UUID userId
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(
-                        WorkflowResponse.from(workflowService.getWorkflow(workflowId))
+                        workflowService.getMyWorkflows(userId)
                 )
         );
     }

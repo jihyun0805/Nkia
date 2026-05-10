@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PermissionInitializer implements CommandLineRunner {
 
+    // 초기 role 셋팅
     private final PermissionRepository permissionRepository;
     private final RoleRepository roleRepository;
 
@@ -72,11 +73,27 @@ public class PermissionInitializer implements CommandLineRunner {
 
         Set<Permission> allPermissions = new HashSet<>(permissionRepository.findAll());
 
+        // USER 기본 권한
         Set<Permission> userPermissions = allPermissions.stream()
-                .filter(permission -> USER_DOMAINS.contains(permission.getDomain()))
+                .filter(permission ->
+                        USER_DOMAINS.contains(permission.getDomain())
+                                || permission.getDomain() == PermissionDomain.WORKFLOW
+                )
                 .collect(Collectors.toSet());
 
-        adminRole.changePermissions(allPermissions);
+        // ADMIN 추가 권한
+        Set<Permission> adminPermissions = allPermissions.stream()
+                .filter(permission ->
+                        permission.getDomain() == PermissionDomain.WORKFLOW
+                                || permission.getDomain() == PermissionDomain.WORKFLOW_TEMPLATE
+                )
+                .collect(Collectors.toSet());
+
+        // USER 권한 설정
         userRole.changePermissions(userPermissions);
+
+        // ADMIN 권한 설정 (전체 권한)
+        allPermissions.addAll(adminPermissions);
+        adminRole.changePermissions(allPermissions);
     }
 }

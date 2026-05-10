@@ -22,6 +22,7 @@ public enum PermissionDomain {
     CUSTOMER_SUPPORT,
     PRODUCT_MODULE,
     DEPARTMENT,
+    WORKFLOW_TEMPLATE,
     WORKFLOW,
     PERMISSION,
     USER

@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLine;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLineStatus;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface WorkflowLineRepository extends JpaRepository<WorkflowLine, Long> {
@@ -12,13 +13,13 @@ public interface WorkflowLineRepository extends JpaRepository<WorkflowLine, Long
             Workflow workflow
     );
 
-    Optional<WorkflowLine> findByWorkflowAndStepOrder(
-            Workflow workflow,
-            Integer stepOrder
-    );
-
     Optional<WorkflowLine> findByWorkflowAndStatus(
             Workflow workflow,
+            WorkflowLineStatus status
+    );
+
+    List<WorkflowLine> findByApproverIdAndStatusOrderByCreatedAtDesc(
+            UUID approverId,
             WorkflowLineStatus status
     );
 }
