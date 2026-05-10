@@ -9,6 +9,8 @@ import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
 import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -83,14 +85,14 @@ public class WorkflowController {
         return ResponseEntity.ok(ApiResponse.success("취소 완료"));
     }
 
-    @Operation(summary = "결재 상세 조회")
-    @GetMapping("/{workflowId}")
-    public ResponseEntity<ApiResponse<WorkflowResponse>> getWorkflow(
-            @PathVariable("workflowId") Long workflowId
+    @Operation(summary = "내 결재 목록 조회")
+    @GetMapping("/my/{userId}")
+    public ResponseEntity<ApiResponse<List<WorkflowResponse>>> getMyWorkflows(
+            @PathVariable("userId") UUID userId
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(
-                        WorkflowResponse.from(workflowService.getWorkflow(workflowId))
+                        workflowService.getMyWorkflows(userId)
                 )
         );
     }

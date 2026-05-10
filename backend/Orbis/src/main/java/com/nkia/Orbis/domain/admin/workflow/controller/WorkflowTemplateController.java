@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -45,5 +46,17 @@ public class WorkflowTemplateController {
         WorkflowTemplateResponse response = workflowTemplateService.update(workflowTemplateId, request);
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "내 결재 프로세스 상세 조회")
+    @GetMapping("/{workflowTemplateId}")
+    public ResponseEntity<ApiResponse<WorkflowTemplateResponse>> getTemplate(
+            @PathVariable("workflowTemplateId") Long workflowTemplateId
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        workflowTemplateService.getTemplate(workflowTemplateId)
+                )
+        );
     }
 }

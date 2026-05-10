@@ -107,4 +107,40 @@ public class WorkflowTemplateService {
                 stepResponses
         );
     }
+
+    @Transactional
+    public WorkflowTemplateResponse getTemplate(Long workflowTemplateId) {
+        WorkflowTemplate template = workflowTemplateRepository.findById(workflowTemplateId)
+                .orElseThrow(() ->
+                        new ApiException(WorkflowErrorCode.ACTIVE_WORKFLOW_NOT_FOUND)
+                );
+
+        List<WorkflowStepResponse> stepResponses =
+                workflowStepRepository
+                        .findByWorkflowTemplateAndActiveTrueOrderByStepOrderAsc(template)
+                        .stream()
+                        .map(WorkflowStepResponse::from)
+                        .toList();
+
+        return WorkflowTemplateResponse.from(template, stepResponses);
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkflowTemplateResponse> getTemplates() {
+
+        return workflowTemplateRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(template -> {
+
+                    List<WorkflowStepResponse> steps =
+                            workflowStepRepository
+                                    .findByWorkflowTemplateAndActiveTrueOrderByStepOrderAsc(template)
+                                    .stream()
+                                    .map(WorkflowStepResponse::from)
+                                    .toList();
+
+                    return WorkflowTemplateResponse.from(template, steps);
+                })
+                .toList();
+    }
 }
