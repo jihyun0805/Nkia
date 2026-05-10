@@ -62,6 +62,8 @@ public class WorkflowService {
         User firstApprover = userRepository.findById(firstApproverId)
                 .orElseThrow(() -> new ApiException(WorkflowErrorCode.WORKFLOW_APPROVER_NOT_FOUND));
 
+        validateApproverPosition(firstStep, firstApprover);
+
         // 6. 워크플로우 라인 생성
         WorkflowLine firstLine = WorkflowLine.create(
                 workflow,
@@ -120,6 +122,8 @@ public class WorkflowService {
         // 다음 결재자 지정
         User nextApprover = userRepository.findById(nextApproverId)
                 .orElseThrow(() -> new ApiException(WorkflowErrorCode.WORKFLOW_APPROVER_NOT_FOUND));
+
+        validateApproverPosition(nextStep.get(), nextApprover);
 
         // 다음 워크플로우 라인 생성
         WorkflowLine nextLine = WorkflowLine.create(
@@ -253,6 +257,16 @@ public class WorkflowService {
     private void validateWorkflowProgress(Workflow workflow) {
         if (workflow.getStatus() != WorkflowStatus.IN_PROGRESS) {
             throw new ApiException(WorkflowErrorCode.INVALID_WORKFLOW_STATUS);
+        }
+    }
+
+    // 포지션 검증
+    private void validateApproverPosition(
+            WorkflowStep workflowStep,
+            User approver
+    ) {
+        if (approver.getPosition() != workflowStep.getApproverPosition()) {
+            throw new ApiException(WorkflowErrorCode.INVALID_WORKFLOW_APPROVER);
         }
     }
 }
