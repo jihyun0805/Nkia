@@ -1,4 +1,4 @@
-export type ProjectCategory = "results" | "billing" | "collection"
+export type ProjectCategory = "results" | "billingAndCollection" | "revenue"
 
 export const projectResults = [
   { id: "PRJ-2026-001", contractId: "CON-2026-001", name: "농협은행 통합 모니터링 시스템", customer: "농협은행", amount: 150000000, startDate: "2026-03-15", endDate: "2026-06-30", pm: "정PM", salesRep: "김영업", registeredAt: "2026-06-30" },
@@ -17,6 +17,13 @@ export const collections = [
   { id: "COL-2026-002", billingId: "BIL-2026-001", customer: "농협은행", amount: "90,000,000", dueDate: "2026-04-20", collectedDate: "-", method: "-", status: "대기" },
 ]
 
+export const billingAndCollections = [
+  { id: "BNC-2026-001", customer: "농협은행", projectName: "농협은행 통합 모니터링 시스템", amount: "90,000,000", issueDate: "2026-03-20", collectionDate: "-", salesRep: "김영업", requester: "박담당", approvalStatus: "승인완료", registeredAt: "2026-03-15" },
+  { id: "BNC-2026-002", customer: "우리은행", projectName: "우리은행 자동화 시스템", amount: "75,000,000", issueDate: "2026-03-05", collectionDate: "2026-04-03", salesRep: "이영업", requester: "최담당", approvalStatus: "승인완료", registeredAt: "2026-03-01" },
+  { id: "BNC-2026-003", customer: "우리은행", projectName: "우리은행 자동화 시스템", amount: "100,000,000", issueDate: "2026-03-25", collectionDate: "-", salesRep: "이영업", requester: "최담당", approvalStatus: "진행중", registeredAt: "2026-03-20" },
+  { id: "BNC-2026-004", customer: "신한은행", projectName: "신한은행 ITSM 구축", amount: "50,000,000", issueDate: "2026-04-10", collectionDate: "-", salesRep: "최영업", requester: "이담당", approvalStatus: "승인완료", registeredAt: "2026-04-05" },
+]
+
 export const expectedRevenue = [
   { month: "2026-01", ems: 150000000, itsm: 80000000, automation: 50000000, wss: 20000000 },
   { month: "2026-02", ems: 200000000, itsm: 120000000, automation: 70000000, wss: 30000000 },
@@ -26,14 +33,14 @@ export const expectedRevenue = [
 
 export function getProjectCategoryLabel(category: ProjectCategory) {
   if (category === "results") return "결과보고"
-  if (category === "billing") return "청구"
-  return "수금"
+  if (category === "billingAndCollection") return "청구 및 수금 현황"
+  return "예상 매출액"
 }
 
 export function getProjectItem(category: ProjectCategory, id: string) {
   if (category === "results") return projectResults.find((item) => item.id === id) ?? null
-  if (category === "billing") return billings.find((item) => item.id === id) ?? null
-  return collections.find((item) => item.id === id) ?? null
+  if (category === "billingAndCollection") return billingAndCollections.find((item) => item.id === id) ?? null
+  return null
 }
 
 export function getProjectFields(category: ProjectCategory, item: any) {
@@ -47,25 +54,16 @@ export function getProjectFields(category: ProjectCategory, item: any) {
     { label: "PM 이름", value: item.pm },
     { label: "영업대표", value: item.salesRep },
   ]
-  if (category === "billing") return [
-    { label: "청구번호", value: item.id },
-    { label: "사업번호", value: item.projectId },
+  if (category === "billingAndCollection") return [
+    { label: "관리번호", value: item.id },
     { label: "고객사", value: item.customer },
-    { label: "청구유형", value: item.type },
+    { label: "사업명", value: item.projectName },
     { label: "청구금액", value: item.amount },
     { label: "발행일", value: item.issueDate },
-    { label: "납기일", value: item.dueDate },
-    { label: "세금계산서", value: item.invoiceNo },
-    { label: "상태", value: item.status },
+    { label: "수금일", value: item.collectionDate },
+    { label: "영업대표", value: item.salesRep },
+    { label: "요청자", value: item.requester },
+    { label: "결재상태", value: item.approvalStatus },
   ]
-  return [
-    { label: "수금번호", value: item.id },
-    { label: "청구번호", value: item.billingId },
-    { label: "고객사", value: item.customer },
-    { label: "수금금액", value: item.amount },
-    { label: "납기일", value: item.dueDate },
-    { label: "수금일", value: item.collectedDate },
-    { label: "수금방법", value: item.method },
-    { label: "상태", value: item.status },
-  ]
+  return []
 }

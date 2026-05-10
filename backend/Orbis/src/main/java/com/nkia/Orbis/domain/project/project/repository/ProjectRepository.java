@@ -4,8 +4,8 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import jakarta.persistence.LockModeType;
 import java.util.Optional;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import java.util.List;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -21,5 +21,5 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     boolean existsByOrderReport(OrderReport orderReport);
 
     @EntityGraph(attributePaths = {"manager", "salesRepresentative", "orderReport"})
-    Page<Project> findAll(Pageable pageable);
+    List<Project> findAll(Sort sort);
 }

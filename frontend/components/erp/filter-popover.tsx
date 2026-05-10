@@ -22,7 +22,7 @@ import { defaultFilterValues, type FilterValues } from "@/lib/filter-utils"
 type FilterFieldOption = {
   key: string
   label: string
-  options: string[]
+  options: (string | { label: string; value: string })[]
   placeholder?: string
 }
 
@@ -132,11 +132,15 @@ export function FilterPopover({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">전체</SelectItem>
-                    {field.options.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
+                    {field.options.map((option) => {
+                      const val = typeof option === "string" ? option : option.value;
+                      const lbl = typeof option === "string" ? option : option.label;
+                      return (
+                        <SelectItem key={val} value={val}>
+                          {lbl}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>

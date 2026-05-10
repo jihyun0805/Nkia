@@ -28,7 +28,7 @@ public class UserResponse {
 
     private Long departmentId;
 
-//    private String departmentName;
+    private String departmentName;
 
     private LocalDateTime createdAt;
 
@@ -41,10 +41,8 @@ public class UserResponse {
                 .phone(user.getPhone())
                 .email(user.getEmail())
                 .status(user.getStatus())
-//                TODO: 부서 구현 후 수정해야 함
-                .departmentId(user.getDepartment() != null ? user.getDepartment().getId() : null)
-//                .departmentName(user.getDepartment() != null ? user.getDepartment().get : null)
-//                .departmentId(user.getDepartment().getId())
+                .departmentId(user.getDepartment().getId())
+                .departmentName(user.getDepartment().getTeam())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

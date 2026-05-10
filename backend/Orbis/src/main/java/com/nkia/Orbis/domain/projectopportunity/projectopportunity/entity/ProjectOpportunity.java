@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.bidresult.entity.BidResult;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.RfpAnalyzeResult;
@@ -60,6 +61,10 @@ public class ProjectOpportunity extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ProductClass projectType; // 사업 구분
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sales_representative_id")
+    private User salesRepresentative;
+
     @Column(name = "expected_bid_date")
     private LocalDate expectedBidDate; // 입찰 or 계약 시점
 
@@ -111,7 +116,7 @@ public class ProjectOpportunity extends BaseEntity {
     public ProjectOpportunity(String opportunityCode, String opportunityName, ProjectOpportunityStage stage,
                               ProductClass projectType, LocalDate expectedBidDate,
                               BigDecimal expectedBudget, String description, String competitionStatus,
-                              Company customerCompany) {
+                              User salesRepresentative,Company customerCompany) {
         this.opportunityCode = opportunityCode;
         this.opportunityName = opportunityName;
         this.stage = stage != null ? stage : ProjectOpportunityStage.FINDING;
@@ -120,6 +125,7 @@ public class ProjectOpportunity extends BaseEntity {
         this.expectedBudget = expectedBudget;
         this.description = description;
         this.competitionStatus = competitionStatus;
+        this.salesRepresentative = salesRepresentative;
         this.customerCompany = customerCompany;
     }
 
@@ -137,7 +143,7 @@ public class ProjectOpportunity extends BaseEntity {
     public void updateInformation(String opportunityName, ProjectOpportunityStage stage,
                                   ProductClass projectType, LocalDate expectedBidDate,
                                   BigDecimal expectedBudget, String description,
-                                  String competitionStatus) {
+                                  String competitionStatus, User salesRepresentative) {
         this.opportunityName = opportunityName;
         this.stage = stage != null ? stage : this.stage;
         this.projectType = projectType;
@@ -145,5 +151,6 @@ public class ProjectOpportunity extends BaseEntity {
         this.expectedBudget = expectedBudget;
         this.description = description;
         this.competitionStatus = competitionStatus;
+        this.salesRepresentative = salesRepresentative;
     }
 }

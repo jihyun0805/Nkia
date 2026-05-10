@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.activity.salesactivity.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.request.SalesActivityCreateRequest;
 import com.nkia.Orbis.domain.activity.salesactivity.dto.request.SalesActivityUpdateRequest;
@@ -14,6 +15,8 @@ import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityR
 import com.nkia.Orbis.domain.activity.salesactivityrequest.repository.SalesActivityRequestRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
+import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -23,24 +26,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class SalesActivityService {
-    // Todo: ProjectOpportunity, SalesActivityRequest 연결
     private final SalesActivityRepository salesActivityRepository;
-    //    private final ProjectOpportunityRepository projectOpportunityRepository;
+    private final ProjectOpportunityRepository projectOpportunityRepository;
     private final SalesActivityRequestRepository salesActivityRequestRepository;
     private final UserRepository userRepository;
 
     @Transactional
     public SalesActivityResponse create(SalesActivityCreateRequest request) {
-//        ProjectOpportunity projectOpportunity = projectOpportunityRepository
-//                .findById(request.getProjectOpportunityId())
-//                .orElseThrow(() -> new ApiException(ErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
+        ProjectOpportunity projectOpportunity = projectOpportunityRepository
+                .findById(request.getProjectOpportunityId())
+                .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
 
         SalesActivityRequest salesActivityRequest = findSalesActivityRequestOrNull(
                 request.getSalesActivityRequestId()
         );
 
         SalesActivity salesActivity = SalesActivity.create(
-                null,
+                projectOpportunity,
                 request.getActivityType(),
                 request.getActivityPurpose(),
                 request.getActivityContent(),
@@ -97,7 +99,15 @@ public class SalesActivityService {
         SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
 
+        ProjectOpportunity projectOpportunity = null;
+
+        if (request.getProjectOpportunityId() != null) {
+            projectOpportunity = projectOpportunityRepository
+                    .findById(request.getProjectOpportunityId())
+                    .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
+        }
         salesActivity.update(
+                projectOpportunity,
                 request.getActivityType(),
                 request.getActivityPurpose(),
                 request.getActivityContent(),

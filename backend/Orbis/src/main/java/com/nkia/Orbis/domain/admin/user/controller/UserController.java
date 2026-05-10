@@ -1,10 +1,10 @@
 package com.nkia.Orbis.domain.admin.user.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
-import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
-import com.nkia.Orbis.domain.admin.user.service.UserService;
 import com.nkia.Orbis.domain.admin.user.dto.request.SignupRequest;
+import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
 import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
+import com.nkia.Orbis.domain.admin.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -72,6 +72,17 @@ public class UserController {
             @RequestBody UserUpdateRequest request
     ) {
         UserResponse response = userService.update(userId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "사용자 상세 조회")
+    @GetMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<UserResponse>> getUser(
+            @PathVariable("userId") UUID userId
+    ) {
+        UserResponse response = userService.getUser(userId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

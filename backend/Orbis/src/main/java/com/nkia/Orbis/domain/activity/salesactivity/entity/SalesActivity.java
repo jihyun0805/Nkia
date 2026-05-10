@@ -108,6 +108,7 @@ public class SalesActivity extends BaseEntity {
     }
 
     public void update(
+            ProjectOpportunity projectOpportunity,
             ActivityType activityType,
             ActivityPurpose activityPurpose,
             String activityContent,
@@ -118,6 +119,9 @@ public class SalesActivity extends BaseEntity {
             String customerInterest,
             ActivityStatus status
     ) {
+        if (projectOpportunity != null) {
+            this.projectOpportunity = projectOpportunity;
+        }
         if (activityType != null) {
             this.activityType = activityType;
         }

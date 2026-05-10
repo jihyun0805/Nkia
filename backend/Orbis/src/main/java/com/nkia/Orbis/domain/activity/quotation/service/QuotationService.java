@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.activity.quotation.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
@@ -12,9 +13,16 @@ import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItem;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItem;
 import com.nkia.Orbis.domain.activity.quotation.repository.QuotationRepository;
+import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryListResponse;
+import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryResponse;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationLaborItemHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationSolutionItemHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.repository.QuotationHistoryRepository;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
+import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -26,16 +34,20 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class QuotationService {
-    // Todo: 사업기회 구현 후 연동 예정
     private final QuotationRepository quotationRepository;
     private final ProductModuleRepository productModuleRepository;
+    private final ProjectOpportunityRepository projectOpportunityRepository;
+    private final QuotationHistoryRepository quotationHistoryRepository;
 
     @Transactional
     public QuotationResponse create(QuotationCreateRequest request) {
-        ProjectOpportunity projectOpportunity = null;
+
+        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
+                .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
 
         Quotation quotation = Quotation.create(
                 generateQuotationCode(request.getQuotationDate()),
+                request.getRefNo(),
                 projectOpportunity,
                 request.getQuotationDate(),
                 request.getPaymentCondition(),
@@ -137,6 +149,102 @@ public class QuotationService {
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
 
         return QuotationResponse.from(quotation);
+    }
+
+    @Transactional
+    public QuotationResponse update(Long quotationId, QuotationCreateRequest request) {
+        Quotation oldQuotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
+
+        // 1. 기존 견적서 히스토리 저장
+        Integer nextVersion = calculateNextHistoryVersion(oldQuotation.getQuotationCode());
+
+        QuotationHistory history = QuotationHistory.create(oldQuotation, nextVersion);
+
+        for (QuotationSolutionItem item : oldQuotation.getQuotationSolutionItems()) {
+            history.addSolutionItem(
+                    QuotationSolutionItemHistory.create(
+                            item.getProductModule(),
+                            item.getQuantity(),
+                            item.getSupplyPrice(),
+                            item.getDiscountRate(),
+                            item.getFreeSupply()
+                    )
+            );
+        }
+
+        for (QuotationLaborItem item : oldQuotation.getQuotationLaborItems()) {
+            history.addLaborItem(
+                    QuotationLaborItemHistory.create(
+                            item.getLaborType(),
+                            item.getUnitPrice(),
+                            item.getManMonth(),
+                            item.getSupplyPrice()
+                    )
+            );
+        }
+
+        quotationHistoryRepository.save(history);
+
+        // 2. 기존 견적서 삭제
+        quotationRepository.delete(oldQuotation);
+
+        // flush: DELETE 먼저 DB에 확정(DB에 같은 유니크 코드 충돌 방지)
+        quotationRepository.flush();
+
+        // 3. 새 요청값으로 새 견적서 생성
+        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
+                .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
+
+        Quotation newQuotation = Quotation.create(
+                oldQuotation.getQuotationCode(),
+                request.getRefNo(),
+                projectOpportunity,
+                request.getQuotationDate(),
+                request.getPaymentCondition(),
+                request.getNote()
+        );
+
+        addSolutionItems(newQuotation, request.getQuotationSolutionItems());
+        addLaborItems(newQuotation, request.getQuotationLaborItems());
+
+        newQuotation.calculateTotalAmount();
+
+        Quotation saved = quotationRepository.save(newQuotation);
+
+        return QuotationResponse.from(saved);
+
+    }
+
+    private Integer calculateNextHistoryVersion(String quotationCode) {
+        return (int) quotationHistoryRepository.countByQuotationCode(quotationCode) + 1;
+    }
+
+    @Transactional
+    public List<QuotationHistoryListResponse> getQuotationHistories(Long quotationId) {
+        Quotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
+
+        List<QuotationHistory> histories =
+                quotationHistoryRepository.findByQuotationCodeOrderByVersionDesc(
+                        quotation.getQuotationCode()
+                );
+
+        if (histories.isEmpty()) {
+            throw new ApiException(ActivityErrorCode.QUOTATION_HISTORY_NOT_FOUND);
+        }
+
+        return histories.stream()
+                .map(QuotationHistoryListResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public QuotationHistoryResponse getQuotationHistory(Long historyId) {
+        QuotationHistory history = quotationHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_HISTORY_NOT_FOUND));
+
+        return QuotationHistoryResponse.from(history);
     }
 }
 

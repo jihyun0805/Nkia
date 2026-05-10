@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.Projec
 import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 public record ProjectOpportunityUpdateRequest(
         @NotBlank(message = "사업기회명은 필수입니다.")
@@ -12,6 +13,7 @@ public record ProjectOpportunityUpdateRequest(
 
         ProjectOpportunityStage stage, // 영업 상태(발굴, 입찰 등) 변경 가능
         ProductClass projectType,
+        UUID salesRepresentativeId,
 
         LocalDate expectedBidDate,
         BigDecimal expectedBudget,

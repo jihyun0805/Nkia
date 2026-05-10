@@ -7,6 +7,17 @@ import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTrigger,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,7 +29,7 @@ import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttach
 import { findingStatuses, getCustomers, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, Plus, ScanLine, Trash2 } from "lucide-react"
+import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
 
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 const customerGroupOptions = ["공공", "민간", "해외"]
@@ -223,6 +234,7 @@ export default function FindingEditPage() {
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
 
@@ -584,14 +596,28 @@ export default function FindingEditPage() {
                                 {ocrLoadingIndex === index ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
                                 명함 등록
                               </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setContacts((prev) => (prev.length > 1 ? prev.filter((_, itemIndex) => itemIndex !== index) : prev))}
-                            >
-                              담당자 삭제
-                            </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button type="button" variant="outline" size="sm">
+                                    담당자 삭제
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogCancel className="absolute top-4 right-4 h-9 w-9 p-0">
+                                    <X className="h-4 w-4" />
+                                  </AlertDialogCancel>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>담당자 삭제</AlertDialogTitle>
+                                    <AlertDialogDescription>담당자 정보 전체를 삭제합니다. 진행하시겠습니까?</AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => setContacts((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}>
+                                      삭제
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </div>
                           {contact.businessCardImage ? (
@@ -802,9 +828,9 @@ export default function FindingEditPage() {
               <CardContent className="space-y-8">
                 <section className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>고객사명 *</Label>
-                      <CustomerAutocomplete
+                      <div className="space-y-2">
+                        <Label>고객사명 *</Label>
+                        <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => {
                           setSelectedCustomer(customer)
@@ -850,13 +876,7 @@ export default function FindingEditPage() {
                       <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>협력사명</Label>
-                        <Button type="button" variant="outline" size="sm" onClick={() => setPartnerNames((prev) => [...prev, ""])}>
-                          <Plus className="mr-2 h-4 w-4" />
-                          협력사 추가
-                        </Button>
-                      </div>
+                      <Label>협력사명</Label>
                       <div className="space-y-2">
                         {partnerNames.map((partnerName, index) => (
                           <div key={`edit-opportunity-partner-${index}`} className="flex items-center gap-2">
@@ -878,6 +898,12 @@ export default function FindingEditPage() {
                             </Button>
                           </div>
                         ))}
+                      </div>
+                      <div className="flex justify-end">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setPartnerNames((prev) => [...prev, ""])}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          협력사 추가
+                        </Button>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -1012,8 +1038,33 @@ export default function FindingEditPage() {
               </CardContent>
             </Card>
           </div>
-        </main>
+          </main>
+        </div>
+
+      <AlertDialog open={deleteIndex !== null} onOpenChange={(open) => !open && setDeleteIndex(null)}>
+        <AlertDialogContent>
+          <AlertDialogCancel className="absolute top-4 right-4 h-9 w-9 p-0">
+              <X className="h-4 w-4" />
+            </AlertDialogCancel>
+            <AlertDialogHeader>
+              <AlertDialogTitle>담당자 삭제</AlertDialogTitle>
+              <AlertDialogDescription>담당자 정보 전체를 삭제합니다. 진행하시겠습니까?</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (deleteIndex === null) return
+                  setContacts((prev) => prev.filter((_, index) => index !== deleteIndex))
+                  setDeleteIndex(null)
+                }}
+              >
+                삭제
+              </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       </div>
-    </div>
-  )
-}
+    )
+  }

@@ -4,15 +4,22 @@ import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCollectRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCreateRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingIssueRequest;
+import com.nkia.Orbis.domain.project.billing.dto.request.BillingUpdateRequest;
+import com.nkia.Orbis.domain.project.billing.dto.response.BillingDetailResponse;
+import com.nkia.Orbis.domain.project.billing.dto.response.BillingListResponse;
 import com.nkia.Orbis.domain.project.billing.service.BillingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -61,4 +68,50 @@ public class BillingController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    /**
+     * 청구 정보 통합 수정
+     */
+    @Operation(summary = "청구 정보 수정")
+    @PutMapping("/{billingId}")
+    public ResponseEntity<ApiResponse<BillingDetailResponse>> updateBilling(
+            @PathVariable Long billingId,
+            @RequestBody BillingUpdateRequest request) {
+
+        BillingDetailResponse response = billingService.updateBilling(billingId, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 청구 정보 삭제
+     */
+    @Operation(summary = "청구 정보 삭제")
+    @DeleteMapping("/{billingId}")
+    public ResponseEntity<ApiResponse<Void>> deleteBilling(
+            @PathVariable Long billingId) {
+
+        billingService.deleteBilling(billingId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
+     * 청구 및 수금 현황 목록 조회
+     */
+    @Operation(summary = "청구 및 수금 현황 목록 조회")
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<BillingListResponse>>> getBillings() {
+        List<BillingListResponse> response = billingService.getBillingList();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 청구 상세 조회
+     */
+    @Operation(summary = "청구 상세 조회")
+    @GetMapping("/{billingId}")
+    public ResponseEntity<ApiResponse<BillingDetailResponse>> getBilling(
+            @PathVariable Long billingId) {
+
+        BillingDetailResponse response = billingService.getBillingDetail(billingId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

@@ -45,7 +45,7 @@ public class SolutionItemResponse {
                 .productGroup(
                         item.getProductModule() == null
                                 ? null
-                                : item.getProductModule().getProductName()
+                                : item.getProductModule().getProductGroup()
                 )
                 .quantity(item.getQuantity())
                 .consumerPrice(item.getConsumerPrice())

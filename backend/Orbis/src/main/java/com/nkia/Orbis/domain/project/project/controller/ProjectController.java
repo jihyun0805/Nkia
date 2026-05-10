@@ -1,22 +1,24 @@
 package com.nkia.Orbis.domain.project.project.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.project.project.dto.request.ProjectCombinedUpdateRequest;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
+import com.nkia.Orbis.domain.project.project.service.ProjectFacadeService;
 import com.nkia.Orbis.domain.project.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,7 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Projects", description = "사업 API")
 public class ProjectController {
     private final ProjectService projectService;
+    private final ProjectFacadeService projectFacadeService;
 
+    /**
+     * 사업 등록
+     */
     @Operation(summary = "사업 등록")
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Long>> registerProject(@Valid @RequestBody ProjectCreateRequest request) {
@@ -37,15 +43,47 @@ public class ProjectController {
     }
 
     /**
-     * 사업 목록 조회 (페이징)
+     * 사업 목록 조회
      */
-    @Operation(summary = "사업 목록 조회")
+    @Operation(summary = "사업 목록 전체 조회")
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<ProjectListResponse>>> getProjects(
-            @ParameterObject @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-
-        Page<ProjectListResponse> response = projectService.getProjects(pageable);
+    public ResponseEntity<ApiResponse<List<ProjectListResponse>>> getProjects() {
+        List<ProjectListResponse> response = projectService.getProjects();
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 사업 상세 조회
+     */
+    @Operation(summary = "사업 상세 조회")
+    @GetMapping("/{projectId}")
+    public ResponseEntity<ApiResponse<ProjectDetailResponse>> getProjectDetail(@PathVariable Long projectId) {
+        ProjectDetailResponse response = projectService.getProjectDetail(projectId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 사업 및 결과보고 첨부파일 통합 수정 API
+     */
+    @PutMapping("/{projectId}/with-report")
+    @Operation(summary = "사업 통합 수정")
+    public ResponseEntity<ApiResponse<ProjectDetailResponse>> updateProjectWithReport(
+            @PathVariable Long projectId,
+            @RequestBody ProjectCombinedUpdateRequest request) {
+
+        ProjectDetailResponse response = projectFacadeService.updateProjectWithReport(projectId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 사업 삭제
+     */
+    @Operation(summary = "사업 삭제")
+    @DeleteMapping("/{projectId}")
+    public ResponseEntity<ApiResponse<Void>> deleteProject(@PathVariable Long projectId) {
+        projectFacadeService.deleteProjectWithReport(projectId);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }
