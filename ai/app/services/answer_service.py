@@ -147,6 +147,7 @@ def _answer_question_legacy(
         graph_state=graph_state,
         limit=limit,
         embedder=embedder,
+        user_context=user_context,
     )
     if graph_structured_response is not None:
         graph_structured_response.query = query
@@ -168,6 +169,7 @@ def _answer_question_legacy(
         start_at=effective_start_at,
         end_at=effective_end_at,
         embedder=embedder,
+        user_context=user_context,
     )
     if structured_response is not None:
         structured_response.query = query
@@ -229,6 +231,7 @@ def _answer_question_legacy(
             start_at=effective_start_at,
             end_at=effective_end_at,
             embedder=embedder,
+            user_context=user_context,
         )
         if structured_response is not None:
             structured_response.query = query

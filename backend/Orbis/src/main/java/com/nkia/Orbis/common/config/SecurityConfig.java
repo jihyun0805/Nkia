@@ -50,7 +50,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll() // 로그인, refresh는 접근 허용
                         .requestMatchers("/user/signup/admin/**").permitAll() // 관리자 계정 생성만 임시 허용
-                        .requestMatchers("/chatbot/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Swagger 허용
                         .requestMatchers("/images/**").permitAll()
                         .requestMatchers("/business-card-ocr").permitAll()

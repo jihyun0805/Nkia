@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.maintenancequotation.entity;
 
+import com.nkia.Orbis.common.entity.BaseEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -11,6 +12,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 /**
  * 유지보수 패키지별 비용 상세 엔티티
@@ -18,10 +20,11 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MaintenancePackageCost {
+public class MaintenancePackageCost extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @SQLRestriction("deleted = false")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -39,5 +42,8 @@ public class MaintenancePackageCost {
 
     public void setQuotation(MaintenanceQuotation quotation) {
         this.quotation = quotation;
+    }
+    public void delete() {
+        super.delete();
     }
 }

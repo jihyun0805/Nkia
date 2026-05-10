@@ -37,6 +37,7 @@ BEGIN
     'quotation',
     'rfp_analyze_result',
     'rfp_analyze_requirement',
+    'rfp_requirement',
     'prb',
     'prb_result',
     'proposal',
