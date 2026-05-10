@@ -8,6 +8,7 @@ from app.models.draft import DraftAction, DraftPayload, DraftSlot
 from app.models.draft_registry import DocumentDraftSpec, get_document_draft_spec
 from app.models.user_context import UserContext
 from app.schemas.answer import AnswerEvidence, ConversationMessage
+from app.services.user_context_access import is_evidence_accessible
 
 
 # evidence content 한 건당 prompt에 넣을 최대 길이
@@ -117,25 +118,11 @@ def filter_evidences_by_user_context(
     if user_context is None or user_context.is_unrestricted():
         return list(evidences)
 
-    allowed_ids = (
-        set(user_context.accessible_source_ids)
-        if user_context.accessible_source_ids is not None
-        else None
-    )
-    allowed_types = (
-        set(user_context.accessible_source_types)
-        if user_context.accessible_source_types is not None
-        else None
-    )
-
-    accessible: list[AnswerEvidence] = []
-    for evidence in evidences:
-        if allowed_ids is not None and evidence.sourceId not in allowed_ids:
-            continue
-        if allowed_types is not None and evidence.sourceType not in allowed_types:
-            continue
-        accessible.append(evidence)
-    return accessible
+    return [
+        evidence
+        for evidence in evidences
+        if is_evidence_accessible(evidence=evidence, user_context=user_context)
+    ]
 
 
 def order_primary_evidences(

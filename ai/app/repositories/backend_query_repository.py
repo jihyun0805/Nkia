@@ -597,22 +597,48 @@ def fetch_rfp_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
                     o.opportunity_code,
                     o.opportunity_name,
                     c.company_name AS customer_name,
-                    r.rfp_analysis_code,
+                    COALESCE(NULLIF(r.rfp_analysis_code, ''), NULLIF(r.rfp_code, ''), 'RFP-ANALYSIS-' || r.id::text) AS rfp_analysis_code,
                     r.announcement_no,
-                    r.issuer,
-                    r.received_date,
-                    r.submission_deadline,
-                    r.project_period,
-                    r.project_scope,
-                    r.requirements,
-                    r.security_requirements,
-                    r.risk_factors,
-                    r.special_notes,
-                    r.evidence_summary,
-                    r.analysis_status,
+                    COALESCE(NULLIF(r.issuer, ''), c.company_name) AS issuer,
+                    COALESCE(r.received_date, r.created_at::date) AS received_date,
+                    COALESCE(r.submission_deadline, r.proposal_deadline) AS submission_deadline,
+                    COALESCE(NULLIF(r.project_period, ''), r.expected_duration) AS project_period,
+                    COALESCE(NULLIF(r.project_scope, ''), r.project_description) AS project_scope,
                     COALESCE(
-                        json_agg(
-                            json_build_object(
+                        NULLIF(r.requirements, ''),
+                        legacy_req.requirement_summary,
+                        current_req.requirement_summary
+                    ) AS requirements,
+                    r.security_requirements,
+                    COALESCE(
+                        NULLIF(r.risk_factors, ''),
+                        legacy_req.review_summary,
+                        current_req.review_summary
+                    ) AS risk_factors,
+                    r.special_notes,
+                    COALESCE(NULLIF(r.evidence_summary, ''), r.project_description) AS evidence_summary,
+                    COALESCE(
+                        NULLIF(r.analysis_status, ''),
+                        CASE r.status
+                            WHEN 'RECEIVED' THEN '접수'
+                            WHEN 'IN_PROGRESS' THEN '분석중'
+                            WHEN 'COMPLETED' THEN '완료'
+                            ELSE r.status::text
+                        END
+                    ) AS analysis_status,
+                    COALESCE(legacy_req.requirement_rows, '[]'::jsonb)
+                        || COALESCE(current_req.requirement_rows, '[]'::jsonb) AS requirement_rows,
+                    CASE
+                        WHEN r.received_date IS NOT NULL THEN 'RFP'
+                        ELSE NULL
+                    END AS rfp_origin
+                FROM {_OPP} o
+                JOIN {_CO} c ON c.id = o.customer_company_id
+                JOIN {_RFP} r ON COALESCE(r.opportunity_id, r.project_opportunity_id) = o.id
+                LEFT JOIN LATERAL (
+                    SELECT
+                        jsonb_agg(
+                            jsonb_build_object(
                                 'category', rr.category,
                                 'requirementCode', rr.requirement_code,
                                 'requirementTitle', rr.requirement_title,
@@ -622,22 +648,49 @@ def fetch_rfp_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
                                 'effort', rr.effort
                             )
                             ORDER BY rr.id
-                        ) FILTER (WHERE rr.id IS NOT NULL),
-                        '[]'::json
-                    ) AS requirement_rows,
-                    NULL::text AS rfp_origin
-                FROM {_OPP} o
-                JOIN {_CO} c ON c.id = o.customer_company_id
-                JOIN {_RFP} r ON r.opportunity_id = o.id
-                LEFT JOIN public.rfp_analyze_requirement rr ON rr.rfp_analyze_result_id = r.id
+                        ) FILTER (WHERE rr.id IS NOT NULL) AS requirement_rows,
+                        string_agg(
+                            COALESCE(NULLIF(rr.requirement_title, ''), NULLIF(rr.category, '')),
+                            ', ' ORDER BY rr.id
+                        ) FILTER (WHERE COALESCE(NULLIF(rr.requirement_title, ''), NULLIF(rr.category, '')) IS NOT NULL) AS requirement_summary,
+                        string_agg(NULLIF(rr.review_note, ''), ' / ' ORDER BY rr.id)
+                            FILTER (WHERE NULLIF(rr.review_note, '') IS NOT NULL) AS review_summary
+                    FROM public.rfp_analyze_requirement rr
+                    WHERE rr.rfp_analyze_result_id = r.id
+                ) legacy_req ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT
+                        jsonb_agg(
+                            jsonb_build_object(
+                                'category', rr.category,
+                                'requirementCode', rr.requirement_code,
+                                'requirementTitle', rr.name,
+                                'requirementContent', rr.description,
+                                'supportStatus',
+                                    CASE rr.support_type
+                                        WHEN 'PROVIDED' THEN 'O'
+                                        WHEN 'PARTIAL_CUSTOMIZATION' THEN '∆'
+                                        WHEN 'NOT_PROVIDED' THEN 'X'
+                                        WHEN 'NEEDS_REVIEW' THEN '?'
+                                        ELSE rr.support_type
+                                    END,
+                                'reviewNote', rr.review_comment,
+                                'effort', rr.effort
+                            )
+                            ORDER BY rr.id
+                        ) FILTER (WHERE rr.id IS NOT NULL) AS requirement_rows,
+                        string_agg(
+                            COALESCE(NULLIF(rr.name, ''), NULLIF(rr.category, '')),
+                            ', ' ORDER BY rr.id
+                        ) FILTER (WHERE COALESCE(NULLIF(rr.name, ''), NULLIF(rr.category, '')) IS NOT NULL) AS requirement_summary,
+                        string_agg(NULLIF(rr.review_comment, ''), ' / ' ORDER BY rr.id)
+                            FILTER (WHERE NULLIF(rr.review_comment, '') IS NOT NULL) AS review_summary
+                    FROM public.rfp_requirement rr
+                    WHERE rr.rfp_analyze_result_id = r.id
+                      AND COALESCE(rr.deleted, false) = false
+                ) current_req ON TRUE
                 WHERE o.opportunity_code = %(opportunity_code)s
-                GROUP BY
-                    o.opportunity_code, o.opportunity_name, c.company_name,
-                    r.rfp_analysis_code, r.announcement_no, r.issuer, r.received_date,
-                    r.submission_deadline, r.project_period, r.project_scope, r.requirements,
-                    r.security_requirements, r.risk_factors, r.special_notes,
-                    r.evidence_summary, r.analysis_status, o.id, r.id
-                ORDER BY r.received_date DESC NULLS LAST, r.id DESC
+                ORDER BY COALESCE(r.received_date::timestamptz, r.proposal_deadline, r.created_at, r.updated_at) DESC NULLS LAST, r.id DESC
                 LIMIT 1
                 """,
                 {"opportunity_code": opportunity_code},
@@ -951,19 +1004,20 @@ def fetch_sales_activity_timeline(
                     o.opportunity_name,
                     c.company_name AS customer_name,
                     a.activity_type,
-                    a.activity_channel,
-                    a.activity_at,
-                    a.place,
-                    a.content,
+                    a.activity_purpose,
+                    a.activity_date_time AS activity_at,
+                    NULL::text AS activity_channel,
+                    a.location AS place,
+                    a.activity_content AS content,
                     a.customer_interest,
                     a.issue,
-                    a.next_action,
-                    a.progress_status
+                    a.next_activity AS next_action,
+                    a.status AS progress_status
                 FROM {_ACT} a
-                JOIN {_OPP} o ON o.id = a.opportunity_id
+                JOIN {_OPP} o ON o.id = COALESCE(a.project_opportunity_id, a.opportunity_id)
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 WHERE o.opportunity_code = %(opportunity_code)s
-                ORDER BY a.activity_at DESC NULLS LAST, a.id DESC
+                ORDER BY a.activity_date_time DESC NULLS LAST, a.id DESC
                 LIMIT %(limit)s
                 """,
                 {
@@ -1247,6 +1301,103 @@ def fetch_quotation_snapshot(*, quotation_code: str) -> dict[str, Any] | None:
                 LIMIT 1
                 """,
                 {"quotation_code": quotation_code.upper()},
+            )
+            return cur.fetchone()
+
+
+def fetch_quotation_snapshot_by_opportunity(*, opportunity_code: str) -> dict[str, Any] | None:
+    document_series_expr = optional_column_expr(
+        table_name=_QT,
+        table_alias="q",
+        output_name="document_series_code",
+        candidates=("document_series_code", "quotation_root_code", "quote_root_code", "root_document_code"),
+    )
+    document_version_expr = optional_column_expr(
+        table_name=_QT,
+        table_alias="q",
+        output_name="document_version",
+        candidates=("document_version", "quotation_version", "quote_version", "version_no", "revision_no", "revision"),
+    )
+    latest_version_expr = optional_column_expr(
+        table_name=_QT,
+        table_alias="q",
+        output_name="is_latest_version",
+        candidates=("is_latest_version", "latest_version", "is_current_version"),
+        cast_type="boolean",
+    )
+    previous_version_expr = optional_column_expr(
+        table_name=_QT,
+        table_alias="q",
+        output_name="previous_version_id",
+        candidates=("previous_version_id", "prev_version_id"),
+    )
+
+    with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    q.quotation_code,
+                    q.quotation_date,
+                    q.payment_condition,
+                    q.consumer_total_price,
+                    q.supply_total_price,
+                    q.labor_total_price,
+                    q.total_price,
+                    q.note,
+                    o.opportunity_code,
+                    o.opportunity_name,
+                    c.company_name AS customer_name,
+                    {document_series_expr},
+                    {document_version_expr},
+                    {latest_version_expr},
+                    {previous_version_expr},
+                    COALESCE(si.items, '[]'::json) AS solution_items,
+                    COALESCE(li.items, '[]'::json) AS labor_items
+                FROM {_QT} q
+                JOIN {_OPP} o ON o.id = q.project_opportunity_id
+                LEFT JOIN {_CO} c ON c.id = o.customer_company_id
+                LEFT JOIN LATERAL (
+                    SELECT json_agg(
+                        json_build_object(
+                            'module_id', pm.id,
+                            'product_class', pm.product_class,
+                            'product_group', pm.product_group,
+                            'product_name', pm.product_name,
+                            'quantity', qi.quantity,
+                            'consumer_price', qi.consumer_price,
+                            'supply_price', qi.supply_price,
+                            'consumer_total_price', qi.consumer_total_price,
+                            'supply_total_price', qi.supply_total_price,
+                            'free_supply', qi.free_supply
+                        )
+                        ORDER BY qi.id
+                    ) AS items
+                    FROM {_QI} qi
+                    LEFT JOIN public.product_module pm ON pm.id = qi.product_module_id
+                    WHERE qi.quotation_id = q.id
+                      AND qi.deleted = false
+                ) si ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT json_agg(
+                        json_build_object(
+                            'labor_type', ql.labor_type,
+                            'unit_price', ql.unit_price,
+                            'man_month', ql.man_month,
+                            'supply_price', ql.supply_price
+                        )
+                        ORDER BY ql.id
+                    ) AS items
+                    FROM {_QL} ql
+                    WHERE ql.quotation_id = q.id
+                      AND ql.deleted = false
+                ) li ON TRUE
+                WHERE upper(o.opportunity_code) = %(opportunity_code)s
+                  AND q.deleted = false
+                ORDER BY q.quotation_date DESC NULLS LAST, q.id DESC
+                LIMIT 1
+                """,
+                {"opportunity_code": opportunity_code.upper()},
             )
             return cur.fetchone()
 

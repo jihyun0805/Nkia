@@ -82,16 +82,22 @@ INDEXED_CONFIGS: tuple[DocumentConfig, ...] = (
     DocumentConfig(
         table="rfp_analyze_result",
         source_type=SourceType.RFP_ANALYSIS,
-        id_fields=("rfpAnalysisCode", "rfp_analysis_code", "id"),
-        title_fields=("rfpAnalysisCode", "rfp_analysis_code", "id"),
+        id_fields=("rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
+        title_fields=("project_name", "opportunity_name", "rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
         content_fields=(
             "issuer", "project_scope", "project_period",
             "requirements", "risk_factors", "special_notes",
             "key_requirements", "analysis_summary",
+            "project_name", "project_description", "expected_duration",
+            "project_location", "proposal_deadline", "analysis_status", "status",
         ),
         payload_aliases={
-            "opportunityId": ("project_opportunity_id",),
-            "rfpAnalysisCode": ("id",),
+            "opportunityId": ("project_opportunity_id", "opportunity_id"),
+            "rfpAnalysisCode": ("rfp_analysis_code", "rfp_code", "id"),
+            "rfpCode": ("rfp_code", "rfp_analysis_code", "id"),
+            "projectScope": ("project_scope", "project_description"),
+            "submissionDeadline": ("submission_deadline", "proposal_deadline"),
+            "analysisStatus": ("analysis_status", "status"),
         },
     ),
     DocumentConfig(
@@ -265,6 +271,24 @@ INDEXED_CONFIGS: tuple[DocumentConfig, ...] = (
         payload_aliases={
             "rfpAnalyzeResultId": ("rfp_analyze_result_id",),
             "requirementCode": ("requirement_code",),
+        },
+    ),
+    DocumentConfig(
+        table="rfp_requirement",
+        source_type=SourceType.RFP_ANALYSIS,
+        id_fields=("requirementCode", "requirement_code", "id"),
+        title_fields=("requirement_title", "name", "requirement_code", "id"),
+        content_fields=(
+            "category", "requirement_code", "requirement_title", "name",
+            "requirement_content", "description", "support_status", "support_type",
+            "review_note", "review_comment", "effort",
+        ),
+        payload_aliases={
+            "rfpAnalyzeResultId": ("rfp_analyze_result_id",),
+            "requirementCode": ("requirement_code",),
+            "requirementTitle": ("requirement_title", "name"),
+            "supportStatus": ("support_status", "support_type"),
+            "reviewNote": ("review_note", "review_comment"),
         },
     ),
     # ---------- 항상 색인 ----------
