@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,6 +31,7 @@ public class WorkflowTemplateController {
 
     @Operation(summary = "결재 프로세스 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW_TEMPLATE', 'CREATE')")
     public ResponseEntity<ApiResponse<WorkflowTemplateResponse>> create(
             @RequestBody WorkflowTemplateCreateRequest request
     ) {
@@ -41,6 +43,7 @@ public class WorkflowTemplateController {
 
     @Operation(summary = "결재 프로세스 수정")
     @PutMapping("/{workflowTemplateId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW_TEMPLATE', 'UPDATE')")
     public ResponseEntity<ApiResponse<WorkflowTemplateResponse>> update(
             @PathVariable("workflowTemplateId") Long workflowTemplateId,
             @RequestBody WorkflowTemplateUpdateRequest request
@@ -52,6 +55,7 @@ public class WorkflowTemplateController {
 
     @Operation(summary = "결재 프로세스 상세 조회")
     @GetMapping("/{workflowTemplateId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW_TEMPLATE', 'READ')")
     public ResponseEntity<ApiResponse<WorkflowTemplateResponse>> getTemplate(
             @PathVariable("workflowTemplateId") Long workflowTemplateId
     ) {
@@ -64,6 +68,7 @@ public class WorkflowTemplateController {
 
     @Operation(summary = "결재 프로세스 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW_TEMPLATE', 'READ')")
     public ResponseEntity<ApiResponse<List<WorkflowTemplateListResponse>>> getTemplates() {
 
         List<WorkflowTemplateListResponse> response = workflowTemplateService.getTemplates();

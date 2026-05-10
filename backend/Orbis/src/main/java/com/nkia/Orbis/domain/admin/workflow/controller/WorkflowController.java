@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,6 +31,7 @@ public class WorkflowController {
 
     @Operation(summary = "초기 결재 요청 생성")
     @PostMapping("/start")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'CREATE')")
     public ResponseEntity<ApiResponse<WorkflowResponse>> start(
             @RequestBody StartWorkflowRequest request
     ) {
@@ -46,6 +48,7 @@ public class WorkflowController {
 
     @Operation(summary = "결재 승인")
     @PostMapping("/{workflowId}/approve")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'APPROVE')")
     public ResponseEntity<ApiResponse<String>> approve(
             @PathVariable("workflowId") Long workflowId,
             @RequestBody WorkflowApproveRequest request
@@ -62,6 +65,7 @@ public class WorkflowController {
 
     @Operation(summary = "결재 반려")
     @PostMapping("/{workflowId}/reject")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'APPROVE')")
     public ResponseEntity<ApiResponse<String>> reject(
             @PathVariable("workflowId") Long workflowId,
             @RequestBody WorkflowRejectRequest request
@@ -77,6 +81,7 @@ public class WorkflowController {
 
     @Operation(summary = "결재 취소")
     @PostMapping("/{workflowId}/cancel")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> cancel(
             @PathVariable("workflowId") Long workflowId
     ) {
@@ -87,6 +92,7 @@ public class WorkflowController {
 
     @Operation(summary = "내 결재 목록 조회")
     @GetMapping("/my/{userId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'READ')")
     public ResponseEntity<ApiResponse<List<WorkflowResponse>>> getMyWorkflows(
             @PathVariable("userId") UUID userId
     ) {
