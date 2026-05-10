@@ -15,13 +15,16 @@ from app.adapters.nkia_domain_adapter import (
 )
 from app.core.config import settings
 from app.embeddings.model import EmbeddingModel
+from app.models.constants import SourceType
 from app.models.intent import StructuredQueryIntent
 from app.models.normalization import QueryNormalization
+from app.models.user_context import UserContext
 from app.repositories.backend_query_repository import (
     fetch_bid_result_snapshot,
     fetch_contract_snapshot,
     fetch_opportunity_delivery_snapshot,
     fetch_quotation_snapshot,
+    fetch_quotation_snapshot_by_opportunity,
     fetch_metric_rows_for_opportunity_codes,
     fetch_maintenance_activity_rank,
     fetch_maintenance_activity_rank_filtered,
@@ -59,10 +62,61 @@ from app.schemas.answer import AnswerEvidence, AnswerResponse
 from app.services.metric_registry import get_metric_spec
 from app.services.search_service import search_knowledge
 from app.services.structured_executors import answer_entity_risk_focus_query
+from app.services.user_context_access import is_snapshot_accessible
 
 logger = logging.getLogger(__name__)
 BUSINESS_CODE_PATTERN = re.compile(r"(?<![A-Z0-9-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}(?![A-Z0-9-])")
 KST = timezone(timedelta(hours=9))
+
+
+def _can_access_opportunity_code(user_context: UserContext | None, opportunity_code: str | None) -> bool:
+    return is_snapshot_accessible(
+        user_context=user_context,
+        source_type=SourceType.PROJECT_OPPORTUNITY,
+        snapshot={"opportunity_code": opportunity_code},
+        direct_keys=("opportunity_code",),
+    )
+
+
+def _can_access_exact_snapshot(
+    *,
+    user_context: UserContext | None,
+    source_type: str,
+    snapshot: dict[str, Any] | None,
+    direct_keys: tuple[str, ...],
+    related_keys: tuple[str, ...] = ("opportunity_code",),
+) -> bool:
+    return is_snapshot_accessible(
+        user_context=user_context,
+        source_type=source_type,
+        snapshot=snapshot,
+        direct_keys=direct_keys,
+        related_keys=related_keys,
+    )
+
+
+def _filter_structured_rows(
+    *,
+    user_context: UserContext | None,
+    rows: list[dict[str, Any]],
+    source_type: str,
+    direct_keys: tuple[str, ...],
+    related_keys: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
+    if user_context is None or user_context.is_unrestricted():
+        return rows
+
+    return [
+        row
+        for row in rows
+        if is_snapshot_accessible(
+            user_context=user_context,
+            source_type=source_type,
+            snapshot=row,
+            direct_keys=direct_keys,
+            related_keys=related_keys,
+        )
+    ]
 
 
 def answer_targeted_domain_query(
@@ -74,6 +128,7 @@ def answer_targeted_domain_query(
     start_at: str | None,
     end_at: str | None,
     embedder: EmbeddingModel,
+    user_context: UserContext | None = None,
 ) -> AnswerResponse | None:
     normalized_query = normalization.normalized_query
     exact_codes = extract_business_codes(query)
@@ -83,6 +138,7 @@ def answer_targeted_domain_query(
         exact_codes=exact_codes,
         limit=limit,
         embedder=embedder,
+        user_context=user_context,
     )
     if exact_snapshot_response is not None:
         return exact_snapshot_response
@@ -93,17 +149,27 @@ def answer_targeted_domain_query(
         attachment_session_id=getattr(normalization, "attachment_session_id", None),
         limit=limit,
         embedder=embedder,
+        user_context=user_context,
     )
     if attachment_related_response is not None:
         return attachment_related_response
 
     if is_maintenance_activity_rank_query(normalized_query):
         rows = fetch_maintenance_activity_rank(limit=max(limit, 3))
+        rows = _filter_structured_rows(
+            user_context=user_context,
+            rows=rows,
+            source_type=SourceType.MAINTENANCE,
+            direct_keys=("maintenance_code",),
+            related_keys=("opportunity_code",),
+        )
         if not rows:
             return None
         return build_maintenance_activity_rank_response(query=query, rows=rows[:3], limit=limit, embedder=embedder)
 
     if is_entity_count_query(normalized_query):
+        if user_context is not None and not user_context.is_unrestricted():
+            return None
         entity_type = extract_count_entity_type(normalized_query)
         if entity_type:
             count = fetch_entity_count(entity_type)
@@ -114,12 +180,20 @@ def answer_targeted_domain_query(
 
     if is_opportunity_list_query(normalized_query):
         rows = fetch_status_rows(status_filters=[], limit=50)
+        rows = _filter_structured_rows(
+            user_context=user_context,
+            rows=rows,
+            source_type=SourceType.PROJECT_OPPORTUNITY,
+            direct_keys=("opportunity_code",),
+        )
         if rows:
             return build_opportunity_list_response(
                 query=query, rows=rows, limit=limit, embedder=embedder
             )
 
     if is_module_revenue_query(normalized_query):
+        if user_context is not None and not user_context.is_unrestricted():
+            return None
         product_class = extract_product_class_from_query(normalized_query)
         revenue_rows = fetch_module_quotation_revenue_rows(product_class=product_class, limit=20)
         if revenue_rows:
@@ -136,6 +210,12 @@ def answer_targeted_domain_query(
         product_class = None if name_term else extract_product_class_from_query(normalized_query)
         catalog_rows = fetch_product_catalog_rows(
             product_class=product_class, name_term=name_term, limit=200
+        )
+        catalog_rows = _filter_structured_rows(
+            user_context=user_context,
+            rows=catalog_rows,
+            source_type=SourceType.MODULE,
+            direct_keys=("id", "product_name", "product_class"),
         )
         if catalog_rows:
             return build_product_catalog_response(
@@ -162,11 +242,24 @@ def answer_targeted_domain_query(
                 ),
                 "high_risk",
             )
+            rows = _filter_structured_rows(
+                user_context=user_context,
+                rows=rows,
+                source_type=SourceType.PROJECT_OPPORTUNITY,
+                direct_keys=("opportunity_code",),
+            )
             if rows:
                 return build_high_risk_response(query=query, rows=rows[:3], limit=limit, embedder=embedder)
 
         if is_project_result_highlight_query(normalized_query):
             rows = fetch_project_result_highlight(limit=1)
+            rows = _filter_structured_rows(
+                user_context=user_context,
+                rows=rows,
+                source_type=SourceType.PROJECT_RESULT_REPORT,
+                direct_keys=("project_report_code", "project_code"),
+                related_keys=("opportunity_code",),
+            )
             if rows:
                 return build_project_result_highlight_response(
                     query=query,
@@ -177,6 +270,13 @@ def answer_targeted_domain_query(
 
         if is_generic_maintenance_quote_query(normalized_query):
             rows = fetch_maintenance_quote_highlights(limit=3)
+            rows = _filter_structured_rows(
+                user_context=user_context,
+                rows=rows,
+                source_type=SourceType.MAINTENANCE_QUOTE,
+                direct_keys=("maintenance_quote_code", "maintenance_code"),
+                related_keys=("opportunity_code",),
+            )
             if rows:
                 return build_generic_maintenance_quote_response(
                     query=query,
@@ -187,6 +287,13 @@ def answer_targeted_domain_query(
 
         if is_warranty_maintenance_list_query(normalized_query):
             rows = fetch_maintenance_status_rows(contract_type="무상", status=None, limit=max(limit, 5))
+            rows = _filter_structured_rows(
+                user_context=user_context,
+                rows=rows,
+                source_type=SourceType.MAINTENANCE,
+                direct_keys=("maintenance_code",),
+                related_keys=("opportunity_code",),
+            )
             if rows:
                 return build_maintenance_list_response(
                     query=query,
@@ -199,6 +306,20 @@ def answer_targeted_domain_query(
 
         if is_paid_maintenance_transition_query(normalized_query):
             rows = fetch_paid_maintenance_transition_rows(limit=max(limit, 5))
+            if user_context is not None and not user_context.is_unrestricted():
+                rows = [
+                    row
+                    for row in rows
+                    if is_snapshot_accessible(
+                        user_context=user_context,
+                        source_type=SourceType.MAINTENANCE_QUOTE
+                        if row.get("maintenance_quote_code")
+                        else SourceType.MAINTENANCE,
+                        snapshot=row,
+                        direct_keys=("maintenance_quote_code", "maintenance_code"),
+                        related_keys=("opportunity_code",),
+                    )
+                ]
             if rows:
                 return build_paid_maintenance_transition_response(
                     query=query,
@@ -210,6 +331,9 @@ def answer_targeted_domain_query(
 
     opportunity_code = str(entity["opportunity_code"])
     opportunity_name = str(entity["opportunity_name"])
+
+    if not _can_access_opportunity_code(user_context, opportunity_code):
+        return None
 
     if is_entity_risk_focus_query(normalized_query, graph_state):
         risk_response = answer_entity_risk_focus_query(
@@ -331,6 +455,16 @@ def answer_targeted_domain_query(
                 embedder=embedder,
             )
 
+    if is_quotation_query(normalized_query, normalization):
+        snapshot = fetch_quotation_snapshot_by_opportunity(opportunity_code=opportunity_code)
+        if snapshot is not None:
+            return build_quotation_snapshot_response(
+                query=query,
+                snapshot=snapshot,
+                limit=limit,
+                embedder=embedder,
+            )
+
     if is_sales_activity_timeline_query(normalized_query, normalization):
         rows = fetch_sales_activity_timeline(opportunity_code=opportunity_code, limit=max(limit * 2, 6))
         if rows:
@@ -409,6 +543,7 @@ def answer_exact_code_snapshot_query(
     exact_codes: list[str],
     limit: int,
     embedder: EmbeddingModel,
+    user_context: UserContext | None = None,
 ) -> AnswerResponse | None:
     if not exact_codes:
         return None
@@ -416,28 +551,69 @@ def answer_exact_code_snapshot_query(
     for code in exact_codes:
         if code.startswith("QUO-") or code.startswith("Q-"):
             snapshot = fetch_quotation_snapshot(quotation_code=code)
-            if snapshot is not None:
+            if snapshot is not None and _can_access_exact_snapshot(
+                user_context=user_context,
+                source_type=SourceType.QUOTATION,
+                snapshot=snapshot,
+                direct_keys=("quotation_code",),
+            ):
                 return build_quotation_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         if code.startswith("CTR-") or code.startswith("CT-"):
             snapshot = fetch_contract_snapshot(contract_code=code)
-            if snapshot is not None:
+            if snapshot is not None and _can_access_exact_snapshot(
+                user_context=user_context,
+                source_type=SourceType.CONTRACT,
+                snapshot=snapshot,
+                direct_keys=("contract_code",),
+                related_keys=("won_report_code", "opportunity_code"),
+            ):
                 return build_contract_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         if code.startswith("PRJ-"):
             snapshot = fetch_project_snapshot(project_code=code)
-            if snapshot is not None:
+            if snapshot is not None and _can_access_exact_snapshot(
+                user_context=user_context,
+                source_type=SourceType.PROJECT,
+                snapshot=snapshot,
+                direct_keys=("project_code", "pjt_no"),
+                related_keys=("project_report_code", "opportunity_code"),
+            ):
                 return build_project_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         if code.startswith("MNT-") or code.startswith("MC-"):
             snapshot = fetch_maintenance_snapshot(maintenance_code=code)
-            if snapshot is not None:
+            if snapshot is not None and _can_access_exact_snapshot(
+                user_context=user_context,
+                source_type=SourceType.MAINTENANCE,
+                snapshot=snapshot,
+                direct_keys=("maintenance_code",),
+                related_keys=("maintenance_quote_code", "support_code", "opportunity_code"),
+            ):
                 return build_maintenance_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         snapshot = fetch_contract_snapshot(contract_code=code)
-        if snapshot is not None:
+        if snapshot is not None and _can_access_exact_snapshot(
+            user_context=user_context,
+            source_type=SourceType.CONTRACT,
+            snapshot=snapshot,
+            direct_keys=("contract_code",),
+            related_keys=("won_report_code", "opportunity_code"),
+        ):
             return build_contract_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         snapshot = fetch_project_snapshot(project_code=code)
-        if snapshot is not None:
+        if snapshot is not None and _can_access_exact_snapshot(
+            user_context=user_context,
+            source_type=SourceType.PROJECT,
+            snapshot=snapshot,
+            direct_keys=("project_code", "pjt_no"),
+            related_keys=("project_report_code", "opportunity_code"),
+        ):
             return build_project_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         snapshot = fetch_maintenance_snapshot(maintenance_code=code)
-        if snapshot is not None:
+        if snapshot is not None and _can_access_exact_snapshot(
+            user_context=user_context,
+            source_type=SourceType.MAINTENANCE,
+            snapshot=snapshot,
+            direct_keys=("maintenance_code",),
+            related_keys=("maintenance_quote_code", "support_code", "opportunity_code"),
+        ):
             return build_maintenance_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
     return None
 
@@ -448,6 +624,7 @@ def answer_structured_query(
     intent: StructuredQueryIntent,
     limit: int,
     embedder: EmbeddingModel,
+    user_context: UserContext | None = None,
 ) -> AnswerResponse | None:
     if intent.intent_type == "clarification":
         return AnswerResponse(
@@ -475,6 +652,12 @@ def answer_structured_query(
         except psycopg.Error as exc:
             logger.warning("Structured difficult-win query failed: %s", exc)
             return build_structured_data_unavailable_response(query=query, embedder=embedder)
+        rows = _filter_structured_rows(
+            user_context=user_context,
+            rows=rows,
+            source_type=SourceType.PROJECT_OPPORTUNITY,
+            direct_keys=("opportunity_code",),
+        )
         if not rows:
             return build_empty_structured_response(query=query, embedder=embedder)
         return build_difficult_win_response(query=query, intent=intent, rows=rows[:3], limit=limit, embedder=embedder)
@@ -493,6 +676,12 @@ def answer_structured_query(
             except psycopg.Error as exc:
                 logger.warning("Structured risk-rank query failed: %s", exc)
                 return build_structured_data_unavailable_response(query=query, embedder=embedder)
+            rows = _filter_structured_rows(
+                user_context=user_context,
+                rows=rows,
+                source_type=SourceType.PROJECT_OPPORTUNITY,
+                direct_keys=("opportunity_code",),
+            )
             if not rows:
                 return build_empty_structured_response(query=query, embedder=embedder)
             for row in rows:
@@ -510,6 +699,12 @@ def answer_structured_query(
         except psycopg.Error as exc:
             logger.warning("Structured metric-rank query failed: %s", exc)
             return build_structured_data_unavailable_response(query=query, embedder=embedder)
+        rows = _filter_structured_rows(
+            user_context=user_context,
+            rows=rows,
+            source_type=SourceType.PROJECT_OPPORTUNITY,
+            direct_keys=("opportunity_code",),
+        )
         if not rows:
             return build_empty_structured_response(query=query, embedder=embedder)
         return build_metric_rank_response(query=query, intent=intent, rows=rows, limit=limit, embedder=embedder)
@@ -520,6 +715,12 @@ def answer_structured_query(
         except psycopg.Error as exc:
             logger.warning("Structured status query failed: %s", exc)
             return build_structured_data_unavailable_response(query=query, embedder=embedder)
+        rows = _filter_structured_rows(
+            user_context=user_context,
+            rows=rows,
+            source_type=SourceType.PROJECT_OPPORTUNITY,
+            direct_keys=("opportunity_code",),
+        )
         if not rows:
             return build_empty_structured_response(query=query, embedder=embedder)
         return build_status_list_response(query=query, intent=intent, rows=rows, limit=limit, embedder=embedder)
@@ -533,6 +734,13 @@ def answer_structured_query(
         except psycopg.Error as exc:
             logger.warning("Structured maintenance count-rank query failed: %s", exc)
             return build_structured_data_unavailable_response(query=query, embedder=embedder)
+        rows = _filter_structured_rows(
+            user_context=user_context,
+            rows=rows,
+            source_type=SourceType.MAINTENANCE,
+            direct_keys=("maintenance_code",),
+            related_keys=("opportunity_code",),
+        )
         if not rows:
             return build_empty_structured_response(query=query, embedder=embedder)
         return build_maintenance_activity_rank_response(
@@ -544,6 +752,8 @@ def answer_structured_query(
         )
 
     if intent.intent_type == "period_summary" and intent.summary_domain == "won":
+        if user_context is not None and not user_context.is_unrestricted():
+            return None
         try:
             summary = fetch_won_summary(
                 start_at=intent.time_from,
@@ -558,6 +768,8 @@ def answer_structured_query(
         return build_won_summary_response(query=query, intent=intent, summary=summary, limit=limit, embedder=embedder)
 
     if intent.intent_type == "aggregate_total" and intent.metric_key and intent.metric_label:
+        if user_context is not None and not user_context.is_unrestricted():
+            return None
         try:
             summary = fetch_total_metric_summary(
                 metric_key=intent.metric_key,
@@ -581,6 +793,17 @@ def answer_structured_query(
         except psycopg.Error as exc:
             logger.warning("Structured document-recency query failed: %s", exc)
             return build_structured_data_unavailable_response(query=query, embedder=embedder)
+        rows = [
+            row
+            for row in rows
+            if is_snapshot_accessible(
+                user_context=user_context,
+                source_type=intent.document_scope or str(row.get("source_type") or "DOCUMENT"),
+                snapshot=row,
+                direct_keys=("reference_code",),
+                related_keys=("opportunity_code",),
+            )
+        ] if user_context is not None and not user_context.is_unrestricted() else rows
         if not rows:
             return build_empty_structured_response(query=query, embedder=embedder)
         return build_document_recency_response(query=query, intent=intent, rows=rows, limit=limit, embedder=embedder)
@@ -594,6 +817,7 @@ def answer_graph_structured_extension(
     graph_state: Any,
     limit: int,
     embedder: EmbeddingModel,
+    user_context: UserContext | None = None,
 ) -> AnswerResponse | None:
     comparison_pairs = list(getattr(graph_state, "comparisonPairs", []) or [])
     comparison_metric = getattr(graph_state, "comparisonMetric", None)
@@ -629,6 +853,7 @@ def answer_graph_structured_extension(
             attachment_session_id=attachment_session_id,
             limit=limit,
             embedder=embedder,
+            user_context=user_context,
         )
         if response is not None:
             return response
@@ -636,6 +861,8 @@ def answer_graph_structured_extension(
     normalized_q = " ".join(query.lower().split())
 
     if is_entity_count_query(normalized_q):
+        if user_context is not None and not user_context.is_unrestricted():
+            return None
         entity_type = extract_count_entity_type(normalized_q)
         if entity_type:
             count = fetch_entity_count(entity_type)
@@ -646,12 +873,15 @@ def answer_graph_structured_extension(
 
     if is_opportunity_list_query(normalized_q):
         rows = fetch_opportunity_list_rows(limit=50)
+        rows = [row for row in rows if _can_access_opportunity_code(user_context, row.get("opportunity_code"))]
         if rows:
             return build_opportunity_list_response(
                 query=query, rows=rows, limit=limit, embedder=embedder
             )
 
     if is_module_revenue_query(normalized_q):
+        if user_context is not None and not user_context.is_unrestricted():
+            return None
         product_class = extract_product_class_from_query(normalized_q)
         revenue_rows = fetch_module_quotation_revenue_rows(product_class=product_class, limit=20)
         if revenue_rows:
@@ -668,6 +898,12 @@ def answer_graph_structured_extension(
         product_class = None if name_term else extract_product_class_from_query(normalized_q)
         catalog_rows = fetch_product_catalog_rows(
             product_class=product_class, name_term=name_term, limit=200
+        )
+        catalog_rows = _filter_structured_rows(
+            user_context=user_context,
+            rows=catalog_rows,
+            source_type=SourceType.MODULE,
+            direct_keys=("id", "product_name", "product_class"),
         )
         if catalog_rows:
             return build_product_catalog_response(
@@ -734,6 +970,7 @@ def answer_attachment_related_opportunity_query(
     attachment_session_id: str | None,
     limit: int,
     embedder: EmbeddingModel,
+    user_context: UserContext | None = None,
 ) -> AnswerResponse | None:
     if not attachment_session_id:
         return None
@@ -744,6 +981,9 @@ def answer_attachment_related_opportunity_query(
 
     profile = build_attachment_anchor_profile(attachment_rows)
     candidates = fetch_opportunity_resolution_candidates(limit=600)
+    candidates = [
+        row for row in candidates if _can_access_opportunity_code(user_context, row.get("opportunity_code"))
+    ]
     strong_scored = rank_attachment_related_opportunities(profile=profile, candidates=candidates, minimum_score=18)
     if strong_scored and profile.get("customer_terms"):
         top_reasons = [str(reason) for reason in strong_scored[0].get("attachment_match_reasons", [])]
@@ -2964,12 +3204,23 @@ def build_sales_activity_timeline_response(
 ) -> AnswerResponse:
     lines = [f"핵심 결론: {opportunity_name}의 최근 영업활동은 다음과 같습니다.", ""]
     for row in rows[:5]:
+        header_parts = [
+            str(row.get("activity_at") or "시각 미기재"),
+            str(row.get("activity_type") or "활동"),
+        ]
+        if row.get("activity_purpose"):
+            header_parts.append(str(row.get("activity_purpose")))
+        if row.get("place"):
+            header_parts.append(f"장소 {row.get('place')}")
         lines.append(
-            f"- {row.get('activity_at') or '시각 미기재'} / {row.get('activity_type') or '활동'} / {row.get('activity_channel') or '채널 미기재'}"
+            "- " + " / ".join(header_parts)
         )
         lines.append(f"  내용: {row.get('content') or '미기재'}")
         lines.append(f"  고객 관심: {row.get('customer_interest') or '미기재'}")
-        lines.append(f"  이슈 및 다음 액션: {row.get('issue') or '미기재'} / {row.get('next_action') or '미기재'}")
+        lines.append(
+            f"  이슈 및 다음 액션: {row.get('issue') or '미기재'} / {row.get('next_action') or '미기재'}"
+        )
+        lines.append(f"  진행 상태: {row.get('progress_status') or '미기재'}")
     evidences = build_activity_row_evidences(rows=rows[:limit])
     return AnswerResponse(
         query=query,
@@ -3396,22 +3647,36 @@ _RFP_ROW_QUERY_STOPWORDS = {
     "사업", "사업의", "사업을", "사항", "세부", "조회", "정리", "지금", "현재",
 }
 
+_RFP_ROW_QUERY_ALIASES: dict[str, tuple[str, ...]] = {
+    "cmdb": ("ci", "구성관리"),
+    "itsm": ("서비스", "포털", "변경"),
+    "rulechain": ("rulechain", "알림", "경보"),
+    "bsm": ("서비스", "영향도"),
+    "rca": ("원인", "분석"),
+}
+
 
 def extract_rfp_focus_terms(query: str) -> list[str]:
     tokens = re.findall(r"[A-Za-z0-9가-힣+#./-]+", query)
     terms: list[str] = []
     seen: set[str] = set()
-    for token in tokens:
-        lowered = token.lower()
-        normalized = lowered.strip()
+
+    def _append_term(value: str) -> None:
+        normalized = value.lower().strip()
         if not normalized or normalized in _RFP_ROW_QUERY_STOPWORDS:
-            continue
+            return
         if len(normalized) == 1 and not normalized.isupper():
-            continue
+            return
         if normalized in seen:
-            continue
+            return
         seen.add(normalized)
         terms.append(normalized)
+
+    for token in tokens:
+        normalized = token.lower().strip()
+        _append_term(normalized)
+        for alias in _RFP_ROW_QUERY_ALIASES.get(normalized, ()):
+            _append_term(alias)
     return terms
 
 
@@ -4008,7 +4273,10 @@ def is_maintenance_history_query(normalized_query: str, normalization: QueryNorm
 def is_sales_activity_timeline_query(normalized_query: str, normalization: QueryNormalization) -> bool:
     if normalization.target_hint != "activity":
         return False
-    return any(keyword in normalized_query for keyword in ["최근", "활동", "순서", "이력", "타임라인", "뭐였"])
+    return any(
+        keyword in normalized_query
+        for keyword in ["최근", "활동", "순서", "이력", "타임라인", "뭐였", "데모", "워크숍", "미팅", "회의", "내용"]
+    )
 
 
 def is_maintenance_status_query(normalized_query: str, normalization: QueryNormalization) -> bool:
@@ -4021,6 +4289,14 @@ def is_maintenance_quote_query(normalized_query: str) -> bool:
     return "유지보수" in normalized_query and any(
         keyword in normalized_query for keyword in ["견적", "견적서", "정기점검", "긴급", "월", "분기"]
     )
+
+
+def is_quotation_query(normalized_query: str, normalization: QueryNormalization) -> bool:
+    if "유지보수" in normalized_query:
+        return False
+    if normalization.target_hint == "document" and "견적" in normalized_query:
+        return True
+    return any(keyword in normalized_query for keyword in ["견적", "견적서"])
 
 
 def is_contract_maintenance_query(normalized_query: str) -> bool:
