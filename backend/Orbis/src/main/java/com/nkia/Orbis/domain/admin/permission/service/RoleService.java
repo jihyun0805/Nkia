@@ -5,14 +5,18 @@ import com.nkia.Orbis.common.exception.errorcode.AuthErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.admin.permission.dto.request.RoleCreateRequest;
 import com.nkia.Orbis.domain.admin.permission.dto.request.RolePermissionRequest;
+import com.nkia.Orbis.domain.admin.permission.dto.response.RoleDetailResponse;
 import com.nkia.Orbis.domain.admin.permission.dto.response.RoleResponse;
 import com.nkia.Orbis.domain.admin.permission.entity.Permission;
 import com.nkia.Orbis.domain.admin.permission.entity.Role;
 import com.nkia.Orbis.domain.admin.permission.repository.PermissionRepository;
 import com.nkia.Orbis.domain.admin.permission.repository.RoleRepository;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RoleService {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public List<RoleResponse> getRoles() {
@@ -63,5 +68,13 @@ public class RoleService {
         role.changePermissions(permissions);
 
         return RoleResponse.from(roleRepository.save(role));
+    }
+
+    @Transactional(readOnly = true)
+    public RoleDetailResponse getUserPermissionDetail(UUID userId) {
+        User user = userRepository.findByIdWithRolesAndPermissions(userId)
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+        return RoleDetailResponse.from(user);
     }
 }

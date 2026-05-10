@@ -3,11 +3,13 @@ package com.nkia.Orbis.domain.admin.permission.controller;
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.admin.permission.dto.request.RoleCreateRequest;
 import com.nkia.Orbis.domain.admin.permission.dto.request.RolePermissionRequest;
+import com.nkia.Orbis.domain.admin.permission.dto.response.RoleDetailResponse;
 import com.nkia.Orbis.domain.admin.permission.dto.response.RoleResponse;
 import com.nkia.Orbis.domain.admin.permission.service.RoleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,7 +40,7 @@ public class RoleController {
     @PutMapping("/{roleId}/permissions")
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'UPDATE')")
     public ResponseEntity<ApiResponse<RoleResponse>> updateRolePermissions(
-            @PathVariable Long roleId,
+            @PathVariable("roleId") Long roleId,
             @RequestBody RolePermissionRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
@@ -54,5 +56,16 @@ public class RoleController {
     ) {
         RoleResponse response = roleService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "사용자별 권한 조회")
+    @GetMapping("/users/{userId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'READ')")
+    public ResponseEntity<ApiResponse<RoleDetailResponse>> getUserPermissionDetail(
+            @PathVariable("userId") UUID userId
+    ) {
+        RoleDetailResponse response = roleService.getUserPermissionDetail(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
