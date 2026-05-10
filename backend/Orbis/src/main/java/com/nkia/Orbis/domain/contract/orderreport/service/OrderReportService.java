@@ -4,6 +4,10 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseFromOrderReportRequest;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportMaintenanceOnlyItemRequest;
@@ -21,10 +25,14 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportOther;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportPurchase;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportServiceItem;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
-import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
-import com.nkia.Orbis.domain.admin.user.entity.User;
-import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.LicenseHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportMaintenanceHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportMaintenanceOnlyItemHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportOtherHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportPurchaseHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportServiceItemHistory;
+import com.nkia.Orbis.domain.contract.orderreporthistory.repository.OrderReportHistoryRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,17 +46,20 @@ public class OrderReportService {
     //    private final ProjectOpportunityRepository projectOpportunityRepository;
     private final UserRepository userRepository;
     private final ProductModuleRepository productModuleRepository;
+    private final OrderReportHistoryRepository orderReportHistoryRepository;
 
     // TODO: 사업기회, 회사, 회사직원 구현 후 연동 예정
     public OrderReportResponse create(OrderReportRequest request) {
+        return create(request, generateOrderReportCode());
+    }
+
+    private OrderReportResponse create(OrderReportRequest request, String orderReportCode) {
 
 //        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
 //                .orElseThrow(() -> new IllegalArgumentException("사업기회를 찾을 수 없습니다."));
 
         User pm = userRepository.findById(request.getPmId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
-
-        String orderReportCode = generateOrderReportCode();
 
         OrderReport orderReport = OrderReport.create(
                 orderReportCode,
@@ -76,89 +87,9 @@ public class OrderReportService {
                 request.getItemTotalMaintenanceRate()
         );
 
-        if (request.getLicenses() != null) {
-            for (LicenseFromOrderReportRequest licenseFromOrderReportRequest : request.getLicenses()) {
-                ProductModule productModule = productModuleRepository.findById(
-                                licenseFromOrderReportRequest.getProductModuleId())
-                        .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
-
-                License license = License.createFromOrderReport(
-                        orderReport,
-                        productModule,
-                        licenseFromOrderReportRequest.getQuantity()
-                );
-
-                orderReport.addLicense(license);
-            }
-        }
-
-        if (request.getMaintenances() != null) {
-            for (OrderReportMaintenanceRequest maintenanceRequest : request.getMaintenances()) {
-                OrderReportMaintenance maintenance = OrderReportMaintenance.create(
-                        maintenanceRequest.getContent(),
-                        maintenanceRequest.getVisitCycle(),
-                        maintenanceRequest.getMonth(),
-                        maintenanceRequest.getPrice()
-                );
-
-                orderReport.addMaintenance(maintenance);
-            }
-        }
-
-        if (request.getServices() != null) {
-            for (OrderReportServiceRequest serviceRequest : request.getServices()) {
-                OrderReportServiceItem service = OrderReportServiceItem.create(
-                        serviceRequest.getContent(),
-                        serviceRequest.getManMonth(),
-                        serviceRequest.getPrice()
-                );
-
-                orderReport.addService(service);
-            }
-        }
-
-        if (request.getMaintenanceOnlyItems() != null) {
-            for (OrderReportMaintenanceOnlyItemRequest itemRequest : request.getMaintenanceOnlyItems()) {
-                OrderReportMaintenanceOnlyItem item = OrderReportMaintenanceOnlyItem.create(
-                        itemRequest.getYear(),
-                        itemRequest.getAmount(),
-                        itemRequest.getLicense(),
-                        itemRequest.getThirdParty(),
-                        itemRequest.getService(),
-                        itemRequest.getMaintenance(),
-                        itemRequest.getMaintenanceRate()
-                );
-
-                orderReport.addMaintenanceOnlyItem(item);
-            }
-        }
-
-        if (request.getOthers() != null) {
-            for (OrderReportOtherRequest otherRequest : request.getOthers()) {
-                OrderReportOther other = OrderReportOther.create(
-                        otherRequest.getContent(),
-                        otherRequest.getQuantity(),
-                        otherRequest.getPrice()
-                );
-
-                orderReport.addOther(other);
-            }
-        }
-
-        if (request.getPurchases() != null) {
-            for (OrderReportPurchaseRequest purchaseRequest : request.getPurchases()) {
-                OrderReportPurchase purchase = OrderReportPurchase.create(
-                        purchaseRequest.getContent(),
-                        purchaseRequest.getQuantity(),
-                        purchaseRequest.getPrice()
-                );
-
-                orderReport.addPurchase(purchase);
-            }
-        }
+        addItems(orderReport, request);
 
         orderReport.calculateTotalAmount();
-        ;
 
         OrderReport savedOrderReport = orderReportRepository.save(orderReport);
 
@@ -189,5 +120,162 @@ public class OrderReportService {
         OrderReport orderReport = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
         orderReport.delete();
+    }
+
+    @Transactional
+    public OrderReportResponse update(Long orderReportId, OrderReportRequest request) {
+        OrderReport orderReport = orderReportRepository.findById(orderReportId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
+
+        // 1. 기존 수주보고서 스냅샷 저장
+        int nextVersion = orderReportHistoryRepository.countByOrderReportCode(
+                orderReport.getOrderReportCode()
+        ) + 1;
+
+        OrderReportHistory history = OrderReportHistory.create(orderReport, nextVersion);
+
+        orderReport.getLicenses().forEach(license ->
+                history.addLicense(LicenseHistory.create(license))
+        );
+
+        orderReport.getMaintenances().forEach(maintenance ->
+                history.addMaintenance(OrderReportMaintenanceHistory.create(maintenance))
+        );
+
+        orderReport.getServices().forEach(service ->
+                history.addService(OrderReportServiceItemHistory.create(service))
+        );
+
+        orderReport.getMaintenanceOnlyItems().forEach(item ->
+                history.addMaintenanceOnlyItem(OrderReportMaintenanceOnlyItemHistory.create(item))
+        );
+
+        orderReport.getOthers().forEach(other ->
+                history.addOther(OrderReportOtherHistory.create(other))
+        );
+
+        orderReport.getPurchases().forEach(purchase ->
+                history.addPurchase(OrderReportPurchaseHistory.create(purchase))
+        );
+
+        orderReportHistoryRepository.save(history);
+
+        // 2. 본문 수정
+        User pm = userRepository.findById(request.getPmId())
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+        orderReport.update(
+                request.getType(),
+                request.getPaymentCondition(),
+                request.isQuotationProvided(),
+                request.isContractProvided(),
+                request.isPurchaseOrderProvided(),
+                request.isPrbReportProvided(),
+                request.getAdditionalDocuments(),
+                request.isChannel(),
+                request.getCodeType(),
+                request.getContractDate(),
+                request.getFreeMaintenancePeriodMonths(),
+                request.getContractStartDate(),
+                request.getContractEndDate(),
+                request.getContractPeriodMonths(),
+                request.getScopeOfWork(),
+                request.getRemarks(),
+                null,
+                pm,
+                null,
+                null,
+                null,
+                request.getItemTotalMaintenanceRate()
+        );
+
+        // 3. 기존 하위 엔티티 제거
+        orderReport.clearItems();
+
+        // 4. 요청값으로 하위 엔티티 재구성
+        addItems(orderReport, request);
+
+        // 5. 최종 합계 계산
+        orderReport.calculateTotalAmount();
+
+        return OrderReportResponse.from(orderReport);
+    }
+
+    private void addItems(OrderReport orderReport, OrderReportRequest request) {
+        if (request.getLicenses() != null) {
+            for (LicenseFromOrderReportRequest licenseRequest : request.getLicenses()) {
+                ProductModule productModule = productModuleRepository.findById(licenseRequest.getProductModuleId())
+                        .orElseThrow(() -> new ApiException(ProductModuleErrorCode.PRODUCT_MODULE_NOT_FOUND));
+
+                orderReport.addLicense(
+                        License.createFromOrderReport(orderReport, productModule, licenseRequest.getQuantity())
+                );
+            }
+        }
+
+        if (request.getMaintenances() != null) {
+            for (OrderReportMaintenanceRequest maintenanceRequest : request.getMaintenances()) {
+                orderReport.addMaintenance(
+                        OrderReportMaintenance.create(
+                                maintenanceRequest.getContent(),
+                                maintenanceRequest.getVisitCycle(),
+                                maintenanceRequest.getMonth(),
+                                maintenanceRequest.getPrice()
+                        )
+                );
+            }
+        }
+
+        if (request.getServices() != null) {
+            for (OrderReportServiceRequest serviceRequest : request.getServices()) {
+                orderReport.addService(
+                        OrderReportServiceItem.create(
+                                serviceRequest.getContent(),
+                                serviceRequest.getManMonth(),
+                                serviceRequest.getPrice()
+                        )
+                );
+            }
+        }
+
+        if (request.getMaintenanceOnlyItems() != null) {
+            for (OrderReportMaintenanceOnlyItemRequest itemRequest : request.getMaintenanceOnlyItems()) {
+                orderReport.addMaintenanceOnlyItem(
+                        OrderReportMaintenanceOnlyItem.create(
+                                itemRequest.getYear(),
+                                itemRequest.getAmount(),
+                                itemRequest.getLicense(),
+                                itemRequest.getThirdParty(),
+                                itemRequest.getService(),
+                                itemRequest.getMaintenance(),
+                                itemRequest.getMaintenanceRate()
+                        )
+                );
+            }
+        }
+
+        if (request.getOthers() != null) {
+            for (OrderReportOtherRequest otherRequest : request.getOthers()) {
+                orderReport.addOther(
+                        OrderReportOther.create(
+                                otherRequest.getContent(),
+                                otherRequest.getQuantity(),
+                                otherRequest.getPrice()
+                        )
+                );
+            }
+        }
+
+        if (request.getPurchases() != null) {
+            for (OrderReportPurchaseRequest purchaseRequest : request.getPurchases()) {
+                orderReport.addPurchase(
+                        OrderReportPurchase.create(
+                                purchaseRequest.getContent(),
+                                purchaseRequest.getQuantity(),
+                                purchaseRequest.getPrice()
+                        )
+                );
+            }
+        }
     }
 }

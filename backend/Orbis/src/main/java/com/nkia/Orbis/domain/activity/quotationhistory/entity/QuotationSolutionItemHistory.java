@@ -25,7 +25,7 @@ public class QuotationSolutionItemHistory extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quotation_history_id")
-    private QuotationHistory quotation;
+    private QuotationHistory quotationHistory;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_module_id")
@@ -68,7 +68,7 @@ public class QuotationSolutionItemHistory extends BaseEntity {
     }
 
     public void setQuotation(QuotationHistory quotation) {
-        this.quotation = quotation;
+        this.quotationHistory = quotation;
     }
 
     //

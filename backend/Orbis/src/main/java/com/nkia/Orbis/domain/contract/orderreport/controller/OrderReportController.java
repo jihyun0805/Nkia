@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -64,5 +65,16 @@ public class OrderReportController {
     ) {
         orderReportService.delete(orderReportId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "수주보고서 수정")
+    @PutMapping("/{orderReportId}")
+    public ResponseEntity<ApiResponse<OrderReportResponse>> update(
+            @PathVariable("orderReportId") Long orderReportId,
+            @RequestBody OrderReportRequest request
+    ) {
+        OrderReportResponse response = orderReportService.update(orderReportId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

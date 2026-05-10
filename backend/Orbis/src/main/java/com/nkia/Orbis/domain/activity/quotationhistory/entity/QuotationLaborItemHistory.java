@@ -27,7 +27,7 @@ public class QuotationLaborItemHistory extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quotation_history_id")
-    private QuotationHistory quotation;
+    private QuotationHistory quotationHistory;
 
     @Enumerated(EnumType.STRING)
     private LaborType laborType;
@@ -68,7 +68,7 @@ public class QuotationLaborItemHistory extends BaseEntity {
     }
 
     public void setQuotation(QuotationHistory quotation) {
-        this.quotation = quotation;
+        this.quotationHistory = quotation;
     }
 
     private static Long calculateSupplyPrice(Long unitPrice, Double manMonth) {
