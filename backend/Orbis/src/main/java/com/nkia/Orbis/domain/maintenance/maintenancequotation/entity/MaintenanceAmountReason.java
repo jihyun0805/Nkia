@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.maintenancequotation.entity;
 
+import com.nkia.Orbis.common.entity.BaseEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -13,11 +14,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MaintenanceAmountReason {
+@SQLRestriction("deleted = false")
+public class MaintenanceAmountReason extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -48,4 +51,5 @@ public class MaintenanceAmountReason {
     void setQuotation(MaintenanceQuotation quotation) {
         this.quotation = quotation;
     }
+
 }

@@ -58,6 +58,17 @@ public class MaintenanceQuotationService {
         return MaintenanceQuotationDetailResponse.from(quotation);
     }
 
+    /**
+     * 유지보수 견적서 삭제
+     */
+    @Transactional
+    public void delete(Long id) {
+        MaintenanceQuotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
+
+        quotation.delete();
+    }
+
     private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project) {
         return MaintenanceQuotation.builder()
                 .refNo(dto.getRefNo())

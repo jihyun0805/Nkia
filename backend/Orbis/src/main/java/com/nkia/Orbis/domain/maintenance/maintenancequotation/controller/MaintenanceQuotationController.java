@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -44,5 +45,15 @@ public class MaintenanceQuotationController {
             @Valid @RequestBody MaintenanceQuotationUpdateRequest dto) {
         MaintenanceQuotationDetailResponse response = quotationService.update(id, dto);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 유지보수 견적서 논리 삭제
+     */
+    @Operation(summary = "유지보수 견적서 삭제")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        quotationService.delete(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

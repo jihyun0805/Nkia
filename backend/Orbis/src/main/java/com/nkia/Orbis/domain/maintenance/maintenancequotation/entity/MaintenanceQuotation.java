@@ -19,10 +19,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@SQLRestriction("deleted = false")
 public class MaintenanceQuotation extends BaseEntity {
 
     @Id
@@ -98,5 +100,19 @@ public class MaintenanceQuotation extends BaseEntity {
         this.monthlySupplyPrice = monthlySupplyPrice;
         this.totalQuotationAmount = totalQuotationAmount;
         this.specialNotes = specialNotes;
+    }
+
+    public void delete() {
+        super.delete();
+
+        for (MaintenancePackageCost packageCost : this.packageCosts) {
+            packageCost.delete();
+        }
+        for (MaintenanceServiceInfo serviceInfo : this.serviceInfos) {
+            serviceInfo.delete();
+        }
+        for (MaintenanceAmountReason amountReason : this.amountReasons) {
+            amountReason.delete();
+        }
     }
 }
