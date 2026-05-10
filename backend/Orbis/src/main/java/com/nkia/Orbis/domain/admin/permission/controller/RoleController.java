@@ -2,12 +2,15 @@ package com.nkia.Orbis.domain.admin.permission.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.admin.permission.dto.request.RoleCreateRequest;
-import com.nkia.Orbis.domain.admin.permission.dto.request.RolePermissionRequest;
+import com.nkia.Orbis.domain.admin.permission.dto.request.RoleRequest;
+import com.nkia.Orbis.domain.admin.permission.dto.response.RoleListResponse;
 import com.nkia.Orbis.domain.admin.permission.dto.response.RoleResponse;
+import com.nkia.Orbis.domain.admin.permission.dto.response.UserRoleDetailResponse;
 import com.nkia.Orbis.domain.admin.permission.service.RoleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,16 +33,16 @@ public class RoleController {
     @Operation(summary = "권한 조회")
     @GetMapping
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'READ')")
-    public ResponseEntity<ApiResponse<List<RoleResponse>>> getRoles() {
+    public ResponseEntity<ApiResponse<List<RoleListResponse>>> getRoles() {
         return ResponseEntity.ok(ApiResponse.success(roleService.getRoles()));
     }
 
     @Operation(summary = "권한 수정")
-    @PutMapping("/{roleId}/permissions")
+    @PutMapping("/{roleId}")
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'UPDATE')")
-    public ResponseEntity<ApiResponse<RoleResponse>> updateRolePermissions(
-            @PathVariable Long roleId,
-            @RequestBody RolePermissionRequest request
+    public ResponseEntity<ApiResponse<RoleListResponse>> updateRolePermissions(
+            @PathVariable("roleId") Long roleId,
+            @RequestBody RoleRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 roleService.update(roleId, request)
@@ -49,10 +52,32 @@ public class RoleController {
     @Operation(summary = "권한 생성")
     @PostMapping
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'CREATE')")
-    public ResponseEntity<ApiResponse<RoleResponse>> create(
+    public ResponseEntity<ApiResponse<RoleListResponse>> create(
             @RequestBody RoleCreateRequest request
     ) {
-        RoleResponse response = roleService.create(request);
+        RoleListResponse response = roleService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "사용자별 권한 조회")
+    @GetMapping("/users/{userId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'READ')")
+    public ResponseEntity<ApiResponse<UserRoleDetailResponse>> getUserPermissionDetail(
+            @PathVariable("userId") UUID userId
+    ) {
+        UserRoleDetailResponse response = roleService.getUserPermissionDetail(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "권한 상세 조회")
+    @GetMapping("/{roleId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PERMISSION', 'READ')")
+    public ResponseEntity<ApiResponse<RoleResponse>> getRoleDetail(
+            @PathVariable("roleId") Long roleId
+    ) {
+        RoleResponse response = roleService.getRoleDetail(roleId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
