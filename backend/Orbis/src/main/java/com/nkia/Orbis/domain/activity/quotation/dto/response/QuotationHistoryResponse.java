@@ -20,6 +20,7 @@ public class QuotationHistoryResponse {
         return QuotationHistoryResponse.builder()
                 .id(quotationHistory.getId())
                 .version(quotationHistory.getVersion())
+                .quotationCode(quotationHistory.getQuotationCode())
                 .quotationDate(quotationHistory.getQuotationDate())
                 .build();
     }

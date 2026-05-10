@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.activity.quotation.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
+import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationHistoryResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationListResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.service.QuotationService;
@@ -74,6 +75,16 @@ public class QuotationController {
             @RequestBody QuotationCreateRequest request
     ) {
         QuotationResponse response = quotationService.update(quotationId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "견적서 변경 이력 목록 조회")
+    @GetMapping("/{quotationId}/histories")
+    public ResponseEntity<ApiResponse<List<QuotationHistoryResponse>>> getQuotationHistories(
+            @PathVariable("quotationId") Long quotationId
+    ) {
+        List<QuotationHistoryResponse> response = quotationService.getQuotationHistories(quotationId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

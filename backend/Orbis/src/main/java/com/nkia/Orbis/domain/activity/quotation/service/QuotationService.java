@@ -7,6 +7,7 @@ import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
+import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationHistoryResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationListResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
@@ -216,6 +217,25 @@ public class QuotationService {
 
     private Integer calculateNextHistoryVersion(String quotationCode) {
         return (int) quotationHistoryRepository.countByQuotationCode(quotationCode) + 1;
+    }
+
+    @Transactional
+    public List<QuotationHistoryResponse> getQuotationHistories(Long quotationId) {
+        Quotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
+
+        List<QuotationHistory> histories =
+                quotationHistoryRepository.findByQuotationCodeOrderByVersionDesc(
+                        quotation.getQuotationCode()
+                );
+
+        if (histories.isEmpty()) {
+            throw new ApiException(ActivityErrorCode.QUOTATION_HISTORY_NOT_FOUND);
+        }
+
+        return histories.stream()
+                .map(QuotationHistoryResponse::from)
+                .toList();
     }
 }
 
