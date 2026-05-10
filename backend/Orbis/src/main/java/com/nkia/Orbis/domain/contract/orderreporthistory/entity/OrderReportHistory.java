@@ -21,6 +21,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
@@ -172,6 +173,8 @@ public class OrderReportHistory extends BaseEntity {
 
     private Double itemTotalMaintenanceRate;
 
+    private LocalDateTime orderReportDate;
+
     public static OrderReportHistory create(
             OrderReport orderReport,
             Integer version
@@ -221,6 +224,7 @@ public class OrderReportHistory extends BaseEntity {
         orderReportHistory.itemTotalService = orderReport.getItemTotalService();
         orderReportHistory.itemTotalMaintenance = orderReport.getItemTotalMaintenance();
         orderReportHistory.itemTotalMaintenanceRate = orderReport.getItemTotalMaintenanceRate();
+        orderReportHistory.orderReportDate = orderReport.getCreatedAt();
 
         return orderReportHistory;
     }
