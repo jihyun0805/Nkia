@@ -74,4 +74,42 @@ public class Prb extends BaseEntity {
 
   @OneToMany(mappedBy = "prb", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<PrbResult> prbResults = new ArrayList<>();
+
+  /**
+   * PRB 전체 비용 합계 및 간접비 오케스트레이션 (비즈니스 메서드)
+   *
+   * @param indirectExpenseRate 외부(프론트 또는 설정)에서 주입받는 간접비율 (%)
+   */
+  public void calculateTotalCost(BigDecimal indirectExpenseRate) {
+    // 1. 간접비 적용 대상 금액(Base Cost) 합산 (Null Safe 처리 필수)
+    BigDecimal baseCost = calculateBaseCost();
+
+    // 2. 간접비(IndirectExpenses) 계산 위임
+    if (this.indirectExpenses == null) {
+      this.indirectExpenses = new IndirectExpenses();
+    }
+    this.indirectExpenses.calculateIndirectExpense(baseCost, indirectExpenseRate);
+
+    // 3. PRB 최종 총 비용(Total Cost) 확정
+    this.totalCost = baseCost.add(this.indirectExpenses.getAmount());
+  }
+
+  private BigDecimal calculateBaseCost() {
+    BigDecimal personnel = getSafeAmount(
+        this.personnelExpenses != null ? this.personnelExpenses.getTotalAmount() : null);
+    BigDecimal product =
+        getSafeAmount(this.productCost != null ? this.productCost.getTotalProductCost() : null);
+    BigDecimal purchaseAmt =
+        getSafeAmount(this.purchase != null ? this.purchase.getTotalPurchaseAmount() : null);
+    BigDecimal overhead = getSafeAmount(this.generalOverheadExpenses != null
+        ? this.generalOverheadExpenses.getTotalAmount()
+        : null);
+
+    return personnel.add(product).add(purchaseAmt).add(overhead);
+  }
+
+  // NullPointerException 방지를 위한 내부 유틸 메서드
+  private BigDecimal getSafeAmount(BigDecimal amount) {
+    return amount == null ? BigDecimal.ZERO : amount;
+  }
 }
