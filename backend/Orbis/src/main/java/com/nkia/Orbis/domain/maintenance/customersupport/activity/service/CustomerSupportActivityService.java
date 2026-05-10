@@ -3,9 +3,13 @@ package com.nkia.Orbis.domain.maintenance.customersupport.activity.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportCreateRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportUpdateRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.IntegratedSupportListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.ActivityType;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupport;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupportOtherDepartmentUser;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.SupportDataType;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.repository.CustomerSupportRepository;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.CustomerSupportRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.repository.CustomerSupportRequestRepository;
@@ -19,8 +23,11 @@ import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +42,7 @@ public class CustomerSupportActivityService {
     private final MaintenanceRepository maintenanceRepository;
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
-
+    private final UploadFileService uploadFileService;
 
     /**
      * 고객지원 활동 결과 신규 등록
@@ -58,6 +65,95 @@ public class CustomerSupportActivityService {
         supportRepository.save(support);
 
         return support.getId();
+    }
+
+    /**
+     * 고객지원 활동 결과 수정
+     */
+    @Transactional
+    public CustomerSupportDetailResponse updateActivity(Long id, CustomerSupportUpdateRequest dto) {
+        CustomerSupport support = supportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        Company company = getCompanyOrNull(dto.getCustomerCompanyCode());
+        User registrant = getUserOrNull(dto.getRegistrantId());
+
+        support.update(company, dto.getActivityType(), dto.getActivityStartTime(),
+                dto.getActivityEndTime(), dto.getActivityContent(), registrant, dto.getRemarks());
+
+        support.clearCollections();
+        mapParticipants(support, dto.getParticipantList());
+        mapAttachedFiles(support, dto.getAttachedFileIds());
+
+        return CustomerSupportDetailResponse.from(support);
+    }
+
+    /**
+     * 고객지원 활동 결과 삭제
+     */
+    @Transactional
+    public void deleteActivity(Long id) {
+        CustomerSupport support = supportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        support.getAttachedFiles().forEach(file -> uploadFileService.removeFile(file.getId()));
+
+        support.delete();
+    }
+
+    /**
+     * 고객지원 요청과 활동 결과를 통합하여 조회
+     */
+    public List<IntegratedSupportListResponse> getIntegratedStatus() {
+        List<IntegratedSupportListResponse> requests = requestRepository.findAll().stream()
+                .map(this::mapToRequestStatus).toList();
+
+        List<IntegratedSupportListResponse> activities = supportRepository.findAll().stream()
+                .map(this::mapToActivityStatus).toList();
+
+        return Stream.concat(requests.stream(), activities.stream())
+                .sorted(Comparator.comparing(IntegratedSupportListResponse::getStartAt).reversed())
+                .toList();
+    }
+
+    /**
+     * 특정 고객지원 활동 결과의 상세 내역 조회
+     */
+    @Transactional(readOnly = true)
+    public CustomerSupportDetailResponse getActivityDetail(Long id) {
+        CustomerSupport support = supportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        return CustomerSupportDetailResponse.from(support);
+    }
+
+    private IntegratedSupportListResponse mapToRequestStatus(CustomerSupportRequest req) {
+        return IntegratedSupportListResponse.builder()
+                .dataType(SupportDataType.REQUEST)
+                .id(req.getId())
+                .customerName(req.getCustomerCompany().getName())
+                .startAt(req.getRequestStartDate().atStartOfDay())
+                .endAt(req.getRequestEndDate().atStartOfDay())
+                .ownerName(req.getRequester().getName())
+                .salesRepName(req.getSalesRep().getName())
+                .supportManagerName(req.getSupportManager() != null ? req.getSupportManager().getName() : null)
+                .build();
+    }
+
+    private IntegratedSupportListResponse mapToActivityStatus(CustomerSupport act) {
+        String category = (act.getActivityType() == ActivityType.REQUEST && act.getRequest() != null)
+                ? "요청 (#" + act.getRequest().getId() + ")"
+                : act.getActivityType().name();
+
+        return IntegratedSupportListResponse.builder()
+                .dataType(SupportDataType.ACTIVITY)
+                .id(act.getId())
+                .customerName(act.getCustomerCompany().getName())
+                .activityCategory(category)
+                .startAt(act.getActivityStartTime())
+                .endAt(act.getActivityEndTime())
+                .ownerName(act.getRegistrant().getName())
+                .build();
     }
 
     private CustomerSupportRequest getRequestIfNecessary(ActivityType activityType, Long requestId) {

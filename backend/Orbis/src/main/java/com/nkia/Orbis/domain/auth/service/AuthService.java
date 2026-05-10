@@ -4,15 +4,16 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.AuthErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.JwtProvider;
-import com.nkia.Orbis.domain.auth.dto.response.LoginResponse;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.auth.dto.response.LoginResponse;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 
 @Service
@@ -27,6 +28,7 @@ public class AuthService {
     public static final String LOGOUT = "logout";
 
     // 로그인 로직
+    @Transactional(readOnly = true)
     public LoginResponse login(String email, String rawPassword) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
@@ -36,7 +38,7 @@ public class AuthService {
         }
 
         // 토큰 2개 발급
-        String accessToken = jwtProvider.createAccessToken(user.getId(), user.getRole().name());
+        String accessToken = jwtProvider.createAccessToken(user.getId(), getRoleName(user));
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
 
         // Refresh Token을 Redis에 저장 (Key: "RefreshToken:{userId}", Value: refreshToken)
@@ -94,7 +96,7 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
-        return jwtProvider.createAccessToken(user.getId(), user.getRole().name());
+        return jwtProvider.createAccessToken(user.getId(), getRoleName(user));
     }
 
     private void setInRedis(String key, String value, long timeout) {
@@ -104,5 +106,12 @@ public class AuthService {
                 timeout,
                 TimeUnit.MILLISECONDS
         );
+    }
+
+    private String getRoleName(User user) {
+        return user.getRoles().stream()
+                .findFirst()
+                .orElseThrow(() -> new ApiException(AuthErrorCode.ACCESS_DENIED))
+                .getName();
     }
 }

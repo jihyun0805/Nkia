@@ -21,16 +21,18 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
+import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import {
   activityRequestStatusOptions,
   activityRequestTypeOptions,
   activityStatuses,
   getActivities,
-  subscribeActivityUpdates,
 } from "@/lib/activity-data"
 import { useEffect, useMemo, useState } from "react"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
+import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { getQuotations, getQuotationDisplayStatus, subscribeQuotationUpdates } from "@/lib/quotation-workflow"
+import { loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
 import {
   CalendarDays,
   ChevronDown,
@@ -52,7 +54,7 @@ export default function ActivityPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
+  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
   const [activityRequests, setActivityRequests] = useState<ReturnType<typeof getActivityRequests>>([])
   const [quotationRecords, setQuotationRecords] = useState<ReturnType<typeof getQuotations>>([])
   const [month, setMonth] = useState(new Date())
@@ -80,24 +82,69 @@ export default function ActivityPage() {
   )
 
   useEffect(() => {
-    const sync = () => setActivityRecords(getActivities())
+    let cancelled = false
 
-    sync()
-    return subscribeActivityUpdates(sync)
+    loadBackendActivityRecords()
+      .then((records) => {
+        if (!cancelled) {
+          setActivityRecords(records)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityRecords(getActivities())
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
-    const sync = () => setActivityRequests(getActivityRequests())
+    let cancelled = false
 
-    sync()
-    return subscribeWorkflowUpdates(sync)
+    const sync = () => {
+      if (!cancelled) {
+        setActivityRequests(getActivityRequests())
+      }
+    }
+
+    loadBackendActivityRequests()
+      .then((requests) => {
+        if (!cancelled) {
+          setActivityRequests(requests)
+        }
+      })
+      .catch(() => {
+        sync()
+      })
+
+    const unsubscribe = subscribeWorkflowUpdates(sync)
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
-    const sync = () => setQuotationRecords(getQuotations())
+    let cancelled = false
 
-    sync()
-    return subscribeQuotationUpdates(sync)
+    const sync = () => {
+      if (!cancelled) {
+        setQuotationRecords(getQuotations())
+      }
+    }
+
+    loadBackendQuotationRecords()
+      .then(() => sync())
+      .catch(() => sync())
+
+    const unsubscribe = subscribeQuotationUpdates(sync)
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {

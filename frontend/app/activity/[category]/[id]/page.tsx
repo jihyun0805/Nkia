@@ -40,10 +40,12 @@ import {
   getActivities,
   getActivityItemFields,
   getCategoryLabel,
-  subscribeActivityUpdates,
 } from "@/lib/activity-data"
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
+import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
+import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
+import { deleteBackendQuotationRecord, loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
 import {
   approveQuotationStep,
   deleteQuotation,
@@ -103,7 +105,9 @@ function buildQuotationDetailForm(record: QuotationRecord) {
 export default function ActivityDetailPage() {
   const params = useParams<{ category: ActivityCategory; id: string }>()
   const router = useRouter()
-  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
+  const category = params.category
+  const id = params.id
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>(() => getActivities())
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -121,28 +125,72 @@ export default function ActivityDetailPage() {
   }
 
   useEffect(() => {
-    const sync = () => setActivityRecords(getActivities())
+    if (category !== "activities") return
 
-    sync()
-    return subscribeActivityUpdates(sync)
+    let cancelled = false
+
+    loadBackendActivityRecords()
+      .then((records) => {
+        if (!cancelled) {
+          setActivityRecords(records)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityRecords(getActivities())
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const sync = () => {
+      if (!cancelled) {
+        setRequests(getActivityRequests())
+      }
+    }
+
+    loadBackendActivityRequests()
+      .then((items) => {
+        if (!cancelled) {
+          setRequests(items)
+        }
+      })
+      .catch(() => {
+        sync()
+      })
+
+    const unsubscribe = subscribeWorkflowUpdates(sync)
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
-    const sync = () => setRequests(getActivityRequests())
+    let cancelled = false
 
-    sync()
-    return subscribeWorkflowUpdates(sync)
+    const sync = () => {
+      if (!cancelled) {
+        setQuotations(getQuotations())
+      }
+    }
+
+    loadBackendQuotationRecords()
+      .then(() => sync())
+      .catch(() => sync())
+
+    const unsubscribe = subscribeQuotationUpdates(sync)
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
-
-  useEffect(() => {
-    const sync = () => setQuotations(getQuotations())
-
-    sync()
-    return subscribeQuotationUpdates(sync)
-  }, [])
-
-  const category = params.category
-  const id = params.id
 
   const item = useMemo(() => {
     if (category === "activities") return activityRecords.find((entry) => entry.id === id) ?? null
@@ -250,14 +298,26 @@ export default function ActivityDetailPage() {
 
   const handleDeleteQuotation = () => {
     scrollToTop()
-    const deleted = deleteQuotation(id)
-    if (!deleted) return
+    void (async () => {
+      try {
+        await deleteBackendQuotationRecord(id)
+        toast({
+          title: "견적 삭제 완료",
+          description: `${id} 견적서가 삭제되었습니다.`,
+        })
+        router.push("/activity")
+        return
+      } catch {
+        const deleted = deleteQuotation(id)
+        if (!deleted) return
 
-    toast({
-      title: "견적 삭제 완료",
-      description: `${id} 견적서가 삭제되었습니다.`,
-    })
-    router.push("/activity")
+        toast({
+          title: "견적 삭제 완료",
+          description: `${id} 견적서가 삭제되었습니다.`,
+        })
+        router.push("/activity")
+      }
+    })()
   }
 
   const handleDeleteQuotationVersion = () => {

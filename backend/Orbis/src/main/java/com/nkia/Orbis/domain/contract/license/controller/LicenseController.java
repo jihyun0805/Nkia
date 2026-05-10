@@ -13,6 +13,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -32,6 +33,7 @@ public class LicenseController {
 
     @Operation(summary = "라이선스 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'LICENSE', 'CREATE')")
     public ResponseEntity<ApiResponse<LicenseResponse>> createLicense(
             @Valid
             @RequestBody
@@ -44,6 +46,7 @@ public class LicenseController {
 
     @Operation(summary = "라이선스 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'LICENSE', 'READ')")
     public ResponseEntity<ApiResponse<List<LicenseListResponse>>> getLicenses() {
         List<LicenseListResponse> response = licenseService.getLicenses();
 
@@ -52,6 +55,7 @@ public class LicenseController {
 
     @Operation(summary = "라이선스 상세 조회")
     @GetMapping("/{licenseId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'LICENSE', 'READ')")
     public ResponseEntity<ApiResponse<LicenseResponse>> getLicense(
             @PathVariable("licenseId") Long licenseId
     ) {
@@ -62,6 +66,7 @@ public class LicenseController {
 
     @Operation(summary = "라이선스 삭제")
     @DeleteMapping("/{licenseId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'LICENSE', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable("licenseId") Long licenseId
     ) {
@@ -72,6 +77,7 @@ public class LicenseController {
 
     @Operation(summary = "라이선스 수정")
     @PatchMapping("/{licenseId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'LICENSE', 'UPDATE')")
     public ResponseEntity<ApiResponse<LicenseResponse>> update(
             @PathVariable("licenseId") Long licenseId,
             @RequestBody LicenseUpdateRequest request

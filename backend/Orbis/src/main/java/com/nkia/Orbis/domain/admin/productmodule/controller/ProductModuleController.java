@@ -11,6 +11,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -29,6 +30,7 @@ public class ProductModuleController {
 
     @Operation(summary = "제품 모듈 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRODUCT_MODULE', 'CREATE')")
     public ResponseEntity<ApiResponse<ProductModuleResponse>> createProductModule(
             @Valid
             @RequestBody
@@ -40,6 +42,7 @@ public class ProductModuleController {
 
     @Operation(summary = "제품 모듈 삭제")
     @DeleteMapping("/{productModuleId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRODUCT_MODULE', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteProductModule(
             @PathVariable("productModuleId") Long productModuleId
     ) {
@@ -49,6 +52,7 @@ public class ProductModuleController {
 
     @Operation(summary = "제품 모듈 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRODUCT_MODULE', 'READ')")
     public ResponseEntity<ApiResponse<List<ProductModuleResponse>>> getProductModules() {
         List<ProductModuleResponse> response = productModuleService.getProductModules();
 
@@ -57,6 +61,7 @@ public class ProductModuleController {
 
     @Operation(summary = "제품 모듈 수정")
     @PatchMapping("/{productModuleId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRODUCT_MODULE', 'UPDATE')")
     public ResponseEntity<ApiResponse<ProductModuleResponse>> updateProductModule(
             @PathVariable("productModuleId") Long productModuleId,
             @RequestBody ProductModuleRequest request

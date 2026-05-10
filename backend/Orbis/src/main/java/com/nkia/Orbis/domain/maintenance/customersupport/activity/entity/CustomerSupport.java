@@ -25,10 +25,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@SQLRestriction("deleted = false")
 public class CustomerSupport extends BaseEntity {
 
     @Id
@@ -95,5 +97,28 @@ public class CustomerSupport extends BaseEntity {
         this.activityContent = activityContent;
         this.registrant = registrant;
         this.remarks = remarks;
+    }
+
+    public void update(Company customerCompany, ActivityType type, LocalDateTime start, LocalDateTime end, String content, User registrant, String remarks) {
+        this.customerCompany = customerCompany;
+        this.activityType = type;
+        this.activityStartTime = start;
+        this.activityEndTime = end;
+        this.activityContent = content;
+        this.registrant = registrant;
+        this.remarks = remarks;
+    }
+
+    public void clearCollections() {
+        this.otherDepartmentUsers.clear();
+        this.attachedFiles.clear();
+    }
+
+    public void delete() {
+        super.delete();
+
+        for (CustomerSupportOtherDepartmentUser participant : this.otherDepartmentUsers) {
+            participant.delete();
+        }
     }
 }
