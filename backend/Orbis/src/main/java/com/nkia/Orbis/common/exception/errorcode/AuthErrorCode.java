@@ -10,7 +10,8 @@ public enum AuthErrorCode implements ErrorCode {
     INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0001", "유효하지 않은 access 토큰입니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0002", "유효하지 않은 refresh 토큰입니다."),
     TIMEOUT_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0003", "만료된 access 토큰입니다."),
-    TIMEOUT_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0004", "만료된 refresh 토큰입니다.");
+    TIMEOUT_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0004", "만료된 refresh 토큰입니다."),
+    ACCESS_DENIED(HttpStatus.UNAUTHORIZED, "AUTH_0005", "접근 권한이 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

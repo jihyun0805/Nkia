@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.Table;
 import java.util.HashSet;
 import java.util.Set;
 import lombok.AccessLevel;
@@ -15,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
+@Table(name = "roles")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Role extends BaseEntity {
@@ -35,7 +37,12 @@ public class Role extends BaseEntity {
     private Set<Permission> permissions = new HashSet<>();
 
     public void changePermissions(Set<Permission> permissions) {
-        this.permissions.clear();
-        this.permissions.addAll(permissions);
+        this.permissions = new HashSet<>(permissions);
+    }
+
+    public static Role create(String name) {
+        Role role = new Role();
+        role.name = name;
+        return role;
     }
 }

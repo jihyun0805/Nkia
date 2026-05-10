@@ -23,5 +23,6 @@ public enum PermissionDomain {
     PRODUCT_MODULE,
     DEPARTMENT,
     WORKFLOW,
-    PERMISSION
+    PERMISSION,
+    USER
 }

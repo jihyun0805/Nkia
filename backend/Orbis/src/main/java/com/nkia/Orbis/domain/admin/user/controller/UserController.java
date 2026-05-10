@@ -6,7 +6,6 @@ import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
 import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
 import com.nkia.Orbis.domain.admin.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -32,7 +31,6 @@ public class UserController {
     private final UserService userService;
 
     @Operation(summary = "Admin 회원가입")
-    @SecurityRequirements()
     @PostMapping("/signup/admin")
     public ResponseEntity<ApiResponse<String>> signupAdmin(@Valid @RequestBody SignupRequest request) {
 

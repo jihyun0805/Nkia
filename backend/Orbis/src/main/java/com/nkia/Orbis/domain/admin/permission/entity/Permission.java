@@ -24,4 +24,11 @@ public class Permission extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     private PermissionAction action;
+
+    public static Permission create(PermissionDomain domain, PermissionAction action) {
+        Permission permission = new Permission();
+        permission.domain = domain;
+        permission.action = action;
+        return permission;
+    }
 }
