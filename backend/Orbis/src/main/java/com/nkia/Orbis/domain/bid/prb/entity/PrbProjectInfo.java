@@ -4,9 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,7 +12,9 @@ import java.time.LocalDateTime;
 
 @Getter
 @Embeddable
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class PrbProjectInfo {
   // 1. 사업 기간 (단순 날짜이므로 LocalDate)
   @Column(name = "project_start_date")
