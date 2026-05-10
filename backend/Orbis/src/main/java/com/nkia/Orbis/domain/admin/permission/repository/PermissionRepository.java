@@ -12,4 +12,5 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
             PermissionDomain domain,
             PermissionAction action
     );
+
 }

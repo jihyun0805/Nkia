@@ -11,7 +11,7 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class RoleDetailResponse {
+public class UserRoleDetailResponse {
 
 
     private UUID userId;
@@ -19,8 +19,8 @@ public class RoleDetailResponse {
     private String email;
     private List<RolePermissionResponse> roles;
 
-    public static RoleDetailResponse from(User user) {
-        return RoleDetailResponse.builder()
+    public static UserRoleDetailResponse from(User user) {
+        return UserRoleDetailResponse.builder()
                 .userId(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())

@@ -1,25 +1,41 @@
 package com.nkia.Orbis.domain.admin.permission.dto.response;
 
+import com.nkia.Orbis.domain.admin.permission.entity.Permission;
 import com.nkia.Orbis.domain.admin.permission.entity.Role;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
 public class RoleResponse {
-    private Long id;
-    private String name;
-    private Set<String> permissions;
+    private Long roleId;
+    private String roleName;
+    private List<PermissionResponse> permissions;
 
     public static RoleResponse from(Role role) {
         return RoleResponse.builder()
-                .id(role.getId())
-                .name(role.getName())
+                .roleId(role.getId())
+                .roleName(role.getName())
                 .permissions(role.getPermissions().stream()
-                        .map(permission -> permission.getDomain() + "_" + permission.getAction())
-                        .collect(Collectors.toSet()))
+                        .map(PermissionResponse::from)
+                        .toList())
                 .build();
+    }
+
+    @Getter
+    @Builder
+    public static class PermissionResponse {
+        private Long permissionId;
+        private String domain;
+        private String action;
+
+        public static PermissionResponse from(Permission permission) {
+            return PermissionResponse.builder()
+                    .permissionId(permission.getId())
+                    .domain(permission.getDomain().name())
+                    .action(permission.getAction().name())
+                    .build();
+        }
     }
 }

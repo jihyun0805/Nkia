@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-public class RolePermissionRequest {
+public class RoleRequest {
     private Set<PermissionItem> permissions;
 
     @Getter
