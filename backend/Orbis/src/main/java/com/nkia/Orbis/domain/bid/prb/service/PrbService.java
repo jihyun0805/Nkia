@@ -1,4 +1,4 @@
-package com.nkia.Orbis.domain.bid.prb.dto.service;
+package com.nkia.Orbis.domain.bid.prb.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.PrbErrorCode;
