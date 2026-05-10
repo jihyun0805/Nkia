@@ -31,7 +31,6 @@ public class MaintenanceQuotationDetailResponse {
     public static MaintenanceQuotationDetailResponse from(MaintenanceQuotation entity) {
         return MaintenanceQuotationDetailResponse.builder()
                 .id(entity.getId())
-                .companyName(entity.getProject().getOrderReport().getProjectOpportunity().getCustomerCompany().getName())
                 .companyName(entity.getProject().getPjtName())
                 .refNo(entity.getRefNo())
                 .quotationDate(entity.getQuotationDate())
