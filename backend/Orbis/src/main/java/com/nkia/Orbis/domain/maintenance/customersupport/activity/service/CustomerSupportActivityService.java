@@ -21,6 +21,7 @@ import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +38,7 @@ public class CustomerSupportActivityService {
     private final MaintenanceRepository maintenanceRepository;
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
-
+    private final UploadFileService uploadFileService;
 
     /**
      * 고객지원 활동 결과 신규 등록
@@ -81,6 +82,19 @@ public class CustomerSupportActivityService {
         mapAttachedFiles(support, dto.getAttachedFileIds());
 
         return CustomerSupportDetailResponse.from(support);
+    }
+
+    /**
+     * 고객지원 활동 결과 삭제
+     */
+    @Transactional
+    public void deleteActivity(Long id) {
+        CustomerSupport support = supportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        support.getAttachedFiles().forEach(file -> uploadFileService.removeFile(file.getId()));
+
+        support.delete();
     }
 
     private CustomerSupportRequest getRequestIfNecessary(ActivityType activityType, Long requestId) {
