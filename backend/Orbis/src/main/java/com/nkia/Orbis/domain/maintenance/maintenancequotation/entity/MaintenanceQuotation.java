@@ -87,4 +87,16 @@ public class MaintenanceQuotation extends BaseEntity {
         this.amountReasons.add(amountReason);
         amountReason.setQuotation(this);
     }
+
+    public void updateInfo(String paymentTerms, Long totalAmount, LocalDate startDate,
+                           LocalDate endDate, Long monthlySupplyPrice,
+                           Long totalQuotationAmount, String specialNotes) {
+        this.paymentTerms = paymentTerms;
+        this.totalAmount = totalAmount;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.monthlySupplyPrice = monthlySupplyPrice;
+        this.totalQuotationAmount = totalQuotationAmount;
+        this.specialNotes = specialNotes;
+    }
 }
