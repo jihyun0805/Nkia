@@ -33,7 +33,10 @@ import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportOther
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportPurchaseHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportServiceItemHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.repository.OrderReportHistoryRepository;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,7 +53,10 @@ public class OrderReportService {
 
     // TODO: 사업기회, 회사, 회사직원 구현 후 연동 예정
     public OrderReportResponse create(OrderReportRequest request) {
-        return create(request, generateOrderReportCode());
+
+        return create(
+                request,
+                generateOrderReportCode(LocalDate.now()));
     }
 
     private OrderReportResponse create(OrderReportRequest request, String orderReportCode) {
@@ -94,10 +100,6 @@ public class OrderReportService {
         OrderReport savedOrderReport = orderReportRepository.save(orderReport);
 
         return OrderReportResponse.from(savedOrderReport);
-    }
-
-    private String generateOrderReportCode() {
-        return "OR-" + System.currentTimeMillis();
     }
 
     @Transactional
@@ -277,5 +279,23 @@ public class OrderReportService {
                 );
             }
         }
+    }
+
+    private String generateOrderReportCode(LocalDate orderReportDate) {
+
+        String datePart = orderReportDate.format(DateTimeFormatter.ofPattern("yyMMdd"));
+        String prefix = "OR-" + datePart + "-";
+
+        Optional<String> lastCode =
+                orderReportRepository.findLastOrderReportCodeIncludingDeleted(prefix);
+
+        int nextNumber = lastCode
+                .map(code -> {
+                    String numberPart = code.substring(code.lastIndexOf("-") + 1);
+                    return Integer.parseInt(numberPart) + 1;
+                })
+                .orElse(1);
+
+        return prefix + String.format("%04d", nextNumber);
     }
 }
