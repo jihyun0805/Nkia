@@ -96,4 +96,19 @@ public class CustomerSupport extends BaseEntity {
         this.registrant = registrant;
         this.remarks = remarks;
     }
+
+    public void update(Company customerCompany, ActivityType type, LocalDateTime start, LocalDateTime end, String content, User registrant, String remarks) {
+        this.customerCompany = customerCompany;
+        this.activityType = type;
+        this.activityStartTime = start;
+        this.activityEndTime = end;
+        this.activityContent = content;
+        this.registrant = registrant;
+        this.remarks = remarks;
+    }
+
+    public void clearCollections() {
+        this.otherDepartmentUsers.clear();
+        this.attachedFiles.clear();
+    }
 }

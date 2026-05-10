@@ -3,6 +3,8 @@ package com.nkia.Orbis.domain.maintenance.customersupport.activity.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportCreateRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportUpdateRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportDetailResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.ActivityType;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupport;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupportOtherDepartmentUser;
@@ -58,6 +60,27 @@ public class CustomerSupportActivityService {
         supportRepository.save(support);
 
         return support.getId();
+    }
+
+    /**
+     * 고객지원 활동 결과 수정
+     */
+    @Transactional
+    public CustomerSupportDetailResponse updateActivity(Long id, CustomerSupportUpdateRequest dto) {
+        CustomerSupport support = supportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        Company company = getCompanyOrNull(dto.getCustomerCompanyCode());
+        User registrant = getUserOrNull(dto.getRegistrantId());
+
+        support.update(company, dto.getActivityType(), dto.getActivityStartTime(),
+                dto.getActivityEndTime(), dto.getActivityContent(), registrant, dto.getRemarks());
+
+        support.clearCollections();
+        mapParticipants(support, dto.getParticipantList());
+        mapAttachedFiles(support, dto.getAttachedFileIds());
+
+        return CustomerSupportDetailResponse.from(support);
     }
 
     private CustomerSupportRequest getRequestIfNecessary(ActivityType activityType, Long requestId) {
