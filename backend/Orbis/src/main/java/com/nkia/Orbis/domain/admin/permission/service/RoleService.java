@@ -13,7 +13,6 @@ import com.nkia.Orbis.domain.admin.permission.repository.PermissionRepository;
 import com.nkia.Orbis.domain.admin.permission.repository.RoleRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -42,9 +41,12 @@ public class RoleService {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ApiException(UserErrorCode.ROLE_NOT_FOUND));
 
-        Set<Permission> permissions = new HashSet<>(
-                permissionRepository.findAllById(request.getPermissionIds())
-        );
+        Set<Permission> permissions = request.getPermissions().stream()
+                .map(permissionItem -> permissionRepository.findByDomainAndAction(
+                        permissionItem.getDomain(),
+                        permissionItem.getAction()
+                ).orElseThrow(() -> new ApiException(AuthErrorCode.PERMISSION_NOT_FOUND)))
+                .collect(Collectors.toSet());
 
         role.changePermissions(permissions);
 
