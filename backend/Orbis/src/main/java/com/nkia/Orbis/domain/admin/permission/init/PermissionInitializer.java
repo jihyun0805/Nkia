@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PermissionInitializer implements CommandLineRunner {
 
+    // 초기 role 셋팅
     private final PermissionRepository permissionRepository;
     private final RoleRepository roleRepository;
 
