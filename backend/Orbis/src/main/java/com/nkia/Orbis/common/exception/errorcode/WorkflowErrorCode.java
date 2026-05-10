@@ -29,7 +29,6 @@ public enum WorkflowErrorCode implements ErrorCode {
     DUPLICATE_WORKFLOW_TEMPLATE(HttpStatus.BAD_REQUEST, "WORKFLOW_0010",
             "중복된 결재 프로세스 입니다.");
 
-
     private final HttpStatus httpStatus;
     private final String code;
     private final String message;
