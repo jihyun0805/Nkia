@@ -8,14 +8,14 @@ import java.time.LocalDate;
 
 @Getter
 @Builder
-public class QuotationCreateResponse {
+public class MaintenanceQuotationCreateResponse {
     private Long id;
     private String refNo;
     private LocalDate quotationDate;
     private Long totalQuotationAmount;
 
-    public static QuotationCreateResponse from(MaintenanceQuotation entity) {
-        return QuotationCreateResponse.builder()
+    public static MaintenanceQuotationCreateResponse from(MaintenanceQuotation entity) {
+        return MaintenanceQuotationCreateResponse.builder()
                 .id(entity.getId())
                 .refNo(entity.getRefNo())
                 .quotationDate(entity.getQuotationDate())

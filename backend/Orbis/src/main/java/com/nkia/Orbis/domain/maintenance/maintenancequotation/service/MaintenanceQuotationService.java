@@ -4,7 +4,9 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationCreateRequest;
-import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.QuotationCreateResponse;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationUpdateRequest;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.MaintenanceQuotationCreateResponse;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.MaintenanceQuotationDetailResponse;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceAmountReason;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenancePackageCost;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
@@ -32,14 +34,50 @@ public class MaintenanceQuotationService {
      * 유지보수 견적서 등록
      */
     @Transactional
-    public QuotationCreateResponse register(MaintenanceQuotationCreateRequest dto) {
+    public MaintenanceQuotationCreateResponse register(MaintenanceQuotationCreateRequest dto) {
         Project project = findProject(dto.getProjectId());
         MaintenanceQuotation quotation = createQuotationEntity(dto, project);
 
         mapSubEntities(dto, quotation);
 
         MaintenanceQuotation saved = quotationRepository.save(quotation);
-        return QuotationCreateResponse.from(saved);
+        return MaintenanceQuotationCreateResponse.from(saved);
+    }
+
+    /**
+     * 유지보수 견적서 정보 수정
+     */
+    @Transactional
+    public MaintenanceQuotationDetailResponse update(Long id, MaintenanceQuotationUpdateRequest dto) {
+        MaintenanceQuotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
+
+        updateBasicInfo(quotation, dto);
+        refreshChildEntities(quotation, dto);
+
+        return MaintenanceQuotationDetailResponse.from(quotation);
+    }
+
+    /**
+     * 유지보수 견적서 삭제
+     */
+    @Transactional
+    public void delete(Long id) {
+        MaintenanceQuotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
+
+        quotation.delete();
+    }
+
+    /**
+     * 유지보수 견적서의 상세 내역 조회
+     */
+    @Transactional(readOnly = true)
+    public MaintenanceQuotationDetailResponse getDetail(Long id) {
+        MaintenanceQuotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
+
+        return MaintenanceQuotationDetailResponse.from(quotation);
     }
 
     private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project) {
@@ -107,5 +145,23 @@ public class MaintenanceQuotationService {
         }
         return productModuleRepository.findById(productId)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MODULE_NOT_FOUND));
+    }
+
+    private void updateBasicInfo(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {
+        q.updateInfo(dto.getPaymentTerms(), dto.getTotalAmount(),
+                dto.getStartDate(), dto.getEndDate(),
+                dto.getMonthlySupplyPrice(), dto.getTotalQuotationAmount(),
+                dto.getSpecialNotes());
+    }
+
+    private void refreshChildEntities(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {
+        q.getPackageCosts().clear();
+        dto.getPackageCosts().forEach(p -> q.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
+
+        q.getServiceInfos().clear();
+        dto.getServiceInfos().forEach(s -> q.addServiceDetail(createServiceInfo(s)));
+
+        q.getAmountReasons().clear();
+        dto.getAmountReasons().forEach(a -> q.addCostBasis(createAmountReason(a)));
     }
 }
