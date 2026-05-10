@@ -102,7 +102,7 @@ public class CustomerSupportActivityService {
     }
 
     /**
-     * 고객지원 요청과 활동 결과를 통합하여 최신순 현황을 조회합니다.
+     * 고객지원 요청과 활동 결과를 통합하여 조회
      */
     public List<IntegratedSupportListResponse> getIntegratedStatus() {
         List<IntegratedSupportListResponse> requests = requestRepository.findAll().stream()
@@ -114,6 +114,17 @@ public class CustomerSupportActivityService {
         return Stream.concat(requests.stream(), activities.stream())
                 .sorted(Comparator.comparing(IntegratedSupportListResponse::getStartAt).reversed())
                 .toList();
+    }
+
+    /**
+     * 특정 고객지원 활동 결과의 상세 내역 조회
+     */
+    @Transactional(readOnly = true)
+    public CustomerSupportDetailResponse getActivityDetail(Long id) {
+        CustomerSupport support = supportRepository.findById(id)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        return CustomerSupportDetailResponse.from(support);
     }
 
     private IntegratedSupportListResponse mapToRequestStatus(CustomerSupportRequest req) {

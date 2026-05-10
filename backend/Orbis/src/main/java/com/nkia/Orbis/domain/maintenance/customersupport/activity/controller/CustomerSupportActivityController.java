@@ -69,4 +69,16 @@ public class CustomerSupportActivityController {
     public ResponseEntity<ApiResponse<List<IntegratedSupportListResponse>>> getIntegratedStatus() {
         return ResponseEntity.ok(ApiResponse.success(activityService.getIntegratedStatus()));
     }
+
+    /**
+     * 고객지원 활동 결과 상세 조회
+     */
+    @Operation(summary = "고객지원 활동 결과 상세 조회")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<CustomerSupportDetailResponse>> getDetail(
+            @PathVariable Long id) {
+
+        CustomerSupportDetailResponse response = activityService.getActivityDetail(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }
