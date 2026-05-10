@@ -57,10 +57,10 @@ public class QuotationHistory extends BaseEntity {
 
     private String note;
 
-    @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "quotationHistory", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<QuotationSolutionItemHistory> quotationSolutionItems = new ArrayList<>();
 
-    @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "quotationHistory", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<QuotationLaborItemHistory> quotationLaborItems = new ArrayList<>();
 
     public static QuotationHistory create(
