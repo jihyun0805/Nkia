@@ -5,6 +5,8 @@ import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateReque
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationListResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.service.QuotationService;
+import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryListResponse;
+import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -74,6 +76,26 @@ public class QuotationController {
             @RequestBody QuotationCreateRequest request
     ) {
         QuotationResponse response = quotationService.update(quotationId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "견적서 변경 이력 목록 조회")
+    @GetMapping("/{quotationId}/histories/")
+    public ResponseEntity<ApiResponse<List<QuotationHistoryListResponse>>> getQuotationHistories(
+            @PathVariable("quotationId") Long quotationId
+    ) {
+        List<QuotationHistoryListResponse> response = quotationService.getQuotationHistories(quotationId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "견적서 변경 이력 상세 조회")
+    @GetMapping("/histories/{quotationHistoryId}")
+    public ResponseEntity<ApiResponse<QuotationHistoryResponse>> getquotationHistory(
+            @PathVariable("quotationHistoryId") Long quotationHistoryId
+    ) {
+        QuotationHistoryResponse response = quotationService.getQuotationHistory(quotationHistoryId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

@@ -10,13 +10,15 @@ import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRe
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationListResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationHistory;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItem;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItemHistory;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItem;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItemHistory;
-import com.nkia.Orbis.domain.activity.quotation.repository.QuotationHistoryRepository;
 import com.nkia.Orbis.domain.activity.quotation.repository.QuotationRepository;
+import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryListResponse;
+import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryResponse;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationLaborItemHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationSolutionItemHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.repository.QuotationHistoryRepository;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
@@ -36,7 +38,7 @@ public class QuotationService {
     private final ProductModuleRepository productModuleRepository;
     private final ProjectOpportunityRepository projectOpportunityRepository;
     private final QuotationHistoryRepository quotationHistoryRepository;
-    
+
     @Transactional
     public QuotationResponse create(QuotationCreateRequest request) {
 
@@ -155,7 +157,9 @@ public class QuotationService {
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
 
         // 1. 기존 견적서 히스토리 저장
-        QuotationHistory history = QuotationHistory.create(oldQuotation);
+        Integer nextVersion = calculateNextHistoryVersion(oldQuotation.getQuotationCode());
+
+        QuotationHistory history = QuotationHistory.create(oldQuotation, nextVersion);
 
         for (QuotationSolutionItem item : oldQuotation.getQuotationSolutionItems()) {
             history.addSolutionItem(
@@ -210,6 +214,37 @@ public class QuotationService {
 
         return QuotationResponse.from(saved);
 
+    }
+
+    private Integer calculateNextHistoryVersion(String quotationCode) {
+        return (int) quotationHistoryRepository.countByQuotationCode(quotationCode) + 1;
+    }
+
+    @Transactional
+    public List<QuotationHistoryListResponse> getQuotationHistories(Long quotationId) {
+        Quotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
+
+        List<QuotationHistory> histories =
+                quotationHistoryRepository.findByQuotationCodeOrderByVersionDesc(
+                        quotation.getQuotationCode()
+                );
+
+        if (histories.isEmpty()) {
+            throw new ApiException(ActivityErrorCode.QUOTATION_HISTORY_NOT_FOUND);
+        }
+
+        return histories.stream()
+                .map(QuotationHistoryListResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public QuotationHistoryResponse getQuotationHistory(Long historyId) {
+        QuotationHistory history = quotationHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_HISTORY_NOT_FOUND));
+
+        return QuotationHistoryResponse.from(history);
     }
 }
 

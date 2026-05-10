@@ -1,6 +1,7 @@
-package com.nkia.Orbis.domain.activity.quotation.entity;
+package com.nkia.Orbis.domain.activity.quotationhistory.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.activity.quotation.entity.LaborType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

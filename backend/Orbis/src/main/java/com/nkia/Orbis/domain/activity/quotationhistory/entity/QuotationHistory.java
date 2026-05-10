@@ -1,6 +1,7 @@
-package com.nkia.Orbis.domain.activity.quotation.entity;
+package com.nkia.Orbis.domain.activity.quotationhistory.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -29,6 +30,9 @@ public class QuotationHistory extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false)
+    private Integer version;
 
     private String refNo;
 
@@ -60,10 +64,12 @@ public class QuotationHistory extends BaseEntity {
     private List<QuotationLaborItemHistory> quotationLaborItems = new ArrayList<>();
 
     public static QuotationHistory create(
-            Quotation quotation
+            Quotation quotation,
+            Integer version
     ) {
         QuotationHistory history = new QuotationHistory();
 
+        history.version = version;
         history.quotationCode = quotation.getQuotationCode();
         history.refNo = quotation.getRefNo();
         history.projectOpportunity = quotation.getProjectOpportunity();
