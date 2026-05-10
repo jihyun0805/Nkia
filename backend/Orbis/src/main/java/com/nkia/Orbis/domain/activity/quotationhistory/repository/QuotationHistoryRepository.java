@@ -1,6 +1,6 @@
-package com.nkia.Orbis.domain.activity.quotation.repository;
+package com.nkia.Orbis.domain.activity.quotationhistory.repository;
 
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationHistory;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 

@@ -7,17 +7,18 @@ import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
-import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationHistoryResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationListResponse;
 import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationHistory;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItem;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationLaborItemHistory;
 import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItem;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationSolutionItemHistory;
-import com.nkia.Orbis.domain.activity.quotation.repository.QuotationHistoryRepository;
 import com.nkia.Orbis.domain.activity.quotation.repository.QuotationRepository;
+import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryListResponse;
+import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryResponse;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationLaborItemHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationSolutionItemHistory;
+import com.nkia.Orbis.domain.activity.quotationhistory.repository.QuotationHistoryRepository;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
@@ -220,7 +221,7 @@ public class QuotationService {
     }
 
     @Transactional
-    public List<QuotationHistoryResponse> getQuotationHistories(Long quotationId) {
+    public List<QuotationHistoryListResponse> getQuotationHistories(Long quotationId) {
         Quotation quotation = quotationRepository.findById(quotationId)
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
 
@@ -234,8 +235,16 @@ public class QuotationService {
         }
 
         return histories.stream()
-                .map(QuotationHistoryResponse::from)
+                .map(QuotationHistoryListResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public QuotationHistoryResponse getQuotationHistory(Long historyId) {
+        QuotationHistory history = quotationHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_HISTORY_NOT_FOUND));
+
+        return QuotationHistoryResponse.from(history);
     }
 }
 

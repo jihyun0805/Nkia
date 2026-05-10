@@ -1,4 +1,4 @@
-package com.nkia.Orbis.domain.activity.quotation.entity;
+package com.nkia.Orbis.domain.activity.quotationhistory.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;

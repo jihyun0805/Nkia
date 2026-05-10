@@ -1,6 +1,7 @@
-package com.nkia.Orbis.domain.activity.quotation.entity;
+package com.nkia.Orbis.domain.activity.quotationhistory.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
