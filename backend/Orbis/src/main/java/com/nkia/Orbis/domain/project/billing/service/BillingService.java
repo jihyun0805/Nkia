@@ -95,19 +95,26 @@ public class BillingService {
     }
 
     /**
-     * 수주보고서 ID와 현재 사용자 이름을 기반으로 폼 초기화 정보를 생성
+     * 수주보고서 ID와 현재 사용자 ID(혹은 이름)를 기반으로 폼 초기화 정보를 생성
      */
     @Transactional(readOnly = true)
-    public BillingFormInitResponse getBillingInitData(Long orderReportId, String userName) {
+    public BillingFormInitResponse getBillingInitData(Long orderReportId, String userIdStr) {
         OrderReport report = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
 
-        UUID userUuid = UUID.fromString(userName);
+        String userName = userIdStr;
 
-        User user = userRepository.findById(userUuid)
-                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+        try {
+            UUID userUuid = UUID.fromString(userIdStr);
+            User user = userRepository.findById(userUuid).orElse(null);
+            if (user != null) {
+                userName = user.getName();
+            }
+        } catch (IllegalArgumentException e) {
+            // 예외 무시
+        }
 
-        return convertToFormInitResponse(report, user.getName());
+        return convertToFormInitResponse(report, userName);
     }
 
     /**
@@ -121,8 +128,7 @@ public class BillingService {
                 report.getProjectOpportunity().getOpportunityName(),
                 userName,
                 LocalDate.now(),
-                contractId
-        );
+                contractId);
     }
 
     /**
@@ -134,8 +140,8 @@ public class BillingService {
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
         Long oldImageId = null;
-        if (billing.getStatus() == BillingStatus.ISSUED && billing.getInvoiceImageId() != null 
-            && !billing.getInvoiceImageId().equals(request.getInvoiceImageId())) {
+        if (billing.getStatus() == BillingStatus.ISSUED && billing.getInvoiceImageId() != null
+                && !billing.getInvoiceImageId().equals(request.getInvoiceImageId())) {
             oldImageId = billing.getInvoiceImageId();
         }
 
