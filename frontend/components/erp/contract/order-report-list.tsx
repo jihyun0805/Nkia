@@ -25,26 +25,21 @@ export function OrderReportList({ reports }: OrderReportListProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">수주번호</TableHead>
-              <TableHead>사업명</TableHead>
               <TableHead>고객사</TableHead>
+              <TableHead>사업명(사업기회)</TableHead>
+              <TableHead className="text-right">수주 합계 금액</TableHead>
               <TableHead>수주일</TableHead>
-              <TableHead className="text-right">계약금액</TableHead>
-              <TableHead>제품</TableHead>
-              <TableHead>영업담당</TableHead>
+              <TableHead>영업대표</TableHead>
               <TableHead>결재상태</TableHead>
-              <TableHead>최종결재자</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {reports.map((order) => (
               <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/orders/${order.id}`)}>
-                <TableCell className="font-mono text-sm">{order.id}</TableCell>
-                <TableCell className="max-w-[180px] truncate font-medium">{order.name}</TableCell>
                 <TableCell>{order.customer}</TableCell>
-                <TableCell>{order.orderDate}</TableCell>
+                <TableCell className="max-w-[180px] truncate font-medium">{order.name}</TableCell>
                 <TableCell className="text-right font-medium">₩{parseInt(order.amount).toLocaleString()}</TableCell>
-                <TableCell>{order.product}</TableCell>
+                <TableCell>{order.orderDate}</TableCell>
                 <TableCell>{order.salesRep}</TableCell>
                 <TableCell>
                   <Badge
@@ -54,7 +49,6 @@ export function OrderReportList({ reports }: OrderReportListProps) {
                     {order.approvalStatus}
                   </Badge>
                 </TableCell>
-                <TableCell>{order.approver}</TableCell>
               </TableRow>
             ))}
           </TableBody>
