@@ -3,6 +3,16 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,7 +24,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { getActivities, getActivityDisplayType } from "@/lib/activity-data"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
-import { getFindingFields, getOpportunities, getCustomerByCode } from "@/lib/finding-data"
+import { deleteOpportunity, getFindingFields, getOpportunities, getCustomerByCode } from "@/lib/finding-data"
+import type { CustomerRecord, OpportunityRecord } from "@/lib/finding-data"
+import { toast } from "@/hooks/use-toast"
 import { Mail, Phone, Users } from "lucide-react"
 
 const activitiesPerPage = 10
@@ -31,9 +43,11 @@ export default function ActivityCustomerDetailPage() {
   const customerCode = params.customerCode
   const opportunityId = searchParams.get("opportunityId") ?? ""
   const [page, setPage] = useState(1)
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
+  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
+  const [customer, setCustomer] = useState<CustomerRecord | null>(null)
+  const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
-  const customer = getCustomerByCode(customerCode)
   const displayCustomer =
     customer ?? {
       id: customerCode,
@@ -65,6 +79,11 @@ export default function ActivityCustomerDetailPage() {
     }
   }, [])
 
+  useEffect(() => {
+    setCustomer(getCustomerByCode(customerCode))
+    setOpportunities(getOpportunities())
+  }, [customerCode])
+
   const customerActivities = useMemo(
     () =>
       activityRecords
@@ -74,19 +93,39 @@ export default function ActivityCustomerDetailPage() {
   )
   const customerOpportunities = useMemo(
     () =>
-      getOpportunities()
+      opportunities
         .filter((opportunity) => opportunity.customerCode === customerCode)
         .sort((a, b) => {
           if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt)
           return b.id.localeCompare(a.id)
         }),
-    [customerCode],
+    [customerCode, opportunities],
   )
   const selectedOpportunity =
     customerOpportunities.find((opportunity) => opportunity.id === opportunityId) ??
     customerOpportunities[0] ??
     null
   const opportunityFields = selectedOpportunity ? getFindingFields("opportunities", selectedOpportunity) : []
+
+  const handleDeleteOpportunity = () => {
+    if (!selectedOpportunity) return
+
+    const result = deleteOpportunity(selectedOpportunity.id)
+    if (result.status === "not_found") {
+      toast({
+        title: "사업기회 삭제 실패",
+        description: "삭제할 사업기회를 찾지 못했습니다.",
+      })
+      setIsDeleteOpen(false)
+      return
+    }
+
+    toast({
+      title: "사업기회 삭제 완료",
+      description: `${result.opportunity.name} 사업기회가 삭제되었습니다.`,
+    })
+    setIsDeleteOpen(false)
+  }
 
   const totalPages = Math.max(1, Math.ceil(customerActivities.length / activitiesPerPage))
   const paginatedActivities = useMemo(() => {
@@ -127,17 +166,27 @@ export default function ActivityCustomerDetailPage() {
               </CardHeader>
               <CardContent>
                 {selectedOpportunity ? (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {opportunityFields.map((field) => (
-                      <div
-                        key={field.label}
-                        className={`space-y-2 ${fullWidthFieldLabels.includes(field.label) ? "md:col-span-2" : ""}`}
-                      >
-                        <Label>{field.label}</Label>
-                        <Input readOnly value={field.value || "-"} />
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {opportunityFields.map((field) => (
+                        <div
+                          key={field.label}
+                          className={`space-y-2 ${fullWidthFieldLabels.includes(field.label) ? "md:col-span-2" : ""}`}
+                        >
+                          <Label>{field.label}</Label>
+                          <Input readOnly value={field.value || "-"} />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-end gap-2 border-t pt-6">
+                      <Button variant="outline" asChild>
+                        <Link href={`/finding/opportunities/${selectedOpportunity.id}/edit?tab=opportunities`}>수정</Link>
+                      </Button>
+                      <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                        삭제
+                      </Button>
+                    </div>
+                  </>
                 ) : (
                   <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                     연결된 사업기회 정보가 없습니다.
@@ -224,6 +273,20 @@ export default function ActivityCustomerDetailPage() {
           </div>
         </main>
       </div>
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>사업기회를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 등록된 사업기회 내용을 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteOpportunity}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

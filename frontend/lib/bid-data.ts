@@ -222,14 +222,19 @@ export type BidResultRecord = {
 }
 
 const RFP_ANALYSES_STORAGE_KEY = "orbis.rfpAnalyses"
+const DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY = "orbis.deleted-rfp-analysis-ids"
 const RFP_ANALYSES_EVENT_NAME = "orbis-rfp-analyses-updated"
 const PROPOSALS_STORAGE_KEY = "orbis.proposals"
+const DELETED_PROPOSAL_IDS_STORAGE_KEY = "orbis.deleted-proposal-ids"
 const PROPOSALS_EVENT_NAME = "orbis-proposals-updated"
 const BID_RESULTS_STORAGE_KEY = "orbis.bidResults"
+const DELETED_BID_RESULT_IDS_STORAGE_KEY = "orbis.deleted-bid-result-ids"
 const BID_RESULTS_EVENT_NAME = "orbis-bid-results-updated"
 const PRBS_STORAGE_KEY = "orbis.prbs"
+const DELETED_PRB_IDS_STORAGE_KEY = "orbis.deleted-prb-ids"
 const PRBS_EVENT_NAME = "orbis-prbs-updated"
 const PRB_RESULTS_STORAGE_KEY = "orbis.prbResults"
+const DELETED_PRB_RESULT_IDS_STORAGE_KEY = "orbis.deleted-prb-result-ids"
 const PRB_RESULTS_EVENT_NAME = "orbis-prb-results-updated"
 
 export const rfpList: RfpAnalysisRecord[] = [
@@ -467,7 +472,14 @@ function readStoredRfpAnalyses() {
 
   try {
     const parsed = JSON.parse(stored) as RfpAnalysisRecord[]
-    return Array.isArray(parsed) ? parsed : rfpList
+    const storedItems = Array.isArray(parsed) ? parsed.filter((item) => item && typeof item.id === "string") : []
+    const deletedIds = new Set(readDeletedIds(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY))
+    const merged = new Map<string, RfpAnalysisRecord>()
+    for (const item of rfpList) {
+      if (!deletedIds.has(item.id)) merged.set(item.id, item)
+    }
+    for (const item of storedItems) merged.set(item.id, item)
+    return [...merged.values()]
   } catch {
     return rfpList
   }
@@ -511,7 +523,10 @@ function readStoredProposals() {
       : []
 
     const merged = new Map<string, ProposalRecord>()
-    for (const item of proposalList) merged.set(item.id, item)
+    const deletedIds = new Set(readDeletedIds(DELETED_PROPOSAL_IDS_STORAGE_KEY))
+    for (const item of proposalList) {
+      if (!deletedIds.has(item.id)) merged.set(item.id, item)
+    }
     for (const item of storedItems) merged.set(item.id, item)
     return [...merged.values()]
   } catch {
@@ -559,7 +574,10 @@ function readStoredBidResults() {
       : []
 
     const merged = new Map<string, BidResultRecord>()
-    for (const item of bidResults) merged.set(item.id, item)
+    const deletedIds = new Set(readDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY))
+    for (const item of bidResults) {
+      if (!deletedIds.has(item.id)) merged.set(item.id, item)
+    }
     for (const item of storedItems) merged.set(item.id, item)
     return [...merged.values()]
   } catch {
@@ -605,7 +623,10 @@ function readStoredPrbResults() {
       : []
 
     const merged = new Map<string, PrbResultRecord>()
-    for (const item of prbResults) merged.set(item.id, item)
+    const deletedIds = new Set(readDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY))
+    for (const item of prbResults) {
+      if (!deletedIds.has(item.id)) merged.set(item.id, item)
+    }
     for (const item of storedItems) merged.set(item.id, item)
     return [...merged.values()]
   } catch {
@@ -616,6 +637,25 @@ function readStoredPrbResults() {
 function writeStoredPrbResults(items: PrbResultRecord[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(PRB_RESULTS_STORAGE_KEY, JSON.stringify(items))
+}
+
+function readDeletedIds(storageKey: string) {
+  if (!isBrowser()) return []
+
+  const stored = window.localStorage.getItem(storageKey)
+  if (!stored) return []
+
+  try {
+    const parsed = JSON.parse(stored) as string[]
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+  } catch {
+    return []
+  }
+}
+
+function writeDeletedIds(storageKey: string, value: string[]) {
+  if (!isBrowser()) return
+  window.localStorage.setItem(storageKey, JSON.stringify(value))
 }
 
 function buildDefaultPrbApprovalSteps(item: Partial<PrbRecord>): PrbApprovalStep[] {
@@ -663,7 +703,10 @@ function readStoredPrbs() {
       : []
 
     const merged = new Map<string, PrbRecord>()
-    for (const item of prbList) merged.set(item.id, item)
+    const deletedIds = new Set(readDeletedIds(DELETED_PRB_IDS_STORAGE_KEY))
+    for (const item of prbList) {
+      if (!deletedIds.has(item.id)) merged.set(item.id, item)
+    }
     for (const item of storedItems) merged.set(item.id, normalizePrbRecord(item, merged.get(item.id)))
     return [...merged.values()]
   } catch {
@@ -872,9 +915,26 @@ export function saveRfpAnalysis(record: Omit<RfpAnalysisRecord, "id"> & { id?: s
     : [nextRecord, ...items]
 
   writeStoredRfpAnalyses(nextItems)
+  writeDeletedIds(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY, readDeletedIds(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY).filter((item) => item !== targetId))
   emitRfpAnalysesUpdate()
 
   return nextRecord
+}
+
+export function deleteRfpAnalysis(id: string) {
+  const items = getRfpAnalyses()
+  const existing = items.find((item) => item.id === id)
+  if (!existing) return { status: "not_found" as const }
+
+  const remainingStored = items.filter((item) => item.id !== id)
+  const deletedIds = new Set(readDeletedIds(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY))
+  deletedIds.add(id)
+
+  writeStoredRfpAnalyses(remainingStored)
+  writeDeletedIds(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY, [...deletedIds])
+  emitRfpAnalysesUpdate()
+
+  return { status: "deleted" as const, analysis: existing }
 }
 
 export function saveProposal(record: Omit<ProposalRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
@@ -897,9 +957,26 @@ export function saveProposal(record: Omit<ProposalRecord, "id" | "createdAt" | "
     : [nextRecord, ...items]
 
   writeStoredProposals(nextItems)
+  writeDeletedIds(DELETED_PROPOSAL_IDS_STORAGE_KEY, readDeletedIds(DELETED_PROPOSAL_IDS_STORAGE_KEY).filter((item) => item !== targetId))
   emitProposalsUpdate()
 
   return nextRecord
+}
+
+export function deleteProposal(id: string) {
+  const items = getProposals()
+  const existing = items.find((item) => item.id === id)
+  if (!existing) return { status: "not_found" as const }
+
+  const remainingStored = items.filter((item) => item.id !== id)
+  const deletedIds = new Set(readDeletedIds(DELETED_PROPOSAL_IDS_STORAGE_KEY))
+  deletedIds.add(id)
+
+  writeStoredProposals(remainingStored)
+  writeDeletedIds(DELETED_PROPOSAL_IDS_STORAGE_KEY, [...deletedIds])
+  emitProposalsUpdate()
+
+  return { status: "deleted" as const, proposal: existing }
 }
 
 export function saveBidResult(record: Omit<BidResultRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
@@ -922,9 +999,26 @@ export function saveBidResult(record: Omit<BidResultRecord, "id" | "createdAt" |
     : [nextRecord, ...items]
 
   writeStoredBidResults(nextItems)
+  writeDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY, readDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY).filter((item) => item !== targetId))
   emitBidResultsUpdate()
 
   return nextRecord
+}
+
+export function deleteBidResult(id: string) {
+  const items = getBidResults()
+  const existing = items.find((item) => item.id === id)
+  if (!existing) return { status: "not_found" as const }
+
+  const remainingStored = items.filter((item) => item.id !== id)
+  const deletedIds = new Set(readDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY))
+  deletedIds.add(id)
+
+  writeStoredBidResults(remainingStored)
+  writeDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY, [...deletedIds])
+  emitBidResultsUpdate()
+
+  return { status: "deleted" as const, bidResult: existing }
 }
 
 export function savePrb(record: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
@@ -961,9 +1055,26 @@ export function savePrb(record: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"
     : [nextRecord, ...items]
 
   writeStoredPrbs(nextItems)
+  writeDeletedIds(DELETED_PRB_IDS_STORAGE_KEY, readDeletedIds(DELETED_PRB_IDS_STORAGE_KEY).filter((item) => item !== targetId))
   emitPrbsUpdate()
 
   return nextRecord
+}
+
+export function deletePrb(id: string) {
+  const items = getPrbs()
+  const existing = items.find((item) => item.id === id)
+  if (!existing) return { status: "not_found" as const }
+
+  const remainingStored = items.filter((item) => item.id !== id)
+  const deletedIds = new Set(readDeletedIds(DELETED_PRB_IDS_STORAGE_KEY))
+  deletedIds.add(id)
+
+  writeStoredPrbs(remainingStored)
+  writeDeletedIds(DELETED_PRB_IDS_STORAGE_KEY, [...deletedIds])
+  emitPrbsUpdate()
+
+  return { status: "deleted" as const, prb: existing }
 }
 
 export function savePrbResult(record: Omit<PrbResultRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
@@ -983,9 +1094,26 @@ export function savePrbResult(record: Omit<PrbResultRecord, "id" | "createdAt" |
     : [nextRecord, ...items]
 
   writeStoredPrbResults(nextItems)
+  writeDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY, readDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY).filter((item) => item !== targetId))
   emitPrbResultsUpdate()
 
   return nextRecord
+}
+
+export function deletePrbResult(id: string) {
+  const items = getPrbResults()
+  const existing = items.find((item) => item.id === id)
+  if (!existing) return { status: "not_found" as const }
+
+  const remainingStored = items.filter((item) => item.id !== id)
+  const deletedIds = new Set(readDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY))
+  deletedIds.add(id)
+
+  writeStoredPrbResults(remainingStored)
+  writeDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY, [...deletedIds])
+  emitPrbResultsUpdate()
+
+  return { status: "deleted" as const, prbResult: existing }
 }
 
 export function approvePrbStep(prbId: string, actor: string) {

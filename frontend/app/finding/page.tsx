@@ -9,11 +9,10 @@ import { Sidebar } from "@/components/erp/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { findingStatuses, getCustomers, getOpportunities, getPartners } from "@/lib/finding-data"
-import { Building2, Plus, Search, Target, Users } from "lucide-react"
+import { Building2, Plus, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
 const PREVIEW_CARD_COUNT = 10
@@ -23,7 +22,6 @@ function FindingPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isMounted, setIsMounted] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const initialTab = searchParams.get("tab")
   const [activeTab, setActiveTab] = useState<FindingTab>(
@@ -60,7 +58,6 @@ function FindingPageContent() {
     router.replace(`/finding?tab=${value}`, { scroll: false })
   }
 
-  const q = searchTerm.toLowerCase()
   const customerRows = getCustomers()
   const opportunityRows = getOpportunities()
   const partnerRows = getPartners()
@@ -86,12 +83,7 @@ function FindingPageContent() {
       customerCode: (item) => item.customerCode,
       customer: (item) => item.customer,
     },
-  }).filter((item) =>
-    [item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]
-      .join(" ")
-      .toLowerCase()
-      .includes(q),
-  )
+  })
 
   const recentOpportunityCards = useMemo(() => {
     const threshold = new Date()
@@ -113,14 +105,14 @@ function FindingPageContent() {
     fields: {
       category: (item) => item.category,
     },
-  }).filter((item) => [item.id, item.name, item.contact, item.phone].join(" ").toLowerCase().includes(q))
+  })
 
   const filteredPartners = filterRecords(partnerRows, filters, {
     owner: (item) => item.contact,
     fields: {
       type: (item) => item.type,
     },
-  }).filter((item) => [item.id, item.name, item.type, item.contact, item.phone].join(" ").toLowerCase().includes(q))
+  })
 
   const customerCards = useMemo(
     () =>
@@ -188,16 +180,6 @@ function FindingPageContent() {
               </TabsList>
 
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="검색..."
-                    className="w-64 pl-9"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                  />
-                </div>
-
                 <FilterPopover
                   title="발굴"
                   statusOptions={findingStatuses}

@@ -2,15 +2,26 @@
 
 import type { ComponentProps, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
 import { currentUser } from "@/lib/current-user"
-import { getBidItem, getRfpAnalysisByRequestId, saveRfpAnalysis, type RfpAnalysisRecord, type RfpAnalysisStatus } from "@/lib/bid-data"
+import { deleteRfpAnalysis, getBidItem, getRfpAnalysisByRequestId, saveRfpAnalysis, type RfpAnalysisRecord, type RfpAnalysisStatus } from "@/lib/bid-data"
 import type { ActivityRequestRecord } from "@/lib/activity-data"
 import { getActivityRequests, notifyRfpAnalysisCompleted } from "@/lib/activity-request-workflow"
 import { getCustomerByCode, getOpportunitiesByCustomerName, type CustomerRecord } from "@/lib/finding-data"
@@ -305,9 +316,13 @@ function BasicInfoRow({
   )
 }
 
-type SheetSource = Partial<RfpAnalysisRecord> & Partial<ActivityRequestRecord>
+type SheetSource = Partial<Omit<RfpAnalysisRecord, "status">> &
+  Partial<Omit<ActivityRequestRecord, "status">> & {
+    status?: string
+  }
 
 export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAnalysisSheetProps) {
+  const router = useRouter()
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const activityRequestItem = requestId?.startsWith("REQ-")
     ? (getActivityRequests().find((item) => item.id === requestId) as ActivityRequestRecord | null)
@@ -368,6 +383,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
           blankRequirementRow(),
         ],
   )
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   const totalEffort = useMemo(
     () => requirements.reduce((sum, row) => sum + (Number(row.effort) || 0), 0),
@@ -471,6 +487,27 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
 
   const handleComplete = () => {
     persistAnalysis("완료")
+  }
+
+  const handleDelete = () => {
+    if (!persistedAnalysis) return
+
+    const result = deleteRfpAnalysis(persistedAnalysis.id)
+    if (result.status === "not_found") {
+      toast({
+        title: "RFP 분석 삭제 실패",
+        description: "삭제할 RFP 분석을 찾지 못했습니다.",
+      })
+      setIsDeleteOpen(false)
+      return
+    }
+
+    toast({
+      title: "RFP 분석 삭제 완료",
+      description: `${result.analysis.id} RFP 분석이 삭제되었습니다.`,
+    })
+    setIsDeleteOpen(false)
+    router.push("/bid")
   }
 
   const handleExcelExport = () => {
@@ -679,6 +716,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   }
 
   return (
+    <>
     <Card className="overflow-hidden">
       <CardHeader className="border-b bg-white">
         <div className="flex items-center justify-between gap-4">
@@ -875,11 +913,31 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
         </div>
 
         <div className="flex justify-end gap-2 border-t pt-6">
+          {!blankMode && persistedAnalysis && (
+            <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+              삭제
+            </Button>
+          )}
           <Button variant="outline" onClick={handleModify}>수정</Button>
           <Button variant="outline" onClick={handleDraftSave}>임시저장</Button>
           <Button onClick={handleComplete}>완료</Button>
         </div>
       </CardContent>
     </Card>
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>RFP 분석을 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 RFP 분석 상세 정보를 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
