@@ -19,7 +19,9 @@ public enum ActivityErrorCode implements ErrorCode {
     QUOTATION_CODE_GENERATION_FAILED(HttpStatus.CONFLICT, "ACTIVITY_0005",
             "견적 코드 생성에 실패했습니다."),
     QUOTATION_HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "ACTIVITY_0006",
-            "요청한 quotation history를 찾을 수 없습니다.");
+            "요청한 quotation history를 찾을 수 없습니다."),
+    INVALID_QUOTATION_STATUS(HttpStatus.BAD_REQUEST, "ACTIVITY_0007",
+            "유효하지 않은 quotation status 입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
