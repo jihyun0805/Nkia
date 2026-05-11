@@ -335,7 +335,13 @@ export default function ActivityPage() {
     window.location.reload()
   }
 
-  const formatAmount = (value: string) => Number.parseInt(value.replace(/[^\d]/g, "") || "0", 10).toLocaleString("ko-KR")
+  const formatAmount = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined) return "0"
+    if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value).toLocaleString("ko-KR") : "0"
+
+    const normalized = value.replace(/[^\d]/g, "")
+    return Number.parseInt(normalized || "0", 10).toLocaleString("ko-KR")
+  }
 
   return (
     <div className="min-h-screen bg-background">
