@@ -25,6 +25,9 @@ public class ProjectDetailResponse {
     private String salesRepName;
     private ResultReportInfo resultReport;
 
+    private Long orderReportId;
+    private Long contractId;
+
     @Getter
     @Builder
     @AllArgsConstructor
@@ -53,6 +56,8 @@ public class ProjectDetailResponse {
 
         return ProjectDetailResponse.builder()
                 .id(project.getId())
+                .orderReportId(project.getOrderReport() != null ? project.getOrderReport().getId() : null)
+                .contractId(project.getOrderReport().getContract().getId() != null ? project.getOrderReport().getContract().getId() : null)
                 .pjtNumber(project.getPjtNumber())
                 .pjtName(project.getPjtName())
                 .customerName(customer)
