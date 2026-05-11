@@ -760,7 +760,7 @@ public class ChatbotUserContextService {
             case MAINTENANCE_QUOTATION -> Set.of(SOURCE_TYPE_MAINTENANCE_QUOTE);
             case CUSTOMER_SUPPORT -> Set.of(SOURCE_TYPE_CUSTOMER_SUPPORT, SOURCE_TYPE_POST_SALES);
             case PRODUCT_MODULE -> Set.of(SOURCE_TYPE_MODULE);
-            case DEPARTMENT, WORKFLOW, PERMISSION, USER -> Set.of();
+            case DEPARTMENT, WORKFLOW_TEMPLATE, WORKFLOW, PERMISSION, USER -> Set.of();
         };
     }
 
