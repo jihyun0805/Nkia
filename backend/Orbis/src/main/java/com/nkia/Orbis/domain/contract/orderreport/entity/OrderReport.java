@@ -1,7 +1,9 @@
 package com.nkia.Orbis.domain.contract.orderreport.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
@@ -40,6 +42,13 @@ public class OrderReport extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_id")
+    private Workflow workflow;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     @Column(nullable = false, unique = true)
     private String orderReportCode;

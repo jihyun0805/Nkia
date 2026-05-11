@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.activity.quotation.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
-import com.nkia.Orbis.domain.activity.quotation.entity.QuotationStatus;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.Builder;
@@ -12,7 +12,7 @@ import lombok.Getter;
 public class QuotationResponse {
     private Long id;
 
-    private QuotationStatus status;
+    private ApprovalStatus status;
 
     private String quotationCode;
 
