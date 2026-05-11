@@ -31,14 +31,4 @@ public class ProjectFacadeService {
         return projectService.getProjectDetail(project);
     }
 
-    /**
-     * 사업 및 연관된 결과보고서, 유지보수 정보를 함께 삭제합니다. (Soft Delete)
-     */
-    @Transactional
-    public void deleteProjectWithReport(Long projectId) {
-        Project project = projectService.getProject(projectId);
-
-        reportService.deleteReportByProject(project);
-        projectService.deleteProject(project);
-    }
 }

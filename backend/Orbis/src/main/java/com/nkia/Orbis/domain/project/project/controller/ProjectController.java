@@ -83,7 +83,7 @@ public class ProjectController {
     @Operation(summary = "사업 삭제")
     @DeleteMapping("/{projectId}")
     public ResponseEntity<ApiResponse<Void>> deleteProject(@PathVariable Long projectId) {
-        projectFacadeService.deleteProjectWithReport(projectId);
+        projectService.deleteProject(projectId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

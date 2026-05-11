@@ -111,13 +111,11 @@ public class ProjectService {
     }
 
     /**
-     * 사업을 삭제합니다. (Soft Delete)
-     * 연관된 유지보수와 견적서도 함께 Soft Delete 처리됩니다.
+     * 사업을 삭제합니다.
      */
     @Transactional
-    public void deleteProject(Project project) {
-        project.getMaintenances().forEach(Maintenance::delete);
-        project.getMaintenanceQuotations().forEach(MaintenanceQuotation::delete);
+    public void deleteProject(Long projectId) {
+        Project project = getProject(projectId);
         project.delete();
     }
 

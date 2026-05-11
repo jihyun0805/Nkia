@@ -48,10 +48,14 @@ public class ProjectResultReport extends BaseEntity {
                 .build();
     }
 
-    /**
-     * 결과 보고서 정보를 업데이트합니다.
-     */
     public void updateResultReport(UploadFile resultReportFile) {
         this.resultReportFile = resultReportFile;
+    }
+
+    public void delete() {
+        super.delete();
+        if (this.resultReportFile != null) {
+            this.resultReportFile.delete();
+        }
     }
 }

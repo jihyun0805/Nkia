@@ -111,4 +111,19 @@ public class Project extends BaseEntity {
         this.manager = manager;
         this.salesRepresentative = salesRepresentative;
     }
+
+    @Override
+    public void delete() {
+        super.delete();
+        
+        for (ProjectResultReport report : resultReports) {
+            report.delete();
+        }
+        for (Maintenance maintenance : maintenances) {
+            maintenance.delete();
+        }
+        for (MaintenanceQuotation quotation : maintenanceQuotations) {
+            quotation.delete();
+        }
+    }
 }
