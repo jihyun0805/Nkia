@@ -63,7 +63,7 @@ public class Project extends BaseEntity {
 
     // 수주보고서
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_report_id", unique = true)
+    @JoinColumn(name = "order_report_id")
     private OrderReport orderReport;
 
     // 담당 PM
@@ -95,7 +95,6 @@ public class Project extends BaseEntity {
         this.orderReport = orderReport;
         this.pjtName = pjtName;
         this.totalAmount = totalAmount;
-        this.manager = manager;
         this.salesRepresentative = salesRepresentative;
     }
 
