@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.admin.department.repository.DepartmentRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ public class DepartmentInitializer implements CommandLineRunner {
 
     @Override
     @Transactional
+    @Order(1)
     public void run(String... args) {
 
         List<DepartmentData> departments = List.of(
