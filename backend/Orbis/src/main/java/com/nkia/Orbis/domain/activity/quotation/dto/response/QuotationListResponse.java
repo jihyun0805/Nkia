@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.activity.quotation.dto.response;
 
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
+import com.nkia.Orbis.domain.activity.quotation.entity.QuotationStatus;
 import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Getter;
@@ -9,6 +10,8 @@ import lombok.Getter;
 @Builder
 public class QuotationListResponse {
     private Long id;
+
+    private QuotationStatus status;
 
     private String quotationCode;
 
@@ -31,6 +34,7 @@ public class QuotationListResponse {
     public static QuotationListResponse from(Quotation quotation) {
         return QuotationListResponse.builder()
                 .id(quotation.getId())
+                .status(quotation.getStatus())
                 .quotationCode(quotation.getQuotationCode())
                 .projectOpportunityId(quotation.getProjectOpportunity().getId())
                 .companyName(quotation.getProjectOpportunity().getCustomerCompany().getName())
