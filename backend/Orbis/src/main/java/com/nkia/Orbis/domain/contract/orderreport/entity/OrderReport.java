@@ -3,7 +3,6 @@ package com.nkia.Orbis.domain.contract.orderreport.entity;
 import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
-import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
@@ -42,10 +41,6 @@ public class OrderReport extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "workflow_id")
-    private Workflow workflow;
 
     @Enumerated(EnumType.STRING)
     private ApprovalStatus status;
@@ -218,6 +213,7 @@ public class OrderReport extends BaseEntity {
             Double itemTotalMaintenanceRate
     ) {
         OrderReport orderReport = new OrderReport();
+        orderReport.status = ApprovalStatus.DRAFT;
         orderReport.orderReportCode = orderReportCode;
         orderReport.paymentCondition = paymentCondition;
         orderReport.quotationProvided = quotationProvided;
@@ -501,8 +497,7 @@ public class OrderReport extends BaseEntity {
         this.itemTotalMaintenance = 0L;
     }
 
-    public void submit(Workflow workflow) {
-        this.workflow = workflow;
+    public void submit() {
         this.status = ApprovalStatus.PENDING;
     }
 

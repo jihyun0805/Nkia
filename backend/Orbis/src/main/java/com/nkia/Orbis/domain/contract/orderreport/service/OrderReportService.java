@@ -14,6 +14,8 @@ import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
 import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
@@ -69,6 +71,7 @@ public class OrderReportService {
     private final CompanyRepository companyRepository;
     private final CompanyManagerRepository companyManagerRepository;
     private final WorkflowService workflowService;
+    private final WorkflowRepository workflowRepository;
 
     @Transactional
     public OrderReportResponse create(OrderReportRequest request) {
@@ -135,7 +138,7 @@ public class OrderReportService {
 
         OrderReport savedOrderReport = orderReportRepository.save(orderReport);
 
-        return OrderReportResponse.from(savedOrderReport);
+        return OrderReportResponse.from(savedOrderReport, getWorkflowId(savedOrderReport.getId()));
     }
 
     @Transactional
@@ -150,7 +153,7 @@ public class OrderReportService {
     public OrderReportResponse getOrderReport(Long orderReportId) {
         OrderReport orderReport = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
-        return OrderReportResponse.from(orderReport);
+        return OrderReportResponse.from(orderReport, getWorkflowId(orderReportId));
     }
 
     @Transactional
@@ -256,7 +259,7 @@ public class OrderReportService {
         // 5. 최종 합계 계산
         orderReport.calculateTotalAmount();
 
-        return OrderReportResponse.from(orderReport);
+        return OrderReportResponse.from(orderReport, getWorkflowId(orderReport.getId()));
     }
 
     private void addItems(OrderReport orderReport, OrderReportRequest request) {
@@ -403,6 +406,18 @@ public class OrderReportService {
                 firstApproverId
         );
 
-        orderReport.submit(workflow);
+        orderReport.submit();
+    }
+
+    private Long getWorkflowId(Long orderReportId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.ORDER_REPORT,
+                        orderReportId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }

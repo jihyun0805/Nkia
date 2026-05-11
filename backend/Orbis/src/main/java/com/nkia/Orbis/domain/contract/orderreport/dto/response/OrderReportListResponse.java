@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
@@ -13,6 +14,8 @@ import lombok.Getter;
 public class OrderReportListResponse {
 
     private Long id;
+
+    private ApprovalStatus status;
 
     private String orderReportCode;
 

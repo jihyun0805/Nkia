@@ -12,6 +12,8 @@ import lombok.Getter;
 public class QuotationResponse {
     private Long id;
 
+    private Long workflowId;
+
     private ApprovalStatus status;
 
     private String quotationCode;
@@ -42,9 +44,10 @@ public class QuotationResponse {
 
     private List<LaborItemResponse> quotationLaborItems;
 
-    public static QuotationResponse from(Quotation quotation) {
+    public static QuotationResponse from(Quotation quotation, Long workflowId) {
         return QuotationResponse.builder()
                 .id(quotation.getId())
+                .workflowId(workflowId)
                 .status(quotation.getStatus())
                 .quotationCode(quotation.getQuotationCode())
                 .refNo(quotation.getRefNo())
