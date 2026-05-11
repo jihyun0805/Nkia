@@ -7,6 +7,7 @@ import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FilterPopover } from "@/components/erp/filter-popover";
+import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
 import { contracts, contractStatuses, licenses, orderReports, purchaseContracts, type PurchaseContract } from "@/lib/contract-data";
 import { Plus, FileCheck, BookKey, Receipt, ClipboardList, Wrench, Settings } from "lucide-react";
@@ -23,6 +24,8 @@ import { LicenseRequestForm } from "@/components/erp/contract/license-request-fo
 
 export default function ContractPage() {
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"orders" | "contracts" | "purchases" | "licenses" | "maintenance">("orders");
   const [isCreating, setIsCreating] = useState<boolean | "free" | "paid">(false);
 
@@ -54,16 +57,28 @@ export default function ContractPage() {
               ]
             : [];
 
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true;
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm);
+  };
+
   const filteredOrderReports = filterRecords(orderReports, filters, {
     status: (i) => i.approvalStatus,
     owner: (i) => i.salesRep,
     date: (i) => i.orderDate,
     fields: { customer: (i) => i.customer },
   })
+    .filter((i) => matchesSearch([i.id, i.customer, i.product, i.salesRep, i.orderDate, i.approvalStatus]))
     // 가장 최근에 등록된 것부터 과거 순서로 배열
     .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
   const filteredContracts = filterRecords(contracts, filters, { status: (i) => i.status, date: (i) => i.contractDate, fields: { customer: (i) => i.customer } })
+    .filter((i) => matchesSearch([i.id, i.customer, i.amount, i.contractDate, i.startDate, i.endDate, i.status]))
     // 가장 최근에 등록된 것부터 과거 순서로 배열
     .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
 
@@ -72,6 +87,7 @@ export default function ContractPage() {
     date: (i) => i.contractDate,
     fields: { supplier: (i) => i.supplier },
   })
+    .filter((i) => matchesSearch([i.id, i.supplier, i.amount, i.contractDate, i.status]))
     // 가장 최근에 등록된 계약부터 표시되도록 계약일 기준 내림차순 정렬
     .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
 
@@ -79,7 +95,7 @@ export default function ContractPage() {
     status: (i) => i.status,
     date: (i) => i.issueDate,
     fields: { customer: (i) => i.customer, product: (i) => i.product, type: (i) => i.type },
-  });
+  }).filter((i) => matchesSearch([i.id, i.customer, i.product, i.type, i.issueDate, i.status]));
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -120,6 +136,11 @@ export default function ContractPage() {
               <div className="flex items-center gap-2">
                 {activeTab !== "maintenance" && (
                   <>
+                    <PageSearchForm
+                      value={searchTerm}
+                      onChange={setSearchTerm}
+                      onSearch={() => setAppliedSearchTerm(searchTerm)}
+                    />
                     <FilterPopover title="계약" statusOptions={contractStatuses} value={filters} onApply={setFilters} fieldOptions={contractFieldOptions} />
                   </>
                 )}

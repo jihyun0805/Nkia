@@ -8,12 +8,16 @@ import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { getOpportunities, type OpportunityRecord } from "@/lib/finding-data"
+import { Search } from "lucide-react"
 
 export default function FindingOpportunitiesPage() {
   const router = useRouter()
   const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
 
   useEffect(() => {
     const sync = () => setOpportunities(getOpportunities())
@@ -25,17 +29,26 @@ export default function FindingOpportunitiesPage() {
   const opportunityCards = useMemo(() => {
     const threshold = new Date()
     threshold.setMonth(threshold.getMonth() - 1)
+    const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
 
     return opportunities
       .filter((item) => {
         const createdAt = item.createdAt ? new Date(`${item.createdAt}T00:00:00`) : null
         return createdAt ? createdAt >= threshold : false
       })
+      .filter((item) => {
+        if (!normalizedSearchTerm) return true
+        return [item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]
+          .filter((value) => value !== null && value !== undefined)
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearchTerm)
+      })
       .sort((a, b) => {
         if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt)
         return a.customer.localeCompare(b.customer, "ko")
       })
-  }, [opportunities])
+  }, [opportunities, appliedSearchTerm])
 
   return (
     <div className="min-h-screen bg-background">
@@ -63,6 +76,24 @@ export default function FindingOpportunitiesPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">최근 1개월 신규 사업기회 카드 전체 보기</CardTitle>
                   <div className="flex items-center gap-2">
+                    <form
+                      className="flex items-center gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        setAppliedSearchTerm(searchTerm)
+                      }}
+                    >
+                      <Input
+                        placeholder="검색어 입력"
+                        className="w-64"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                      />
+                      <Button type="submit" variant="outline" size="sm" className="gap-2">
+                        <Search className="h-4 w-4" />
+                        검색
+                      </Button>
+                    </form>
                     <Badge variant="secondary">{opportunityCards.length}건</Badge>
                     <Button variant="outline" size="sm" asChild>
                       <Link href="/finding?tab=opportunities">메인으로</Link>

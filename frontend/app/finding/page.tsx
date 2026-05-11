@@ -9,10 +9,11 @@ import { Sidebar } from "@/components/erp/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { findingStatuses, getCustomers, getOpportunities, getPartners } from "@/lib/finding-data"
-import { Building2, Plus, Target, Users } from "lucide-react"
+import { Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
 const PREVIEW_CARD_COUNT = 10
@@ -23,6 +24,8 @@ function FindingPageContent() {
   const searchParams = useSearchParams()
   const [isMounted, setIsMounted] = useState(false)
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const initialTab = searchParams.get("tab")
   const [activeTab, setActiveTab] = useState<FindingTab>(
     initialTab === "customers" || initialTab === "partners" ? initialTab : "opportunities",
@@ -61,6 +64,20 @@ function FindingPageContent() {
   const customerRows = getCustomers()
   const opportunityRows = getOpportunities()
   const partnerRows = getPartners()
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm)
+  }
+
+  const handleSearch = () => {
+    setAppliedSearchTerm(searchTerm)
+  }
 
   const findingFieldOptions =
     activeTab === "opportunities"
@@ -83,7 +100,9 @@ function FindingPageContent() {
       customerCode: (item) => item.customerCode,
       customer: (item) => item.customer,
     },
-  })
+  }).filter((item) =>
+    matchesSearch([item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]),
+  )
 
   const recentOpportunityCards = useMemo(() => {
     const threshold = new Date()
@@ -105,14 +124,14 @@ function FindingPageContent() {
     fields: {
       category: (item) => item.category,
     },
-  })
+  }).filter((item) => matchesSearch([item.id, item.name, item.contact, item.phone, item.category]))
 
   const filteredPartners = filterRecords(partnerRows, filters, {
     owner: (item) => item.contact,
     fields: {
       type: (item) => item.type,
     },
-  })
+  }).filter((item) => matchesSearch([item.id, item.name, item.contact, item.phone, item.type]))
 
   const customerCards = useMemo(
     () =>
@@ -180,6 +199,25 @@ function FindingPageContent() {
               </TabsList>
 
               <div className="flex items-center gap-2">
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleSearch()
+                  }}
+                >
+                  <Input
+                    placeholder="검색어 입력"
+                    className="w-64"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                  />
+                  <Button type="submit" variant="outline" className="gap-2">
+                    <Search className="h-4 w-4" />
+                    검색
+                  </Button>
+                </form>
+
                 <FilterPopover
                   title="발굴"
                   statusOptions={findingStatuses}

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
+import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import {
@@ -51,6 +52,8 @@ export default function ActivityPage() {
   const router = useRouter()
   const [isMounted, setIsMounted] = useState(false)
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
   const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
   const [activityRequests, setActivityRequests] = useState<ReturnType<typeof getActivityRequests>>([])
@@ -178,6 +181,16 @@ export default function ActivityPage() {
         { key: "customer", label: "고객사", options: uniqueOptions(activityRequests, (item) => item.customer) },
       ]
 
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm)
+  }
+
   const filteredActivities = filterRecords(activityRecords, filters, {
     owner: (item) => item.attendees,
     date: (item) => item.date,
@@ -188,20 +201,55 @@ export default function ActivityPage() {
       activityContent: (item) => item.activityContent,
       location: (item) => item.location,
     },
-  })
+  }).filter((item) =>
+    matchesSearch([
+      item.id,
+      item.customerCode,
+      item.customer,
+      item.opportunity,
+      item.activityMode,
+      item.activityContent,
+      item.location,
+      item.attendees,
+    ]),
+  )
 
   const filteredQuotations = filterRecords(activeQuotationRecords, filters, {
     status: (item) => getQuotationDisplayStatus(item),
     date: (item) => item.date,
     fields: { product: (item) => item.items.map((entry) => entry.name).join(", "), customer: (item) => item.customer },
-  })
+  }).filter((item) =>
+    matchesSearch([
+      item.id,
+      item.customer,
+      item.opportunity,
+      item.items.map((entry) => entry.name).join(", "),
+      item.amount,
+      item.validity,
+      getQuotationDisplayStatus(item),
+    ]),
+  )
 
   const filteredRequests = filterRecords(activityRequests, filters, {
     status: (item) => item.status,
     owner: (item) => item.receiver,
     date: (item) => item.date,
     fields: { type: (item) => item.type, requester: (item) => item.requester, customer: (item) => item.customer },
-  }).sort((a, b) => b.date.localeCompare(a.date))
+  })
+    .filter((item) =>
+      matchesSearch([
+        item.id,
+        item.type,
+        item.requester,
+        item.receiver,
+        item.customer,
+        item.opportunity,
+        item.status,
+        item.date,
+        item.dueDate,
+      ]),
+    )
+    .sort((a, b) => b.date.localeCompare(a.date))
 
   const completedActivityRequests = useMemo(
     () =>
@@ -318,6 +366,11 @@ export default function ActivityPage() {
               </TabsList>
 
               <div className="flex items-center gap-2">
+                <PageSearchForm
+                  value={searchTerm}
+                  onChange={setSearchTerm}
+                  onSearch={() => setAppliedSearchTerm(searchTerm)}
+                />
                 <FilterPopover
                   title="영업활동"
                   statusOptions={activeTab === "requests" ? activityRequestStatusOptions : activityStatuses}
