@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
-import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { Button } from "@/components/ui/button"
 import {

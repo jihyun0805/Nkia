@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import {
   activityContentOptions,
   activityModeOptions,
@@ -13,6 +14,7 @@ import {
   type ActivityRecord,
 } from "@/lib/activity-data"
 import { currentUser } from "@/lib/current-user"
+import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 
 const automaticLocationModes = ["이메일", "전화", "영상회의"]
@@ -27,6 +29,7 @@ type ActivityFormFieldsProps = {
   opportunityCodeValue?: string
   opportunityOptions?: OpportunityRecord[]
   onOpportunityChange?: (value: string) => void
+  onOpportunitySuggestionSelect?: (suggestion: EntitySuggestion | null) => void
   requesterValue?: string
   onRequesterChange?: (value: string) => void
   requestIdValue?: string
@@ -73,6 +76,7 @@ export function ActivityFormFields({
   opportunityCodeValue,
   opportunityOptions,
   onOpportunityChange,
+  onOpportunitySuggestionSelect,
   requesterValue,
   onRequesterChange,
   requestIdValue,
@@ -250,23 +254,27 @@ export function ActivityFormFields({
         <div className="space-y-2">
           <Label>사업기회</Label>
           {onOpportunityChange && opportunityOptions ? (
-            <Select
+            <EntityAutocomplete
               value={opportunity}
+              target="opportunities"
               onValueChange={onOpportunityChange}
+              onSelect={(suggestion) => {
+                if (suggestion) {
+                  onOpportunitySuggestionSelect?.(suggestion)
+                  return
+                }
+                onOpportunitySuggestionSelect?.(null)
+              }}
               disabled={!customerCodeValue}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={customerCodeValue ? "사업기회를 선택하세요" : "고객사를 먼저 선택하세요"} />
-              </SelectTrigger>
-              <SelectContent>
-                {opportunityOptions.map((item) => (
-                  <SelectItem key={item.id} value={item.name}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-                <SelectItem value="미확인">미확인</SelectItem>
-              </SelectContent>
-            </Select>
+              allowCustomValue
+              placeholder={customerCodeValue ? "사업기회를 입력하세요" : "고객사를 먼저 선택하세요"}
+              emptyMessage="등록된 사업기회가 없습니다."
+              filterSuggestion={(suggestion) =>
+                !customerCodeValue ||
+                suggestion.metadata.customerCode === customerCodeValue ||
+                suggestion.metadata.customerId === customerCodeValue
+              }
+            />
           ) : (
             <Input defaultValue={defaultValues?.opportunity} placeholder="사업기회를 입력하세요" />
           )}
