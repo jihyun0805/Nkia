@@ -5,8 +5,6 @@ import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
-import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
-import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
@@ -39,6 +37,9 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final UploadFileRepository uploadFileRepository;
 
+    /**
+     * 사업 등록
+     */
     @Transactional
     public Long registerProject(ProjectCreateRequest dto) {
         OrderReport report = validateAndGetOrderReport(dto.getOrderReportId());
@@ -49,7 +50,7 @@ public class ProjectService {
     }
 
     /**
-     * 프로젝트 생성
+     * 사업 생성
      */
     private Project createProject(OrderReport report) {
         String pjtNumber = generatePjtNumber(report.getContractDate());
@@ -81,7 +82,7 @@ public class ProjectService {
 
     /**
      * 특정 사업의 상세 정보 조회
-     * 연관된 최신 결과보고서 정보가 있을 경우 함께 반환합니다.
+     * 연관된 최신 결과보고서 정보가 있을 경우 함께 반환
      */
     public ProjectDetailResponse getProjectDetail(Long projectId) {
         Project project = getProject(projectId);
@@ -89,7 +90,7 @@ public class ProjectService {
     }
 
     /**
-     * 특정 사업의 상세 정보 조회 (엔티티 직접 전달)
+     * 특정 사업의 상세 정보 조회
      */
     public ProjectDetailResponse getProjectDetail(Project project) {
         ProjectResultReport latestReport = project.getResultReports().stream()
@@ -100,7 +101,7 @@ public class ProjectService {
     }
 
     /**
-     * 사업의 기본 정보를 수정
+     * 사업의 기본 정보 수정
      */
     @Transactional
     public void updateProject(Project project, ProjectCombinedUpdateRequest request) {
@@ -111,7 +112,7 @@ public class ProjectService {
     }
 
     /**
-     * 사업을 삭제합니다.
+     * 사업 삭제
      */
     @Transactional
     public void deleteProject(Long projectId) {
@@ -121,7 +122,7 @@ public class ProjectService {
 
 
     /**
-     * ID로 사업 엔티티를 조회합니다.
+     * ID로 사업 엔티티 조회
      */
     public Project getProject(Long projectId) {
         return projectRepository.findById(projectId)
@@ -175,7 +176,7 @@ public class ProjectService {
     }
 
     /**
-     * UUID로 User 엔티티를 조회합니다.
+     * UUID로 User 엔티티 조회
      */
     private User getUser(UUID userId) {
         if (userId == null) {

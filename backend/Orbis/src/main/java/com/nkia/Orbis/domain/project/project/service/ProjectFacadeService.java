@@ -19,7 +19,7 @@ public class ProjectFacadeService {
     private final ProjectResultReportService reportService;
 
     /**
-     * 사업 정보를 수정하고, 수정된 최신 상세 정보를 반환합니다.
+     * 사업 정보를 수정하고, 수정된 최신 상세 정보 반환
      */
     @Transactional
     public ProjectDetailResponse updateProjectWithReport(Long projectId, ProjectCombinedUpdateRequest request) {
