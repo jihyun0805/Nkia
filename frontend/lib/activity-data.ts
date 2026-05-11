@@ -678,6 +678,7 @@ export const activityStatuses = [
 ]
 
 const ACTIVITIES_STORAGE_KEY = "orbis.activities"
+const DELETED_ACTIVITY_IDS_STORAGE_KEY = "orbis.deleted-activity-ids"
 const ACTIVITY_EVENT_NAME = "orbis-activities-updated"
 
 function isBrowser() {
@@ -736,8 +737,30 @@ function saveActivities(records: ActivityRecord[]) {
   writeStorage(ACTIVITIES_STORAGE_KEY, records)
 }
 
+function getDeletedActivityIds() {
+  if (!isBrowser()) return []
+
+  const stored = window.localStorage.getItem(DELETED_ACTIVITY_IDS_STORAGE_KEY)
+  if (!stored) return []
+
+  try {
+    const parsed = JSON.parse(stored) as string[]
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+  } catch {
+    return []
+  }
+}
+
+function setDeletedActivityIds(value: string[]) {
+  if (!isBrowser()) return
+  window.localStorage.setItem(DELETED_ACTIVITY_IDS_STORAGE_KEY, JSON.stringify(value))
+}
+
 export function getActivities() {
-  const records = readStorage<ActivityRecord[]>(ACTIVITIES_STORAGE_KEY, cloneActivities()).map(normalizeActivityRecord)
+  const deletedIds = new Set(getDeletedActivityIds())
+  const records = readStorage<ActivityRecord[]>(ACTIVITIES_STORAGE_KEY, cloneActivities())
+    .map(normalizeActivityRecord)
+    .filter((item) => !deletedIds.has(item.id))
 
   if (isBrowser()) {
     saveActivities(records)
@@ -754,6 +777,7 @@ export function createActivity(input: Omit<ActivityRecord, "id">) {
   })
 
   saveActivities([created, ...records])
+  setDeletedActivityIds(getDeletedActivityIds().filter((item) => item !== created.id))
   emitActivityUpdate()
   return created
 }
@@ -777,8 +801,25 @@ export function updateActivity(id: string, input: Omit<ActivityRecord, "id">) {
   if (!updatedRecord) return null
 
   saveActivities(updatedRecords)
+  setDeletedActivityIds(getDeletedActivityIds().filter((item) => item !== id))
   emitActivityUpdate()
   return updatedRecord
+}
+
+export function deleteActivity(id: string) {
+  const records = getActivities()
+  const existing = records.find((item) => item.id === id)
+  if (!existing) return { status: "not_found" as const }
+
+  const filtered = records.filter((item) => item.id !== id)
+  const deletedIds = new Set(getDeletedActivityIds())
+  deletedIds.add(id)
+
+  saveActivities(filtered)
+  setDeletedActivityIds([...deletedIds])
+  emitActivityUpdate()
+
+  return { status: "deleted" as const, activity: existing }
 }
 
 export function subscribeActivityUpdates(listener: () => void) {

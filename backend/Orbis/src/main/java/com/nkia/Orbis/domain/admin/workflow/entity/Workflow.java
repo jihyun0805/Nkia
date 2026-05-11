@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.admin.workflow.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -30,6 +31,10 @@ public class Workflow extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requester_id", nullable = false)
+    private User requester;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private WorkflowDomain workflowDomain;
@@ -58,12 +63,14 @@ public class Workflow extends BaseEntity {
     public static Workflow create(
             WorkflowDomain workflowDomain,
             Long targetId,
-            WorkflowTemplate workflowTemplate
+            WorkflowTemplate workflowTemplate,
+            User requester
     ) {
         Workflow instance = new Workflow();
         instance.workflowDomain = workflowDomain;
         instance.targetId = targetId;
         instance.workflowTemplate = workflowTemplate;
+        instance.requester = requester;
         instance.status = WorkflowStatus.IN_PROGRESS;
         instance.currentStepOrder = 1;
         return instance;
@@ -75,6 +82,7 @@ public class Workflow extends BaseEntity {
 
     public void approveComplete() {
         this.status = WorkflowStatus.APPROVED;
+        this.currentStepOrder = 0;
     }
 
     public void reject() {

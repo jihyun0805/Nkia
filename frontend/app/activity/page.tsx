@@ -7,7 +7,6 @@ import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
 import { Calendar as MonthCalendar } from "@/components/ui/calendar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -38,7 +37,6 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
-  Search,
   Users,
   FileText,
   Calendar,
@@ -51,7 +49,7 @@ const NOTIFICATIONS_STORAGE_KEY = "orbis.workflowNotifications"
 
 export default function ActivityPage() {
   const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState("")
+  const [isMounted, setIsMounted] = useState(false)
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
   const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
@@ -61,6 +59,10 @@ export default function ActivityPage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [isPreferenceReady, setIsPreferenceReady] = useState(false)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | undefined>(undefined)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   useEffect(() => {
     const savedTab = window.localStorage.getItem(ACTIVITY_ACTIVE_TAB_KEY)
@@ -156,6 +158,7 @@ export default function ActivityPage() {
     if (!isPreferenceReady) return
     window.localStorage.setItem(ACTIVITY_ACTIVE_TAB_KEY, activeTab)
   }, [activeTab, isPreferenceReady])
+
   const activityFieldOptions = activeTab === "activities"
     ? [
       { key: "customer", label: "고객사", options: uniqueOptions(activityRecords, (item) => item.customer) },
@@ -185,35 +188,20 @@ export default function ActivityPage() {
       activityContent: (item) => item.activityContent,
       location: (item) => item.location,
     },
-  }).filter((item) =>
-    [item.customer, item.opportunity, item.activityMode, item.activityContent, item.location, item.attendees, item.content, item.issues, item.nextAction]
-      .join(" ")
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()),
-  )
+  })
 
   const filteredQuotations = filterRecords(activeQuotationRecords, filters, {
     status: (item) => getQuotationDisplayStatus(item),
     date: (item) => item.date,
     fields: { product: (item) => item.items.map((entry) => entry.name).join(", "), customer: (item) => item.customer },
-  }).filter((item) =>
-    [item.id, item.customer, item.opportunity, item.items.map((entry) => entry.name).join(" ")]
-      .join(" ")
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()),
-  )
+  })
 
   const filteredRequests = filterRecords(activityRequests, filters, {
     status: (item) => item.status,
     owner: (item) => item.receiver,
     date: (item) => item.date,
     fields: { type: (item) => item.type, requester: (item) => item.requester, customer: (item) => item.customer },
-  }).filter((item) =>
-    [item.id, item.requester, item.receiver, item.customer, item.opportunity, item.content]
-      .join(" ")
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()),
-  ).sort((a, b) => b.date.localeCompare(a.date))
+  }).sort((a, b) => b.date.localeCompare(a.date))
 
   const completedActivityRequests = useMemo(
     () =>
@@ -287,6 +275,10 @@ export default function ActivityPage() {
     [activityCustomerCards],
   )
 
+  if (!isMounted) {
+    return null
+  }
+
   const handleResetRequests = () => {
     window.localStorage.removeItem(REQUESTS_STORAGE_KEY)
     window.localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY)
@@ -326,15 +318,6 @@ export default function ActivityPage() {
               </TabsList>
 
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="검색..."
-                    className="w-64 pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
                 <FilterPopover
                   title="영업활동"
                   statusOptions={activeTab === "requests" ? activityRequestStatusOptions : activityStatuses}

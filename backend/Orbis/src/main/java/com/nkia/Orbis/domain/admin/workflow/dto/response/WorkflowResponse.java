@@ -17,6 +17,8 @@ public class WorkflowResponse {
 
     private WorkflowDomain workflowDomain;
 
+    private Boolean needNextApprover;
+
     private Long targetId;
 
     private WorkflowStatus status;
@@ -26,11 +28,13 @@ public class WorkflowResponse {
     private List<WorkflowLineResponse> lines;
 
     public static WorkflowResponse from(
-            Workflow workflow
+            Workflow workflow,
+            boolean needNextApprover
     ) {
         return WorkflowResponse.builder()
                 .id(workflow.getId())
                 .workflowDomain(workflow.getWorkflowDomain())
+                .needNextApprover(needNextApprover)
                 .targetId(workflow.getTargetId())
                 .status(workflow.getStatus())
                 .currentStepOrder(workflow.getCurrentStepOrder())

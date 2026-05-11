@@ -23,7 +23,7 @@ import {
   standardPriceRecords,
   type StandardPriceRecord,
 } from "@/lib/activity-data"
-import { Plus, Search, Trash2 } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
 
 const STANDARD_PRICE_STORAGE_KEY = "orbis.activity.standardPrices"
 
@@ -85,7 +85,6 @@ function normalizeRecord(item: Partial<StandardPriceRecord>): StandardPriceRecor
 
 export default function StandardPricingPage() {
   const [isPreferenceReady, setIsPreferenceReady] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
   const [standardPrices, setStandardPrices] = useState<StandardPriceRecord[]>(standardPriceRecords)
   const [draftRow, setDraftRow] = useState<StandardPriceRecord | null>(null)
 
@@ -110,26 +109,7 @@ export default function StandardPricingPage() {
     window.localStorage.setItem(STANDARD_PRICE_STORAGE_KEY, JSON.stringify(standardPrices))
   }, [isPreferenceReady, standardPrices])
 
-  const filteredStandardPrices = useMemo(
-    () =>
-      standardPrices.filter((item) =>
-        [
-          item.productClass,
-          item.productGroup,
-          item.productNumber,
-          item.productName,
-          item.licenseBase,
-          item.licenseUnit,
-          item.unitPrice,
-          item.discountRate,
-          item.proposalPrice,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()),
-      ),
-    [searchTerm, standardPrices],
-  )
+  const filteredStandardPrices = useMemo(() => standardPrices, [standardPrices])
 
   const handleStandardPriceChange = (id: string, field: keyof StandardPriceRecord, value: string) => {
     setStandardPrices((current) =>
@@ -195,15 +175,6 @@ export default function StandardPricingPage() {
               <CardContent className="space-y-2 bg-white p-0">
                 <div className="overflow-hidden rounded-lg border bg-white">
                   <div className="flex items-center justify-between bg-white px-3 py-3 text-sm font-medium text-slate-700">
-                    <div className="relative w-full max-w-sm">
-                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="제품명, 제품군, 기준 검색"
-                        className="h-8 pl-9"
-                      />
-                    </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{filteredStandardPrices.length}건</Badge>
                       <span>Price Unit : 1,000원</span>
