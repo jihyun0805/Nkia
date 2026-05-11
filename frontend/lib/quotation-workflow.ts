@@ -13,7 +13,7 @@ function isBrowser() {
 function cloneQuotations() {
   return quotations.map((item) => ({
     ...item,
-    items: item.items.map((entry) => ({ ...entry })),
+    items: (item.items ?? []).map((entry) => ({ ...entry })),
     solutionRows: item.solutionRows?.map((entry) => ({ ...entry })) ?? [],
     customizingRows: item.customizingRows?.map((entry) => ({ ...entry })) ?? [],
     approvalFlow: item.approvalFlow ? { ...item.approvalFlow } : undefined,
@@ -24,11 +24,11 @@ function cloneQuotations() {
     versionSnapshots: item.versionSnapshots?.map((entry) => ({
       ...entry,
       form: {
-        ...entry.form,
-        items: entry.form.items.map((item) => ({ ...item })),
-        solutionRows: entry.form.solutionRows?.map((row) => ({ ...row })) ?? [],
-        customizingRows: entry.form.customizingRows?.map((row) => ({ ...row })) ?? [],
-        approvalFlow: entry.form.approvalFlow ? { ...entry.form.approvalFlow } : undefined,
+        ...(entry.form ?? {}),
+        items: Array.isArray(entry.form?.items) ? entry.form.items.map((item) => ({ ...item })) : [],
+        solutionRows: Array.isArray(entry.form?.solutionRows) ? entry.form.solutionRows.map((row) => ({ ...row })) : [],
+        customizingRows: Array.isArray(entry.form?.customizingRows) ? entry.form.customizingRows.map((row) => ({ ...row })) : [],
+        approvalFlow: entry.form?.approvalFlow ? { ...entry.form.approvalFlow } : undefined,
       },
     })) ?? [],
   }))
@@ -165,18 +165,23 @@ function nextQuotationId(records: QuotationRecord[]) {
 }
 
 function normalizeQuotation(record: QuotationRecord): QuotationRecord {
+  const items = Array.isArray(record.items) ? record.items : []
+  const solutionRows = Array.isArray(record.solutionRows) ? record.solutionRows : []
+  const customizingRows = Array.isArray(record.customizingRows) ? record.customizingRows : []
+  const versionSnapshots = Array.isArray(record.versionSnapshots) ? record.versionSnapshots : []
+
   return {
     ...record,
     requestId: record.requestId,
-    items: record.items.map((item, index) => ({
+    items: items.map((item, index) => ({
       ...item,
       id: item.id || `${record.id}-ITEM-${index + 1}`,
     })),
-    solutionRows: (record.solutionRows ?? []).map((item, index) => ({
+    solutionRows: solutionRows.map((item, index) => ({
       ...item,
       id: item.id || `${record.id}-SOLUTION-${index + 1}`,
     })),
-    customizingRows: (record.customizingRows ?? []).map((item, index) => ({
+    customizingRows: customizingRows.map((item, index) => ({
       ...item,
       id: item.id || `${record.id}-CUSTOM-${index + 1}`,
     })),
@@ -201,26 +206,42 @@ function normalizeQuotation(record: QuotationRecord): QuotationRecord {
     deletedBy: record.deletedBy,
     changeHistory: (record.changeHistory ?? []).map((item) => ({ ...item })),
     deletedVersions: record.deletedVersions?.slice() ?? [],
-    versionSnapshots: (record.versionSnapshots ?? []).map((item) => ({
+    versionSnapshots: versionSnapshots.map((item) => ({
       ...item,
-      form: {
-        ...item.form,
-        items: item.form.items.map((entry) => ({ ...entry })),
-        solutionRows: item.form.solutionRows?.map((entry) => ({ ...entry })) ?? [],
-        customizingRows: item.form.customizingRows?.map((entry) => ({ ...entry })) ?? [],
-        approvalFlow: item.form.approvalFlow ? { ...item.form.approvalFlow } : undefined,
-      },
+      form: item.form
+        ? {
+            ...item.form,
+            items: Array.isArray(item.form.items) ? item.form.items.map((entry) => ({ ...entry })) : [],
+            solutionRows: Array.isArray(item.form.solutionRows) ? item.form.solutionRows.map((entry) => ({ ...entry })) : [],
+            customizingRows: Array.isArray(item.form.customizingRows) ? item.form.customizingRows.map((entry) => ({ ...entry })) : [],
+            approvalFlow: item.form.approvalFlow ? { ...item.form.approvalFlow } : undefined,
+          }
+        : {
+            ...createSnapshotForm({
+              ...record,
+              items,
+              solutionRows,
+              customizingRows,
+              versionSnapshots: [],
+              changeHistory: Array.isArray(record.changeHistory) ? record.changeHistory : [],
+              deletedVersions: Array.isArray(record.deletedVersions) ? record.deletedVersions : [],
+            }),
+          },
     })),
   }
 }
 
 function createSnapshotForm(record: Omit<QuotationRecord, "id">): Omit<QuotationRecord, "id" | "changeHistory" | "versionSnapshots"> {
+  const items = Array.isArray(record.items) ? record.items : []
+  const solutionRows = Array.isArray(record.solutionRows) ? record.solutionRows : []
+  const customizingRows = Array.isArray(record.customizingRows) ? record.customizingRows : []
+
   return {
     ...record,
     requestId: record.requestId,
-    items: record.items.map((item) => ({ ...item })),
-    solutionRows: record.solutionRows?.map((item) => ({ ...item })) ?? [],
-    customizingRows: record.customizingRows?.map((item) => ({ ...item })) ?? [],
+    items: items.map((item) => ({ ...item })),
+    solutionRows: solutionRows.map((item) => ({ ...item })),
+    customizingRows: customizingRows.map((item) => ({ ...item })),
     approvalFlow: record.approvalFlow ? { ...record.approvalFlow } : undefined,
     approvalProcess: record.approvalProcess
       ? {
