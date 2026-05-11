@@ -6,12 +6,15 @@ import com.nkia.Orbis.domain.project.billing.dto.request.BillingCreateRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingIssueRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingUpdateRequest;
 import com.nkia.Orbis.domain.project.billing.dto.response.BillingDetailResponse;
+import com.nkia.Orbis.domain.project.billing.dto.response.BillingFormInitResponse;
 import com.nkia.Orbis.domain.project.billing.dto.response.BillingListResponse;
 import com.nkia.Orbis.domain.project.billing.service.BillingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +33,22 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Billings", description = "청구 및 수금 관리 API")
 public class BillingController {
     private final BillingService billingService;
+
+
+    /**
+     * 수주보고서 선택 시 화면을 자동으로 채워줄 정보를 반환
+     */
+    @Operation(summary = "청구 폼 초기화 데이터 조회")
+    @GetMapping("/form-init/{orderReportId}")
+    public ResponseEntity<ApiResponse<BillingFormInitResponse>> getBillingInitData(
+            @PathVariable Long orderReportId,
+            Principal principal) {
+
+        String userId = (principal != null) ? principal.getName() : "홍길동(임시)";
+        BillingFormInitResponse response = billingService.getBillingInitData(orderReportId, userId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 
     /**
      *  세금계산서 발행 요청 등록
