@@ -12,7 +12,7 @@ import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 
 export default function ActivityCustomersPage() {
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
+  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
   const today = new Date()
   const recentThreshold = new Date(today)
   recentThreshold.setMonth(recentThreshold.getMonth() - 1)
