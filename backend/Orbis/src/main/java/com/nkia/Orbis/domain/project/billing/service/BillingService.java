@@ -57,6 +57,10 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
+        if (billing.getStatus() == BillingStatus.ISSUED || billing.getStatus() == BillingStatus.COLLECTED) {
+            throw new ApiException(ProjectErrorCode.BILLING_ALREADY_ISSUED);
+        }
+
         if (billing.getStatus() != BillingStatus.APPROVED) {
             throw new ApiException(ProjectErrorCode.BILLING_NOT_APPROVED);
         }
@@ -71,6 +75,10 @@ public class BillingService {
     public void collectBilling(Long billingId, BillingCollectRequest request) {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        if (billing.getStatus() == BillingStatus.COLLECTED) {
+            throw new ApiException(ProjectErrorCode.BILLING_ALREADY_COLLECTED);
+        }
 
         if (billing.getStatus() != BillingStatus.ISSUED) {
             throw new ApiException(ProjectErrorCode.COLLECTION_NOT_APPROVED);
@@ -87,7 +95,17 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
+        Long oldImageId = null;
+        if (billing.getStatus() == BillingStatus.ISSUED && billing.getInvoiceImageId() != null 
+            && !billing.getInvoiceImageId().equals(request.getInvoiceImageId())) {
+            oldImageId = billing.getInvoiceImageId();
+        }
+
         billing.updateByStatus(request);
+
+        if (oldImageId != null) {
+            uploadFileService.getUploadFile(oldImageId).delete();
+        }
 
         return BillingDetailResponse.from(billing);
     }
@@ -101,7 +119,7 @@ public class BillingService {
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
         if (billing.getInvoiceImageId() != null) {
-            uploadFileService.removeFile(billing.getInvoiceImageId());
+            uploadFileService.getUploadFile(billing.getInvoiceImageId()).delete();
         }
 
         billing.delete();
