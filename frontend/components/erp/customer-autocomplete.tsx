@@ -5,6 +5,7 @@ import { Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
+import { getEntitySuggestions, type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { cn } from "@/lib/utils"
 import { type CustomerRecord, getCustomerByName, normalizeCustomerKeyword, searchCustomers } from "@/lib/finding-data"
 
@@ -29,12 +30,44 @@ export function CustomerAutocomplete({
 }: CustomerAutocompleteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
+  const [dbSuggestions, setDbSuggestions] = useState<CustomerRecord[]>([])
 
   useEffect(() => {
     setQuery(value)
   }, [value])
 
-  const suggestions = useMemo(() => searchCustomers(query).slice(0, 8), [query])
+  useEffect(() => {
+    const trimmedQuery = query.trim()
+    if (!trimmedQuery) {
+      setDbSuggestions([])
+      return
+    }
+
+    const abortController = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      getEntitySuggestions({
+        query: trimmedQuery,
+        target: "customers",
+        limit: 8,
+        signal: abortController.signal,
+      })
+        .then((results) => {
+          setDbSuggestions(results.filter((item) => item.type === "CUSTOMER").map(mapSuggestionToCustomer))
+        })
+        .catch((error) => {
+          if (error instanceof DOMException && error.name === "AbortError") return
+          setDbSuggestions([])
+        })
+    }, 250)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      abortController.abort()
+    }
+  }, [query])
+
+  const localSuggestions = useMemo(() => searchCustomers(query).slice(0, 8), [query])
+  const suggestions = dbSuggestions.length > 0 ? dbSuggestions : localSuggestions
 
   const commitSelection = (customer: CustomerRecord | null) => {
     onSelect(customer)
@@ -49,7 +82,7 @@ export function CustomerAutocomplete({
       return
     }
 
-    const exactMatch = getCustomerByName(query)
+    const exactMatch = findKnownCustomer(query, dbSuggestions)
     if (!exactMatch && normalizeCustomerKeyword(query) && !allowCustomValue) {
       onUnregisteredAttempt?.()
     }
@@ -91,7 +124,7 @@ export function CustomerAutocomplete({
           }}
           onBlur={() => {
             window.setTimeout(() => {
-              const exactMatch = getCustomerByName(query)
+              const exactMatch = findKnownCustomer(query, dbSuggestions)
               if (!exactMatch && normalizeCustomerKeyword(query) && !allowCustomValue) {
                 onUnregisteredAttempt?.()
               }
@@ -139,5 +172,28 @@ export function CustomerAutocomplete({
         </Command>
       </PopoverContent>
     </Popover>
+  )
+}
+
+function mapSuggestionToCustomer(suggestion: EntitySuggestion): CustomerRecord {
+  return {
+    id: suggestion.code || suggestion.id,
+    name: suggestion.label,
+    category: String(suggestion.metadata?.sector ?? ""),
+    opportunities: 0,
+    contracts: 0,
+    contact: "",
+    phone: "",
+  }
+}
+
+function findKnownCustomer(query: string, dbSuggestions: CustomerRecord[]) {
+  const normalizedQuery = normalizeCustomerKeyword(query)
+  if (!normalizedQuery) return null
+
+  return (
+    getCustomerByName(query) ??
+    dbSuggestions.find((customer) => normalizeCustomerKeyword(customer.name) === normalizedQuery) ??
+    null
   )
 }

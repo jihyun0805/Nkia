@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -57,6 +58,7 @@ public class SecurityConfig {
                         .requestMatchers("/rfp-summary").permitAll()
                         .requestMatchers("/rfp-summary/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/search/suggestions").permitAll()
                         .anyRequest().authenticated() // 그 외 모든 API는 인증 필요
                 )
                 // JWT 필터를 UsernamePasswordAuthenticationFilter 전에 추가
