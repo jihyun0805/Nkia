@@ -31,7 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Search,
   Download,
   FileSpreadsheet,
   Filter,
@@ -88,7 +87,6 @@ const searchResults = [
 ]
 
 export default function InquiryPage() {
-  const [searchTerm, setSearchTerm] = useState("")
   const [searchType, setSearchType] = useState("all")
   const [searchStatus, setSearchStatus] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
@@ -146,18 +144,6 @@ export default function InquiryPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="space-y-2 lg:col-span-2">
-                    <Label>검색어</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="고객사, 사업명, 코드 등 검색..." 
-                        className="pl-9"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                  </div>
                   <div className="space-y-2">
                     <Label>유형</Label>
                     <Select value={searchType} onValueChange={setSearchType}>
@@ -251,10 +237,6 @@ export default function InquiryPage() {
                     </Select>
                   </div>
                   <div className="flex items-end gap-2">
-                    <Button className="bg-primary hover:bg-primary/90 flex-1">
-                      <Search className="w-4 h-4 mr-2" />
-                      검색
-                    </Button>
                     <Button variant="outline">
                       초기화
                     </Button>

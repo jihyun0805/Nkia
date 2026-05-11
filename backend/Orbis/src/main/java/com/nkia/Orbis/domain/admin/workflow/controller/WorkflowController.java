@@ -38,11 +38,12 @@ public class WorkflowController {
         Workflow workflow = workflowService.startWorkflow(
                 request.getWorkflowDomain(),
                 request.getTargetId(),
+                request.getRequesterId(),
                 request.getFirstApproverId()
         );
 
         return ResponseEntity.ok(
-                ApiResponse.success(WorkflowResponse.from(workflow))
+                ApiResponse.success(workflowService.toWorkflowResponse(workflow))
         );
     }
 

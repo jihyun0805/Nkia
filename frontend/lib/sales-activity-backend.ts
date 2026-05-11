@@ -4,6 +4,7 @@ import { getBackendApiBaseUrl } from "@/lib/api-base-url"
 import { buildAuthHeaders } from "@/lib/auth-session"
 import type { ActivityRecord } from "@/lib/activity-data"
 import type {
+  ApiResponseVoid,
   SalesActivityCreateRequest,
   SalesActivityCreateRequestActivityPurpose,
   SalesActivityCreateRequestActivityType,
@@ -413,4 +414,15 @@ export async function updateBackendActivityRecord(
 
   const saved = await postSalesActivity("PATCH", payload, salesActivityId)
   return mapSavedSalesActivityResponse(saved)
+}
+
+export async function deleteBackendActivityRecord(salesActivityId: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/sales-activities/${salesActivityId}`, {
+    method: "DELETE",
+    headers: buildAuthHeaders(),
+    credentials: "include",
+  })
+
+  await parseApiResponse<ApiResponseVoid>(response, "영업 활동을 삭제하지 못했습니다.")
+  return true
 }

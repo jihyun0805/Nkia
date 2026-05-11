@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -19,9 +20,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/hooks/use-toast"
 import { notifyPrbApprovalRequested } from "@/lib/activity-request-workflow"
 import {
   approvePrbStep,
+  deletePrb,
   getPrbById,
   getPrbRevisionHistory,
   getRfpAnalyses,
@@ -40,6 +43,7 @@ type PrbRegistrationFormProps = {
   cloneFromId?: string
   documentOnly?: boolean
   readOnly?: boolean
+  allowDelete?: boolean
 }
 
 type PrbFormState = {
@@ -218,7 +222,7 @@ function SectionRow({ title }: { title: string }) {
   )
 }
 
-export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, readOnly = false }: PrbRegistrationFormProps) {
+export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, readOnly = false, allowDelete = false }: PrbRegistrationFormProps) {
   const router = useRouter()
   const [form, setForm] = useState<PrbFormState>(createEmptyForm())
   const [status, setStatus] = useState<PrbStatus>("작성 중")
@@ -226,6 +230,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   const [detailTab, setDetailTab] = useState("document")
   const [sourcePrb, setSourcePrb] = useState<PrbRecord | null>(null)
   const [revisionHistory, setRevisionHistory] = useState<PrbRecord[]>([])
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   const customers = useMemo(() => getCustomers(), [])
   const opportunities = useMemo(() => getOpportunities(), [])
@@ -408,6 +413,27 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       opportunity: form.opportunity || form.formData.projectName,
     })
     router.push(`/bid/prb/${saved.id}`)
+  }
+
+  const handleDelete = () => {
+    if (!prbId) return
+
+    const result = deletePrb(prbId)
+    if (result.status === "not_found") {
+      toast({
+        title: "PRB 삭제 실패",
+        description: "삭제할 PRB 보고서를 찾지 못했습니다.",
+      })
+      setIsDeleteOpen(false)
+      return
+    }
+
+    toast({
+      title: "PRB 삭제 완료",
+      description: "PRB 보고서가 삭제되었습니다.",
+    })
+    setIsDeleteOpen(false)
+    router.push("/bid")
   }
 
   const pendingApprovalStep = sourcePrb?.approvalSteps.find((step) => step.status === "pending") ?? null
@@ -993,6 +1019,11 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
               <Button variant="outline" asChild>
                 <Link href={prbId ? `/bid/prb/${prbId}` : "/bid"}>취소</Link>
               </Button>
+              {allowDelete && prbId && (
+                <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                  삭제
+                </Button>
+              )}
               <Button variant="outline" onClick={handleDraft}>수정</Button>
               <Button variant="secondary" onClick={handleDraft}>임시저장</Button>
               <Button onClick={handleComplete}>완료</Button>
@@ -1010,6 +1041,22 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogAction onClick={() => setPopupMessage("")}>확인</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {!documentOnly && (
+        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>PRB 보고서를 삭제하시겠습니까?</AlertDialogTitle>
+              <AlertDialogDescription>
+                삭제 후에는 PRB 상세 정보를 다시 확인할 수 없습니다.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

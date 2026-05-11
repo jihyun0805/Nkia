@@ -7,11 +7,11 @@ import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, ClipboardList, Receipt, Wallet, TrendingUp, Plus } from "lucide-react";
+import { ClipboardList, Receipt, Wallet, TrendingUp, Plus } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
+import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
 import { billingAndCollections, projectResults } from "@/lib/project-data";
 import { orderReports, contracts } from "@/lib/contract-data";
@@ -20,8 +20,9 @@ import { BillingRequestForm } from "@/components/erp/project/billing-request-for
 
 export default function ProjectPage() {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"results" | "billingAndCollection" | "revenue">("results");
   const [isCreating, setIsCreating] = useState(false);
 
@@ -82,19 +83,42 @@ export default function ProjectPage() {
       totalRevenue: tTotal 
     };
   }, []);
-  const q = searchTerm.toLowerCase();
   const projectFieldOptions =
     activeTab === "billingAndCollection"
       ? [{ key: "customer", label: "고객사", options: uniqueOptions(billingAndCollections, (item) => item.customer) }]
       : [{ key: "customer", label: "고객사", options: uniqueOptions(projectResults, (item) => item.customer) }];
 
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true;
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm);
+  };
+
   const filteredProjectResults = filterRecords(projectResults, filters, { owner: (item) => item.pm, date: (item) => item.registeredAt, fields: { customer: (item) => item.customer } })
-    .filter((item) => [item.id, item.contractId, item.name, item.customer, item.pm, item.salesRep].join(" ").toLowerCase().includes(q))
+    .filter((item) =>
+      matchesSearch([item.id, item.customer, item.name, item.amount, item.startDate, item.endDate, item.pm, item.salesRep]),
+    )
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
 
   const filteredBillingAndCollections = filterRecords(billingAndCollections, filters, { date: (item) => item.issueDate, fields: { customer: (item) => item.customer } })
     .filter((item) => item.approvalStatus === "승인완료")
-    .filter((item) => [item.id, item.customer, item.projectName, item.salesRep, item.requester].join(" ").toLowerCase().includes(q))
+    .filter((item) =>
+      matchesSearch([
+        item.id,
+        item.customer,
+        item.projectName,
+        item.amount,
+        item.issueDate,
+        item.collectionDate,
+        item.salesRep,
+        item.requester,
+        item.approvalStatus,
+      ]),
+    )
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
 
   const projectStatuses = ["진행중", "완료", "발행완료", "수금완료", "대기", "승인완료"];
@@ -131,10 +155,13 @@ export default function ProjectPage() {
               <div className="flex items-center gap-2">
                 {!isCreating ? (
                   <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input placeholder="검색..." className="pl-9 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isCreating} />
-                    </div>
+                    {activeTab !== "revenue" && (
+                      <PageSearchForm
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        onSearch={() => setAppliedSearchTerm(searchTerm)}
+                      />
+                    )}
                     <FilterPopover title="사업" statusOptions={projectStatuses} value={filters} onApply={setFilters} fieldOptions={projectFieldOptions} />
                     {activeTab === "results" && (
                       <Button onClick={() => setIsCreating(true)}>

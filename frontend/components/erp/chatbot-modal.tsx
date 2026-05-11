@@ -180,7 +180,7 @@ function buildStorageKey(email: string) {
   return `${STORAGE_KEY_PREFIX}:${email}`
 }
 
-function normalizeStoredSessions(raw: string | null) {
+function normalizeStoredSessions(raw: string | null): ChatSession[] | null {
   if (!raw) return null
 
   try {
@@ -189,7 +189,7 @@ function normalizeStoredSessions(raw: string | null) {
       return null
     }
 
-    return parsed.map((session) => ({
+    return parsed.map((session): ChatSession => ({
       id: session.id || createId(),
       title: session.title || "새 대화",
       createdAt: session.createdAt || nowIso(),

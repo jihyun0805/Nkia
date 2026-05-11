@@ -1,28 +1,44 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { getPartners } from "@/lib/finding-data"
+import { Search } from "lucide-react"
 
 export default function FindingPartnersPage() {
   const router = useRouter()
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const partnerRows = getPartners()
 
   const partnerCards = useMemo(
-    () =>
-      [...partnerRows].sort((a, b) => {
-        const nameCompare = a.name.localeCompare(b.name, "ko")
-        if (nameCompare !== 0) return nameCompare
-        return a.id.localeCompare(b.id)
-      }),
-    [partnerRows],
+    () => {
+      const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+
+      return [...partnerRows]
+        .filter((partner) => {
+          if (!normalizedSearchTerm) return true
+          return [partner.id, partner.name, partner.contact, partner.phone, partner.type]
+            .filter((value) => value !== null && value !== undefined)
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedSearchTerm)
+        })
+        .sort((a, b) => {
+          const nameCompare = a.name.localeCompare(b.name, "ko")
+          if (nameCompare !== 0) return nameCompare
+          return a.id.localeCompare(b.id)
+        })
+    },
+    [partnerRows, appliedSearchTerm],
   )
 
   return (
@@ -51,6 +67,24 @@ export default function FindingPartnersPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">협력사 카드 전체 보기</CardTitle>
                   <div className="flex items-center gap-2">
+                    <form
+                      className="flex items-center gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        setAppliedSearchTerm(searchTerm)
+                      }}
+                    >
+                      <Input
+                        placeholder="검색어 입력"
+                        className="w-64"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                      />
+                      <Button type="submit" variant="outline" size="sm" className="gap-2">
+                        <Search className="h-4 w-4" />
+                        검색
+                      </Button>
+                    </form>
                     <Badge variant="secondary">{partnerCards.length}개 협력사</Badge>
                     <Button variant="outline" size="sm" asChild>
                       <Link href="/finding?tab=partners">메인으로</Link>

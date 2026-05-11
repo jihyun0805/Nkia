@@ -6,12 +6,12 @@ import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide-react";
+import { Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
+import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
 import { supportHistories, freeMaintenances, paidMaintenances } from "@/lib/maintenance-data";
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
@@ -19,12 +19,12 @@ import { SupportResultForm } from "@/components/erp/maintenance/support-result-f
 
 export default function MaintenancePage() {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"free" | "paid" | "support">("free");
   const [creationMode, setCreationMode] = useState<"none" | "request" | "result">("none");
 
-  const q = searchTerm.toLowerCase();
   const maintenanceFieldOptions =
     activeTab === "free"
       ? [
@@ -40,13 +40,35 @@ export default function MaintenancePage() {
             { key: "customer", label: "고객사", options: uniqueOptions(supportHistories, (item) => item.customer) },
             { key: "type", label: "구분", options: [{ label: "지원 요청", value: "request" }, { label: "활동 결과", value: "result" }] },
           ];
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true;
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm);
+  };
   const filteredFreeMaintenances = filterRecords(freeMaintenances, filters, {
     status: (item) => item.status,
     owner: (item) => item.manager,
     date: (item) => item.startDate,
     fields: { customer: (item) => item.customer, product: (item) => item.product },
   })
-    .filter((item) => [item.customer, item.opportunity, item.product, item.salesRep, item.manager].join(" ").toLowerCase().includes(q))
+    .filter((item) =>
+      matchesSearch([
+        item.id,
+        item.customer,
+        item.opportunity,
+        item.product,
+        item.amount,
+        item.startDate,
+        item.endDate,
+        item.salesRep,
+        item.manager,
+        item.status,
+      ]),
+    )
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const filteredPaidMaintenances = filterRecords(paidMaintenances, filters, {
     status: (item) => item.status,
@@ -54,13 +76,40 @@ export default function MaintenancePage() {
     date: (item) => item.startDate,
     fields: { customer: (item) => item.customer, product: (item) => item.product },
   })
-    .filter((item) => [item.customer, item.opportunity, item.product, item.salesRep, item.manager, item.inspectionMethod].join(" ").toLowerCase().includes(q))
+    .filter((item) =>
+      matchesSearch([
+        item.id,
+        item.customer,
+        item.opportunity,
+        item.product,
+        item.amount,
+        item.startDate,
+        item.endDate,
+        item.inspectionMethod,
+        item.salesRep,
+        item.manager,
+        item.status,
+      ]),
+    )
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const filteredSupportHistories = filterRecords(supportHistories, filters, {
     date: (item) => item.registeredAt,
     fields: { customer: (item) => item.customer, type: (item) => item.recordType },
   })
-    .filter((item) => [item.id, item.customer, item.requestType, item.requester, item.registrant, item.salesRep, item.supportRep].join(" ").toLowerCase().includes(q))
+    .filter((item) =>
+      matchesSearch([
+        item.id,
+        item.customer,
+        item.recordType,
+        item.requestType,
+        item.startDate,
+        item.endDate,
+        item.requester,
+        item.registrant,
+        item.salesRep,
+        item.supportRep,
+      ]),
+    )
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const maintenanceStatuses = ["진행중", "종료", "종료예정", "미체결", "완료", "예정"];
 
@@ -96,10 +145,11 @@ export default function MaintenancePage() {
               <div className="flex items-center gap-2">
                 {creationMode === "none" ? (
                   <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input placeholder="검색..." className="pl-9 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={creationMode !== "none"} />
-                    </div>
+                    <PageSearchForm
+                      value={searchTerm}
+                      onChange={setSearchTerm}
+                      onSearch={() => setAppliedSearchTerm(searchTerm)}
+                    />
                     <FilterPopover title="유지보수" statusOptions={maintenanceStatuses} value={filters} onApply={setFilters} fieldOptions={maintenanceFieldOptions} />
                     {activeTab === "support" && (
                       <div className="flex gap-2">
