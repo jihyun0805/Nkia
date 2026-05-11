@@ -7,10 +7,14 @@ import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.company.repository.CompanyManagerRepository;
@@ -48,6 +52,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,6 +68,7 @@ public class OrderReportService {
     private final OrderReportHistoryRepository orderReportHistoryRepository;
     private final CompanyRepository companyRepository;
     private final CompanyManagerRepository companyManagerRepository;
+    private final WorkflowService workflowService;
 
     @Transactional
     public OrderReportResponse create(OrderReportRequest request) {
@@ -374,5 +380,29 @@ public class OrderReportService {
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_HISTORY_NOT_FOUND));
 
         return OrderReportHistoryResponse.from(history);
+    }
+
+    @Transactional
+    public void submitOrderReport(
+            Long orderReportId,
+            UUID firstApproverId
+    ) {
+        OrderReport orderReport = orderReportRepository.findById(orderReportId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
+
+        if (!orderReport.isDraft()) {
+            throw new ApiException(ContractErrorCode.INVALID_ORDER_REPORT_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.ORDER_REPORT,
+                orderReport.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        orderReport.submit(workflow);
     }
 }

@@ -16,7 +16,9 @@ public enum ContractErrorCode implements ErrorCode {
     LICENSE_UPDATE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "CONTRACT_0004",
             "수주보고서와 연결된 라이선스는 라이선스 화면에서 수정할 수 없습니다. 수주보고서를 수정해주세요."),
     ORDER_REPORT_HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "CONTRACT_0005",
-            "요청한 order report history를 찾을 수 없습니다.");
+            "요청한 order report history를 찾을 수 없습니다."),
+    INVALID_ORDER_REPORT_STATUS(HttpStatus.BAD_REQUEST, "CONTRACT_0006",
+            "유효하지 않은 order report status 입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

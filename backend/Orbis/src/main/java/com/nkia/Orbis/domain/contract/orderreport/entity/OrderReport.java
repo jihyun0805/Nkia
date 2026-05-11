@@ -500,4 +500,25 @@ public class OrderReport extends BaseEntity {
         this.itemTotalService = 0L;
         this.itemTotalMaintenance = 0L;
     }
+
+    public void submit(Workflow workflow) {
+        this.workflow = workflow;
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
+    }
 }

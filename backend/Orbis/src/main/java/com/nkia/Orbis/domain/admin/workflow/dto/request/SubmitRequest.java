@@ -4,7 +4,7 @@ import java.util.UUID;
 import lombok.Getter;
 
 @Getter
-public class QuotationSubmitRequest {
+public class SubmitRequest {
 
     private UUID firstApproverId;
 }
