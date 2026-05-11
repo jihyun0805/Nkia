@@ -3,14 +3,26 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/erp/header"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getProposalById, subscribeProposalUpdates, type ProposalAttachment, type ProposalRecord } from "@/lib/bid-data"
+import { deleteProposal, getProposalById, subscribeProposalUpdates, type ProposalAttachment, type ProposalRecord } from "@/lib/bid-data"
+import { toast } from "@/hooks/use-toast"
 
 function ProposalDetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -56,8 +68,10 @@ function ProposalAttachmentField({ proposal }: { proposal: ProposalRecord }) {
 
 export function ProposalDetailPage() {
   const params = useParams<{ id?: string | string[] }>()
+  const router = useRouter()
   const id = Array.isArray(params.id) ? params.id[0] : params.id ?? ""
   const [proposal, setProposal] = useState<ProposalRecord | null>(null)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   useEffect(() => {
     const sync = () => setProposal(getProposalById(id))
@@ -70,6 +84,25 @@ export function ProposalDetailPage() {
       window.removeEventListener("storage", sync)
     }
   }, [id])
+
+  const handleDelete = () => {
+    const result = deleteProposal(id)
+    if (result.status === "not_found") {
+      toast({
+        title: "제안서 삭제 실패",
+        description: "삭제할 제안서를 찾지 못했습니다.",
+      })
+      setIsDeleteOpen(false)
+      return
+    }
+
+    toast({
+      title: "제안서 삭제 완료",
+      description: `${result.proposal.id} 제안서가 삭제되었습니다.`,
+    })
+    setIsDeleteOpen(false)
+    router.push("/bid")
+  }
 
   if (!proposal) {
     return (
@@ -143,12 +176,29 @@ export function ProposalDetailPage() {
                   <Button asChild>
                     <Link href={`/bid/proposal/${proposal.id}/edit`}>수정</Link>
                   </Button>
+                  <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                    삭제
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
         </main>
       </div>
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>제안서를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 제안서 상세 정보를 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

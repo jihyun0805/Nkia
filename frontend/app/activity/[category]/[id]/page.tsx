@@ -40,10 +40,11 @@ import {
   getActivities,
   getActivityItemFields,
   getCategoryLabel,
+  deleteActivity,
 } from "@/lib/activity-data"
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
-import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
+import { deleteBackendActivityRecord, loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { deleteBackendQuotationRecord, loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
 import {
@@ -107,10 +108,11 @@ export default function ActivityDetailPage() {
   const router = useRouter()
   const category = params.category
   const id = params.id
-  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>(() => getActivities())
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isActivityDeleteDialogOpen, setIsActivityDeleteDialogOpen] = useState(false)
   const [isVersionDeleteDialogOpen, setIsVersionDeleteDialogOpen] = useState(false)
   const [versionDeleteTarget, setVersionDeleteTarget] = useState<string>("")
   const [quotationDetailTab, setQuotationDetailTab] = useState("document")
@@ -278,7 +280,6 @@ export default function ActivityDetailPage() {
       : category === "requests"
         ? (((item as ActivityRequestRecord | null)?.attachments ?? []) as ActivityAttachment[])
         : []
-  const canEditRequest = !requestItem || requestItem.requester === currentUser.name
   const listHref =
     item && category === "activities"
       ? `/activity/customers/${(item as { customerCode?: string }).customerCode ?? ""}`
@@ -316,6 +317,32 @@ export default function ActivityDetailPage() {
           description: `${id} 견적서가 삭제되었습니다.`,
         })
         router.push("/activity")
+      }
+    })()
+  }
+
+  const handleDeleteActivity = () => {
+    if (!item || category !== "activities") return
+
+    scrollToTop()
+    void (async () => {
+      try {
+        await deleteBackendActivityRecord(id)
+        toast({
+          title: "영업활동 삭제 완료",
+          description: `${id} 영업활동이 삭제되었습니다.`,
+        })
+        router.push(listHref)
+        return
+      } catch {
+        const deleted = deleteActivity(id)
+        if (deleted.status !== "deleted") return
+
+        toast({
+          title: "영업활동 삭제 완료",
+          description: `${id} 영업활동이 삭제되었습니다.`,
+        })
+        router.push(listHref)
       }
     })()
   }
@@ -636,12 +663,17 @@ export default function ActivityDetailPage() {
                       삭제
                     </Button>
                   )}
-                  {canEditRequest &&
+                  {!isRequest &&
                     (!isQuotation || (quotationDetailTab === "document" && !selectedQuotationVersionDeleted && !isDeletedQuotation)) && (
                     <Button asChild className="bg-primary hover:bg-primary/90">
                       <Link href={`/activity/${category}/${id}/edit`} onClick={scrollToTop}>
                         수정
                       </Link>
+                    </Button>
+                  )}
+                  {category === "activities" && (
+                    <Button variant="destructive" onClick={() => setIsActivityDeleteDialogOpen(true)}>
+                      삭제
                     </Button>
                   )}
                 </div>
@@ -662,6 +694,20 @@ export default function ActivityDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteQuotation}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={isActivityDeleteDialogOpen} onOpenChange={setIsActivityDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>영업활동을 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 목록과 상세 화면에서 해당 영업활동을 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteActivity}>삭제</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

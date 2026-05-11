@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -19,9 +20,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
+import { toast } from "@/hooks/use-toast"
 import { currentUser } from "@/lib/current-user"
 import {
   getPrbById,
+  deletePrbResult,
   getPrbResultById,
   getPrbResults,
   getPrbs,
@@ -34,6 +37,7 @@ import {
 
 type PrbResultRegistrationFormProps = {
   prbResultId?: string
+  allowDelete?: boolean
 }
 
 type AttendeeOpinionForm = {
@@ -130,7 +134,7 @@ function createFormFromResult(result: PrbResultRecord): FormState {
   }
 }
 
-export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistrationFormProps) {
+export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: PrbResultRegistrationFormProps) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>(createEmptyForm())
   const [selectedPrb, setSelectedPrb] = useState<PrbRecord | null>(null)
@@ -138,6 +142,7 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
   const [selectionOpen, setSelectionOpen] = useState(false)
   const [selectionValue, setSelectionValue] = useState("")
   const [validationMessage, setValidationMessage] = useState("")
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   const existingResult = useMemo(() => (prbResultId ? getPrbResultById(prbResultId) : null), [prbResultId])
 
@@ -240,6 +245,27 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
     })
 
     router.push(`/bid/prb-result/${saved.id}`)
+  }
+
+  const handleDelete = () => {
+    if (!prbResultId) return
+
+    const result = deletePrbResult(prbResultId)
+    if (result.status === "not_found") {
+      toast({
+        title: "PRB 결과보고 삭제 실패",
+        description: "삭제할 PRB 결과보고를 찾지 못했습니다.",
+      })
+      setIsDeleteOpen(false)
+      return
+    }
+
+    toast({
+      title: "PRB 결과보고 삭제 완료",
+      description: "PRB 결과보고가 삭제되었습니다.",
+    })
+    setIsDeleteOpen(false)
+    router.push("/bid")
   }
 
   return (
@@ -354,6 +380,11 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
             <Button variant="outline" asChild>
               <Link href={prbResultId ? `/bid/prb-result/${prbResultId}` : "/bid"}>취소</Link>
             </Button>
+            {allowDelete && prbResultId && (
+              <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                삭제
+              </Button>
+            )}
             <Button onClick={handleSave}>저장</Button>
           </div>
         </CardContent>
@@ -406,6 +437,20 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setValidationMessage("")}>확인</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>PRB 결과보고를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 PRB 결과보고 상세 정보를 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
