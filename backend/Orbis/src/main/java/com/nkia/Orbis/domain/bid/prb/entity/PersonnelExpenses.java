@@ -46,7 +46,7 @@ public class PersonnelExpenses {
     @Column(name = "total_man_month", precision = 7, scale = 2)
     private BigDecimal totalManMonth = BigDecimal.ZERO;
 
-    @Column(name = "total_amount", precision = 15, scale = 2)
+    @Column(name = "personnel_expense_total_amount", precision = 15, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
     /**
