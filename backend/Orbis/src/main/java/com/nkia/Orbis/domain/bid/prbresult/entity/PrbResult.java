@@ -71,4 +71,12 @@ public class PrbResult extends BaseEntity {
     public void addAttendeeOpinion(PrbResultAttendeeOpinion opinion) {
         this.attendeeOpinions.add(opinion);
     }
+
+    public void updateInformation(String riskFactors, String comprehensiveOpinion, String meetingLocation,
+                                  LocalDateTime meetingDateTime) {
+        this.riskFactors = riskFactors;
+        this.comprehensiveOpinion = comprehensiveOpinion;
+        this.meetingLocation = meetingLocation;
+        this.meetingDateTime = meetingDateTime;
+    }
 }
