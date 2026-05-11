@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,18 +11,359 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
-import { UserPlus, Users, Shield, Settings, Search } from "lucide-react"
-import { permissionGroups, users, workflows } from "@/lib/admin-data"
+import { UserPlus, Users, Shield, Settings, Search, Loader2, PackagePlus, Plus, Building } from "lucide-react"
+import { permissionGroups as mockPermissionGroups, users as mockUsers, workflows as mockWorkflows, products as mockProducts, departments as mockDepartments } from "@/lib/admin-data"
+import { adminApi, UserResponse, RoleListResponse, WorkflowTemplateListResponse, ProductModuleResponse, DepartmentResponse } from "@/lib/api/admin-api"
+import { format } from "date-fns"
 
 export default function AdminPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
+  
+  const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState<any[]>(mockUsers)
+  const [roles, setRoles] = useState<any[]>(mockPermissionGroups)
+  const [workflows, setWorkflows] = useState<any[]>(mockWorkflows)
+  const [products, setProducts] = useState<any[]>(mockProducts)
+  const [departments, setDepartments] = useState<any[]>(mockDepartments)
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true)
+        const [usersRes, rolesRes, workflowsRes, productsRes, departmentsRes] = await Promise.all([
+          adminApi.getUsers().catch(() => null),
+          adminApi.getRoles().catch(() => null),
+          adminApi.getWorkflows().catch(() => null),
+          adminApi.getProducts().catch(() => null),
+          adminApi.getDepartments().catch(() => null),
+        ])
+
+        if (usersRes && usersRes.data && usersRes.data.length > 0) {
+          const mappedUsers = usersRes.data.map((u: UserResponse) => ({
+            id: u.id,
+            employeeNumber: u.employeeNumber,
+            rawId: u.id,
+            name: u.name,
+            position: u.position,
+            email: u.email,
+            department: u.departmentName,
+            role: u.roles ? u.roles.join(", ") : "-",
+            permissions: [],
+            status: u.status,
+            lastLogin: u.createdAt ? format(new Date(u.createdAt), "yyyy-MM-dd HH:mm") : "-",
+            isPresales: false,
+          }))
+          setUsers(mappedUsers)
+        } else {
+          setUsers(mockUsers)
+        }
+
+        if (rolesRes && rolesRes.data && rolesRes.data.length > 0) {
+          const mappedRoles = rolesRes.data.map((r: RoleListResponse) => ({
+            id: r.id.toString(),
+            name: r.name,
+            description: r.permissions ? r.permissions.join(", ") : "설명 없음",
+            userCount: "-",
+            permissions: r.permissions,
+          }))
+          setRoles(mappedRoles)
+        } else {
+          setRoles(mockPermissionGroups)
+        }
+
+        if (workflowsRes && workflowsRes.data && workflowsRes.data.length > 0) {
+          const mappedWorkflows = workflowsRes.data.map((w: WorkflowTemplateListResponse) => ({
+            id: w.id.toString(),
+            name: w.name,
+            steps: [w.workflowDomain],
+            status: w.active ? "활성" : "비활성",
+            lastModified: "-",
+            active: w.active,
+          }))
+          setWorkflows(mappedWorkflows)
+        } else {
+          setWorkflows(mockWorkflows)
+        }
+
+        if (productsRes && productsRes.data && productsRes.data.length > 0) {
+          const mappedProducts = productsRes.data.map((p: ProductModuleResponse) => ({
+            id: p.id.toString(),
+            productClass: p.productClass,
+            productGroup: p.productGroup,
+            productName: p.productName,
+            licenseStandard: p.licenseStandard,
+            licenseUnit: p.licenseUnit,
+            unitPrice: p.unitPrice,
+          }))
+          setProducts(mappedProducts)
+        } else {
+          setProducts(mockProducts)
+        }
+
+        if (departmentsRes && departmentsRes.data && departmentsRes.data.length > 0) {
+          const mappedDepartments = departmentsRes.data.map((d: DepartmentResponse) => ({
+            id: d.id.toString(),
+            headquarters: d.headquarters,
+            team: d.team,
+          }))
+          setDepartments(mappedDepartments)
+        } else {
+          setDepartments(mockDepartments)
+        }
+      } catch (e) {
+        console.error("Failed to load admin data", e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
+
   return (
-    <div className="min-h-screen bg-background"><Sidebar /><div className="flex-1 flex flex-col"><Header title="시스템관리" description="계정 관리, 권한 설정 및 프로세스 관리를 수행합니다" />
-      <main className="flex-1 overflow-auto p-6"><Tabs defaultValue="users" className="space-y-6"><div className="flex items-center justify-between"><TabsList><TabsTrigger value="users" className="gap-2"><Users className="w-4 h-4" />계정관리</TabsTrigger><TabsTrigger value="permissions" className="gap-2"><Shield className="w-4 h-4" />권한관리</TabsTrigger><TabsTrigger value="workflow" className="gap-2"><Settings className="w-4 h-4" />프로세스관리</TabsTrigger></TabsList><div className="relative"><Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div></div>
-      <TabsContent value="users"><Card><CardHeader className="pb-4"><div className="flex items-center justify-between"><CardTitle className="text-lg">사용자 목록</CardTitle><Button asChild><Link href="/admin/new"><UserPlus className="mr-2 w-4 h-4" />계정 등록</Link></Button></div></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>ID</TableHead><TableHead>이름</TableHead><TableHead>이메일</TableHead><TableHead>부서</TableHead><TableHead>역할</TableHead><TableHead>프리세일즈</TableHead><TableHead>권한</TableHead><TableHead>상태</TableHead><TableHead>최종 로그인</TableHead></TableRow></TableHeader><TableBody>{users.map((user) => <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/users/${user.id}`)}><TableCell>{user.id}</TableCell><TableCell>{user.name}</TableCell><TableCell>{user.email}</TableCell><TableCell>{user.department}</TableCell><TableCell>{user.role}</TableCell><TableCell>{user.isPresales ? "지정" : "-"}</TableCell><TableCell>{user.permissions.join(", ")}</TableCell><TableCell>{user.status}</TableCell><TableCell>{user.lastLogin}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card></TabsContent>
-      <TabsContent value="permissions"><Card><CardHeader><CardTitle className="text-lg">권한 그룹</CardTitle></CardHeader><CardContent className="space-y-4">{permissionGroups.map((group) => <div key={group.id} className="cursor-pointer rounded-lg border p-4 hover:bg-muted/50" onClick={() => router.push(`/admin/permissions/${group.id}`)}><div className="flex items-center justify-between"><div><p className="font-semibold">{group.name}</p><p className="text-sm text-muted-foreground">{group.description}</p></div><p className="text-sm">{group.userCount}명</p></div></div>)}</CardContent></Card></TabsContent>
-      <TabsContent value="workflow"><Card><CardHeader><CardTitle className="text-lg">워크플로우 설정</CardTitle></CardHeader><CardContent className="space-y-4">{workflows.map((workflow) => <div key={workflow.id} className="flex cursor-pointer items-center justify-between rounded-lg border p-4 hover:bg-muted/50" onClick={() => router.push(`/admin/workflow/${workflow.id}`)}><div><p className="font-semibold">{workflow.name}</p><p className="text-sm text-muted-foreground">{workflow.steps.join(" → ")}</p></div><div className="flex items-center gap-4"><Switch checked={workflow.status === "활성"} /><p className="text-sm text-muted-foreground">{workflow.lastModified}</p></div></div>)}</CardContent></Card></TabsContent>
-      </Tabs></main></div></div>
+    <div className="min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Header title="시스템관리" description="계정, 권한, 프로세스, 제품 및 부서 관리를 수행합니다" />
+        <main className="flex-1 overflow-auto p-6">
+          <Tabs defaultValue="users" className="space-y-6">
+            <div className="flex items-center justify-between overflow-x-auto pb-2">
+              <TabsList>
+                <TabsTrigger value="users" className="gap-2">
+                  <Users className="w-4 h-4" />계정관리
+                </TabsTrigger>
+                <TabsTrigger value="permissions" className="gap-2">
+                  <Shield className="w-4 h-4" />권한관리
+                </TabsTrigger>
+                <TabsTrigger value="workflow" className="gap-2">
+                  <Settings className="w-4 h-4" />프로세스관리
+                </TabsTrigger>
+                <TabsTrigger value="products" className="gap-2">
+                  <PackagePlus className="w-4 h-4" />제품관리
+                </TabsTrigger>
+                <TabsTrigger value="departments" className="gap-2">
+                  <Building className="w-4 h-4" />부서관리
+                </TabsTrigger>
+              </TabsList>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
+            </div>
+
+            <TabsContent value="users">
+              <Card>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">사용자 목록</CardTitle>
+                    <Button asChild>
+                      <Link href="/admin/users/new">
+                        <UserPlus className="mr-2 w-4 h-4" />계정 등록
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>사번</TableHead>
+                          <TableHead>이름</TableHead>
+                          <TableHead>직급</TableHead>
+                          <TableHead>이메일</TableHead>
+                          <TableHead>부서</TableHead>
+                          <TableHead>역할</TableHead>
+                          <TableHead>프리세일즈</TableHead>
+                          <TableHead>권한</TableHead>
+                          <TableHead>상태</TableHead>
+                          <TableHead>등록일</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {users.map((user) => (
+                          <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/users/${user.rawId || user.id}`)}>
+                            <TableCell>{user.employeeNumber || user.id}</TableCell>
+                            <TableCell>{user.name}</TableCell>
+                            <TableCell>{user.position}</TableCell>
+                            <TableCell>{user.email}</TableCell>
+                            <TableCell>{user.department}</TableCell>
+                            <TableCell>{user.role}</TableCell>
+                            <TableCell>{user.isPresales ? "지정" : "-"}</TableCell>
+                            <TableCell>{user.permissions && user.permissions.length > 0 ? user.permissions.join(", ") : "-"}</TableCell>
+                            <TableCell>{user.status}</TableCell>
+                            <TableCell>{user.lastLogin}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="permissions">
+              <Card>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">권한 그룹</CardTitle>
+                    <Button asChild>
+                      <Link href="/admin/permissions/new">
+                        <Plus className="mr-2 w-4 h-4" />권한 등록
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {loading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                  ) : roles.length > 0 ? (
+                    roles.map((group) => (
+                      <div key={group.id} className="cursor-pointer rounded-lg border p-4 hover:bg-muted/50" onClick={() => router.push(`/admin/permissions/${group.id}`)}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold">{group.name}</p>
+                            <p className="text-sm text-muted-foreground truncate max-w-xl">{group.description}</p>
+                          </div>
+                          <p className="text-sm">{group.userCount !== "-" ? `${group.userCount}명` : ""}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center p-4 text-muted-foreground">권한 그룹이 없습니다.</div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="workflow">
+              <Card>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">워크플로우 설정</CardTitle>
+                    <Button asChild>
+                      <Link href="/admin/workflow/new">
+                        <Plus className="mr-2 w-4 h-4" />템플릿 등록
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {loading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                  ) : workflows.length > 0 ? (
+                    workflows.map((workflow) => (
+                      <div key={workflow.id} className="flex cursor-pointer items-center justify-between rounded-lg border p-4 hover:bg-muted/50" onClick={() => router.push(`/admin/workflow/${workflow.id}`)}>
+                        <div>
+                          <p className="font-semibold">{workflow.name}</p>
+                          <p className="text-sm text-muted-foreground">{workflow.steps ? workflow.steps.join(" → ") : ""}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <Switch checked={workflow.active || workflow.status === "활성"} disabled />
+                          <p className="text-sm text-muted-foreground">{workflow.lastModified !== "-" ? workflow.lastModified : ""}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center p-4 text-muted-foreground">워크플로우 템플릿이 없습니다.</div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="products">
+              <Card>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">제품 목록</CardTitle>
+                    <Button asChild>
+                      <Link href="/admin/products/new">
+                        <Plus className="mr-2 w-4 h-4" />제품 등록
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                  ) : products.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>제품 클래스</TableHead>
+                          <TableHead>제품 그룹</TableHead>
+                          <TableHead>제품명</TableHead>
+                          <TableHead>라이선스 기준</TableHead>
+                          <TableHead>단위</TableHead>
+                          <TableHead className="text-right">단가 (원)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {products.map((product) => (
+                          <TableRow key={product.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/products/${product.id}`)}>
+                            <TableCell>{product.productClass}</TableCell>
+                            <TableCell>{product.productGroup}</TableCell>
+                            <TableCell className="font-medium">{product.productName}</TableCell>
+                            <TableCell>{product.licenseStandard}</TableCell>
+                            <TableCell>{product.licenseUnit}</TableCell>
+                            <TableCell className="text-right">{product.unitPrice.toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center p-4 text-muted-foreground">등록된 제품이 없습니다.</div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="departments">
+              <Card>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">부서 목록</CardTitle>
+                    <Button asChild>
+                      <Link href="/admin/departments/new">
+                        <Plus className="mr-2 w-4 h-4" />부서 등록
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                  ) : departments.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          <TableHead>본부 (Headquarters)</TableHead>
+                          <TableHead>팀 (Team)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {departments.map((dept) => (
+                          <TableRow key={dept.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/departments/${dept.id}`)}>
+                            <TableCell>{dept.id}</TableCell>
+                            <TableCell>{dept.headquarters}</TableCell>
+                            <TableCell>{dept.team}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center p-4 text-muted-foreground">등록된 부서가 없습니다.</div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+          </Tabs>
+        </main>
+      </div>
+    </div>
   )
 }
