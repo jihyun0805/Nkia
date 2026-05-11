@@ -179,13 +179,11 @@ def answer_targeted_domain_query(
                 )
 
     if is_opportunity_list_query(normalized_query):
-        rows = fetch_status_rows(status_filters=[], limit=50)
-        rows = _filter_structured_rows(
-            user_context=user_context,
-            rows=rows,
-            source_type=SourceType.PROJECT_OPPORTUNITY,
-            direct_keys=("opportunity_code",),
-        )
+        rows = fetch_opportunity_list_rows(limit=50)
+        rows = [
+            row for row in rows
+            if _can_access_opportunity_code(user_context, row.get("opportunity_code"))
+        ]
         if rows:
             return build_opportunity_list_response(
                 query=query, rows=rows, limit=limit, embedder=embedder
@@ -534,6 +532,15 @@ def answer_targeted_domain_query(
                 embedder=embedder,
             )
 
+    snapshot = fetch_opportunity_snapshot(opportunity_code=opportunity_code)
+    if snapshot is not None:
+        return build_opportunity_status_response(
+            query=query,
+            snapshot=snapshot,
+            limit=limit,
+            embedder=embedder,
+        )
+
     return None
 
 
@@ -588,6 +595,14 @@ def answer_exact_code_snapshot_query(
                 related_keys=("maintenance_quote_code", "support_code", "opportunity_code"),
             ):
                 return build_maintenance_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
+        snapshot = fetch_opportunity_snapshot(opportunity_code=code)
+        if snapshot is not None and _can_access_exact_snapshot(
+            user_context=user_context,
+            source_type=SourceType.PROJECT_OPPORTUNITY,
+            snapshot=snapshot,
+            direct_keys=("opportunity_code",),
+        ):
+            return build_opportunity_status_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         snapshot = fetch_contract_snapshot(contract_code=code)
         if snapshot is not None and _can_access_exact_snapshot(
             user_context=user_context,
