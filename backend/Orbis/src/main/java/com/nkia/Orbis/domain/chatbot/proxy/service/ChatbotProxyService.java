@@ -13,24 +13,31 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ChatbotProxyService {
 
     private final RestClient chatbotAiRestClient;
     private final ChatbotUserContextService chatbotUserContextService;
+
+    public ChatbotProxyService(
+            @Qualifier("chatbotAiRestClient") RestClient chatbotAiRestClient,
+            ChatbotUserContextService chatbotUserContextService
+    ) {
+        this.chatbotAiRestClient = chatbotAiRestClient;
+        this.chatbotUserContextService = chatbotUserContextService;
+    }
 
     public ChatbotAnswerResponse answer(ChatbotAnswerRequest request) {
         try {
