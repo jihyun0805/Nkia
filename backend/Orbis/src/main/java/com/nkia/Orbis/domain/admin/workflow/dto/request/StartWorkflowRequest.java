@@ -11,5 +11,7 @@ public class StartWorkflowRequest {
 
     private Long targetId;
 
+    private UUID requesterId;
+
     private UUID firstApproverId;
 }

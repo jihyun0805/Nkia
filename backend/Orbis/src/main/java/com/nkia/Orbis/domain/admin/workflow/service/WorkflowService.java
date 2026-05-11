@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.admin.workflow.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.WorkflowErrorCode;
 import com.nkia.Orbis.domain.admin.user.entity.Position;
 import com.nkia.Orbis.domain.admin.user.entity.User;
@@ -38,8 +39,12 @@ public class WorkflowService {
     public Workflow startWorkflow(
             WorkflowDomain workflowDomain,
             Long targetId,
+            UUID requesterId,
             UUID firstApproverId
     ) {
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
         // 1. 이미 진행중인 결재 존재하는지 검사
         validateDuplicateWorkflow(workflowDomain, targetId);
 
@@ -52,7 +57,8 @@ public class WorkflowService {
         Workflow workflow = Workflow.create(
                 workflowDomain,
                 targetId,
-                template
+                template,
+                requester
         );
 
         workflowRepository.save(workflow);
@@ -195,8 +201,9 @@ public class WorkflowService {
     // 현재 결재 라인 조회
     private WorkflowLine getCurrentLine(Workflow workflow) {
         return workflowLineRepository
-                .findByWorkflowAndStatus(
+                .findByWorkflowAndStepOrderAndStatus(
                         workflow,
+                        workflow.getCurrentStepOrder(),
                         WorkflowLineStatus.PENDING
                 )
                 .orElseThrow(() -> new ApiException(WorkflowErrorCode.WORKFLOW_LINE_NOT_FOUND));
@@ -249,10 +256,10 @@ public class WorkflowService {
             Integer stepOrder
     ) {
         return workflowStepRepository
-                .findByWorkflowTemplateAndActiveTrueOrderByStepOrderAsc(template)
-                .stream()
-                .filter(step -> step.getStepOrder().equals(stepOrder))
-                .findFirst();
+                .findByWorkflowTemplateAndStepOrderAndActiveTrue(
+                        template,
+                        stepOrder
+                );
     }
 
     // 진행 상태 검사
@@ -281,7 +288,31 @@ public class WorkflowService {
                         userId
                 )
                 .stream()
-                .map(WorkflowResponse::from)
+                .map(workflow -> {
+                    long totalStepCount = workflowStepRepository
+                            .countByWorkflowTemplateAndActiveTrue(
+                                    workflow.getWorkflowTemplate()
+                            );
+
+                    boolean needNextApprover =
+                            workflow.getStatus() == WorkflowStatus.IN_PROGRESS
+                                    && workflow.getCurrentStepOrder() < totalStepCount;
+
+                    return WorkflowResponse.from(workflow, needNextApprover);
+                })
                 .toList();
+    }
+
+    public WorkflowResponse toWorkflowResponse(Workflow workflow) { // 수정됨
+        long totalStepCount = workflowStepRepository
+                .countByWorkflowTemplateAndActiveTrue(
+                        workflow.getWorkflowTemplate()
+                );
+
+        boolean needNextApprover =
+                workflow.getStatus() == WorkflowStatus.IN_PROGRESS
+                        && workflow.getCurrentStepOrder() < totalStepCount;
+
+        return WorkflowResponse.from(workflow, needNextApprover);
     }
 }
