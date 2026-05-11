@@ -24,6 +24,7 @@ import {
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { ActivityFormFields } from "@/components/erp/activity-form-fields"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
 import { activityRequestTypeOptions, createActivity, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
@@ -42,6 +43,7 @@ import { createQuotation } from "@/lib/quotation-workflow"
 import { X } from "lucide-react"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { createBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
+import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { createBackendQuotationRecord } from "@/lib/sales-quotation-backend"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
@@ -359,6 +361,16 @@ function ActivityCategoryNewPageContent() {
     setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
   }
 
+  const handleActivityOpportunitySuggestionSelect = (suggestion: EntitySuggestion | null) => {
+    if (!suggestion) {
+      setActivityOpportunityCode("")
+      return
+    }
+
+    setActivityOpportunity(suggestion.label)
+    setActivityOpportunityCode(suggestion.code || suggestion.id)
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -402,6 +414,7 @@ function ActivityCategoryNewPageContent() {
                     opportunityCodeValue={activityOpportunity === "미확인" ? "-" : activityOpportunityCode || "-"}
                     opportunityOptions={activityOpportunityOptions}
                     onOpportunityChange={handleActivityOpportunityChange}
+                    onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
                     requesterValue={activityRequester}
                     onRequesterChange={setActivityRequester}
                     requestIdValue={linkedRequest?.id ?? linkedRequestId}
@@ -484,30 +497,37 @@ function ActivityCategoryNewPageContent() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>사업기회 *</Label>
-                        <Select
+                        <EntityAutocomplete
                           value={form.opportunity}
+                          target="opportunities"
                           onValueChange={(value) => {
-                            const opportunity = opportunityOptions.find((item) => item.name === value)
                             setForm((prev) => ({
                               ...prev,
                               opportunity: value,
-                              opportunityCode: opportunity?.id ?? "",
+                              opportunityCode: "",
+                            }))
+                          }}
+                          onSelect={(suggestion) => {
+                            if (!suggestion) {
+                              setForm((prev) => ({ ...prev, opportunityCode: "" }))
+                              return
+                            }
+                            setForm((prev) => ({
+                              ...prev,
+                              opportunity: suggestion.label,
+                              opportunityCode: suggestion.code || suggestion.id,
                             }))
                           }}
                           disabled={!matchedCustomer}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={matchedCustomer ? "사업기회를 선택하세요" : "고객사를 먼저 입력하세요"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {opportunityOptions.map((option) => (
-                              <SelectItem key={option.id} value={option.name}>
-                                {option.name}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="미확인">미확인</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          allowCustomValue
+                          placeholder={matchedCustomer ? "사업기회를 입력하세요" : "고객사를 먼저 입력하세요"}
+                          emptyMessage="등록된 사업기회가 없습니다."
+                          filterSuggestion={(suggestion) =>
+                            !matchedCustomer ||
+                            suggestion.metadata.customerCode === matchedCustomer.id ||
+                            suggestion.metadata.customerId === matchedCustomer.id
+                          }
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>사업기회 코드</Label>

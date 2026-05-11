@@ -6,6 +6,7 @@ import { useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -470,7 +471,17 @@ export function FindingCategoryNewPageView({
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>협력사명 *</Label>
-                        <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                        <EntityAutocomplete
+                          value={partnerName}
+                          target="partners"
+                          onValueChange={setPartnerName}
+                          onSelect={(suggestion) => {
+                            if (suggestion) setPartnerName(suggestion.label)
+                          }}
+                          allowCustomValue
+                          placeholder="협력사명을 입력하세요"
+                          emptyMessage="등록된 협력사가 없습니다."
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>유형 *</Label>
@@ -818,12 +829,19 @@ export function FindingCategoryNewPageView({
                         <div className="space-y-2">
                           {opportunityPartnerNames.map((partnerName, index) => (
                             <div key={`opportunity-partner-${index}`} className="flex items-center gap-2">
-                              <Input
+                              <EntityAutocomplete
                                 value={partnerName}
-                                onChange={(event) =>
-                                  setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                                target="partners"
+                                onValueChange={(value) =>
+                                  setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)))
                                 }
+                                onSelect={(suggestion) => {
+                                  if (!suggestion) return
+                                  setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? suggestion.label : item)))
+                                }}
+                                allowCustomValue
                                 placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
+                                emptyMessage="등록된 협력사가 없습니다."
                               />
                               <Button
                                 type="button"
