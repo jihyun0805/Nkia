@@ -45,7 +45,6 @@ export function getProjectItem(category: ProjectCategory, id: string) {
 
 export function getProjectFields(category: ProjectCategory, item: any) {
   if (category === "results") return [
-    { label: "사업번호", value: item.id },
     { label: "고객사", value: item.customer },
     { label: "사업명", value: item.name },
     { label: "사업금액", value: `₩${item.amount.toLocaleString()}` },
