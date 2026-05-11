@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,7 +20,7 @@ public class PrbResultAttendeeOpinion {
 
     // User 엔티티와 강결합을 피하기 위해 ID만 저장
     @Column(name = "attendee_user_id", nullable = false)
-    private Long attendeeUserId;
+    private UUID attendeeUserId;
 
     @Column(name = "attendee_opinion", columnDefinition = "TEXT")
     private String opinion;
