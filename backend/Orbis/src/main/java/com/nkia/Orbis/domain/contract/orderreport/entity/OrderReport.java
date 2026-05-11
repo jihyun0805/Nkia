@@ -202,13 +202,11 @@ public class OrderReport extends BaseEntity {
             String remarks,
             ProjectOpportunity projectOpportunity,
             User pm,
+            Company contractCounterpartCompany,
             CompanyManager contractCounterpartManager,
             Company finalCustomerCompany,
             CompanyManager finalCustomerManager,
             Double itemTotalMaintenanceRate
-            // Todo: 연관관계 메서드 필요
-//            Contract contract,
-//            Project project
     ) {
         OrderReport orderReport = new OrderReport();
         orderReport.orderReportCode = orderReportCode;
@@ -230,6 +228,7 @@ public class OrderReport extends BaseEntity {
         orderReport.remarks = remarks;
         orderReport.projectOpportunity = projectOpportunity;
         orderReport.pm = pm;
+        orderReport.contractCounterpartCompany = contractCounterpartCompany;
         orderReport.contractCounterpartManager = contractCounterpartManager;
         orderReport.finalCustomerCompany = finalCustomerCompany;
         orderReport.finalCustomerManager = finalCustomerManager;
@@ -433,6 +432,7 @@ public class OrderReport extends BaseEntity {
             String remarks,
             ProjectOpportunity projectOpportunity,
             User pm,
+            Company contractCounterpartCompany,
             CompanyManager contractCounterpartManager,
             Company finalCustomerCompany,
             CompanyManager finalCustomerManager,
@@ -456,6 +456,7 @@ public class OrderReport extends BaseEntity {
         this.remarks = remarks;
         this.projectOpportunity = projectOpportunity;
         this.pm = pm;
+        this.contractCounterpartCompany = contractCounterpartCompany;
         this.contractCounterpartManager = contractCounterpartManager;
         this.finalCustomerCompany = finalCustomerCompany;
         this.finalCustomerManager = finalCustomerManager;

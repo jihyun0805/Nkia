@@ -1,13 +1,20 @@
 package com.nkia.Orbis.domain.contract.orderreport.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.CompanyManagerErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.company.entity.Company;
+import com.nkia.Orbis.domain.company.entity.CompanyManager;
+import com.nkia.Orbis.domain.company.repository.CompanyManagerRepository;
+import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseFromOrderReportRequest;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportMaintenanceOnlyItemRequest;
@@ -35,6 +42,8 @@ import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportOther
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportPurchaseHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportServiceItemHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.repository.OrderReportHistoryRepository;
+import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
+import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -48,12 +57,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderReportService {
 
     private final OrderReportRepository orderReportRepository;
-    //    private final ProjectOpportunityRepository projectOpportunityRepository;
+    private final ProjectOpportunityRepository projectOpportunityRepository;
     private final UserRepository userRepository;
     private final ProductModuleRepository productModuleRepository;
     private final OrderReportHistoryRepository orderReportHistoryRepository;
+    private final CompanyRepository companyRepository;
+    private final CompanyManagerRepository companyManagerRepository;
 
-    // TODO: 사업기회, 회사, 회사직원 구현 후 연동 예정
+    @Transactional
     public OrderReportResponse create(OrderReportRequest request) {
 
         return create(
@@ -63,11 +74,27 @@ public class OrderReportService {
 
     private OrderReportResponse create(OrderReportRequest request, String orderReportCode) {
 
-//        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
-//                .orElseThrow(() -> new IllegalArgumentException("사업기회를 찾을 수 없습니다."));
+        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
+                .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
 
         User pm = userRepository.findById(request.getPmId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+        Company contractCounterpartCompany = companyRepository
+                .findById(request.getContractCounterpartCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
+
+        CompanyManager contractCounterpartManager = companyManagerRepository
+                .findById(request.getContractCounterpartManagerId())
+                .orElseThrow(() -> new ApiException(CompanyManagerErrorCode.COMPANY_MANAGER_NOT_FOUND));
+
+        Company finalCustomerCompany = companyRepository
+                .findById(request.getFinalCustomerCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
+
+        CompanyManager finalCustomerManager = companyManagerRepository
+                .findById(request.getFinalCustomerManagerId())
+                .orElseThrow(() -> new ApiException(CompanyManagerErrorCode.COMPANY_MANAGER_NOT_FOUND));
 
         OrderReport orderReport = OrderReport.create(
                 orderReportCode,
@@ -87,11 +114,12 @@ public class OrderReportService {
                 request.getContractPeriodMonths(),
                 request.getScopeOfWork(),
                 request.getRemarks(),
-                null,
+                projectOpportunity,
                 pm,
-                null, // contractCounterpartManager - CompanyManager 구현 후 연결
-                null, // finalCustomerCompany - Company 구현 후 연결
-                null, // finalCustomerManager - CompanyManager 구현 후 연결
+                contractCounterpartCompany,
+                contractCounterpartManager,
+                finalCustomerCompany,
+                finalCustomerManager,
                 request.getItemTotalMaintenanceRate()
         );
 
@@ -131,6 +159,9 @@ public class OrderReportService {
         OrderReport orderReport = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
 
+        ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
+                .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
+
         // 1. 기존 수주보고서 스냅샷 저장
         int nextVersion = orderReportHistoryRepository.countByOrderReportCode(
                 orderReport.getOrderReportCode()
@@ -168,6 +199,22 @@ public class OrderReportService {
         User pm = userRepository.findById(request.getPmId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
+        Company contractCounterpartCompany = companyRepository
+                .findById(request.getContractCounterpartCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
+
+        CompanyManager contractCounterpartManager = companyManagerRepository
+                .findById(request.getContractCounterpartManagerId())
+                .orElseThrow(() -> new ApiException(CompanyManagerErrorCode.COMPANY_MANAGER_NOT_FOUND));
+
+        Company finalCustomerCompany = companyRepository
+                .findById(request.getFinalCustomerCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
+
+        CompanyManager finalCustomerManager = companyManagerRepository
+                .findById(request.getFinalCustomerManagerId())
+                .orElseThrow(() -> new ApiException(CompanyManagerErrorCode.COMPANY_MANAGER_NOT_FOUND));
+
         orderReport.update(
                 request.getType(),
                 request.getPaymentCondition(),
@@ -185,11 +232,12 @@ public class OrderReportService {
                 request.getContractPeriodMonths(),
                 request.getScopeOfWork(),
                 request.getRemarks(),
-                null,
+                projectOpportunity,
                 pm,
-                null,
-                null,
-                null,
+                contractCounterpartCompany,
+                contractCounterpartManager,
+                finalCustomerCompany,
+                finalCustomerManager,
                 request.getItemTotalMaintenanceRate()
         );
 

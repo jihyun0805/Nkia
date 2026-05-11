@@ -28,8 +28,9 @@ public class OrderReportListResponse {
 
     private Integer contractPeriodMonths;
 
-    // TODO: 사업 기회 구현 후 형식에 맞게 반환(사업명)
     private Long projectOpportunityId;
+
+    private String projectName;
 
     private UUID pmId;
 
@@ -39,10 +40,10 @@ public class OrderReportListResponse {
 
     private String finalCustomerCompanyName;
 
-    // Todo: Company, CompanyManager 구현후 연동 예정
     public static OrderReportListResponse from(OrderReport orderReport) {
         return OrderReportListResponse.builder()
                 .id(orderReport.getId())
+                .projectName(orderReport.getProjectOpportunity().getOpportunityName())
                 .orderReportCode(orderReport.getOrderReportCode())
                 .totalAmount(orderReport.getTotalAmount())
                 .type(orderReport.getType())
@@ -56,14 +57,12 @@ public class OrderReportListResponse {
                                 : null
                 ).pmId(orderReport.getPm() != null ? orderReport.getPm().getId() : null)
                 .pmName(orderReport.getPm() != null ? orderReport.getPm().getName() : null)
-//
-//
-//                .finalCustomerCompanyId(
-//                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany().getId()
-//                                : null)
-//                .finalCustomerCompanyName(
-//                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany()
-//                                .getCompanyName() : null)
+                .finalCustomerCompanyId(
+                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany().getId()
+                                : null)
+                .finalCustomerCompanyName(
+                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany()
+                                .getName() : null)
 
                 .finalCustomerCompanyId(null)
                 .finalCustomerCompanyName(null)
