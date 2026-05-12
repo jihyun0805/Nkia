@@ -110,6 +110,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 결재 상신")
     @PostMapping("/submit/{orderReportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> submitOrderReport(
             @PathVariable("orderReportId") Long orderReportId,
             @RequestBody SubmitRequest request

@@ -112,6 +112,7 @@ public class QuotationController {
 
     @Operation(summary = "견적서 결재 상신")
     @PostMapping("/submit/{quotationId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> submitQuotation(
             @PathVariable("quotationId") Long quotationId,
             @RequestBody SubmitRequest request
