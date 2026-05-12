@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,8 @@ import { Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { supportHistories, freeMaintenances, paidMaintenances } from "@/lib/maintenance-data";
+import { supportHistories, paidMaintenances } from "@/lib/maintenance-data";
+import { getFreeMaintenanceList, MaintenanceListResponse } from "@/lib/api/maintenance";
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
 
@@ -24,6 +25,43 @@ export default function MaintenancePage() {
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"free" | "paid" | "support">("free");
   const [creationMode, setCreationMode] = useState<"none" | "request" | "result">("none");
+  const [freeMaintenances, setFreeMaintenances] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await getFreeMaintenanceList();
+        if (response.success && response.data) {
+          const mappedData = response.data.map((item, index) => {
+            const today = new Date();
+            const endDate = item.endDate ? new Date(item.endDate) : null;
+            let status = "진행중";
+            if (endDate) {
+              if (endDate < today) status = "종료";
+              else if (endDate.getTime() - today.getTime() < 30 * 24 * 60 * 60 * 1000) status = "종료예정";
+            }
+            return {
+              id: `api-free-${index}`, // 백엔드에서 id를 제공하지 않으므로 임시 id 생성
+              customer: item.customerName || "-",
+              opportunity: item.projectName || "-",
+              product: item.productFamilyName || "-",
+              amount: (item.contractAmount || 0).toString(),
+              startDate: item.startDate || "-",
+              endDate: item.endDate || "-",
+              salesRep: item.salesRepName || "-",
+              manager: item.managerPrimaryName || "-",
+              status: status,
+              registeredAt: item.startDate || new Date().toISOString(),
+            };
+          });
+          setFreeMaintenances(mappedData);
+        }
+      } catch (error) {
+        console.error("Failed to fetch free maintenance list:", error);
+      }
+    };
+    fetchData();
+  }, []);
 
   const maintenanceFieldOptions =
     activeTab === "free"
@@ -38,7 +76,14 @@ export default function MaintenancePage() {
           ]
         : [
             { key: "customer", label: "고객사", options: uniqueOptions(supportHistories, (item) => item.customer) },
-            { key: "type", label: "구분", options: [{ label: "지원 요청", value: "request" }, { label: "활동 결과", value: "result" }] },
+            {
+              key: "type",
+              label: "구분",
+              options: [
+                { label: "지원 요청", value: "request" },
+                { label: "활동 결과", value: "result" },
+              ],
+            },
           ];
   const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
   const matchesSearch = (values: Array<string | number | null | undefined>) => {
@@ -55,20 +100,7 @@ export default function MaintenancePage() {
     date: (item) => item.startDate,
     fields: { customer: (item) => item.customer, product: (item) => item.product },
   })
-    .filter((item) =>
-      matchesSearch([
-        item.id,
-        item.customer,
-        item.opportunity,
-        item.product,
-        item.amount,
-        item.startDate,
-        item.endDate,
-        item.salesRep,
-        item.manager,
-        item.status,
-      ]),
-    )
+    .filter((item) => matchesSearch([item.id, item.customer, item.opportunity, item.product, item.amount, item.startDate, item.endDate, item.salesRep, item.manager, item.status]))
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const filteredPaidMaintenances = filterRecords(paidMaintenances, filters, {
     status: (item) => item.status,
@@ -77,39 +109,14 @@ export default function MaintenancePage() {
     fields: { customer: (item) => item.customer, product: (item) => item.product },
   })
     .filter((item) =>
-      matchesSearch([
-        item.id,
-        item.customer,
-        item.opportunity,
-        item.product,
-        item.amount,
-        item.startDate,
-        item.endDate,
-        item.inspectionMethod,
-        item.salesRep,
-        item.manager,
-        item.status,
-      ]),
+      matchesSearch([item.id, item.customer, item.opportunity, item.product, item.amount, item.startDate, item.endDate, item.inspectionMethod, item.salesRep, item.manager, item.status]),
     )
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const filteredSupportHistories = filterRecords(supportHistories, filters, {
     date: (item) => item.registeredAt,
     fields: { customer: (item) => item.customer, type: (item) => item.recordType },
   })
-    .filter((item) =>
-      matchesSearch([
-        item.id,
-        item.customer,
-        item.recordType,
-        item.requestType,
-        item.startDate,
-        item.endDate,
-        item.requester,
-        item.registrant,
-        item.salesRep,
-        item.supportRep,
-      ]),
-    )
+    .filter((item) => matchesSearch([item.id, item.customer, item.recordType, item.requestType, item.startDate, item.endDate, item.requester, item.registrant, item.salesRep, item.supportRep]))
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const maintenanceStatuses = ["진행중", "종료", "종료예정", "미체결", "완료", "예정"];
 
@@ -145,11 +152,7 @@ export default function MaintenancePage() {
               <div className="flex items-center gap-2">
                 {creationMode === "none" ? (
                   <>
-                    <PageSearchForm
-                      value={searchTerm}
-                      onChange={setSearchTerm}
-                      onSearch={() => setAppliedSearchTerm(searchTerm)}
-                    />
+                    <PageSearchForm value={searchTerm} onChange={setSearchTerm} onSearch={() => setAppliedSearchTerm(searchTerm)} />
                     <FilterPopover title="유지보수" statusOptions={maintenanceStatuses} value={filters} onApply={setFilters} fieldOptions={maintenanceFieldOptions} />
                     {activeTab === "support" && (
                       <div className="flex gap-2">
@@ -294,7 +297,9 @@ export default function MaintenancePage() {
                             </TableCell>
                             <TableCell className="font-medium">{item.customer}</TableCell>
                             <TableCell>
-                              {item.recordType === "request" ? "-" : (
+                              {item.recordType === "request" ? (
+                                "-"
+                              ) : (
                                 <Badge variant="secondary" className="font-normal text-xs">
                                   {item.requestType}
                                 </Badge>
