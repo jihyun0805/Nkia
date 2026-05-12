@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.request.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestCreateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestDetailResponse;
@@ -78,5 +79,19 @@ public class CustomerSupportRequestController {
             @PathVariable Long id) {
         CustomerSupportRequestDetailResponse response = customerSupportRequestService.getRequestDetail(id);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "고객지원 요청 결재 상신")
+    @PostMapping("/submit/{csRequestId}")
+    public ResponseEntity<ApiResponse<String>> submitCsRequest(
+            @PathVariable("csRequestId") Long csRequestId,
+            @RequestBody SubmitRequest request
+    ) {
+        customerSupportRequestService.submitCustomerSupportRequest(
+                csRequestId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("고객지원 요청 결재 상신 완료"));
     }
 }

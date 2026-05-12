@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.CustomerSupportRequest;
 import java.time.LocalDate;
 import java.util.List;
@@ -10,6 +11,8 @@ import lombok.Getter;
 @Builder
 public class CustomerSupportRequestDetailResponse {
     private Long id;
+    private Long workflowId;
+    private ApprovalStatus status;
     private String customerName;
     private LocalDate requestStartDate;
     private LocalDate requestEndDate;
@@ -22,9 +25,11 @@ public class CustomerSupportRequestDetailResponse {
     private String approvalStatus;
     private List<Long> attachedFileIds;
 
-    public static CustomerSupportRequestDetailResponse from(CustomerSupportRequest request) {
+    public static CustomerSupportRequestDetailResponse from(CustomerSupportRequest request, Long workflowId) {
         return CustomerSupportRequestDetailResponse.builder()
                 .id(request.getId())
+                .status(request.getStatus())
+                .workflowId(workflowId)
                 .customerName(request.getCustomerCompany().getName())
                 .requestStartDate(request.getRequestStartDate())
                 .requestEndDate(request.getRequestEndDate())
@@ -35,7 +40,6 @@ public class CustomerSupportRequestDetailResponse {
                 .registrantName(request.getRegistrant().getName())
                 .salesRepName(request.getSalesRep().getName())
                 .remarks(request.getRemarks())
-                .approvalStatus(request.getApprovalStatus().name())
                 .attachedFileIds(request.getAttachedFiles().stream().map(f -> f.getId()).toList())
                 .build();
     }
