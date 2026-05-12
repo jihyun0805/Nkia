@@ -25,11 +25,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
+import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
+import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { findingStatuses, getCustomers, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
+import { Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 const customerGroupOptions = ["공공", "민간", "해외"]
@@ -49,7 +51,9 @@ type ContactDraft = {
 }
 
 type AttachmentDraft = StoredFileAttachment
-type RfpAttachmentDraft = OpportunityAttachment
+type RfpAttachmentDraft = OpportunityAttachment & {
+  file?: File
+}
 
 function createEmptyContactDraft(): ContactDraft {
   return {
@@ -107,6 +111,11 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   const trimmedNext = String(nextValue ?? "").trim()
   if (trimmedNext) return trimmedNext
   return currentValue ?? ""
+}
+
+function formatRfpSummaryTitle(fileName: string) {
+  const title = fileName.replace(/\.[^.]+$/, "").trim()
+  return title || "RFP 문서"
 }
 
 function getCustomerDecisionContacts(customer: CustomerRecord | null): CustomerContact[] {
@@ -189,15 +198,16 @@ function readFileAsDataUrl(file: File) {
   })
 }
 
-function createRfpAttachment(file: File, dataUrl: string): RfpAttachmentDraft {
+function createRfpAttachment(file: File, dataUrl: string, summary = ""): RfpAttachmentDraft {
   return {
     id: `${Date.now()}-${file.name}-${file.size}`,
     name: file.name,
     size: file.size,
     contentType: file.type || "application/octet-stream",
     dataUrl,
-    summary: "",
+    summary,
     createdAt: new Date().toISOString(),
+    file,
   }
 }
 
@@ -233,9 +243,11 @@ export default function FindingEditPage() {
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
+  const [rfpSummaryLoadingId, setRfpSummaryLoadingId] = useState<string | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
+  const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -306,21 +318,54 @@ export default function FindingEditPage() {
     }
   }
 
-  const handleRfpAttachmentChange = async (files: FileList | null | undefined) => {
+  const handleRfpFileChange = async (files: FileList | null | undefined) => {
     const selectedFiles = Array.from(files ?? [])
     if (selectedFiles.length === 0) return
 
     try {
+      selectedFiles.forEach(assertRfpDocumentFile)
       const nextAttachments = await Promise.all(
         selectedFiles.map(async (file) => createRfpAttachment(file, await readFileAsDataUrl(file))),
       )
       setRfpAttachments((prev) => [...prev, ...nextAttachments])
+      if (rfpInputRef.current) rfpInputRef.current.value = ""
     } catch (error) {
       toast({
         title: "첨부파일 등록 실패",
         description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
       })
     }
+  }
+
+  const handleGenerateRfpSummary = async (attachment: RfpAttachmentDraft) => {
+    if (!attachment.file) {
+      toast({
+        title: "RFP 문서 확인",
+        description: "기존 문서는 브라우저에 원본 파일이 없어 다시 첨부한 뒤 요약할 수 있습니다.",
+      })
+      return
+    }
+
+    setRfpSummaryLoadingId(attachment.id)
+    try {
+      const result = await summarizeRfpDocument(attachment.file)
+      setRfpAttachments((prev) => prev.map((item) => (item.id === attachment.id ? { ...item, summary: result.summary } : item)))
+      toast({
+        title: "RFP AI 요약 생성 완료",
+        description: `${attachment.name} 문서를 요약했습니다.`,
+      })
+    } catch (error) {
+      toast({
+        title: "RFP AI 요약 생성 실패",
+        description: error instanceof Error ? error.message : "잠시 후 다시 시도하세요.",
+      })
+    } finally {
+      setRfpSummaryLoadingId(null)
+    }
+  }
+
+  const handleDeleteRfpAttachment = (attachmentId: string) => {
+    setRfpAttachments((prev) => prev.filter((attachment) => attachment.id !== attachmentId))
   }
 
   const handleBusinessCardFileChange = async (file: File | undefined) => {
@@ -459,7 +504,7 @@ export default function FindingEditPage() {
         decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
         status,
         salesRep,
-        rfpAttachments,
+        rfpAttachments: rfpAttachments.map(({ file, ...attachment }) => attachment),
       })
 
     if (result.status === "not_found") {
@@ -999,12 +1044,14 @@ export default function FindingEditPage() {
                 </section>
 
                 <section className="space-y-2">
-                  <Label>첨부파일</Label>
+                  <Label>RFP 문서</Label>
                   <Input
                     type="file"
+                    accept={RFP_DOCUMENT_ACCEPT}
                     multiple
+                    disabled={rfpSummaryLoadingId !== null}
                     onChange={(event) => {
-                      void handleRfpAttachmentChange(event.target.files)
+                      void handleRfpFileChange(event.target.files)
                       event.target.value = ""
                     }}
                   />
@@ -1017,10 +1064,31 @@ export default function FindingEditPage() {
                               {attachment.name}
                             </a>
                             <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                            {attachment.summary ? (
+                              <div className="mt-3 rounded-md border border-border p-4">
+                                <h3 className="mb-3 text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+                                <RfpSummaryMarkdown markdown={attachment.summary} />
+                              </div>
+                            ) : null}
                           </div>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setRfpAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                            삭제
-                          </Button>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8"
+                              disabled={rfpSummaryLoadingId !== null}
+                              onClick={() => {
+                                void handleGenerateRfpSummary(attachment)
+                              }}
+                            >
+                              {rfpSummaryLoadingId === attachment.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                              AI 요약
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" onClick={() => handleDeleteRfpAttachment(attachment.id)}>
+                              삭제
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
