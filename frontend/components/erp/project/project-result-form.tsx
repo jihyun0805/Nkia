@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExternalLink, Upload } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
+import { projectApi, type ProjectDetailResponse } from "@/lib/api/project-api";
 
 interface ProjectResultFormProps {
   onSuccess: () => void;
@@ -17,8 +18,8 @@ interface ProjectResultFormProps {
     customerName?: string;
     opportunityId?: string;
     opportunityName?: string;
-    orderReportId?: string;
-    contractId?: string;
+    orderReportId?: string | number;
+    contractId?: string | number;
     projectName?: string;
     salesRep?: string;
     projectAmount?: string;
@@ -26,34 +27,137 @@ interface ProjectResultFormProps {
   } | null;
 }
 
+interface FormValues {
+  customerName: string;
+  projectName: string;
+  projectAmount: string;
+  startDate: string;
+  endDate: string;
+  pmName: string;
+  salesRep: string;
+}
+
 export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: ProjectResultFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdProject, setCreatedProject] = useState<ProjectDetailResponse | null>(null);
+  const [resultFile, setResultFile] = useState<File | null>(null);
+  const [uploadStep, setUploadStep] = useState<"register" | "complete">("register");
+
+  const { register, handleSubmit, setValue } = useForm<FormValues>({
+    defaultValues: {
+      customerName: inheritedData?.customerName ?? "",
+      projectName: inheritedData?.projectName ?? inheritedData?.opportunityName ?? "",
+      projectAmount: inheritedData?.projectAmount ? Number(inheritedData.projectAmount).toLocaleString() : "",
+      startDate: "",
+      endDate: "",
+      pmName: "",
+      salesRep: inheritedData?.salesRep ?? "",
+    },
+  });
+
+  // 필수 데이터 체크
   useEffect(() => {
-    // 고객사(코드), 사업기회(코드), 수주보고서(코드)가 등록되지 않았다면 진행 불가
     if (!inheritedData?.customerId || !inheritedData?.opportunityId || !inheritedData?.orderReportId) {
       alert("고객사, 사업기회 또는 수주보고서가 등록되지 않았습니다. 먼저 등록을 진행해주십시오.");
       onCancel();
     }
   }, [inheritedData, onCancel]);
 
-  const { register, handleSubmit, setValue } = useForm({
-    defaultValues: {
-      customerName: inheritedData?.customerName || "",
-      projectName: inheritedData?.projectName || inheritedData?.opportunityName || "",
-      projectAmount: inheritedData?.projectAmount ? Number(inheritedData.projectAmount).toLocaleString() : "",
-      startDate: "",
-      endDate: "",
-      pmName: "",
-      salesRep: inheritedData?.salesRep || "",
-      file: null,
-    },
-  });
+  // orderReportId 숫자 변환 헬퍼
+  const getNumericOrderReportId = () => {
+    const id = inheritedData?.orderReportId;
+    if (!id) return null;
+    const num = typeof id === "string" ? parseInt(id.replace(/\D/g, "")) : id;
+    return isNaN(num) ? null : num;
+  };
 
-  const onSubmit = (data: any) => {
-    console.log("제출된 데이터:", data);
-    alert("사업결과보고가 등록되었습니다.");
+  // 사업 등록 (수주보고서 ID 기반)
+  const onSubmit = async (_data: FormValues) => {
+    const orderReportId = getNumericOrderReportId();
+    if (!orderReportId) {
+      alert("수주보고서 정보가 없습니다.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await projectApi.createProject({ orderReportId });
+      // 생성된 사업 상세 조회
+      const detail = await projectApi.getProject(res.data);
+      setCreatedProject(detail.data);
+      setUploadStep("complete");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? "사업 등록에 실패했습니다. 다시 시도해주세요.";
+      alert(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 결과보고서 파일 업로드, 사업 업데이트
+  const handleUploadAndComplete = async () => {
+    if (!createdProject) {
+      onSuccess();
+      return;
+    }
+
+    // 파일 업로드 없이 완료 가능
     onSuccess();
   };
 
+  // 완료 단계 UI
+  if (uploadStep === "complete" && createdProject) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>사업 등록 완료</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md p-4 text-sm text-green-700 dark:text-green-300">
+            사업이 성공적으로 등록되었습니다.
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">사업번호</p>
+              <p className="font-medium">{createdProject.pjtNumber ?? "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">사업명</p>
+              <p className="font-medium">{createdProject.pjtName ?? "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">고객사</p>
+              <p className="font-medium">{createdProject.customerName ?? "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">사업금액</p>
+              <p className="font-medium">{createdProject.totalAmount != null ? `₩${createdProject.totalAmount.toLocaleString()}` : "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">사업개시일</p>
+              <p className="font-medium">{createdProject.startDate ?? "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">사업완료일</p>
+              <p className="font-medium">{createdProject.endDate ?? "-"}</p>
+            </div>
+          </div>
+
+          <p className="text-sm text-muted-foreground">* 사업 상세 정보(PM, 영업대표, 기간, 결과보고서)는 사업 상세 페이지에서 추가로 등록할 수 있습니다.</p>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={onCancel}>
+              목록으로
+            </Button>
+            <Button onClick={handleUploadAndComplete}>완료</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // 등록 단계 UI
   return (
     <Card>
       <CardHeader>
@@ -65,118 +169,64 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
             {/* 고객사 */}
             <div className="space-y-2">
               <Label htmlFor="customerName">고객사</Label>
-              <Input
-                id="customerName"
-                {...register("customerName", { required: true })}
-                readOnly
-                className="bg-muted"
-                placeholder="고객사 입력"
-              />
+              <Input id="customerName" {...register("customerName")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
             </div>
 
             {/* 사업명 */}
             <div className="space-y-2">
               <Label htmlFor="projectName">사업명</Label>
-              <Input
-                id="projectName"
-                {...register("projectName", { required: true })}
-                placeholder="사업명 입력"
-              />
+              <Input id="projectName" {...register("projectName")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
             </div>
 
             {/* 사업금액 */}
             <div className="space-y-2">
               <Label htmlFor="projectAmount">사업금액</Label>
-              <Input
-                id="projectAmount"
-                type="text"
-                {...register("projectAmount", {
-                  required: true,
-                  onChange: (e) => {
-                    const value = e.target.value.replace(/[^\d]/g, ""); // 숫자 이외의 문자 제거
-                    const formatted = value ? Number(value).toLocaleString() : "";
-                    setValue("projectAmount", formatted, { shouldValidate: true, shouldDirty: true });
-                  }
-                })}
-                placeholder="사업금액 입력"
-              />
+              <Input id="projectAmount" type="text" {...register("projectAmount")} readOnly className="bg-muted" placeholder="계약 금액 자동 연동" />
             </div>
 
             {/* 사업개시일 */}
             <div className="space-y-2">
               <Label htmlFor="startDate">사업개시일</Label>
-              <Input
-                id="startDate"
-                type="date"
-                {...register("startDate", { required: true })}
-              />
+              <Input id="startDate" type="date" {...register("startDate")} readOnly className="bg-muted" placeholder="계약에서 자동 연동" />
             </div>
 
             {/* 사업완료일 */}
             <div className="space-y-2">
               <Label htmlFor="endDate">사업완료일</Label>
-              <Input
-                id="endDate"
-                type="date"
-                {...register("endDate", { required: true })}
-              />
+              <Input id="endDate" type="date" {...register("endDate")} readOnly className="bg-muted" placeholder="계약에서 자동 연동" />
             </div>
 
             {/* PM 이름 */}
             <div className="space-y-2">
               <Label htmlFor="pmName">PM 이름</Label>
-              <Input
-                id="pmName"
-                {...register("pmName", { required: true })}
-                placeholder="PM 이름 입력"
-              />
+              <Input id="pmName" {...register("pmName")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
             </div>
 
             {/* 영업대표 */}
             <div className="space-y-2">
               <Label htmlFor="salesRep">영업대표</Label>
-              <Input
-                id="salesRep"
-                {...register("salesRep", { required: true })}
-                placeholder="영업대표 입력"
-              />
+              <Input id="salesRep" {...register("salesRep")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
             </div>
           </div>
 
-          {/* 결과보고서 첨부파일 */}
-          <div className="space-y-2">
-            <Label htmlFor="file">결과보고서 첨부</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                id="file"
-                type="file"
-                {...register("file", { required: true })}
-                className="cursor-pointer"
-              />
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              * 사업결과보고서를 업로드해주십시오.
-            </p>
+          {/* 안내 */}
+          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            <p>• 수주보고서 ID를 기반으로 사업이 등록됩니다.</p>
+            <p>• PM, 영업대표 배정 및 결과보고서 첨부는 등록 후 상세 페이지에서 진행합니다.</p>
           </div>
 
-          {/* 관련 문서 링크 (참고용) */}
-          <div className="bg-muted/50 p-4 rounded-md space-y-3 mt-6 border">
+          {/* 관련 문서 링크 */}
+          <div className="bg-muted/50 p-4 rounded-md space-y-3 border">
             <h4 className="text-sm font-semibold flex items-center gap-2">
               <ExternalLink className="w-4 h-4" />
               관련 문서 참고
             </h4>
             <div className="flex gap-4 text-sm">
-              <Link
-                href="/contract?tab=orders"
-                className="text-blue-600 hover:underline flex items-center gap-1"
-              >
+              <Link href="/contract?tab=orders" className="text-blue-600 hover:underline flex items-center gap-1">
                 수주보고서 ({inheritedData?.orderReportId || "미등록"})
               </Link>
               {inheritedData?.contractId && (
-                <Link
-                  href="/contract?tab=contracts"
-                  className="text-blue-600 hover:underline flex items-center gap-1"
-                >
+                <Link href="/contract?tab=contracts" className="text-blue-600 hover:underline flex items-center gap-1">
                   계약 ({inheritedData.contractId})
                 </Link>
               )}
@@ -184,10 +234,19 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
               취소
             </Button>
-            <Button type="submit">등록</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                  등록 중...
+                </>
+              ) : (
+                "등록"
+              )}
+            </Button>
           </div>
         </form>
       </CardContent>
