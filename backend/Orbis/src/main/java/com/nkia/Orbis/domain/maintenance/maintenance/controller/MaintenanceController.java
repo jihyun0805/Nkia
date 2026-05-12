@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,6 +36,7 @@ public class MaintenanceController {
      */
     @Operation(summary = "유지보수 등록")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE', 'CREATE')")
     public ResponseEntity<ApiResponse<Long>> register(
             @RequestBody @Valid MaintenanceCreateRequest request) {
         Long maintenanceId = maintenanceService.maintenanceRegister(request);
@@ -47,6 +49,7 @@ public class MaintenanceController {
      */
     @Operation(summary = "유지보수 수정")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE', 'UPDATE')")
     public ResponseEntity<ApiResponse<MaintenanceDetailResponse>> update(
             @PathVariable Long id,
             @RequestBody MaintenanceUpdateRequest request) {
@@ -59,6 +62,7 @@ public class MaintenanceController {
      */
     @Operation(summary = "유지보수 삭제")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         maintenanceService.deleteMaintenance(id);
         return ResponseEntity.ok(ApiResponse.success(null));
@@ -69,6 +73,7 @@ public class MaintenanceController {
      */
     @Operation(summary = "유지보수 상세 조회")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE', 'READ')")
     public ResponseEntity<ApiResponse<MaintenanceDetailResponse>> getDetail(@PathVariable Long id) {
         MaintenanceDetailResponse response = maintenanceService.getMaintenanceDetail(id);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -79,6 +84,7 @@ public class MaintenanceController {
      */
     @Operation(summary = "무상 유지보수 목록 조회")
     @GetMapping("/free")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE', 'READ')")
     public ResponseEntity<ApiResponse<List<MaintenanceListResponse>>> getFreeList() {
         List<MaintenanceListResponse> response = maintenanceService.getMaintenanceList(MaintenanceType.FREE);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -89,6 +95,7 @@ public class MaintenanceController {
      */
     @Operation(summary = "유상 유지보수 목록 조회")
     @GetMapping("/paid")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE', 'READ')")
     public ResponseEntity<ApiResponse<List<MaintenanceListResponse>>> getPaidList() {
         List<MaintenanceListResponse> response = maintenanceService.getMaintenanceList(MaintenanceType.PAID);
         return ResponseEntity.ok(ApiResponse.success(response));

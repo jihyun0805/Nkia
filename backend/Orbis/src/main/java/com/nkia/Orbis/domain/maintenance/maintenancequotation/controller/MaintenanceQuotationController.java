@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +31,7 @@ public class MaintenanceQuotationController {
 
     @Operation(summary = "유지보수 견적서 등록")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE_QUOTATION', 'CREATE')")
     public ResponseEntity<ApiResponse<MaintenanceQuotationCreateResponse>> register(
             @Valid @RequestBody MaintenanceQuotationCreateRequest dto) {
         MaintenanceQuotationCreateResponse response = quotationService.register(dto);
@@ -38,6 +40,7 @@ public class MaintenanceQuotationController {
 
     @Operation(summary = "유지보수 견적서 수정")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE_QUOTATION', 'UPDATE')")
     public ResponseEntity<ApiResponse<MaintenanceQuotationDetailResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody MaintenanceQuotationUpdateRequest dto) {
@@ -47,6 +50,7 @@ public class MaintenanceQuotationController {
 
     @Operation(summary = "유지보수 견적서 삭제")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE_QUOTATION', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         quotationService.delete(id);
         return ResponseEntity.ok(ApiResponse.success(null));
@@ -54,6 +58,7 @@ public class MaintenanceQuotationController {
 
     @Operation(summary = "유지보수 견적서 상세 조회")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE_QUOTATION', 'READ')")
     public ResponseEntity<ApiResponse<MaintenanceQuotationDetailResponse>> getDetail(@PathVariable Long id) {
         MaintenanceQuotationDetailResponse response = quotationService.getDetail(id);
         return ResponseEntity.ok(ApiResponse.success(response));

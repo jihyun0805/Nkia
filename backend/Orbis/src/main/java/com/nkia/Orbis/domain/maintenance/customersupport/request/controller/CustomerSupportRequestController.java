@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +31,7 @@ public class CustomerSupportRequestController {
 
     @Operation(summary = "고객지원 요청 생성")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'CREATE')")
     public ResponseEntity<ApiResponse<Long>> createRequest(@RequestBody CustomerSupportRequestCreateRequest request) {
 
         Long requestId = customerSupportRequestService.createRequest(request);
@@ -42,6 +44,7 @@ public class CustomerSupportRequestController {
      */
     @Operation(summary = "고객지원 요청 수정")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'UPDATE')")
     public ResponseEntity<ApiResponse<CustomerSupportRequestDetailResponse>> updateRequest(
             @PathVariable Long id,
             @RequestBody CustomerSupportRequestUpdateRequest request) {
@@ -55,6 +58,7 @@ public class CustomerSupportRequestController {
      */
     @Operation(summary = "고객지원 요청 삭제")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteRequest(@PathVariable Long id) {
         customerSupportRequestService.deleteRequest(id);
         return ResponseEntity.ok(ApiResponse.success(null));
@@ -65,6 +69,7 @@ public class CustomerSupportRequestController {
      */
     @Operation(summary = "고객지원 요청 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'READ')")
     public ResponseEntity<ApiResponse<List<CustomerSupportRequestListResponse>>> getRequests() {
         return ResponseEntity.ok(ApiResponse.success(customerSupportRequestService.getRequests()));
     }
@@ -74,6 +79,7 @@ public class CustomerSupportRequestController {
      */
     @Operation(summary = "고객지원 요청 상세 조회")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'READ')")
     public ResponseEntity<ApiResponse<CustomerSupportRequestDetailResponse>> getRequestDetail(
             @PathVariable Long id) {
         CustomerSupportRequestDetailResponse response = customerSupportRequestService.getRequestDetail(id);
