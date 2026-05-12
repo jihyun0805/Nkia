@@ -2,7 +2,6 @@ package com.nkia.Orbis.domain.maintenance.customersupport.request.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
-import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
@@ -178,9 +177,8 @@ public class CustomerSupportRequestService {
     ) {
         CustomerSupportRequest customerSupportRequest = requestRepository.findById(customerSupportRequestId)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
-        // TODO: 에러코드 수정
         if (!customerSupportRequest.isDraft()) {
-            throw new ApiException(ContractErrorCode.INVALID_LICENSE_STATUS);
+            throw new ApiException(MaintenanceErrorCode.INVALID_CS_REQUEST_STATUS);
         }
 
         UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
