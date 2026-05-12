@@ -1,10 +1,11 @@
 package com.nkia.Orbis.domain.contract.license.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.company.entity.Company;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.company.entity.Company;
+import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -28,6 +29,9 @@ public class License extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_report_id")
@@ -70,6 +74,7 @@ public class License extends BaseEntity {
             Integer quantity
     ) {
         License license = new License();
+        license.status = ApprovalStatus.DRAFT;
         license.orderReport = orderReport;
         license.customerCompany = orderReport.getFinalCustomerCompany();
         license.startDate = orderReport.getContractStartDate();
@@ -78,7 +83,7 @@ public class License extends BaseEntity {
         license.applyProduct(productModule);
         license.applyPrice(quantity);
         license.licenseType = LicenseType.OFFICIAL;
-        license.licenseStatus = LicenseStatus.ISSUED;
+        license.licenseStatus = LicenseStatus.DEACTIVE;
 
         return license;
     }
@@ -99,7 +104,8 @@ public class License extends BaseEntity {
         license.applyProduct(productModule);
         license.applyPrice(quantity);
         license.licenseType = licenseType;
-        license.licenseStatus = LicenseStatus.REQUESTED;
+        license.licenseStatus = LicenseStatus.DEACTIVE;
+        license.status = ApprovalStatus.DRAFT;
 
         return license;
     }
@@ -138,5 +144,33 @@ public class License extends BaseEntity {
 
         applyProduct(productModule);
         applyPrice(quantity);
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public void active() {
+        this.licenseStatus = LicenseStatus.ACTIVE;
+    }
+
+    public void issued() {
+        this.licenseStatus = LicenseStatus.ISSUED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }
