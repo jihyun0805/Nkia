@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
@@ -9,23 +9,76 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClipboardList, Receipt, Wallet, TrendingUp, Plus } from "lucide-react";
+import { ClipboardList, Receipt, TrendingUp, Plus, Loader2, AlertCircle } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { billingAndCollections, projectResults } from "@/lib/project-data";
-import { orderReports, contracts } from "@/lib/contract-data";
+import { contracts, orderReports } from "@/lib/contract-data";
 import { ProjectResultForm } from "@/components/erp/project/project-result-form";
 import { BillingRequestForm } from "@/components/erp/project/billing-request-form";
+import { projectApi, type ProjectListResponse, type BillingListResponse } from "@/lib/api/project-api";
 
 export default function ProjectPage() {
   const router = useRouter();
-  const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
+
+  // 탭 / 생성 상태
   const [activeTab, setActiveTab] = useState<"results" | "billingAndCollection" | "revenue">("results");
   const [isCreating, setIsCreating] = useState(false);
 
+  // 검색 / 필터
+  const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
+
+  // 사업 목록 상태
+  const [projects, setProjects] = useState<ProjectListResponse[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  // 청구 목록 상태
+  const [billings, setBillings] = useState<BillingListResponse[]>([]);
+  const [billingsLoading, setBillingsLoading] = useState(false);
+  const [billingsError, setBillingsError] = useState<string | null>(null);
+
+  // 데이터 페칭
+  const fetchProjects = useCallback(async () => {
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const res = await projectApi.getProjects();
+      setProjects(res.data ?? []);
+    } catch {
+      setProjectsError("사업 목록을 불러오는 데 실패했습니다.");
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, []);
+
+  const fetchBillings = useCallback(async () => {
+    setBillingsLoading(true);
+    setBillingsError(null);
+    try {
+      const res = await projectApi.getBillings();
+      setBillings(res.data ?? []);
+    } catch {
+      setBillingsError("청구 목록을 불러오는 데 실패했습니다.");
+    } finally {
+      setBillingsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  useEffect(() => {
+    if (activeTab === "billingAndCollection") {
+      fetchBillings();
+    }
+  }, [activeTab, fetchBillings]);
+
+  // 예상 매출액
+  // TODO: 우선 로컬에서 계산, 추후 API 연동 필요
   const { expectedRevenue, totalEms, totalItg, totalIot, totalOther, totalEmsMaint, totalItgMaint, totalRevenue } = useMemo(() => {
     const y = 2026;
     type MonthRow = { month: string; ems: number; itg: number; iot: number; other: number; emsMaint: number; itgMaint: number };
@@ -88,42 +141,47 @@ export default function ProjectPage() {
       tTotal += row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
     });
 
-    return {
-      expectedRevenue: revenueList,
-      totalEms: tEms,
-      totalItg: tItg,
-      totalIot: tIot,
-      totalOther: tOther,
-      totalEmsMaint: tEmsMaint,
-      totalItgMaint: tItgMaint,
-      totalRevenue: tTotal,
-    };
+    return { expectedRevenue: revenueList, totalEms: tEms, totalItg: tItg, totalIot: tIot, totalOther: tOther, totalEmsMaint: tEmsMaint, totalItgMaint: tItgMaint, totalRevenue: tTotal };
   }, []);
-  const projectFieldOptions =
-    activeTab === "billingAndCollection"
-      ? [{ key: "customer", label: "고객사", options: uniqueOptions(billingAndCollections, (item) => item.customer) }]
-      : [{ key: "customer", label: "고객사", options: uniqueOptions(projectResults, (item) => item.customer) }];
 
-  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
+  // 검색 / 필터 적용
+  const normalizedSearch = appliedSearchTerm.trim().toLowerCase();
   const matchesSearch = (values: Array<string | number | null | undefined>) => {
-    if (!normalizedSearchTerm) return true;
+    if (!normalizedSearch) return true;
     return values
-      .filter((value) => value !== null && value !== undefined)
+      .filter((v) => v != null)
       .join(" ")
       .toLowerCase()
-      .includes(normalizedSearchTerm);
+      .includes(normalizedSearch);
   };
 
-  const filteredProjectResults = filterRecords(projectResults, filters, { owner: (item) => item.pm, date: (item) => item.registeredAt, fields: { customer: (item) => item.customer } })
-    .filter((item) => matchesSearch([item.id, item.customer, item.name, item.amount, item.startDate, item.endDate, item.pm, item.salesRep]))
-    .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
+  // 사업 필터
+  const filteredProjects = projects
+    .filter((p) => matchesSearch([p.customerName, p.projectName, p.pmName, p.salesRepresentativeName]))
+    .sort((a, b) => {
+      if (!a.startDate && !b.startDate) return 0;
+      if (!a.startDate) return 1;
+      if (!b.startDate) return -1;
+      return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+    });
 
-  const filteredBillingAndCollections = filterRecords(billingAndCollections, filters, { date: (item) => item.issueDate, fields: { customer: (item) => item.customer } })
-    .filter((item) => item.approvalStatus === "승인완료")
-    .filter((item) => matchesSearch([item.id, item.customer, item.projectName, item.amount, item.issueDate, item.collectionDate, item.salesRep, item.requester, item.approvalStatus]))
-    .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
+  // 청구 필터 (status 없을 시 전체 표시, 있으면 ISSUED/COLLECTED만 표시)
+  const filteredBillings = billings
+    .filter((b) => !b.status || b.status === "ISSUED" || b.status === "COLLECTED")
+    .filter((b) => matchesSearch([b.customerName, b.projectName, b.salesRepName, b.requesterName]))
+    .sort((a, b) => {
+      if (!a.createdAt && !b.createdAt) return 0;
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
-  const projectStatuses = ["진행중", "완료", "발행완료", "수금완료", "대기", "승인완료"];
+  const statusLabel = (status: string) => {
+    if (status === "REQUESTED") return "요청";
+    if (status === "ISSUED") return "발행완료";
+    if (status === "COLLECTED") return "수금완료";
+    return status;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -154,11 +212,12 @@ export default function ProjectPage() {
                   예상 매출액
                 </TabsTrigger>
               </TabsList>
+
               <div className="flex items-center gap-2">
                 {!isCreating ? (
                   <>
                     {activeTab !== "revenue" && <PageSearchForm value={searchTerm} onChange={setSearchTerm} onSearch={() => setAppliedSearchTerm(searchTerm)} />}
-                    <FilterPopover title="사업" statusOptions={projectStatuses} value={filters} onApply={setFilters} fieldOptions={projectFieldOptions} />
+                    <FilterPopover title="사업" statusOptions={["REQUESTED", "ISSUED", "COLLECTED"]} value={filters} onApply={setFilters} fieldOptions={[]} />
                     {activeTab === "results" && (
                       <Button onClick={() => setIsCreating(true)}>
                         <Plus className="mr-2 w-4 h-4" /> 사업결과보고 등록
@@ -178,115 +237,172 @@ export default function ProjectPage() {
               </div>
             </div>
 
+            {/* 결과보고 탭 */}
             <TabsContent value="results">
               {!isCreating ? (
                 <Card>
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">사업 현황</CardTitle>
-                      <Badge variant="secondary">{filteredProjectResults.length}건</Badge>
+                      <Badge variant="secondary">{filteredProjects.length}건</Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>고객사</TableHead>
-                          <TableHead>사업명</TableHead>
-                          <TableHead className="text-right">사업금액</TableHead>
-                          <TableHead>사업개시일</TableHead>
-                          <TableHead>사업완료일</TableHead>
-                          <TableHead>PM</TableHead>
-                          <TableHead>영업대표</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredProjectResults.map((project) => (
-                          <TableRow key={project.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/project/results/${project.id}`)}>
-                            <TableCell>{project.customer}</TableCell>
-                            <TableCell className="font-medium max-w-[150px] truncate">{project.name}</TableCell>
-                            <TableCell className="text-right font-medium">₩{project.amount.toLocaleString()}</TableCell>
-                            <TableCell className="text-sm">{project.startDate}</TableCell>
-                            <TableCell className="text-sm">{project.endDate}</TableCell>
-                            <TableCell>{project.pm}</TableCell>
-                            <TableCell>{project.salesRep}</TableCell>
+                    {projectsLoading ? (
+                      <div className="flex justify-center items-center py-16 gap-2 text-muted-foreground">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        불러오는 중...
+                      </div>
+                    ) : projectsError ? (
+                      <div className="flex justify-center items-center py-16 gap-2 text-destructive">
+                        <AlertCircle className="w-5 h-5" />
+                        {projectsError}
+                        <Button variant="ghost" size="sm" onClick={fetchProjects}>
+                          재시도
+                        </Button>
+                      </div>
+                    ) : filteredProjects.length === 0 ? (
+                      <div className="text-center py-16 text-muted-foreground">등록된 사업이 없습니다.</div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>고객사</TableHead>
+                            <TableHead>사업명</TableHead>
+                            <TableHead className="text-right">사업금액</TableHead>
+                            <TableHead>사업개시일</TableHead>
+                            <TableHead>사업완료일</TableHead>
+                            <TableHead>PM</TableHead>
+                            <TableHead>영업대표</TableHead>
+                            <TableHead className="text-center">결과보고</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredProjects.map((project) => (
+                            <TableRow key={project.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/project/results/${project.id}`)}>
+                              <TableCell>{project.customerName ?? "-"}</TableCell>
+                              <TableCell className="font-medium max-w-[150px] truncate">{project.projectName ?? "-"}</TableCell>
+                              <TableCell className="text-right font-medium">{project.totalAmount != null ? `₩${project.totalAmount.toLocaleString()}` : "-"}</TableCell>
+                              <TableCell className="text-sm">{project.startDate ?? "-"}</TableCell>
+                              <TableCell className="text-sm">{project.endDate ?? "-"}</TableCell>
+                              <TableCell>{project.pmName ?? "-"}</TableCell>
+                              <TableCell>{project.salesRepresentativeName ?? "-"}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={project.hasResultReport ? "default" : "outline"}>{project.hasResultReport ? "완료" : "미등록"}</Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
                   </CardContent>
                 </Card>
               ) : (
                 <ProjectResultForm
-                  onSuccess={() => setIsCreating(false)}
+                  onSuccess={() => {
+                    setIsCreating(false);
+                    fetchProjects();
+                  }}
                   onCancel={() => setIsCreating(false)}
                   inheritedData={{
-                    customerId: "CUST-001",
-                    customerName: "삼성전자",
-                    opportunityId: "OPP-2026-001",
-                    opportunityName: "삼성전자 EMS 구축",
-                    orderReportId: "ORD-2026-001",
-                    contractId: "CTR-2026-001",
+                    customerId: "",
+                    customerName: "",
+                    opportunityId: "",
+                    opportunityName: "",
+                    orderReportId: "",
+                    contractId: "",
                   }}
                 />
               )}
             </TabsContent>
 
+            {/* 청구 및 수금 현황 탭 */}
             <TabsContent value="billingAndCollection">
               {!isCreating ? (
                 <Card>
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">청구 및 수금 현황</CardTitle>
-                      <Badge variant="secondary">{filteredBillingAndCollections.length}건</Badge>
+                      <Badge variant="secondary">{filteredBillings.length}건</Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>고객사</TableHead>
-                          <TableHead>사업명</TableHead>
-                          <TableHead className="text-right">청구금액</TableHead>
-                          <TableHead>세금계산서 발행일</TableHead>
-                          <TableHead>수금일</TableHead>
-                          <TableHead>영업대표</TableHead>
-                          <TableHead>요청자</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredBillingAndCollections.map((item) => (
-                          <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/project/billingAndCollection/${item.id}`)}>
-                            <TableCell className="font-medium">{item.customer}</TableCell>
-                            <TableCell>{item.projectName}</TableCell>
-                            <TableCell className="text-right font-medium">₩{parseInt(item.amount.replace(/,/g, "")).toLocaleString()}</TableCell>
-                            <TableCell>{item.issueDate}</TableCell>
-                            <TableCell>{item.collectionDate}</TableCell>
-                            <TableCell>{item.salesRep}</TableCell>
-                            <TableCell>{item.requester}</TableCell>
+                    {billingsLoading ? (
+                      <div className="flex justify-center items-center py-16 gap-2 text-muted-foreground">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        불러오는 중...
+                      </div>
+                    ) : billingsError ? (
+                      <div className="flex justify-center items-center py-16 gap-2 text-destructive">
+                        <AlertCircle className="w-5 h-5" />
+                        {billingsError}
+                        <Button variant="ghost" size="sm" onClick={fetchBillings}>
+                          재시도
+                        </Button>
+                      </div>
+                    ) : filteredBillings.length === 0 ? (
+                      <div className="text-center py-16 text-muted-foreground">등록된 청구 내역이 없습니다.</div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>고객사</TableHead>
+                            <TableHead>사업명</TableHead>
+                            <TableHead className="text-right">청구금액</TableHead>
+                            <TableHead>세금계산서 발행일</TableHead>
+                            <TableHead>수금일</TableHead>
+                            <TableHead>영업대표</TableHead>
+                            <TableHead>요청자</TableHead>
+                            <TableHead className="text-center">상태</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredBillings.map((item, idx) => (
+                            <TableRow
+                              key={item.id ?? idx}
+                              className={item.id ? "cursor-pointer hover:bg-muted/50" : "hover:bg-muted/50"}
+                              onClick={() => item.id && router.push(`/project/billingAndCollection/${item.id}`)}
+                            >
+                              <TableCell className="font-medium">{item.customerName}</TableCell>
+                              <TableCell>{item.projectName}</TableCell>
+                              <TableCell className="text-right font-medium">₩{item.billingAmount.toLocaleString()}</TableCell>
+                              <TableCell>{item.issuedAt ?? "-"}</TableCell>
+                              <TableCell>{item.collectedAt ?? "-"}</TableCell>
+                              <TableCell>{item.salesRepName}</TableCell>
+                              <TableCell>{item.requesterName}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={item.status === "COLLECTED" ? "default" : item.status === "ISSUED" ? "secondary" : "outline"}>
+                                  {item.status ? statusLabel(item.status) : "발행완료"}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
                   </CardContent>
                 </Card>
               ) : (
                 <BillingRequestForm
-                  onSuccess={() => setIsCreating(false)}
+                  onSuccess={() => {
+                    setIsCreating(false);
+                    fetchBillings();
+                  }}
                   onCancel={() => setIsCreating(false)}
                   inheritedData={{
-                    customerId: "CUST-001",
-                    customerName: "삼성전자",
-                    opportunityId: "OPP-2026-001",
-                    opportunityName: "삼성전자 EMS 구축",
-                    orderReportId: "ORD-2026-001",
-                    contractId: "CTR-2026-001",
-                    projectName: "삼성전자 EMS 구축 사업",
+                    customerId: "",
+                    customerName: "",
+                    opportunityId: "",
+                    opportunityName: "",
+                    orderReportId: "",
+                    contractId: "",
+                    projectName: "",
                   }}
                 />
               )}
             </TabsContent>
 
+            {/* 예상 매출액 탭 */}
             <TabsContent value="revenue">
               <Card>
                 <CardHeader className="pb-4">

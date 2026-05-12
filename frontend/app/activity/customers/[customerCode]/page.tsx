@@ -22,12 +22,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getActivities, getActivityDisplayType } from "@/lib/activity-data"
+import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
+import { type ActivityRecord, getActivityDisplayType } from "@/lib/activity-data"
+import { formatAttachmentSize } from "@/lib/attachments"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { deleteOpportunity, getFindingFields, getOpportunities, getCustomerByCode } from "@/lib/finding-data"
 import type { CustomerRecord, OpportunityRecord } from "@/lib/finding-data"
 import { toast } from "@/hooks/use-toast"
-import { Mail, Phone, Users } from "lucide-react"
+import { FileText, Mail, Phone, Users } from "lucide-react"
 
 const activitiesPerPage = 10
 const fullWidthFieldLabels = [
@@ -36,6 +38,11 @@ const fullWidthFieldLabels = [
   "고객사 의사결정구조 및 담당자 정보",
 ]
 
+function formatRfpSummaryTitle(fileName: string) {
+  const title = fileName.replace(/\.[^.]+$/, "").trim()
+  return title || "RFP 문서"
+}
+
 export default function ActivityCustomerDetailPage() {
   const params = useParams<{ customerCode: string }>()
   const router = useRouter()
@@ -43,7 +50,7 @@ export default function ActivityCustomerDetailPage() {
   const customerCode = params.customerCode
   const opportunityId = searchParams.get("opportunityId") ?? ""
   const [page, setPage] = useState(1)
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [customer, setCustomer] = useState<CustomerRecord | null>(null)
   const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -70,7 +77,7 @@ export default function ActivityCustomerDetailPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords(getActivities())
+          setActivityRecords([])
         }
       })
 
@@ -167,18 +174,48 @@ export default function ActivityCustomerDetailPage() {
               <CardContent>
                 {selectedOpportunity ? (
                   <>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {opportunityFields.map((field) => (
-                        <div
-                          key={field.label}
-                          className={`space-y-2 ${fullWidthFieldLabels.includes(field.label) ? "md:col-span-2" : ""}`}
+	                    <div className="grid gap-4 md:grid-cols-2">
+	                      {opportunityFields.map((field) => (
+	                        <div
+	                          key={field.label}
+	                          className={`space-y-2 ${fullWidthFieldLabels.includes(field.label) ? "md:col-span-2" : ""}`}
                         >
                           <Label>{field.label}</Label>
                           <Input readOnly value={field.value || "-"} />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex justify-end gap-2 border-t pt-6">
+	                        </div>
+	                      ))}
+	                    </div>
+	                    <section className="mt-6 space-y-3">
+	                      <h2 className="text-base font-semibold">RFP 문서</h2>
+	                      {Array.isArray(selectedOpportunity.rfpAttachments) && selectedOpportunity.rfpAttachments.length > 0 ? (
+	                        <>
+	                          <div className="space-y-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+	                            {selectedOpportunity.rfpAttachments.map((attachment) => (
+	                              <div key={attachment.id} className="flex items-center gap-2 text-sm">
+	                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+	                                <a href={attachment.dataUrl} download={attachment.name} className="truncate font-medium text-primary hover:underline">
+	                                  {attachment.name}
+	                                </a>
+	                                <span className="shrink-0 text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</span>
+	                              </div>
+	                            ))}
+	                          </div>
+	                          {selectedOpportunity.rfpAttachments.some((attachment) => attachment.summary) ? (
+	                            <div className="space-y-3">
+	                              {selectedOpportunity.rfpAttachments.filter((attachment) => attachment.summary).map((attachment) => (
+	                                <div key={attachment.id} className="space-y-3 rounded-md border border-border p-4">
+	                                  <h3 className="text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+	                                  <RfpSummaryMarkdown markdown={attachment.summary} />
+	                                </div>
+	                              ))}
+	                            </div>
+	                          ) : null}
+	                        </>
+	                      ) : (
+	                        <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">등록된 RFP 문서가 없습니다.</div>
+	                      )}
+	                    </section>
+	                    <div className="flex justify-end gap-2 border-t pt-6">
                       <Button variant="outline" asChild>
                         <Link href={`/finding/opportunities/${selectedOpportunity.id}/edit?tab=opportunities`}>수정</Link>
                       </Button>
