@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.activity.quotation.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -15,7 +15,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,11 +34,7 @@ public class Quotation extends BaseEntity {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    private QuotationStatus status;
-
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "workflow_id")
-    private Workflow workflow;
+    private ApprovalStatus status;
 
     private String refNo;
 
@@ -89,7 +84,7 @@ public class Quotation extends BaseEntity {
         quotation.supplyTotalPrice = 0L;
         quotation.laborTotalPrice = 0L;
         quotation.totalPrice = 0L;
-        quotation.status = QuotationStatus.DRAFT;
+        quotation.status = ApprovalStatus.DRAFT;
         return quotation;
     }
 
@@ -157,24 +152,23 @@ public class Quotation extends BaseEntity {
         this.totalPrice = 0L;
     }
 
-    public void connectWorkflow(Workflow workflow) {
-        this.workflow = workflow;
-    }
-
-    public void submit(Workflow workflow) {
-        this.workflow = workflow;
-        this.status = QuotationStatus.PENDING;
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
     }
 
     public void approve() {
-        this.status = QuotationStatus.APPROVED;
+        this.status = ApprovalStatus.APPROVED;
     }
 
     public void reject() {
-        this.status = QuotationStatus.REJECTED;
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
     }
 
     public boolean isDraft() {
-        return this.status == QuotationStatus.DRAFT;
+        return this.status == ApprovalStatus.DRAFT;
     }
 }

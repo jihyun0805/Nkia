@@ -14,19 +14,20 @@ import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLineStatus;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStep;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowTemplate;
+import com.nkia.Orbis.domain.admin.workflow.handler.WorkflowDomainHandler;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowLineRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowStepRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowTemplateRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class WorkflowService {
 
     private final WorkflowRepository workflowRepository;
@@ -34,6 +35,8 @@ public class WorkflowService {
     private final WorkflowStepRepository workflowStepRepository;
     private final WorkflowLineRepository workflowLineRepository;
     private final UserRepository userRepository;
+
+    private final Map<WorkflowDomain, WorkflowDomainHandler> handlerMap;
 
     @Transactional
     public Workflow startWorkflow(
@@ -120,6 +123,7 @@ public class WorkflowService {
         // 다음 단계가 없다면 최종 승인
         if (nextStep.isEmpty()) {
             workflow.approveComplete();
+            handleApproved(workflow);
             return;
         }
 
@@ -164,6 +168,7 @@ public class WorkflowService {
 
         currentLine.reject(comment);
         workflow.reject();
+        handleRejected(workflow);
     }
 
     // 취소
@@ -173,6 +178,7 @@ public class WorkflowService {
 
         validateWorkflowProgress(workflow);
         workflow.cancel();
+        handleCancelled(workflow);
     }
 
 
@@ -303,7 +309,7 @@ public class WorkflowService {
                 .toList();
     }
 
-    public WorkflowResponse toWorkflowResponse(Workflow workflow) { // 수정됨
+    public WorkflowResponse toWorkflowResponse(Workflow workflow) {
         long totalStepCount = workflowStepRepository
                 .countByWorkflowTemplateAndActiveTrue(
                         workflow.getWorkflowTemplate()
@@ -314,5 +320,49 @@ public class WorkflowService {
                         && workflow.getCurrentStepOrder() < totalStepCount;
 
         return WorkflowResponse.from(workflow, needNextApprover);
+    }
+
+    private void handleApproved(Workflow workflow) {
+        WorkflowDomainHandler handler = handlerMap.get(workflow.getWorkflowDomain());
+
+        if (handler != null) {
+            handler.onApproved(workflow.getTargetId());
+        }
+    }
+
+    private void handleRejected(Workflow workflow) {
+        WorkflowDomainHandler handler = handlerMap.get(workflow.getWorkflowDomain());
+
+        if (handler != null) {
+            handler.onRejected(workflow.getTargetId());
+        }
+    }
+
+    private void handleCancelled(Workflow workflow) {
+        WorkflowDomainHandler handler = handlerMap.get(workflow.getWorkflowDomain());
+
+        if (handler != null) {
+            handler.onCancelled(workflow.getTargetId());
+        }
+    }
+
+    public WorkflowService(
+            WorkflowRepository workflowRepository,
+            WorkflowTemplateRepository workflowTemplateRepository,
+            WorkflowStepRepository workflowStepRepository,
+            WorkflowLineRepository workflowLineRepository,
+            UserRepository userRepository,
+            List<WorkflowDomainHandler> handlers
+    ) {
+        this.workflowRepository = workflowRepository;
+        this.workflowTemplateRepository = workflowTemplateRepository;
+        this.workflowStepRepository = workflowStepRepository;
+        this.workflowLineRepository = workflowLineRepository;
+        this.userRepository = userRepository;
+        this.handlerMap = handlers.stream()
+                .collect(Collectors.toMap(
+                        WorkflowDomainHandler::getDomain,
+                        handler -> handler
+                ));
     }
 }

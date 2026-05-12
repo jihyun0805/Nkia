@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.contract.orderreport.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.company.entity.Company;
@@ -40,6 +41,9 @@ public class OrderReport extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     @Column(nullable = false, unique = true)
     private String orderReportCode;
@@ -209,6 +213,7 @@ public class OrderReport extends BaseEntity {
             Double itemTotalMaintenanceRate
     ) {
         OrderReport orderReport = new OrderReport();
+        orderReport.status = ApprovalStatus.DRAFT;
         orderReport.orderReportCode = orderReportCode;
         orderReport.paymentCondition = paymentCondition;
         orderReport.quotationProvided = quotationProvided;
@@ -490,5 +495,25 @@ public class OrderReport extends BaseEntity {
         this.itemTotalThirdParty = 0L;
         this.itemTotalService = 0L;
         this.itemTotalMaintenance = 0L;
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }

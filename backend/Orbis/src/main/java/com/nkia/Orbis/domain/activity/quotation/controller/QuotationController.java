@@ -7,7 +7,7 @@ import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.service.QuotationService;
 import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryListResponse;
 import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryResponse;
-import com.nkia.Orbis.domain.admin.workflow.dto.request.QuotationSubmitRequest;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -114,7 +114,7 @@ public class QuotationController {
     @PostMapping("/submit/{quotationId}")
     public ResponseEntity<ApiResponse<String>> submitQuotation(
             @PathVariable("quotationId") Long quotationId,
-            @RequestBody QuotationSubmitRequest request
+            @RequestBody SubmitRequest request
     ) {
         quotationService.submitQuotation(
                 quotationId,
