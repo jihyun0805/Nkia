@@ -38,10 +38,8 @@ import {
   type ActivityRecord,
   type ActivityRequestRecord,
   type QuotationRecord,
-  getActivities,
   activityRequestTypeOptions,
   getCategoryLabel,
-  updateActivity,
 } from "@/lib/activity-data"
 import { toast } from "@/hooks/use-toast"
 import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } from "@/lib/activity-request-workflow"
@@ -119,7 +117,7 @@ export default function ActivityEditPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords(getActivities())
+          setActivityRecords([])
         }
       })
 
@@ -374,37 +372,12 @@ export default function ActivityEditPage() {
           description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
         })
         router.push(`/activity/${category}/${id}`)
-        return
       } catch {
-        const updated = updateActivity(id, {
-          date: activityForm.date,
-          requestId: (item as ActivityRecord).requestId,
-          registrant: (item as ActivityRecord).registrant ?? currentUser.name,
-          requester: (item as ActivityRecord).requester ?? "",
-          customerCode: activityCustomerCode,
-          businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
-          activityMode: activityForm.activityMode,
-          activityContent: activityForm.activityContent,
-          type: (item as ActivityRecord).type,
-          customer: activityCustomer,
-          opportunity: activityOpportunity || "미확인",
-          location: activityForm.location,
-          attendees: activityForm.attendees,
-          content: activityForm.content,
-          issues: activityForm.issues,
-          nextAction: activityForm.nextAction,
-          status: (item as ActivityRecord).status,
-          attachments: activityAttachments,
-        })
-        if (!updated) return
-        const updatedActivity = updated as ActivityRecord
-
         scrollToTop()
         toast({
-          title: "영업활동 수정 완료",
-          description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
+          title: "영업활동 수정 실패",
+          description: "백엔드에서 영업활동을 수정하지 못했습니다.",
         })
-        router.push(`/activity/${category}/${id}`)
       }
       return
     }

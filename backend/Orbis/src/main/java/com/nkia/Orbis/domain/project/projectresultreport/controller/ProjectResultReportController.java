@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,13 +25,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectResultReportController {
 
     private final ProjectResultReportService reportService;
-    private final ProjectFacadeService projectFacadeService;
 
     /**
      * 결과보고 데이터 저장
      */
     @Operation(summary = "사업 결과 보고 등록")
     @PostMapping("/register")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_RESULT_REPORT', 'CREATE')")
     public ResponseEntity<ApiResponse<Long>> register(@Valid @RequestBody ProjectResultReportCreateRequest request) {
         Long reportId = reportService.registerResultReport(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -42,6 +43,7 @@ public class ProjectResultReportController {
      */
     @Operation(summary = "사업 결과 보고 삭제")
     @DeleteMapping("/{reportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_RESULT_REPORT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteResultReport(@PathVariable Long reportId) {
         reportService.deleteReport(reportId);
         return ResponseEntity.ok(ApiResponse.success(null));

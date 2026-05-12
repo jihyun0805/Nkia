@@ -27,7 +27,7 @@ import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocompl
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
-import { activityRequestTypeOptions, createActivity, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
+import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { createActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
 import { getPresalesUsers } from "@/lib/admin-data"
@@ -288,32 +288,12 @@ function ActivityCategoryNewPageContent() {
           description: `${created.customer} 영업활동이 등록되었습니다.`,
         })
         router.push(`/activity/activities/${created.id}`)
-        return
       } catch {
-        const created = createActivity({
-          date: activityForm.date,
-          requestId: (linkedRequest?.id ?? linkedRequestId) || undefined,
-          registrant: currentUser.name,
-          requester: activityRequester.trim(),
-          customerCode: activityCustomerCode,
-          businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
-          activityMode: activityForm.activityMode,
-          activityContent: activityForm.activityContent,
-          customer: activityCustomer,
-          opportunity: activityOpportunity || "미확인",
-          location: activityForm.location,
-          attendees: activityForm.attendees,
-          content: activityForm.content,
-          issues: activityForm.issues,
-          nextAction: activityForm.nextAction,
-          status: "완료",
-          attachments: activityAttachments,
-        })
         toast({
-          title: "영업활동 등록 완료",
-          description: `${created.customer} 영업활동이 등록되었습니다.`,
+          title: "영업활동 등록 실패",
+          description: "백엔드에 영업활동을 저장하지 못했습니다.",
         })
-        router.push(`/activity/activities/${created.id}`)
+        return
       }
       return
     }

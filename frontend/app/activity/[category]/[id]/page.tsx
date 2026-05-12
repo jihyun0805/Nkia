@@ -37,10 +37,8 @@ import {
   type ActivityRecord,
   type ActivityRequestRecord,
   type QuotationRecord,
-  getActivities,
   getActivityItemFields,
   getCategoryLabel,
-  deleteActivity,
 } from "@/lib/activity-data"
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
@@ -139,7 +137,7 @@ export default function ActivityDetailPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords(getActivities())
+          setActivityRecords([])
         }
       })
 
@@ -333,16 +331,11 @@ export default function ActivityDetailPage() {
           description: `${id} 영업활동이 삭제되었습니다.`,
         })
         router.push(listHref)
-        return
       } catch {
-        const deleted = deleteActivity(id)
-        if (deleted.status !== "deleted") return
-
         toast({
-          title: "영업활동 삭제 완료",
-          description: `${id} 영업활동이 삭제되었습니다.`,
+          title: "영업활동 삭제 실패",
+          description: "백엔드에서 영업활동을 삭제하지 못했습니다.",
         })
-        router.push(listHref)
       }
     })()
   }

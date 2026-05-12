@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getOpportunities, type OpportunityRecord } from "@/lib/finding-data"
+import { type OpportunityRecord } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
 import { Search } from "lucide-react"
 
 export default function FindingOpportunitiesPage() {
@@ -20,22 +21,29 @@ export default function FindingOpportunitiesPage() {
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
 
   useEffect(() => {
-    const sync = () => setOpportunities(getOpportunities())
-    sync()
-    window.addEventListener("storage", sync)
-    return () => window.removeEventListener("storage", sync)
+    let cancelled = false
+
+    loadBackendFindingData()
+      .then((data) => {
+        if (!cancelled) {
+          setOpportunities(data.opportunities)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOpportunities([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const opportunityCards = useMemo(() => {
-    const threshold = new Date()
-    threshold.setMonth(threshold.getMonth() - 1)
     const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
 
-    return opportunities
-      .filter((item) => {
-        const createdAt = item.createdAt ? new Date(`${item.createdAt}T00:00:00`) : null
-        return createdAt ? createdAt >= threshold : false
-      })
+    return [...opportunities]
       .filter((item) => {
         if (!normalizedSearchTerm) return true
         return [item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]
@@ -45,8 +53,11 @@ export default function FindingOpportunitiesPage() {
           .includes(normalizedSearchTerm)
       })
       .sort((a, b) => {
-        if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt)
-        return a.customer.localeCompare(b.customer, "ko")
+        const customerCompare = a.customer.localeCompare(b.customer, "ko")
+        if (customerCompare !== 0) return customerCompare
+        const nameCompare = a.name.localeCompare(b.name, "ko")
+        if (nameCompare !== 0) return nameCompare
+        return a.id.localeCompare(b.id)
       })
   }, [opportunities, appliedSearchTerm])
 
@@ -54,7 +65,7 @@ export default function FindingOpportunitiesPage() {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header title="사업기회 현황" description="최근 1개월 내 등록된 신규 사업기회를 고객사 카드로 확인합니다" />
+        <Header title="사업기회 현황" description="등록된 사업기회를 고객사 카드로 확인합니다" />
         <main className="flex-1 overflow-auto p-6">
           <div className="mx-auto max-w-6xl space-y-6">
             <Breadcrumb>
@@ -74,7 +85,7 @@ export default function FindingOpportunitiesPage() {
             <Card>
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">최근 1개월 신규 사업기회 카드 전체 보기</CardTitle>
+                  <CardTitle className="text-lg">사업기회 카드 전체 보기</CardTitle>
                   <div className="flex items-center gap-2">
                     <form
                       className="flex items-center gap-2"
@@ -128,7 +139,7 @@ export default function FindingOpportunitiesPage() {
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    최근 1개월 내 등록된 사업기회가 없습니다.
+                    등록된 사업기회가 없습니다.
                   </div>
                 )}
               </CardContent>

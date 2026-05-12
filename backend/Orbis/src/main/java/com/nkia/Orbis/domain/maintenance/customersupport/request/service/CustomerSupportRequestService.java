@@ -3,7 +3,6 @@ package com.nkia.Orbis.domain.maintenance.customersupport.request.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
-import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.user.entity.User;
@@ -72,7 +71,7 @@ public class CustomerSupportRequestService {
     @Transactional
     public CustomerSupportRequestDetailResponse updateRequest(Long id, CustomerSupportRequestUpdateRequest dto) {
         CustomerSupportRequest request = requestRepository.findById(id)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
 
         User requester = userRepository.findById(dto.getRequesterId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
@@ -91,7 +90,7 @@ public class CustomerSupportRequestService {
     @Transactional
     public void deleteRequest(Long id) {
         CustomerSupportRequest request = requestRepository.findById(id)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
 
         request.getAttachedFiles().forEach(file -> uploadFileService.removeFile(file.getId()));
 
@@ -116,7 +115,7 @@ public class CustomerSupportRequestService {
     @Transactional(readOnly = true)
     public CustomerSupportRequestDetailResponse getRequestDetail(Long id) {
         CustomerSupportRequest request = requestRepository.findById(id)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
 
         return CustomerSupportRequestDetailResponse.from(request, getWorkflowId(request.getId()));
     }

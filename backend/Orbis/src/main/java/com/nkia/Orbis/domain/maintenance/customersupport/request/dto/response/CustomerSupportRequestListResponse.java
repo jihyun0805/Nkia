@@ -25,13 +25,13 @@ public class CustomerSupportRequestListResponse {
     public static CustomerSupportRequestListResponse from(CustomerSupportRequest request) {
         return CustomerSupportRequestListResponse.builder()
                 .id(request.getId())
-                .customerName(request.getCustomerCompany().getName())
+                .customerName(request.getCustomerCompany() != null ? request.getCustomerCompany().getName() : "-")
                 .requestStartDate(request.getRequestStartDate())
                 .requestEndDate(request.getRequestEndDate())
-                .requesterName(request.getRequester().getName())
-                .salesRepName(request.getSalesRep().getName())
+                .requesterName(request.getRequester() != null ? request.getRequester().getName() : "-")
+                .salesRepName(request.getSalesRep() != null ? request.getSalesRep().getName() : "-")
                 .supportManagerName(request.getSupportManager() != null ?
-                        request.getSupportManager().getName() : null)
+                        request.getSupportManager().getName() : "-")
                 .build();
     }
 }

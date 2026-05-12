@@ -22,7 +22,6 @@ public class CustomerSupportRequestDetailResponse {
     private String registrantName;
     private String salesRepName;
     private String remarks;
-    private String approvalStatus;
     private List<Long> attachedFileIds;
 
     public static CustomerSupportRequestDetailResponse from(CustomerSupportRequest request, Long workflowId) {
@@ -30,15 +29,15 @@ public class CustomerSupportRequestDetailResponse {
                 .id(request.getId())
                 .status(request.getStatus())
                 .workflowId(workflowId)
-                .customerName(request.getCustomerCompany().getName())
+                .customerName(request.getCustomerCompany() != null ? request.getCustomerCompany().getName() : "-")
                 .requestStartDate(request.getRequestStartDate())
                 .requestEndDate(request.getRequestEndDate())
                 .requestContent(request.getRequestContent())
-                .requesterName(request.getRequester().getName())
+                .requesterName(request.getRequester() != null ? request.getRequester().getName() : "-")
                 .supportManagerName(request.getSupportManager() != null ?
-                        request.getSupportManager().getName() : null)
-                .registrantName(request.getRegistrant().getName())
-                .salesRepName(request.getSalesRep().getName())
+                        request.getSupportManager().getName() : "-")
+                .registrantName(request.getRegistrant() != null ? request.getRegistrant().getName() : "-")
+                .salesRepName(request.getSalesRep() != null ? request.getSalesRep().getName() : "-")
                 .remarks(request.getRemarks())
                 .attachedFileIds(request.getAttachedFiles().stream().map(f -> f.getId()).toList())
                 .build();

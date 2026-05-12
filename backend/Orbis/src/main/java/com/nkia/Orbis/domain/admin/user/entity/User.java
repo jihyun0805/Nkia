@@ -46,6 +46,7 @@ public class User extends BaseEntity {
     @Column(columnDefinition = "UUID")
     private UUID id;
 
+    @Builder.Default
     @ManyToMany
     @JoinTable(
             name = "user_role",

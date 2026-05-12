@@ -23,10 +23,10 @@ import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import {
+  type ActivityRecord,
   activityRequestStatusOptions,
   activityRequestTypeOptions,
   activityStatuses,
-  getActivities,
 } from "@/lib/activity-data"
 import { useEffect, useMemo, useState } from "react"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
@@ -55,7 +55,7 @@ export default function ActivityPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [activityRequests, setActivityRequests] = useState<ReturnType<typeof getActivityRequests>>([])
   const [quotationRecords, setQuotationRecords] = useState<ReturnType<typeof getQuotations>>([])
   const [month, setMonth] = useState(new Date())
@@ -97,7 +97,7 @@ export default function ActivityPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords(getActivities())
+          setActivityRecords([])
         }
       })
 
