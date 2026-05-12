@@ -101,6 +101,10 @@ public class Billing extends BaseEntity {
         super.delete();
     }
 
+    public void approveBilling() {
+        this.status = BillingStatus.APPROVED;
+    }
+
     public void submit() {
         this.approvalStatus = ApprovalStatus.PENDING;
     }
