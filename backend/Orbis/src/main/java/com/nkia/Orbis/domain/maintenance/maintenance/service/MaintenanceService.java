@@ -125,6 +125,10 @@ public class MaintenanceService {
             maintenance.getContractFile().delete();
         }
 
+        if (maintenance.getCustomerSupport() != null) {
+            maintenance.getCustomerSupport().delete();
+        }
+
         maintenance.delete();
     }
 
