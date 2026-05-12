@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
-import { BidResultRegistrationForm } from "@/components/erp/bid-result-registration-form"
+import { BidResultDetailPage } from "@/components/erp/bid-result-detail-page"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
 import { PrbResultRegistrationForm } from "@/components/erp/prb-result-registration-form"
 import { ProposalDetailPage } from "@/components/erp/proposal-detail-page"
@@ -27,32 +27,7 @@ export default async function BidDetailPage({
   }
 
   if (category === "result") {
-    return (
-      <div className="min-h-screen bg-background">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Header title="입찰 결과 상세" description="입찰 결과 정보를 표 형식으로 조회합니다" />
-          <main className="flex-1 overflow-auto p-6">
-            <div className="mx-auto max-w-5xl space-y-6">
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem>
-                    <BreadcrumbLink asChild>
-                      <Link href={backHref}>입찰</Link>
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>{id}</BreadcrumbPage>
-                  </BreadcrumbItem>
-                </BreadcrumbList>
-              </Breadcrumb>
-              <BidResultRegistrationForm bidResultId={id} />
-            </div>
-          </main>
-        </div>
-      </div>
-    )
+    return <BidResultDetailPage />
   }
 
   if (category === "prb-result") {
@@ -70,13 +45,42 @@ export default async function BidDetailPage({
                       <Link href={backHref}>입찰</Link>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
+              <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{id}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              <PrbResultRegistrationForm prbResultId={id} allowDelete />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  if (category === "prb") {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title="PRB 상세" description="PRB 보고서를 등록 화면과 동일한 형식으로 확인합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-6xl space-y-6">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href={backHref}>입찰</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
                     <BreadcrumbPage>{id}</BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
-              <PrbResultRegistrationForm prbResultId={id} />
+              <PrbRegistrationForm prbId={id} allowDelete />
             </div>
           </main>
         </div>
@@ -85,7 +89,7 @@ export default async function BidDetailPage({
   }
 
   const item = getBidItem(category, id)
-  if (category !== "rfp" && !item) notFound()
+  if (category === "rfp" && !item) notFound()
 
   const detailItem = item as Exclude<typeof item, null>
   const label = getBidCategoryLabel(category)
@@ -114,8 +118,6 @@ export default async function BidDetailPage({
             </Breadcrumb>
             {category === "rfp" ? (
               <RfpAnalysisSheetLoader title="RFP 분석" requestId={id} />
-            ) : category === "prb" ? (
-              <PrbRegistrationForm prbId={id} />
             ) : (
               <DetailFormCard
                 title={`${label} 상세`}

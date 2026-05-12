@@ -15,6 +15,26 @@ type ConversationHistoryMessage = {
   content: string
 }
 
+export type ChatbotDraftPayload = {
+  document_type: string
+  summary?: string | null
+  slots?: Record<string, unknown>
+  slot_details?: Array<Record<string, unknown>>
+  references?: string[]
+  notes?: string[]
+}
+
+export type ChatbotDraftAction = {
+  type: "create_draft"
+  label: string
+  button_label: string
+  document_type: string
+  payload: ChatbotDraftPayload
+  evidence_ids?: string[]
+  confidence?: number
+  reasons?: string[]
+}
+
 export type ChatbotAnswerRequest = {
   query: string
   history: ConversationHistoryMessage[]
@@ -63,6 +83,7 @@ export type ChatbotAnswerPayload = {
   excludedSourceTypes?: string[]
   evidences: ChatbotEvidence[]
   typedEvidences?: ChatbotTypedEvidences
+  actions?: ChatbotDraftAction[]
 }
 
 export type UploadedChatbotAttachment = {
@@ -74,6 +95,27 @@ export type UploadedChatbotAttachment = {
   indexedStatus: string
   sourceId: string | null
   preview: string
+}
+
+export type ChatSessionPayload = {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ChatMessagePayload = {
+  id: string
+  sessionId: string
+  role: "user" | "assistant"
+  content: string
+  threadId?: string | null
+  route?: string | null
+  answerStatus?: string | null
+  evidences?: string | null
+  typedEvidences?: string | null
+  actions?: string | null
+  createdAt: string
 }
 
 async function extractErrorMessage(response: Response) {
@@ -95,6 +137,12 @@ async function extractErrorMessage(response: Response) {
 
 async function parseApiResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("로그인 후 이용할 수 있습니다.")
+    }
+    if (response.status === 403) {
+      throw new Error("현재 계정으로는 해당 챗봇 문서에 접근할 수 없습니다.")
+    }
     throw new Error((await extractErrorMessage(response)) || fallbackMessage)
   }
 
@@ -104,6 +152,23 @@ async function parseApiResponse<T>(response: Response, fallbackMessage: string):
   }
 
   return payload.data
+}
+
+async function parseApiSuccess(response: Response, fallbackMessage: string): Promise<void> {
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("로그인 후 이용할 수 있습니다.")
+    }
+    if (response.status === 403) {
+      throw new Error("현재 계정으로는 해당 챗봇 문서에 접근할 수 없습니다.")
+    }
+    throw new Error((await extractErrorMessage(response)) || fallbackMessage)
+  }
+
+  const payload = (await response.json()) as ApiResponse<unknown>
+  if (payload.result !== "SUCCESS") {
+    throw new Error(payload.message || fallbackMessage)
+  }
 }
 
 export async function postChatbotAnswer(body: ChatbotAnswerRequest) {
@@ -145,4 +210,79 @@ export async function deleteChatbotAttachment(sessionId: string, fileId: string)
   })
 
   await parseApiResponse<{ ok: boolean }>(response, "첨부파일 삭제에 실패했습니다.")
+}
+
+export async function getChatbotSessions() {
+  const response = await fetch(`${getBackendApiBaseUrl()}/chatbot/sessions`, {
+    method: "GET",
+    headers: buildAuthHeaders(),
+  })
+
+  return parseApiResponse<ChatSessionPayload[]>(response, "챗봇 세션 목록 조회에 실패했습니다.")
+}
+
+export async function createChatbotSession(title: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/chatbot/sessions`, {
+    method: "POST",
+    headers: buildAuthHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({ title }),
+  })
+
+  return parseApiResponse<ChatSessionPayload>(response, "챗봇 세션 생성에 실패했습니다.")
+}
+
+export async function updateChatbotSessionTitle(sessionId: string, title: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/chatbot/sessions/${sessionId}/title`, {
+    method: "PUT",
+    headers: buildAuthHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({ title }),
+  })
+
+  return parseApiResponse<ChatSessionPayload>(response, "챗봇 세션 제목 수정에 실패했습니다.")
+}
+
+export async function deleteChatbotSession(sessionId: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/chatbot/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: buildAuthHeaders(),
+  })
+
+  await parseApiSuccess(response, "챗봇 세션 삭제에 실패했습니다.")
+}
+
+export async function getChatbotSessionMessages(sessionId: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/chatbot/sessions/${sessionId}/messages`, {
+    method: "GET",
+    headers: buildAuthHeaders(),
+  })
+
+  return parseApiResponse<ChatMessagePayload[]>(response, "챗봇 메시지 조회에 실패했습니다.")
+}
+
+export async function addChatbotSessionMessages(
+  sessionId: string,
+  body: {
+    userContent: string
+    assistantContent: string
+    threadId?: string | null
+    route?: string | null
+    answerStatus?: string | null
+    evidences?: string | null
+    typedEvidences?: string | null
+    actions?: string | null
+  },
+) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/chatbot/sessions/${sessionId}/messages`, {
+    method: "POST",
+    headers: buildAuthHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(body),
+  })
+
+  return parseApiResponse<ChatMessagePayload[]>(response, "챗봇 메시지 저장에 실패했습니다.")
 }

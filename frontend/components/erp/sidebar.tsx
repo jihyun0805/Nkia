@@ -45,11 +45,6 @@ const menuItems = [
     href: "/maintenance",
   },
   { 
-    id: "workflow", 
-    label: "워크플로우", 
-    href: "/workflow",
-  },
-  { 
     id: "admin", 
     label: "시스템관리", 
     href: "/admin",

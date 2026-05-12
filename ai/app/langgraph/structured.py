@@ -7,6 +7,7 @@ from app.embeddings.model import EmbeddingModel
 from app.langgraph.state import GraphState
 from app.models.intent import StructuredQueryIntent
 from app.models.normalization import QueryNormalization
+from app.models.user_context import UserContext
 from app.schemas.answer import AnswerResponse
 from app.services.query_intent_service import parse_structured_query_intent
 from app.services.structured_answer_service import answer_structured_query, answer_targeted_domain_query
@@ -42,7 +43,11 @@ def build_structured_execution_plan(
     structured_intent = parse_structured_query_intent(query, normalization)
     first_tool = graph_state.toolPlan[0] if graph_state.toolPlan else None
 
-    if should_try_targeted_domain(graph_state=graph_state, first_tool=first_tool):
+    if should_try_targeted_domain(
+        graph_state=graph_state,
+        first_tool=first_tool,
+        normalization=normalization,
+    ):
         steps.append(
             StructuredExecutionStep(
                 strategy="targeted_domain",
@@ -75,6 +80,7 @@ def execute_structured_execution_plan(
     start_at: str | None,
     end_at: str | None,
     embedder: EmbeddingModel,
+    user_context: UserContext | None = None,
 ) -> AnswerResponse | None:
     if plan.is_empty:
         return None
@@ -90,6 +96,7 @@ def execute_structured_execution_plan(
                     start_at=start_at,
                     end_at=end_at,
                     embedder=embedder,
+                    user_context=user_context,
                 )
             except psycopg.Error:
                 response = None
@@ -103,6 +110,7 @@ def execute_structured_execution_plan(
                     intent=plan.structured_intent,
                     limit=limit,
                     embedder=embedder,
+                    user_context=user_context,
                 )
             except psycopg.Error:
                 response = None
@@ -112,7 +120,12 @@ def execute_structured_execution_plan(
     return None
 
 
-def should_try_targeted_domain(*, graph_state: GraphState, first_tool: str | None) -> bool:
+def should_try_targeted_domain(
+    *,
+    graph_state: GraphState,
+    first_tool: str | None,
+    normalization: QueryNormalization,
+) -> bool:
     if graph_state.route == "FAST_STRUCTURED" and first_tool in {
         "get_opportunity_snapshot",
         "get_contract_snapshot",
@@ -134,6 +147,16 @@ def should_try_targeted_domain(*, graph_state: GraphState, first_tool: str | Non
         "get_contract_snapshot",
         "get_opportunity_snapshot",
         "get_workflow_snapshot",
+    }:
+        return True
+
+    if graph_state.route in {"FAST_STRUCTURED", "MIXED", "DISCOVERY"} and normalization.target_hint in {
+        "activity",
+        "document",
+        "opportunity",
+        "maintenance",
+        "contract",
+        "project",
     }:
         return True
 

@@ -7,7 +7,6 @@ import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
 import { Calendar as MonthCalendar } from "@/components/ui/calendar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -20,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
+import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import {
@@ -38,7 +38,6 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
-  Search,
   Users,
   FileText,
   Calendar,
@@ -51,8 +50,10 @@ const NOTIFICATIONS_STORAGE_KEY = "orbis.workflowNotifications"
 
 export default function ActivityPage() {
   const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState("")
+  const [isMounted, setIsMounted] = useState(false)
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
   const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>(() => getActivities())
   const [activityRequests, setActivityRequests] = useState<ReturnType<typeof getActivityRequests>>([])
@@ -61,6 +62,10 @@ export default function ActivityPage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [isPreferenceReady, setIsPreferenceReady] = useState(false)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | undefined>(undefined)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   useEffect(() => {
     const savedTab = window.localStorage.getItem(ACTIVITY_ACTIVE_TAB_KEY)
@@ -156,6 +161,7 @@ export default function ActivityPage() {
     if (!isPreferenceReady) return
     window.localStorage.setItem(ACTIVITY_ACTIVE_TAB_KEY, activeTab)
   }, [activeTab, isPreferenceReady])
+
   const activityFieldOptions = activeTab === "activities"
     ? [
       { key: "customer", label: "고객사", options: uniqueOptions(activityRecords, (item) => item.customer) },
@@ -175,6 +181,16 @@ export default function ActivityPage() {
         { key: "customer", label: "고객사", options: uniqueOptions(activityRequests, (item) => item.customer) },
       ]
 
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm)
+  }
+
   const filteredActivities = filterRecords(activityRecords, filters, {
     owner: (item) => item.attendees,
     date: (item) => item.date,
@@ -186,10 +202,16 @@ export default function ActivityPage() {
       location: (item) => item.location,
     },
   }).filter((item) =>
-    [item.customer, item.opportunity, item.activityMode, item.activityContent, item.location, item.attendees, item.content, item.issues, item.nextAction]
-      .join(" ")
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()),
+    matchesSearch([
+      item.id,
+      item.customerCode,
+      item.customer,
+      item.opportunity,
+      item.activityMode,
+      item.activityContent,
+      item.location,
+      item.attendees,
+    ]),
   )
 
   const filteredQuotations = filterRecords(activeQuotationRecords, filters, {
@@ -197,10 +219,15 @@ export default function ActivityPage() {
     date: (item) => item.date,
     fields: { product: (item) => item.items.map((entry) => entry.name).join(", "), customer: (item) => item.customer },
   }).filter((item) =>
-    [item.id, item.customer, item.opportunity, item.items.map((entry) => entry.name).join(" ")]
-      .join(" ")
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()),
+    matchesSearch([
+      item.id,
+      item.customer,
+      item.opportunity,
+      item.items.map((entry) => entry.name).join(", "),
+      item.amount,
+      item.validity,
+      getQuotationDisplayStatus(item),
+    ]),
   )
 
   const filteredRequests = filterRecords(activityRequests, filters, {
@@ -208,12 +235,21 @@ export default function ActivityPage() {
     owner: (item) => item.receiver,
     date: (item) => item.date,
     fields: { type: (item) => item.type, requester: (item) => item.requester, customer: (item) => item.customer },
-  }).filter((item) =>
-    [item.id, item.requester, item.receiver, item.customer, item.opportunity, item.content]
-      .join(" ")
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()),
-  ).sort((a, b) => b.date.localeCompare(a.date))
+  })
+    .filter((item) =>
+      matchesSearch([
+        item.id,
+        item.type,
+        item.requester,
+        item.receiver,
+        item.customer,
+        item.opportunity,
+        item.status,
+        item.date,
+        item.dueDate,
+      ]),
+    )
+    .sort((a, b) => b.date.localeCompare(a.date))
 
   const completedActivityRequests = useMemo(
     () =>
@@ -287,6 +323,10 @@ export default function ActivityPage() {
     [activityCustomerCards],
   )
 
+  if (!isMounted) {
+    return null
+  }
+
   const handleResetRequests = () => {
     window.localStorage.removeItem(REQUESTS_STORAGE_KEY)
     window.localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY)
@@ -295,7 +335,13 @@ export default function ActivityPage() {
     window.location.reload()
   }
 
-  const formatAmount = (value: string) => Number.parseInt(value.replace(/[^\d]/g, "") || "0", 10).toLocaleString("ko-KR")
+  const formatAmount = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined) return "0"
+    if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value).toLocaleString("ko-KR") : "0"
+
+    const normalized = value.replace(/[^\d]/g, "")
+    return Number.parseInt(normalized || "0", 10).toLocaleString("ko-KR")
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -326,15 +372,11 @@ export default function ActivityPage() {
               </TabsList>
 
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="검색..."
-                    className="w-64 pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
+                <PageSearchForm
+                  value={searchTerm}
+                  onChange={setSearchTerm}
+                  onSearch={() => setAppliedSearchTerm(searchTerm)}
+                />
                 <FilterPopover
                   title="영업활동"
                   statusOptions={activeTab === "requests" ? activityRequestStatusOptions : activityStatuses}

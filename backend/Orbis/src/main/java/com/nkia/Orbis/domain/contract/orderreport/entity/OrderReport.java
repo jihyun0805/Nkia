@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.contract.orderreport.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.company.entity.Company;
@@ -40,6 +41,9 @@ public class OrderReport extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     @Column(nullable = false, unique = true)
     private String orderReportCode;
@@ -202,15 +206,14 @@ public class OrderReport extends BaseEntity {
             String remarks,
             ProjectOpportunity projectOpportunity,
             User pm,
+            Company contractCounterpartCompany,
             CompanyManager contractCounterpartManager,
             Company finalCustomerCompany,
             CompanyManager finalCustomerManager,
             Double itemTotalMaintenanceRate
-            // Todo: 연관관계 메서드 필요
-//            Contract contract,
-//            Project project
     ) {
         OrderReport orderReport = new OrderReport();
+        orderReport.status = ApprovalStatus.DRAFT;
         orderReport.orderReportCode = orderReportCode;
         orderReport.paymentCondition = paymentCondition;
         orderReport.quotationProvided = quotationProvided;
@@ -230,6 +233,7 @@ public class OrderReport extends BaseEntity {
         orderReport.remarks = remarks;
         orderReport.projectOpportunity = projectOpportunity;
         orderReport.pm = pm;
+        orderReport.contractCounterpartCompany = contractCounterpartCompany;
         orderReport.contractCounterpartManager = contractCounterpartManager;
         orderReport.finalCustomerCompany = finalCustomerCompany;
         orderReport.finalCustomerManager = finalCustomerManager;
@@ -433,6 +437,7 @@ public class OrderReport extends BaseEntity {
             String remarks,
             ProjectOpportunity projectOpportunity,
             User pm,
+            Company contractCounterpartCompany,
             CompanyManager contractCounterpartManager,
             Company finalCustomerCompany,
             CompanyManager finalCustomerManager,
@@ -456,6 +461,7 @@ public class OrderReport extends BaseEntity {
         this.remarks = remarks;
         this.projectOpportunity = projectOpportunity;
         this.pm = pm;
+        this.contractCounterpartCompany = contractCounterpartCompany;
         this.contractCounterpartManager = contractCounterpartManager;
         this.finalCustomerCompany = finalCustomerCompany;
         this.finalCustomerManager = finalCustomerManager;
@@ -489,5 +495,25 @@ public class OrderReport extends BaseEntity {
         this.itemTotalThirdParty = 0L;
         this.itemTotalService = 0L;
         this.itemTotalMaintenance = 0L;
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }

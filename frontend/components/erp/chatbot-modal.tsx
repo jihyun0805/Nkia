@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { KeyboardEvent } from "react"
+import { useRouter } from "next/navigation"
 
 import {
   deleteChatbotAttachment,
@@ -11,6 +12,7 @@ import {
   uploadChatbotAttachment,
   type UploadedChatbotAttachment,
 } from "@/lib/chatbot-api"
+import { loadAuthSession, subscribeAuthSession, type AuthSession } from "@/lib/auth-session"
 import { useToast } from "@/hooks/use-toast"
 import {
   Bot,
@@ -53,7 +55,7 @@ type PendingAttachment = {
   fileType: string
 }
 
-const STORAGE_KEY = "orbis-chatbot-sessions"
+const STORAGE_KEY_PREFIX = "orbis-chatbot-sessions"
 const MAX_HISTORY_MESSAGES = 8
 const DEFAULT_LIMIT = 5
 
@@ -174,7 +176,11 @@ function buildEvidenceSections(
   ].filter((section) => section.evidences.length > 0)
 }
 
-function normalizeStoredSessions(raw: string | null) {
+function buildStorageKey(email: string) {
+  return `${STORAGE_KEY_PREFIX}:${email}`
+}
+
+function normalizeStoredSessions(raw: string | null): ChatSession[] | null {
   if (!raw) return null
 
   try {
@@ -183,7 +189,7 @@ function normalizeStoredSessions(raw: string | null) {
       return null
     }
 
-    return parsed.map((session) => ({
+    return parsed.map((session): ChatSession => ({
       id: session.id || createId(),
       title: session.title || "새 대화",
       createdAt: session.createdAt || nowIso(),
@@ -206,7 +212,10 @@ function normalizeStoredSessions(raw: string | null) {
 }
 
 export function ChatbotModal() {
+  const router = useRouter()
   const { toast } = useToast()
+  const [authSession, setAuthSession] = useState<AuthSession | null>(null)
+  const [storageOwnerEmail, setStorageOwnerEmail] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -227,23 +236,56 @@ export function ChatbotModal() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
-    const stored = normalizeStoredSessions(localStorage.getItem(STORAGE_KEY))
+    const syncAuthSession = () => {
+      setAuthSession(loadAuthSession())
+    }
+
+    syncAuthSession()
+    return subscribeAuthSession(syncAuthSession)
+  }, [])
+
+  useEffect(() => {
+    if (!authSession?.email) {
+      setStorageOwnerEmail(null)
+      setSessions([])
+      setActiveSessionId(null)
+      setPendingAttachmentsBySession({})
+      setIsOpen(false)
+      return
+    }
+
+    const stored = normalizeStoredSessions(localStorage.getItem(buildStorageKey(authSession.email)))
     if (!stored) {
       const initial = createSession()
       setSessions([initial])
       setActiveSessionId(initial.id)
+      setStorageOwnerEmail(authSession.email)
       return
     }
 
     setSessions(stored)
-    setActiveSessionId(stored[0]?.id ?? null)
-  }, [])
+    setActiveSessionId((current) => {
+      if (current && stored.some((session) => session.id === current)) {
+        return current
+      }
+      return stored[0]?.id ?? null
+    })
+    setPendingAttachmentsBySession({})
+    setStorageOwnerEmail(authSession.email)
+  }, [authSession?.email])
 
   useEffect(() => {
-    if (sessions.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
+    if (!authSession?.email || storageOwnerEmail !== authSession.email) {
+      return
     }
-  }, [sessions])
+
+    if (sessions.length > 0) {
+      localStorage.setItem(buildStorageKey(authSession.email), JSON.stringify(sessions))
+      return
+    }
+
+    localStorage.removeItem(buildStorageKey(authSession.email))
+  }, [authSession?.email, sessions, storageOwnerEmail])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
@@ -252,7 +294,26 @@ export function ChatbotModal() {
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? sessions[0] ?? null
   const activePendingAttachments = activeSession ? pendingAttachmentsBySession[activeSession.id] ?? [] : []
 
+  const requireAuthenticatedAccess = () => {
+    if (authSession?.accessToken) {
+      return true
+    }
+
+    const message = "챗봇은 로그인 후 이용할 수 있습니다."
+    setErrorMessage(message)
+    toast({
+      title: "로그인 필요",
+      description: message,
+      variant: "destructive",
+    })
+    router.push("/login")
+    return false
+  }
+
   const openChat = () => {
+    if (!requireAuthenticatedAccess()) {
+      return
+    }
     setIsOpen(true)
     if (!activeSessionId && sessions[0]) {
       setActiveSessionId(sessions[0].id)
@@ -261,6 +322,9 @@ export function ChatbotModal() {
   }
 
   const createNewConversation = () => {
+    if (!requireAuthenticatedAccess()) {
+      return
+    }
     const session = createSession()
     setSessions((current) => [session, ...current])
     setActiveSessionId(session.id)
@@ -397,6 +461,7 @@ export function ChatbotModal() {
 
   const handleUploadFiles = async (fileList: FileList | null) => {
     if (!fileList || !activeSession) return
+    if (!requireAuthenticatedAccess()) return
 
     setIsUploading(true)
     try {
@@ -451,6 +516,7 @@ export function ChatbotModal() {
   const sendMessage = async () => {
     const query = draft.trim()
     if (!query || !activeSession) return
+    if (!requireAuthenticatedAccess()) return
 
     const userMessage: ChatMessage = {
       id: createId(),

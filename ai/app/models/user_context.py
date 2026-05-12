@@ -39,7 +39,6 @@ class UserContext(BaseModel):
     )
 
     def is_unrestricted(self) -> bool:
-        return (
-            self.accessible_source_ids is None
-            and self.accessible_source_types is None
-        )
+        # Backend unrestricted users still send readable source types
+        # while leaving accessibleSourceIds as null.
+        return self.accessible_source_ids is None

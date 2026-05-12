@@ -23,8 +23,9 @@ function FindingPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isMounted, setIsMounted] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const initialTab = searchParams.get("tab")
   const [activeTab, setActiveTab] = useState<FindingTab>(
     initialTab === "customers" || initialTab === "partners" ? initialTab : "opportunities",
@@ -60,10 +61,23 @@ function FindingPageContent() {
     router.replace(`/finding?tab=${value}`, { scroll: false })
   }
 
-  const q = searchTerm.toLowerCase()
   const customerRows = getCustomers()
   const opportunityRows = getOpportunities()
   const partnerRows = getPartners()
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm)
+  }
+
+  const handleSearch = () => {
+    setAppliedSearchTerm(searchTerm)
+  }
 
   const findingFieldOptions =
     activeTab === "opportunities"
@@ -87,10 +101,7 @@ function FindingPageContent() {
       customer: (item) => item.customer,
     },
   }).filter((item) =>
-    [item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]
-      .join(" ")
-      .toLowerCase()
-      .includes(q),
+    matchesSearch([item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]),
   )
 
   const recentOpportunityCards = useMemo(() => {
@@ -113,14 +124,14 @@ function FindingPageContent() {
     fields: {
       category: (item) => item.category,
     },
-  }).filter((item) => [item.id, item.name, item.contact, item.phone].join(" ").toLowerCase().includes(q))
+  }).filter((item) => matchesSearch([item.id, item.name, item.contact, item.phone, item.category]))
 
   const filteredPartners = filterRecords(partnerRows, filters, {
     owner: (item) => item.contact,
     fields: {
       type: (item) => item.type,
     },
-  }).filter((item) => [item.id, item.name, item.type, item.contact, item.phone].join(" ").toLowerCase().includes(q))
+  }).filter((item) => matchesSearch([item.id, item.name, item.contact, item.phone, item.type]))
 
   const customerCards = useMemo(
     () =>
@@ -188,15 +199,24 @@ function FindingPageContent() {
               </TabsList>
 
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleSearch()
+                  }}
+                >
                   <Input
-                    placeholder="검색..."
-                    className="w-64 pl-9"
+                    placeholder="검색어 입력"
+                    className="w-64"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                   />
-                </div>
+                  <Button type="submit" variant="outline" className="gap-2">
+                    <Search className="h-4 w-4" />
+                    검색
+                  </Button>
+                </form>
 
                 <FilterPopover
                   title="발굴"

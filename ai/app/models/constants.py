@@ -117,6 +117,36 @@ METADATA_ALIASES: dict[str, tuple[str, ...]] = {
     "productFamily": (
         "productFamily", "product_family",
     ),
+    "projectId": (
+        "projectId", "project_id",
+    ),
+    "orderReportId": (
+        "orderReportId", "order_report_id", "wonReportId", "won_report_id",
+    ),
+    "maintenanceId": (
+        "maintenanceId", "maintenance_id",
+    ),
+    "rfpAnalyzeResultId": (
+        "rfpAnalyzeResultId", "rfp_analyze_result_id",
+    ),
+    "prbId": (
+        "prbId", "prb_id",
+    ),
+    "contractId": (
+        "contractId", "contract_id",
+    ),
+    "projectResultReportId": (
+        "projectResultReportId", "project_result_report_id",
+    ),
+    "customerSupportId": (
+        "customerSupportId", "customer_support_id",
+    ),
+    "billingId": (
+        "billingId", "billing_id",
+    ),
+    "licenseId": (
+        "licenseId", "license_id",
+    ),
     # ── 상태 ────────────────────────────────────────────────────────────────
     "currentStatus": (
         "currentStatus", "current_status", "opportunityStatus",

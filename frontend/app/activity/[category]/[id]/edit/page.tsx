@@ -66,7 +66,7 @@ export default function ActivityEditPage() {
   const category = params.category
   const id = params.id
   const presalesUsers = getPresalesUsers()
-  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>(() => getActivities())
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [activityAttachments, setActivityAttachments] = useState<AttachmentDraft[]>([])

@@ -5,12 +5,12 @@ import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FilterPopover } from "@/components/erp/filter-popover";
+import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
 import { contracts, contractStatuses, licenses, orderReports, purchaseContracts, type PurchaseContract } from "@/lib/contract-data";
-import { Plus, Search, FileCheck, BookKey, Receipt, ClipboardList, Wrench, Settings } from "lucide-react";
+import { Plus, FileCheck, BookKey, Receipt, ClipboardList, Wrench, Settings } from "lucide-react";
 import { OrderReportList } from "@/components/erp/contract/order-report-list";
 import { ContractList } from "@/components/erp/contract/contract-list";
 import { PurchaseList } from "@/components/erp/contract/purchase-list";
@@ -23,11 +23,11 @@ import { PaidMaintenanceForm } from "@/components/erp/contract/paid-maintenance-
 import { LicenseRequestForm } from "@/components/erp/contract/license-request-form";
 
 export default function ContractPage() {
-  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"orders" | "contracts" | "purchases" | "licenses" | "maintenance">("orders");
   const [isCreating, setIsCreating] = useState<boolean | "free" | "paid">(false);
-  const q = searchTerm.toLowerCase();
 
   useEffect(() => {
     if (isCreating) {
@@ -57,18 +57,28 @@ export default function ContractPage() {
               ]
             : [];
 
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true;
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm);
+  };
+
   const filteredOrderReports = filterRecords(orderReports, filters, {
     status: (i) => i.approvalStatus,
     owner: (i) => i.salesRep,
     date: (i) => i.orderDate,
     fields: { customer: (i) => i.customer },
   })
-    .filter((i) => [i.id, i.name, i.customer, i.product, i.salesRep].join(" ").toLowerCase().includes(q))
+    .filter((i) => matchesSearch([i.id, i.customer, i.product, i.salesRep, i.orderDate, i.approvalStatus]))
     // 가장 최근에 등록된 것부터 과거 순서로 배열
     .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
   const filteredContracts = filterRecords(contracts, filters, { status: (i) => i.status, date: (i) => i.contractDate, fields: { customer: (i) => i.customer } })
-    .filter((i) => [i.id, i.name, i.customer, i.orderId].join(" ").toLowerCase().includes(q))
+    .filter((i) => matchesSearch([i.id, i.customer, i.amount, i.contractDate, i.startDate, i.endDate, i.status]))
     // 가장 최근에 등록된 것부터 과거 순서로 배열
     .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
 
@@ -77,7 +87,7 @@ export default function ContractPage() {
     date: (i) => i.contractDate,
     fields: { supplier: (i) => i.supplier },
   })
-    .filter((i) => [i.id, i.name, i.supplier, i.manager].join(" ").toLowerCase().includes(q))
+    .filter((i) => matchesSearch([i.id, i.supplier, i.amount, i.contractDate, i.status]))
     // 가장 최근에 등록된 계약부터 표시되도록 계약일 기준 내림차순 정렬
     .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
 
@@ -85,7 +95,7 @@ export default function ContractPage() {
     status: (i) => i.status,
     date: (i) => i.issueDate,
     fields: { customer: (i) => i.customer, product: (i) => i.product, type: (i) => i.type },
-  }).filter((i) => [i.id, i.customer, i.product, i.module].join(" ").toLowerCase().includes(q));
+  }).filter((i) => matchesSearch([i.id, i.customer, i.product, i.type, i.issueDate, i.status]));
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -126,10 +136,11 @@ export default function ContractPage() {
               <div className="flex items-center gap-2">
                 {activeTab !== "maintenance" && (
                   <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={!!isCreating} />
-                    </div>
+                    <PageSearchForm
+                      value={searchTerm}
+                      onChange={setSearchTerm}
+                      onSearch={() => setAppliedSearchTerm(searchTerm)}
+                    />
                     <FilterPopover title="계약" statusOptions={contractStatuses} value={filters} onApply={setFilters} fieldOptions={contractFieldOptions} />
                   </>
                 )}

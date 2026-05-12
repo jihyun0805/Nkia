@@ -64,7 +64,7 @@ public class ProjectController {
     }
 
     /**
-     * 사업 및 결과보고 첨부파일 통합 수정 API
+     * 사업 및 결과보고 수정
      */
     @PutMapping("/{projectId}/with-report")
     @Operation(summary = "사업 통합 수정")
@@ -83,7 +83,7 @@ public class ProjectController {
     @Operation(summary = "사업 삭제")
     @DeleteMapping("/{projectId}")
     public ResponseEntity<ApiResponse<Void>> deleteProject(@PathVariable Long projectId) {
-        projectFacadeService.deleteProjectWithReport(projectId);
+        projectService.deleteProject(projectId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

@@ -18,16 +18,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
+import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { bidStatuses, getBidCreateActionLabel, getBidResults, getPrbResults, getProposals, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbResultUpdates, subscribePrbUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { getOpportunities } from "@/lib/finding-data"
-import { Plus, Search, FileText, ClipboardCheck, Presentation, Trophy, ClipboardList } from "lucide-react"
+import { Plus, FileText, ClipboardCheck, Presentation, Trophy, ClipboardList } from "lucide-react"
 
 type ProposalOverviewRow = {
   key: string
@@ -74,8 +74,9 @@ const BID_ACTIVE_TAB_STORAGE_KEY = "orbis.bid.active-tab"
 function BidPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "prb-result" | "proposal" | "result">("rfp")
   const [rfpItems, setRfpItems] = useState<ReturnType<typeof getRfpAnalyses>>([])
   const [prbItems, setPrbItems] = useState<ReturnType<typeof getPrbs>>([])
@@ -85,7 +86,6 @@ function BidPageContent() {
   const [results, setResults] = useState<ReturnType<typeof getBidResults>>([])
   const [proposalConfirmTarget, setProposalConfirmTarget] = useState<ProposalOverviewRow | null>(null)
   const [resultConfirmTarget, setResultConfirmTarget] = useState<BidResultOverviewRow | null>(null)
-  const q = searchTerm.toLowerCase()
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -273,28 +273,51 @@ function BidPageContent() {
         { key: "proposalType", label: "제안형태", options: uniqueOptions(bidResultOverviewRows, (i) => i.proposalType) },
         { key: "productGroup", label: "제품군", options: uniqueOptions(bidResultOverviewRows, (i) => i.productGroup) },
       ]
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm)
+  }
   const filteredRfpList = filterRecords(rfpItems, filters, { status: (i) => i.status, owner: (i) => i.analyst, date: (i) => i.receiveDate, fields: { customer: (i) => i.customer } })
-    .filter((i) => [i.id, i.customer, i.opportunity, i.requester, i.analyst].join(" ").toLowerCase().includes(q))
+    .filter((i) => matchesSearch([i.id, i.customer, i.opportunity, i.requester, i.analyst, i.receiveDate, i.dueDate, i.status]))
     .sort((a, b) => new Date(b.receiveDate).getTime() - new Date(a.receiveDate).getTime())
   const filteredPrbList = filterRecords(prbItems, filters, {
     status: (i) => i.status,
     owner: (i) => i.author,
     date: (i) => i.createdDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.id, i.opportunity, i.customer, i.author, i.status, i.customerCode, i.opportunityCode, i.rfpAnalysisId].join(" ").toLowerCase().includes(q))
+  })
+    .filter((i) => matchesSearch([i.id, i.customer, i.opportunity, i.proposalDeadline, i.createdDate, i.author, i.status]))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   const filteredPrbResults = filterRecords(prbResultOverviewRows, filters, {
     owner: (i) => i.author,
     date: (i) => i.createdDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.prbResultId, i.customer, i.opportunity, i.proposalDeadline, i.createdDate, i.author].join(" ").toLowerCase().includes(q))
+  })
+    .filter((i) => matchesSearch([i.prbResultId, i.customer, i.opportunity, i.proposalDeadline, i.createdDate, i.author]))
     .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
   const filteredProposalList = filterRecords(proposalOverviewRows, filters, {
     status: (i) => i.status,
     owner: () => "",
     date: (i) => i.sortDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.customer, i.opportunity, i.proposalType, i.productGroup, i.requestDate, i.proposalDeadline, i.status].join(" ").toLowerCase().includes(q))
+  }).filter((i) =>
+    matchesSearch([
+      i.requestId,
+      i.proposalId,
+      i.customer,
+      i.opportunity,
+      i.proposalType,
+      i.productGroup,
+      i.requestDate,
+      i.proposalDeadline,
+      i.status,
+    ]),
+  )
   const filteredBidResults = filterRecords(bidResultOverviewRows, filters, {
     status: (i) => i.status,
     owner: (i) => i.salesRep,
@@ -304,7 +327,20 @@ function BidPageContent() {
       proposalType: (i) => i.proposalType,
       productGroup: (i) => i.productGroup,
     },
-  }).filter((i) => [i.customer, i.opportunity, i.proposalType, i.productGroup, i.proposalDeadline, i.bidResult, i.salesRep, i.status].join(" ").toLowerCase().includes(q))
+  }).filter((i) =>
+    matchesSearch([
+      i.proposalId,
+      i.bidResultId,
+      i.customer,
+      i.opportunity,
+      i.proposalType,
+      i.productGroup,
+      i.proposalDeadline,
+      i.bidResult,
+      i.salesRep,
+      i.status,
+    ]),
+  )
 
   const handleProposalRowClick = (proposal: ProposalOverviewRow) => {
     if (proposal.status === "완료" && proposal.proposalId) {
@@ -345,10 +381,11 @@ function BidPageContent() {
                   <TabsTrigger value="result" className="gap-2"><Trophy className="w-4 h-4" />입찰결과현황</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                  </div>
+                  <PageSearchForm
+                    value={searchTerm}
+                    onChange={setSearchTerm}
+                    onSearch={() => setAppliedSearchTerm(searchTerm)}
+                  />
                   <FilterPopover
                     title="입찰"
                     statusOptions={statusOptions}

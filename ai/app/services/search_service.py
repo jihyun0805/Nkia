@@ -30,6 +30,7 @@ from app.schemas.search import (
 )
 from app.services.confidence_service import compute_confidence_assessment
 from app.services.reranker_service import apply_lightweight_reranker
+from app.services.user_context_access import is_row_accessible
 
 KEYWORD_TOKEN_PATTERN = re.compile(r"[0-9A-Za-z가-힣][0-9A-Za-z가-힣_.-]*")
 BUSINESS_CODE_PATTERN = re.compile(r"(?<![A-Z0-9-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}(?![A-Z0-9-])")
@@ -366,25 +367,11 @@ def apply_user_context_filter(
     if user_context is None or user_context.is_unrestricted():
         return rows
 
-    allowed_ids = (
-        set(user_context.accessible_source_ids)
-        if user_context.accessible_source_ids is not None
-        else None
-    )
-    allowed_types = (
-        set(user_context.accessible_source_types)
-        if user_context.accessible_source_types is not None
-        else None
-    )
-
-    filtered: list[dict[str, Any]] = []
-    for row in rows:
-        if allowed_ids is not None and row.get("source_id") not in allowed_ids:
-            continue
-        if allowed_types is not None and row.get("source_type") not in allowed_types:
-            continue
-        filtered.append(row)
-    return filtered
+    return [
+        row
+        for row in rows
+        if is_row_accessible(row=row, user_context=user_context)
+    ]
 
 
 def build_typed_result_groups(rows: list[dict[str, Any]]) -> SearchResultGroups:

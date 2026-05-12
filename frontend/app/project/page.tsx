@@ -7,11 +7,11 @@ import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, ClipboardList, Receipt, Wallet, TrendingUp, Plus } from "lucide-react";
+import { ClipboardList, Receipt, Wallet, TrendingUp, Plus } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
+import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
 import { billingAndCollections, projectResults } from "@/lib/project-data";
 import { orderReports, contracts } from "@/lib/contract-data";
@@ -20,81 +20,107 @@ import { BillingRequestForm } from "@/components/erp/project/billing-request-for
 
 export default function ProjectPage() {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"results" | "billingAndCollection" | "revenue">("results");
   const [isCreating, setIsCreating] = useState(false);
 
-  const { expectedRevenue, totalEms, totalItsm, totalAutomation, totalWss, totalRevenue } = useMemo(() => {
-    const y = 2026; // Data base year
-    const monthlyData: Record<string, { month: string; ems: number; itsm: number; automation: number; wss: number }> = {};
+  const { expectedRevenue, totalEms, totalItg, totalIot, totalOther, totalEmsMaint, totalItgMaint, totalRevenue } = useMemo(() => {
+    const y = 2026;
+    type MonthRow = { month: string; ems: number; itg: number; iot: number; other: number; emsMaint: number; itgMaint: number };
+    const monthlyData: Record<string, MonthRow> = {};
     for (let i = 1; i <= 12; i++) {
       const monthStr = `${y}-${String(i).padStart(2, "0")}`;
-      monthlyData[monthStr] = { month: monthStr, ems: 0, itsm: 0, automation: 0, wss: 0 };
+      monthlyData[monthStr] = { month: monthStr, ems: 0, itg: 0, iot: 0, other: 0, emsMaint: 0, itgMaint: 0 };
     }
 
-    contracts.forEach(contract => {
-      const order = orderReports.find(o => o.id === contract.orderId);
-      if (!order) return;
-      
-      let productKey: "ems" | "itsm" | "automation" | "wss" = "wss";
-      const prodName = order.product.toLowerCase();
-      if (prodName.includes("ems")) productKey = "ems";
-      else if (prodName.includes("itsm")) productKey = "itsm";
-      else if (prodName.includes("automation")) productKey = "automation";
+    contracts.forEach((contract) => {
+      const order = orderReports.find((o) => o.id === contract.orderId);
+      if (!order || !order.salesClassification) return;
+
+      const sc = order.salesClassification;
+      const parseAmt = (v: string) => parseInt(v.replace(/,/g, "")) || 0;
+      const categoryAmounts = {
+        ems: parseAmt(sc.ems),
+        itg: parseAmt(sc.itg) + parseAmt(sc.dashboard) + parseAmt(sc.ito) + parseAmt(sc.aiotion),
+        iot: 0,
+        other: parseAmt(sc.others) + parseAmt(sc.verification),
+        emsMaint: parseAmt(sc.emsMaintenance),
+        itgMaint: parseAmt(sc.itgMaintenance),
+      };
+      const contractTotal = Object.values(categoryAmounts).reduce((s, v) => s + v, 0);
+      if (contractTotal === 0) return;
 
       const amount = parseInt(contract.amount.replace(/,/g, ""));
       const start = new Date(contract.startDate);
       const end = new Date(contract.endDate);
-      
       const totalDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      const dailyAmount = amount / totalDays;
 
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         if (d.getFullYear() === y) {
           const monthStr = `${y}-${String(d.getMonth() + 1).padStart(2, "0")}`;
           if (monthlyData[monthStr]) {
-            monthlyData[monthStr][productKey] += dailyAmount;
+            for (const key of Object.keys(categoryAmounts) as (keyof typeof categoryAmounts)[]) {
+              monthlyData[monthStr][key] += (amount * (categoryAmounts[key] / contractTotal)) / totalDays;
+            }
           }
         }
       }
     });
 
-    const revenueList = Object.values(monthlyData).filter(
-      row => row.ems > 0 || row.itsm > 0 || row.automation > 0 || row.wss > 0
-    );
+    const revenueList = Object.values(monthlyData).filter((row) => row.ems > 0 || row.itg > 0 || row.iot > 0 || row.other > 0 || row.emsMaint > 0 || row.itgMaint > 0);
 
-    let tEms = 0, tItsm = 0, tAutomation = 0, tWss = 0, tTotal = 0;
-    revenueList.forEach(row => {
+    let tEms = 0,
+      tItg = 0,
+      tIot = 0,
+      tOther = 0,
+      tEmsMaint = 0,
+      tItgMaint = 0,
+      tTotal = 0;
+    revenueList.forEach((row) => {
       tEms += row.ems;
-      tItsm += row.itsm;
-      tAutomation += row.automation;
-      tWss += row.wss;
-      tTotal += row.ems + row.itsm + row.automation + row.wss;
+      tItg += row.itg;
+      tIot += row.iot;
+      tOther += row.other;
+      tEmsMaint += row.emsMaint;
+      tItgMaint += row.itgMaint;
+      tTotal += row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
     });
 
-    return { 
-      expectedRevenue: revenueList, 
-      totalEms: tEms, 
-      totalItsm: tItsm, 
-      totalAutomation: tAutomation, 
-      totalWss: tWss, 
-      totalRevenue: tTotal 
+    return {
+      expectedRevenue: revenueList,
+      totalEms: tEms,
+      totalItg: tItg,
+      totalIot: tIot,
+      totalOther: tOther,
+      totalEmsMaint: tEmsMaint,
+      totalItgMaint: tItgMaint,
+      totalRevenue: tTotal,
     };
   }, []);
-  const q = searchTerm.toLowerCase();
   const projectFieldOptions =
     activeTab === "billingAndCollection"
       ? [{ key: "customer", label: "고객사", options: uniqueOptions(billingAndCollections, (item) => item.customer) }]
       : [{ key: "customer", label: "고객사", options: uniqueOptions(projectResults, (item) => item.customer) }];
 
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true;
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm);
+  };
+
   const filteredProjectResults = filterRecords(projectResults, filters, { owner: (item) => item.pm, date: (item) => item.registeredAt, fields: { customer: (item) => item.customer } })
-    .filter((item) => [item.id, item.contractId, item.name, item.customer, item.pm, item.salesRep].join(" ").toLowerCase().includes(q))
+    .filter((item) => matchesSearch([item.id, item.customer, item.name, item.amount, item.startDate, item.endDate, item.pm, item.salesRep]))
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
 
   const filteredBillingAndCollections = filterRecords(billingAndCollections, filters, { date: (item) => item.issueDate, fields: { customer: (item) => item.customer } })
     .filter((item) => item.approvalStatus === "승인완료")
-    .filter((item) => [item.id, item.customer, item.projectName, item.salesRep, item.requester].join(" ").toLowerCase().includes(q))
+    .filter((item) => matchesSearch([item.id, item.customer, item.projectName, item.amount, item.issueDate, item.collectionDate, item.salesRep, item.requester, item.approvalStatus]))
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
 
   const projectStatuses = ["진행중", "완료", "발행완료", "수금완료", "대기", "승인완료"];
@@ -131,10 +157,7 @@ export default function ProjectPage() {
               <div className="flex items-center gap-2">
                 {!isCreating ? (
                   <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input placeholder="검색..." className="pl-9 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isCreating} />
-                    </div>
+                    {activeTab !== "revenue" && <PageSearchForm value={searchTerm} onChange={setSearchTerm} onSearch={() => setAppliedSearchTerm(searchTerm)} />}
                     <FilterPopover title="사업" statusOptions={projectStatuses} value={filters} onApply={setFilters} fieldOptions={projectFieldOptions} />
                     {activeTab === "results" && (
                       <Button onClick={() => setIsCreating(true)}>
@@ -168,7 +191,6 @@ export default function ProjectPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[120px]">사업번호</TableHead>
                           <TableHead>고객사</TableHead>
                           <TableHead>사업명</TableHead>
                           <TableHead className="text-right">사업금액</TableHead>
@@ -181,7 +203,6 @@ export default function ProjectPage() {
                       <TableBody>
                         {filteredProjectResults.map((project) => (
                           <TableRow key={project.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/project/results/${project.id}`)}>
-                            <TableCell className="font-mono text-sm">{project.id}</TableCell>
                             <TableCell>{project.customer}</TableCell>
                             <TableCell className="font-medium max-w-[150px] truncate">{project.name}</TableCell>
                             <TableCell className="text-right font-medium">₩{project.amount.toLocaleString()}</TableCell>
@@ -271,31 +292,37 @@ export default function ProjectPage() {
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">제품별/월별 예상 매출액</CardTitle>
-                    <Badge variant="secondary" className="text-sm px-3 py-1">연말 총 합계 ₩{Math.round(totalRevenue).toLocaleString()}</Badge>
+                    <Badge variant="secondary" className="text-sm px-3 py-1">
+                      연말 총 합계 ₩{Math.round(totalRevenue).toLocaleString()}
+                    </Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="w-[120px] font-semibold text-center">월</TableHead>
+                        <TableHead className="w-[100px] font-semibold text-center">월</TableHead>
                         <TableHead className="text-right font-semibold">EMS</TableHead>
-                        <TableHead className="text-right font-semibold">ITSM</TableHead>
-                        <TableHead className="text-right font-semibold">Automation</TableHead>
-                        <TableHead className="text-right font-semibold">WSS</TableHead>
+                        <TableHead className="text-right font-semibold">ITG</TableHead>
+                        <TableHead className="text-right font-semibold">IoT</TableHead>
+                        <TableHead className="text-right font-semibold">기타</TableHead>
+                        <TableHead className="text-right font-semibold">EMS 유지보수</TableHead>
+                        <TableHead className="text-right font-semibold">ITG 유지보수</TableHead>
                         <TableHead className="text-right font-semibold text-primary">월별 합계</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {expectedRevenue.map((row) => {
-                        const monthTotal = row.ems + row.itsm + row.automation + row.wss;
+                        const monthTotal = row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
                         return (
                           <TableRow key={row.month} className="hover:bg-muted/30 transition-colors">
                             <TableCell className="font-medium text-center">{row.month}</TableCell>
                             <TableCell className="text-right">₩{Math.round(row.ems).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.itsm).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.automation).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.wss).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.itg).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.iot).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.other).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.emsMaint).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(row.itgMaint).toLocaleString()}</TableCell>
                             <TableCell className="text-right font-bold text-primary bg-primary/5">₩{Math.round(monthTotal).toLocaleString()}</TableCell>
                           </TableRow>
                         );
@@ -305,9 +332,11 @@ export default function ProjectPage() {
                       <TableRow className="bg-muted font-bold hover:bg-muted">
                         <TableCell className="text-center">연말 합계</TableCell>
                         <TableCell className="text-right">₩{Math.round(totalEms).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalItsm).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalAutomation).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalWss).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalItg).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalIot).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalOther).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalEmsMaint).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₩{Math.round(totalItgMaint).toLocaleString()}</TableCell>
                         <TableCell className="text-right text-primary text-lg">₩{Math.round(totalRevenue).toLocaleString()}</TableCell>
                       </TableRow>
                     </TableFooter>

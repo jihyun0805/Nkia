@@ -1,10 +1,10 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseFromOrderReportResponse;
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
-import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -16,6 +16,10 @@ import lombok.Getter;
 public class OrderReportResponse {
 
     private Long id;
+
+    private Long workflowId;
+
+    private ApprovalStatus status;
 
     private String orderReportCode;
 
@@ -53,8 +57,9 @@ public class OrderReportResponse {
 
     private String remarks;
 
-    // TODO: 사업 기회 구현 후 형식에 맞게 반환(사업명)
-    private ProjectOpportunity projectOpportunity;
+    private Long projectOpportunityId;
+
+    private String projectName;
 
     private UUID pmId;
 
@@ -137,10 +142,11 @@ public class OrderReportResponse {
     // OrderReportLicense 중 ProductClass가 앞의 분류에 해당하지 않는것들의 totalPrice들의 총합
     private Long otherSummary;
 
-    // Todo: Company, CompanyManager 구현후 연동 예정
-    public static OrderReportResponse from(OrderReport orderReport) {
+    public static OrderReportResponse from(OrderReport orderReport, Long workflowId) {
         return OrderReportResponse.builder()
                 .id(orderReport.getId())
+                .workflowId(workflowId)
+                .status(orderReport.getStatus())
                 .orderReportCode(orderReport.getOrderReportCode())
                 .totalAmount(orderReport.getTotalAmount())
                 .paymentCondition(orderReport.getPaymentCondition())
@@ -159,46 +165,33 @@ public class OrderReportResponse {
                 .contractPeriodMonths(orderReport.getContractPeriodMonths())
                 .scopeOfWork(orderReport.getScopeOfWork())
                 .remarks(orderReport.getRemarks())
-
-                .projectOpportunity(orderReport.getProjectOpportunity())
-
+                .projectOpportunityId(orderReport.getProjectOpportunity().getId())
+                .projectName(orderReport.getProjectOpportunity().getOpportunityName())
                 .pmId(orderReport.getPm() != null ? orderReport.getPm().getId() : null)
                 .pmName(orderReport.getPm() != null ? orderReport.getPm().getName() : null)
 
-//                .contractCounterpartCompanyId(orderReport.getContractCounterpartCompany() != null
-//                        ? orderReport.getContractCounterpartCompany().getId() : null)
-//                .contractCounterpartCompanyName(orderReport.getContractCounterpartCompany() != null
-//                        ? orderReport.getContractCounterpartCompany().getCompanyName() : null)
-//
-//                .contractCounterpartManagerId(orderReport.getContractCounterpartManager() != null
-//                        ? orderReport.getContractCounterpartManager().getId() : null)
-//                .contractCounterpartManagerName(orderReport.getContractCounterpartManager() != null
-//                        ? orderReport.getContractCounterpartManager().getName() : null)
-//
-//                .finalCustomerCompanyId(
-//                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany().getId()
-//                                : null)
-//                .finalCustomerCompanyName(
-//                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany()
-//                                .getCompanyName() : null)
-                .contractCounterpartCompanyId(null)
-                .contractCounterpartCompanyName(null)
+                .contractCounterpartCompanyId(orderReport.getContractCounterpartCompany() != null
+                        ? orderReport.getContractCounterpartCompany().getId() : null)
+                .contractCounterpartCompanyName(orderReport.getContractCounterpartCompany() != null
+                        ? orderReport.getContractCounterpartCompany().getName() : null)
 
-                .contractCounterpartManagerId(null)
-                .contractCounterpartManagerName(null)
+                .contractCounterpartManagerId(orderReport.getContractCounterpartManager() != null
+                        ? orderReport.getContractCounterpartManager().getId() : null)
+                .contractCounterpartManagerName(orderReport.getContractCounterpartManager() != null
+                        ? orderReport.getContractCounterpartManager().getName() : null)
 
-                .finalCustomerCompanyId(null)
-                .finalCustomerCompanyName(null)
-
-                .finalCustomerManagerId(null)
-                .finalCustomerManagerName(null)
-
-//                .finalCustomerManagerId(
-//                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getId()
-//                                : null)
-//                .finalCustomerManagerName(
-//                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getName()
-//                                : null)
+                .finalCustomerCompanyId(
+                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany().getId()
+                                : null)
+                .finalCustomerCompanyName(
+                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany()
+                                .getName() : null)
+                .finalCustomerManagerId(
+                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getId()
+                                : null)
+                .finalCustomerManagerName(
+                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getName()
+                                : null)
 
                 .maintenances(orderReport.getMaintenances().stream()
                         .map(OrderReportMaintenanceResponse::from)

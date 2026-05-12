@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { formatAttachmentSize } from "@/lib/attachments"
 import { toast } from "@/hooks/use-toast"
-import { deletePartner, getFindingCategoryLabel, getFindingFields, getFindingItem, type FindingCategory, type FindingFormField } from "@/lib/finding-data"
+import { deleteOpportunity, deletePartner, getFindingCategoryLabel, getFindingFields, getFindingItem, type FindingCategory, type FindingFormField } from "@/lib/finding-data"
 import { FileText } from "lucide-react"
 
 function FindingDetailControl({ field, value }: { field: FindingFormField; value: string }) {
@@ -73,24 +73,47 @@ export default function FindingDetailPage() {
   const editHref = `/finding/${category}/${id}/edit?tab=${tab}`
 
   const handleDelete = () => {
-    if (category !== "partners") return
+    if (category === "partners") {
+      const result = deletePartner(id)
+      if (result.status === "not_found") {
+        toast({
+          title: "협력사 삭제 실패",
+          description: "삭제할 협력사를 찾지 못했습니다.",
+        })
+        setIsDeleteAlertOpen(false)
+        return
+      }
 
-    const result = deletePartner(id)
-    if (result.status === "not_found") {
       toast({
-        title: "협력사 삭제 실패",
-        description: "삭제할 협력사를 찾지 못했습니다.",
+        title: "협력사 삭제 완료",
+        description: `${result.partner.name} 협력사가 삭제되었습니다.`,
       })
       setIsDeleteAlertOpen(false)
+      router.push(backHref)
       return
     }
 
-    toast({
-      title: "협력사 삭제 완료",
-      description: `${result.partner.name} 협력사가 삭제되었습니다.`,
-    })
-    setIsDeleteAlertOpen(false)
-    router.push(backHref)
+    if (category === "opportunities") {
+      const result = deleteOpportunity(id)
+      if (result.status === "not_found") {
+        toast({
+          title: "사업기회 삭제 실패",
+          description: "삭제할 사업기회를 찾지 못했습니다.",
+        })
+        setIsDeleteAlertOpen(false)
+        return
+      }
+
+      toast({
+        title: "사업기회 삭제 완료",
+        description: `${result.opportunity.name} 사업기회가 삭제되었습니다.`,
+      })
+      setIsDeleteAlertOpen(false)
+      router.push(backHref)
+      return
+    }
+
+    return
   }
 
   if (!item) {
@@ -272,7 +295,7 @@ export default function FindingDetailPage() {
                   <Button variant="outline" asChild>
                     <Link href={backHref}>목록</Link>
                   </Button>
-                  {category === "partners" ? (
+                  {category === "partners" || category === "opportunities" ? (
                     <Button variant="destructive" onClick={() => setIsDeleteAlertOpen(true)}>
                       삭제
                     </Button>
@@ -290,9 +313,11 @@ export default function FindingDetailPage() {
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>협력사를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogTitle>{category === "opportunities" ? "사업기회를 삭제하시겠습니까?" : "협력사를 삭제하시겠습니까?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              삭제 후에는 협력사 상세 정보와 담당자 정보를 이 화면에서 다시 복구할 수 없습니다.
+              {category === "opportunities"
+                ? "삭제 후에는 사업기회 상세 정보와 첨부파일을 이 화면에서 다시 복구할 수 없습니다."
+                : "삭제 후에는 협력사 상세 정보와 담당자 정보를 이 화면에서 다시 복구할 수 없습니다."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.contract.orderreport.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportListResponse;
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportResponse;
@@ -99,12 +100,25 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 변경 이력 상세 조회")
     @GetMapping("/histories/{orderReportHistoryId}")
-    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
     public ResponseEntity<ApiResponse<OrderReportHistoryResponse>> getOrderReportHistory(
             @PathVariable("orderReportHistoryId") Long orderReportHistoryId
     ) {
         OrderReportHistoryResponse response = orderReportService.getOrderReportHistory(orderReportHistoryId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "수주보고서 결재 상신")
+    @PostMapping("/submit/{orderReportId}")
+    public ResponseEntity<ApiResponse<String>> submitOrderReport(
+            @PathVariable("orderReportId") Long orderReportId,
+            @RequestBody SubmitRequest request
+    ) {
+        orderReportService.submitOrderReport(
+                orderReportId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("수주보고서 결재 상신 완료"));
     }
 }

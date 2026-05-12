@@ -27,7 +27,7 @@ public class ProjectResultReportController {
     private final ProjectFacadeService projectFacadeService;
 
     /**
-     * 실제 결과보고 데이터를 저장하는 API
+     * 결과보고 데이터 저장
      */
     @Operation(summary = "사업 결과 보고 등록")
     @PostMapping("/register")
@@ -38,7 +38,7 @@ public class ProjectResultReportController {
     }
 
     /**
-     * 사업 결과보고를 삭제합니다.
+     * 사업 결과보고 삭제
      */
     @Operation(summary = "사업 결과 보고 삭제")
     @DeleteMapping("/{reportId}")

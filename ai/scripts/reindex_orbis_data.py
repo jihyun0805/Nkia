@@ -90,17 +90,22 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
     DocumentConfig(
         table="rfp_analyze_result",
         source_type=SourceType.RFP_ANALYSIS,
-        id_fields=("rfpAnalysisCode", "rfp_analysis_code", "id"),
-        title_fields=("rfpAnalysisCode", "rfp_analysis_code", "id"),
+        id_fields=("rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
+        title_fields=("project_name", "opportunity_name", "rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
         content_fields=(
             "issuer", "project_scope", "project_period",
             "requirements", "risk_factors", "special_notes",
             "key_requirements", "analysis_summary",
+            "project_name", "project_description", "expected_duration",
+            "project_location", "proposal_deadline", "analysis_status", "status",
         ),
         payload_aliases={
-            "opportunityId": ("project_opportunity_id",),
-            "rfpAnalysisCode": ("id",),
-            "rfpCode": ("id",),
+            "opportunityId": ("project_opportunity_id", "opportunity_id"),
+            "rfpAnalysisCode": ("rfp_analysis_code", "rfp_code", "id"),
+            "rfpCode": ("rfp_code", "rfp_analysis_code", "id"),
+            "projectScope": ("project_scope", "project_description"),
+            "submissionDeadline": ("submission_deadline", "proposal_deadline"),
+            "analysisStatus": ("analysis_status", "status"),
         },
     ),
     DocumentConfig(
@@ -315,6 +320,25 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "effort": ("effort",),
         },
     ),
+    DocumentConfig(
+        table="rfp_requirement",
+        source_type=SourceType.RFP_ANALYSIS,
+        id_fields=("requirementCode", "requirement_code", "id"),
+        title_fields=("requirement_title", "name", "requirement_code", "id"),
+        content_fields=(
+            "category", "requirement_code", "requirement_title", "name",
+            "requirement_content", "description", "support_status", "support_type",
+            "review_note", "review_comment", "effort",
+        ),
+        payload_aliases={
+            "rfpAnalyzeResultId": ("rfp_analyze_result_id",),
+            "requirementCode": ("requirement_code",),
+            "requirementTitle": ("requirement_title", "name"),
+            "supportStatus": ("support_status", "support_type"),
+            "reviewNote": ("review_note", "review_comment"),
+            "effort": ("effort",),
+        },
+    ),
 )
 
 ALWAYS_CONFIGS: tuple[DocumentConfig, ...] = (
@@ -415,7 +439,7 @@ def build_documents(
                 documents.extend(build_current_activity_documents(row))
             elif config.table == "rfp_analyze_result":
                 documents.extend(build_current_rfp_documents(row))
-            elif config.table == "rfp_analyze_requirement":
+            elif config.table in {"rfp_analyze_requirement", "rfp_requirement"}:
                 documents.extend(build_current_rfp_requirement_documents(conn=conn, row=row))
             elif config.table == "bid_result":
                 documents.extend(build_current_bid_result_documents(row))
@@ -542,8 +566,8 @@ def build_current_rfp_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
         config=config,
         row=row,
         override_source_type=SourceType.RFP,
-        override_id_fields=("rfpCode", "rfp_analysis_code", "id"),
-        override_title_fields=("rfpCode", "id"),
+        override_id_fields=("rfpCode", "rfp_code", "rfpAnalysisCode", "rfp_analysis_code", "id"),
+        override_title_fields=("project_name", "opportunity_name", "rfpCode", "rfp_analysis_code", "id"),
     )
     analysis_doc = build_document(config=config, row=row)
     return [doc for doc in (rfp_doc, analysis_doc) if doc is not None]
@@ -554,15 +578,28 @@ def build_current_rfp_requirement_documents(
     conn: psycopg.Connection[Any],
     row: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """rfp_analyze_requirement 행 하나를 AI 청크로 변환.
+    """RFP 요구사항 행 하나를 AI 청크로 변환.
 
     부모 RFP(rfp_analyze_result)와 사업기회(project_opportunity)의 고객사/코드 정보를
     함께 포함하여 '삼성카드 RFP 요구사항 REQ-001은?' 등의 질문에 대응한다.
     """
-    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "rfp_analyze_requirement")
+    table_name = "rfp_analyze_requirement" if "requirement_title" in row else "rfp_requirement"
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == table_name)
     rfp_result_id = row.get("rfp_analyze_result_id")
 
     enriched = dict(row)
+    if table_name == "rfp_requirement":
+        enriched.setdefault("requirement_title", enriched.get("name"))
+        enriched.setdefault("requirement_content", enriched.get("description"))
+        enriched.setdefault("review_note", enriched.get("review_comment"))
+        support_type = enriched.get("support_type")
+        if support_type not in (None, "") and enriched.get("support_status") in (None, ""):
+            enriched["support_status"] = {
+                "PROVIDED": "O",
+                "PARTIAL_CUSTOMIZATION": "∆",
+                "NOT_PROVIDED": "X",
+                "NEEDS_REVIEW": "?",
+            }.get(str(support_type), support_type)
     if rfp_result_id is not None:
         try:
             with conn.cursor() as cur:
@@ -587,7 +624,7 @@ def build_current_rfp_requirement_documents(
                 if parent:
                     enriched.update({
                         "rfp_code":           parent[1],
-                        "rfp_analysis_code":  parent[2],
+                        "rfp_analysis_code":  parent[2] or parent[1] or parent[0],
                         "opportunity_code":   parent[4],
                         "opportunity_name":   parent[5],
                         "customer_name":      parent[6],

@@ -7,6 +7,7 @@ import com.nkia.Orbis.domain.activity.quotation.dto.response.QuotationResponse;
 import com.nkia.Orbis.domain.activity.quotation.service.QuotationService;
 import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryListResponse;
 import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -107,5 +108,19 @@ public class QuotationController {
         QuotationHistoryResponse response = quotationService.getQuotationHistory(quotationHistoryId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "견적서 결재 상신")
+    @PostMapping("/submit/{quotationId}")
+    public ResponseEntity<ApiResponse<String>> submitQuotation(
+            @PathVariable("quotationId") Long quotationId,
+            @RequestBody SubmitRequest request
+    ) {
+        quotationService.submitQuotation(
+                quotationId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("견적서 결재 상신 완료"));
     }
 }

@@ -230,6 +230,7 @@ def _build_graph_structured_node(*, embedder: EmbeddingModel, callbacks: OrbisGr
             graph_state=graph_state,
             limit=state["limit"],
             embedder=embedder,
+            user_context=_load_user_context(state),
         )
         if response is None:
             return {}
@@ -264,6 +265,7 @@ def _build_structured_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCal
             start_at=effective_start_at,
             end_at=effective_end_at,
             embedder=embedder,
+            user_context=_load_user_context(state),
         )
         if response is None:
             return {}

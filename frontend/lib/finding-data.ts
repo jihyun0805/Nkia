@@ -157,6 +157,7 @@ type PartnerUpdateInput = PartnerRegistrationInput
 const customerStorageKey = "orbis.customers"
 const deletedCustomerIdsStorageKey = "orbis.deleted-customer-ids"
 const opportunityStorageKey = "orbis.opportunities"
+const deletedOpportunityIdsStorageKey = "orbis.deleted-opportunity-ids"
 const partnerStorageKey = "orbis.partners"
 const deletedPartnerIdsStorageKey = "orbis.deleted-partner-ids"
 const customerGroupOptions = ["공공", "민간", "해외"]
@@ -527,6 +528,20 @@ function getDeletedPartnerIds(): string[] {
   }
 }
 
+function getDeletedOpportunityIds(): string[] {
+  if (typeof window === "undefined") return []
+
+  const stored = window.localStorage.getItem(deletedOpportunityIdsStorageKey)
+  if (!stored) return []
+
+  try {
+    const parsed = JSON.parse(stored) as string[]
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+  } catch {
+    return []
+  }
+}
+
 function setStoredCustomers(value: CustomerRecord[]) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(customerStorageKey, JSON.stringify(value))
@@ -550,6 +565,11 @@ function setStoredPartners(value: PartnerRecord[]) {
 function setDeletedPartnerIds(value: string[]) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(deletedPartnerIdsStorageKey, JSON.stringify(value))
+}
+
+function setDeletedOpportunityIds(value: string[]) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(deletedOpportunityIdsStorageKey, JSON.stringify(value))
 }
 
 function parseCustomerCode(customerId: string) {
@@ -590,7 +610,12 @@ export function getNextCustomerCode() {
 
 export function getOpportunities() {
   const merged = new Map<string, OpportunityRecord>()
-  for (const opportunity of baseOpportunities) merged.set(opportunity.id, opportunity)
+  const deletedIds = new Set(getDeletedOpportunityIds())
+  for (const opportunity of baseOpportunities) {
+    if (!deletedIds.has(opportunity.id)) {
+      merged.set(opportunity.id, opportunity)
+    }
+  }
   for (const opportunity of getStoredOpportunities()) merged.set(opportunity.id, opportunity)
   return [...merged.values()]
 }
@@ -699,6 +724,7 @@ export function registerOpportunity(input: OpportunityRegistrationInput) {
   }
 
   setStoredOpportunities([...getStoredOpportunities(), created])
+  setDeletedOpportunityIds(getDeletedOpportunityIds().filter((item) => item !== created.id))
   return { status: "created" as const, opportunity: created }
 }
 
@@ -836,6 +862,7 @@ export function updateOpportunity(opportunityId: string, input: OpportunityUpdat
 
   const storedOpportunities = getStoredOpportunities().filter((item) => item.id !== normalizedId)
   setStoredOpportunities([...storedOpportunities, nextRecord])
+  setDeletedOpportunityIds(getDeletedOpportunityIds().filter((item) => item !== normalizedId))
   return { status: "updated" as const, opportunity: nextRecord }
 }
 
@@ -884,6 +911,21 @@ export function updatePartner(partnerId: string, input: PartnerUpdateInput) {
   setDeletedPartnerIds(getDeletedPartnerIds().filter((item) => item !== normalizedId))
 
   return { status: "updated" as const, partner: nextRecord }
+}
+
+export function deleteOpportunity(opportunityId: string) {
+  const normalizedId = opportunityId.trim()
+  const existing = getOpportunities().find((item) => item.id === normalizedId)
+  if (!existing) return { status: "not_found" as const }
+
+  const filteredStoredOpportunities = getStoredOpportunities().filter((item) => item.id !== normalizedId)
+  const deletedIds = new Set(getDeletedOpportunityIds())
+  deletedIds.add(normalizedId)
+
+  setStoredOpportunities(filteredStoredOpportunities)
+  setDeletedOpportunityIds([...deletedIds])
+
+  return { status: "deleted" as const, opportunity: existing }
 }
 
 export function deleteCustomer(customerId: string) {

@@ -143,6 +143,17 @@ DO $do$
 DECLARE
     ai_db_user text := '__AI_DB_USER__';
 BEGIN
+    EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', ai_db_user);
+    EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA public TO %I', ai_db_user);
+    EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO %I', ai_db_user);
+    EXECUTE format(
+        'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO %I',
+        ai_db_user
+    );
+    EXECUTE format(
+        'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO %I',
+        ai_db_user
+    );
     EXECUTE format('GRANT USAGE ON SCHEMA ai TO %I', ai_db_user);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ai TO %I', ai_db_user);
     EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ai TO %I', ai_db_user);

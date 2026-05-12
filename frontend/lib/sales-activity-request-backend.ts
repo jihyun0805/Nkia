@@ -2,37 +2,20 @@
 
 import { getBackendApiBaseUrl } from "@/lib/api-base-url"
 import { buildAuthHeaders } from "@/lib/auth-session"
-import { getActivityRequests, type ActivityRequestRecord } from "@/lib/activity-request-workflow"
-import type { ActivityAttachment } from "@/lib/activity-data"
+import { getActivityRequests } from "@/lib/activity-request-workflow"
+import { type ActivityAttachment, type ActivityRequestRecord } from "@/lib/activity-data"
 import { getPresalesUsers } from "@/lib/admin-data"
 import type {
   SalesActivityRequestCreateRequest,
   SalesActivityRequestResponse,
   SalesActivityRequestResponseActivityPurpose,
-  SalesActivityRequestResponseActivityType,
-  ApiResponseSalesActivityRequestResponse,
-  ApiResponseListSalesActivityRequestListResponse,
 } from "@/lib/api/generated/model"
 
 type BackendRequestListItem = {
   id?: number
-  title?: string
   salesActivityId?: number
   targetUserId?: string
   activityPurpose?: SalesActivityRequestResponseActivityPurpose | string
-  activityDateTime?: string
-}
-
-type BackendRequestDetailItem = {
-  id?: number
-  title?: string
-  salesActivityId?: number
-  targetUserId?: string
-  targetUserName?: string
-  requestUserId?: string
-  requestUserName?: string
-  activityPurpose?: SalesActivityRequestResponseActivityPurpose | string
-  activityType?: SalesActivityRequestResponseActivityType | string
   activityDateTime?: string
   requestContent?: string
 }
@@ -80,8 +63,6 @@ const ACTIVITY_PURPOSE_TO_ENUM: Record<string, SalesActivityRequestCreateRequest
   기타: "ETC",
 }
 
-const ACTIVITY_TYPE_FALLBACK = "ETC"
-
 function isBrowser() {
   return typeof window !== "undefined"
 }
@@ -121,16 +102,20 @@ function getTargetUserIdByName(name: string) {
   return getPresalesUsers().find((user) => user.name === name)?.id
 }
 
+function getTargetUserNameById(id?: string) {
+  if (!id) return undefined
+  return getPresalesUsers().find((user) => user.id === id)?.name
+}
+
 function mergeRequest(
-  backendRequest: BackendRequestDetailItem | BackendRequestListItem,
+  backendRequest: BackendRequestListItem | SalesActivityRequestResponse,
   local: ActivityRequestRecord | undefined,
 ): ActivityRequestRecord {
   const activityDate = backendRequest.activityDateTime?.slice(0, 10) || local?.date || today()
   const purposeLabel = activityPurposeLabel(String(backendRequest.activityPurpose ?? local?.type ?? "ETC"))
-  const requester = "requestUserName" in backendRequest && backendRequest.requestUserName ? backendRequest.requestUserName : local?.requester ?? "-"
-  const receiver = "targetUserName" in backendRequest && backendRequest.targetUserName ? backendRequest.targetUserName : local?.receiver ?? "-"
-  const content = "requestContent" in backendRequest && backendRequest.requestContent ? backendRequest.requestContent : local?.content ?? ""
-  const title = backendRequest.title ?? local?.customer ?? `${purposeLabel} 요청`
+  const requester = local?.requester ?? "-"
+  const receiver = local?.receiver ?? getTargetUserNameById(backendRequest.targetUserId) ?? "-"
+  const content = backendRequest.requestContent ?? local?.content ?? ""
 
   return {
     id: String(backendRequest.id ?? local?.id ?? `REQ-${Date.now()}`),
@@ -139,7 +124,7 @@ function mergeRequest(
     receiver,
     type: local?.type ?? purposeLabel,
     customerCode: local?.customerCode ?? "",
-    customer: local?.customer ?? title,
+    customer: local?.customer ?? `${purposeLabel} 요청`,
     opportunityCode: local?.opportunityCode ?? "",
     opportunity: local?.opportunity ?? "미확인",
     content,
@@ -169,9 +154,7 @@ async function fetchRequestList() {
     cache: "no-store",
   })
 
-  type ApiResponse = ApiResponseListSalesActivityRequestListResponse
-  const payload = await parseApiResponse<ApiResponse>(response, "활동 요청 목록을 불러오지 못했습니다.")
-  return payload.data ?? []
+  return parseApiResponse<BackendRequestListItem[]>(response, "활동 요청 목록을 불러오지 못했습니다.")
 }
 
 async function fetchRequestDetail(id: number) {
@@ -181,9 +164,7 @@ async function fetchRequestDetail(id: number) {
     cache: "no-store",
   })
 
-  type ApiResponse = ApiResponseSalesActivityRequestResponse
-  const payload = await parseApiResponse<ApiResponse>(response, "활동 요청 상세를 불러오지 못했습니다.")
-  return payload.data ?? null
+  return parseApiResponse<SalesActivityRequestResponse>(response, "활동 요청 상세를 불러오지 못했습니다.")
 }
 
 export async function loadBackendActivityRequests() {
@@ -204,7 +185,7 @@ export async function loadBackendActivityRequests() {
   )
 
   const merged = details
-    .filter((item): item is BackendRequestDetailItem => Boolean(item && item.id != null))
+      .filter((item): item is SalesActivityRequestResponse => Boolean(item && item.id != null))
     .map((item) => mergeRequest(item, localIndex.get(String(item.id))))
     .sort((a, b) => b.date.localeCompare(a.date))
 
@@ -224,10 +205,8 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
   }
 
   const payload: SalesActivityRequestCreateRequest = {
-    title: `${input.customer} ${input.type}`.trim(),
     targetUserId,
     activityPurpose: activityPurposeEnum(input.type),
-    activityType: ACTIVITY_TYPE_FALLBACK,
     activityDateTime: `${input.dueDate || input.date}T00:00:00`,
     requestContent: input.content,
   }
@@ -247,8 +226,8 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
   const merged: ActivityRequestRecord = {
     id: String(saved.id ?? `${Date.now()}`),
     date: input.date || saved.activityDateTime?.slice(0, 10) || today(),
-    requester: saved.requestUserName ?? input.requester,
-    receiver: saved.targetUserName ?? input.receiver,
+    requester: input.requester,
+    receiver: input.receiver,
     type: input.type,
     customerCode: input.customerCode,
     customer: input.customer,
