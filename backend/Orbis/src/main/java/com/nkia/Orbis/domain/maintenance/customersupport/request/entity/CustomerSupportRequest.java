@@ -94,7 +94,7 @@ public class CustomerSupportRequest extends BaseEntity {
         this.registrant = registrant;
         this.salesRep = salesRep;
         this.supportManager = supportManager;
-        this.status = ApprovalStatus.APPROVED;
+        this.status = ApprovalStatus.DRAFT;
     }
 
     public void update(CustomerSupportRequestUpdateRequest dto, User requester, User supportManager,
