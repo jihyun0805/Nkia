@@ -25,6 +25,7 @@ public class LicenseHandler implements WorkflowDomainHandler {
                 .orElseThrow(() -> new ApiException(ContractErrorCode.LICENSE_NOT_FOUND));
 
         license.approve();
+        license.issued();
     }
 
     @Override

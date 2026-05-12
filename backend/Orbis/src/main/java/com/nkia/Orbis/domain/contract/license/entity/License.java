@@ -83,7 +83,7 @@ public class License extends BaseEntity {
         license.applyProduct(productModule);
         license.applyPrice(quantity);
         license.licenseType = LicenseType.OFFICIAL;
-        license.licenseStatus = LicenseStatus.ISSUED;
+        license.licenseStatus = LicenseStatus.DEACTIVE;
 
         return license;
     }
@@ -104,7 +104,8 @@ public class License extends BaseEntity {
         license.applyProduct(productModule);
         license.applyPrice(quantity);
         license.licenseType = licenseType;
-        license.licenseStatus = LicenseStatus.REQUESTED;
+        license.licenseStatus = LicenseStatus.DEACTIVE;
+        license.status = ApprovalStatus.DRAFT;
 
         return license;
     }
@@ -161,7 +162,13 @@ public class License extends BaseEntity {
         this.status = ApprovalStatus.CANCELED;
     }
 
-    // 라이선스 상태 변경 메서드 추가
+    public void active() {
+        this.licenseStatus = LicenseStatus.ACTIVE;
+    }
+
+    public void issued() {
+        this.licenseStatus = LicenseStatus.ISSUED;
+    }
 
     public boolean isDraft() {
         return this.status == ApprovalStatus.DRAFT;

@@ -124,6 +124,7 @@ public class WorkflowService {
         if (nextStep.isEmpty()) {
             workflow.approveComplete();
             handleApproved(workflow);
+
             return;
         }
 
