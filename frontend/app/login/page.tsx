@@ -43,6 +43,8 @@ export default function LoginPage() {
 
       saveAuthSession({
         email: email,
+        // name: response?.data?.name || email,
+        // roles: response?.data?.roles || [],
         accessToken: accessToken,
         refreshToken: refreshToken,
         issuedAt: new Date().toISOString(),
