@@ -18,7 +18,10 @@ public enum ContractErrorCode implements ErrorCode {
     ORDER_REPORT_HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "CONTRACT_0005",
             "요청한 order report history를 찾을 수 없습니다."),
     INVALID_ORDER_REPORT_STATUS(HttpStatus.BAD_REQUEST, "CONTRACT_0006",
-            "유효하지 않은 order report status 입니다.");
+            "유효하지 않은 order report status 입니다."),
+    INVALID_LICENSE_STATUS(HttpStatus.BAD_REQUEST, "CONTRACT_0007",
+            "유효하지 않은 license status 입니다.");
+
 
     private final HttpStatus httpStatus;
     private final String code;

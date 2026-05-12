@@ -4,8 +4,14 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseRequest;
@@ -15,6 +21,7 @@ import com.nkia.Orbis.domain.contract.license.dto.response.LicenseResponse;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.license.repository.LicenseRepository;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +33,8 @@ public class LicenseService {
     private final LicenseRepository licenseRepository;
     private final CompanyRepository companyRepository;
     private final ProductModuleRepository productModuleRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     public LicenseResponse create(LicenseRequest request) {
         Company customerCompany = companyRepository.findById(request.getCustomerCompanyId())
@@ -45,7 +54,7 @@ public class LicenseService {
 
         License savedLicense = licenseRepository.save(license);
 
-        return LicenseResponse.from(savedLicense);
+        return LicenseResponse.from(savedLicense, getWorkflowId(savedLicense.getId()));
     }
 
     @Transactional
@@ -61,7 +70,7 @@ public class LicenseService {
         License license = licenseRepository.findById(licenseId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.LICENSE_NOT_FOUND));
 
-        return LicenseResponse.from(license);
+        return LicenseResponse.from(license, getWorkflowId(license.getId()));
     }
 
     @Transactional
@@ -97,7 +106,43 @@ public class LicenseService {
                 request.getEndDate()
         );
 
-        return LicenseResponse.from(license);
+        return LicenseResponse.from(license, getWorkflowId(license.getId()));
+    }
+
+    @Transactional
+    public void submitLicense(
+            Long licenseId,
+            UUID firstApproverId
+    ) {
+        License license = licenseRepository.findById(licenseId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.LICENSE_NOT_FOUND));
+
+        if (!license.isDraft()) {
+            throw new ApiException(ContractErrorCode.INVALID_LICENSE_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.LICENSE,
+                license.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        license.submit();
+    }
+
+    private Long getWorkflowId(Long licenseId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.LICENSE,
+                        licenseId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 
 }

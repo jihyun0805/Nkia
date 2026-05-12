@@ -1,9 +1,10 @@
 package com.nkia.Orbis.domain.contract.license.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.license.entity.LicenseStatus;
 import com.nkia.Orbis.domain.contract.license.entity.LicenseType;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,6 +14,10 @@ import lombok.Getter;
 public class LicenseResponse {
 
     private Long id;
+
+    private Long workflowId;
+
+    private ApprovalStatus status;
 
     private Long orderReportId;
 
@@ -42,9 +47,11 @@ public class LicenseResponse {
 
     private LocalDate endDate;
 
-    public static LicenseResponse from(License license) {
+    public static LicenseResponse from(License license, Long workflowId) {
         return LicenseResponse.builder()
                 .id(license.getId())
+                .workflowId(workflowId)
+                .status(license.getStatus())
                 .orderReportId(license.getOrderReport() != null ? license.getOrderReport().getId() : null)
                 .productModuleId(license.getProductModule().getId())
                 .productClass(license.getProductClass())
