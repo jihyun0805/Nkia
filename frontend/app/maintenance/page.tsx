@@ -13,8 +13,8 @@ import { Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { supportHistories, paidMaintenances } from "@/lib/maintenance-data";
-import { getFreeMaintenanceList, MaintenanceListResponse } from "@/lib/api/maintenance";
+import { supportHistories } from "@/lib/maintenance-data";
+import { getFreeMaintenanceList, getPaidMaintenanceList, MaintenanceListResponse } from "@/lib/api/maintenance";
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
 
@@ -26,6 +26,7 @@ export default function MaintenancePage() {
   const [activeTab, setActiveTab] = useState<"free" | "paid" | "support">("free");
   const [creationMode, setCreationMode] = useState<"none" | "request" | "result">("none");
   const [freeMaintenances, setFreeMaintenances] = useState<any[]>([]);
+  const [paidMaintenances, setPaidMaintenances] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -56,8 +57,36 @@ export default function MaintenancePage() {
           });
           setFreeMaintenances(mappedData);
         }
+
+        const paidResponse = await getPaidMaintenanceList();
+        if (paidResponse.success && paidResponse.data) {
+          const mappedPaidData = paidResponse.data.map((item, index) => {
+            const today = new Date();
+            const endDate = item.endDate ? new Date(item.endDate) : null;
+            let status = "진행중";
+            if (endDate) {
+              if (endDate < today) status = "종료";
+              else if (endDate.getTime() - today.getTime() < 30 * 24 * 60 * 60 * 1000) status = "종료예정";
+            }
+            return {
+              id: `api-paid-${index}`, // 백엔드에서 id를 제공하지 않으므로 임시 id 생성
+              customer: item.customerName || "-",
+              opportunity: item.projectName || "-",
+              product: item.productFamilyName || "-",
+              amount: (item.contractAmount || 0).toString(),
+              startDate: item.startDate || "-",
+              endDate: item.endDate || "-",
+              inspectionMethod: item.inspectionMethod || "-",
+              salesRep: item.salesRepName || "-",
+              manager: item.managerPrimaryName || "-",
+              status: status,
+              registeredAt: item.startDate || new Date().toISOString(),
+            };
+          });
+          setPaidMaintenances(mappedPaidData);
+        }
       } catch (error) {
-        console.error("Failed to fetch free maintenance list:", error);
+        console.error("Failed to fetch maintenance lists:", error);
       }
     };
     fetchData();
