@@ -25,7 +25,6 @@ public class CustomerSupportHandler implements WorkflowDomainHandler {
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
 
         customerSupportRequest.approve();
-        customerSupportRequest.approveCustomerSupportRequest();
     }
 
     @Override
