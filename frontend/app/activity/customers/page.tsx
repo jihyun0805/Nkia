@@ -7,12 +7,12 @@ import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { getActivities } from "@/lib/activity-data"
+import { type ActivityRecord } from "@/lib/activity-data"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 
 export default function ActivityCustomersPage() {
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const today = new Date()
   const recentThreshold = new Date(today)
   recentThreshold.setMonth(recentThreshold.getMonth() - 1)
@@ -28,7 +28,7 @@ export default function ActivityCustomersPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords(getActivities())
+          setActivityRecords([])
         }
       })
 

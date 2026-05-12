@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { findingStatuses, getCustomers, getOpportunities, getPartners } from "@/lib/finding-data"
+import { findingStatuses, type CustomerRecord, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
 import { Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
@@ -30,9 +31,34 @@ function FindingPageContent() {
   const [activeTab, setActiveTab] = useState<FindingTab>(
     initialTab === "customers" || initialTab === "partners" ? initialTab : "opportunities",
   )
+  const [customerRows, setCustomerRows] = useState<CustomerRecord[]>([])
+  const [opportunityRows, setOpportunityRows] = useState<OpportunityRecord[]>([])
+  const [partnerRows, setPartnerRows] = useState<PartnerRecord[]>([])
 
   useEffect(() => {
     setIsMounted(true)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadBackendFindingData()
+      .then((data) => {
+        if (cancelled) return
+        setCustomerRows(data.customers)
+        setOpportunityRows(data.opportunities)
+        setPartnerRows(data.partners)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCustomerRows([])
+        setOpportunityRows([])
+        setPartnerRows([])
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -61,9 +87,6 @@ function FindingPageContent() {
     router.replace(`/finding?tab=${value}`, { scroll: false })
   }
 
-  const customerRows = getCustomers()
-  const opportunityRows = getOpportunities()
-  const partnerRows = getPartners()
   const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
 
   const matchesSearch = (values: Array<string | number | null | undefined>) => {
@@ -104,20 +127,17 @@ function FindingPageContent() {
     matchesSearch([item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]),
   )
 
-  const recentOpportunityCards = useMemo(() => {
-    const threshold = new Date()
-    threshold.setMonth(threshold.getMonth() - 1)
-
-    return filteredOpportunities
-      .filter((item) => {
-        const createdAt = item.createdAt ? new Date(`${item.createdAt}T00:00:00`) : null
-        return createdAt ? createdAt >= threshold : false
-      })
-      .sort((a, b) => {
-        if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt)
-        return a.customer.localeCompare(b.customer, "ko")
-      })
-  }, [filteredOpportunities])
+  const opportunityCards = useMemo(
+    () =>
+      [...filteredOpportunities].sort((a, b) => {
+        const customerCompare = a.customer.localeCompare(b.customer, "ko")
+        if (customerCompare !== 0) return customerCompare
+        const nameCompare = a.name.localeCompare(b.name, "ko")
+        if (nameCompare !== 0) return nameCompare
+        return a.id.localeCompare(b.id)
+      }),
+    [filteredOpportunities],
+  )
 
   const filteredCustomers = filterRecords(customerRows, filters, {
     owner: (item) => item.contact,
@@ -152,7 +172,7 @@ function FindingPageContent() {
       }),
     [filteredPartners],
   )
-  const previewOpportunityCards = useMemo(() => recentOpportunityCards.slice(0, PREVIEW_CARD_COUNT), [recentOpportunityCards])
+  const previewOpportunityCards = useMemo(() => opportunityCards.slice(0, PREVIEW_CARD_COUNT), [opportunityCards])
   const previewCustomerCards = useMemo(() => customerCards.slice(0, PREVIEW_CARD_COUNT), [customerCards])
   const previewPartnerCards = useMemo(() => partnerCards.slice(0, PREVIEW_CARD_COUNT), [partnerCards])
 
@@ -240,9 +260,9 @@ function FindingPageContent() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">최근 1개월 신규 사업기회</CardTitle>
+                    <CardTitle className="text-lg">사업기회 카드 전체 보기</CardTitle>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{recentOpportunityCards.length}건</Badge>
+                      <Badge variant="secondary">{opportunityCards.length}건</Badge>
                       <Button variant="outline" size="sm" asChild>
                         <Link href="/finding/opportunities">전체 보기</Link>
                       </Button>
@@ -276,7 +296,7 @@ function FindingPageContent() {
                     </div>
                   ) : (
                     <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                      최근 1개월 내 등록된 사업기회가 없습니다.
+                      등록된 사업기회가 없습니다.
                     </div>
                   )}
                 </CardContent>

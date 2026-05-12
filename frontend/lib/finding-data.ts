@@ -4,6 +4,7 @@ export type FindingCategory = "opportunities" | "customers" | "partners"
 export type CustomerAttachment = StoredFileAttachment
 export type CustomerRecord = {
   id: string
+  backendId?: number
   name: string
   category: string
   opportunities: number
@@ -38,6 +39,7 @@ export type CustomerContact = {
 }
 export type PartnerRecord = {
   id: string
+  backendId?: number
   name: string
   type: string
   opportunities: number
@@ -59,6 +61,7 @@ export type PartnerRecord = {
 }
 export type OpportunityRecord = {
   id: string
+  backendId?: number
   createdAt: string
   customerCode: string
   partnerCode: string

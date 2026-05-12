@@ -22,7 +22,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { toast } from "@/hooks/use-toast"
-import { deleteCustomer, getCustomers, type CustomerRecord } from "@/lib/finding-data"
+import { type CustomerRecord } from "@/lib/finding-data"
+import { deleteBackendCompany, loadBackendFindingData } from "@/lib/finding-backend"
 
 function CustomerDetailControl({ label, value }: { label: string; value: string }) {
   if (label === "메모") return <Textarea readOnly rows={4} value={value || "-"} />
@@ -55,13 +56,22 @@ function CustomerDetailPageContent() {
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
 
   useEffect(() => {
-    const sync = () => {
-      setCustomer(getCustomers().find((item) => item.id === id) ?? null)
-    }
+    let cancelled = false
 
-    sync()
-    window.addEventListener("storage", sync)
-    return () => window.removeEventListener("storage", sync)
+    loadBackendFindingData()
+      .then((data) => {
+        if (cancelled) return
+        setCustomer(data.customers.find((item) => item.id === id) ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCustomer(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   const contacts = useMemo(() => (customer ? getContactRows(customer) : []), [customer])
@@ -69,22 +79,33 @@ function CustomerDetailPageContent() {
   const editHref = `/finding/customers/${id}/edit?tab=${searchParams.get("tab") ?? "customers"}`
 
   const handleDelete = () => {
-    const result = deleteCustomer(id)
-    if (result.status === "not_found") {
+    const backendId = customer?.backendId
+    if (!backendId) {
       toast({
         title: "고객사 삭제 실패",
-        description: "삭제할 고객사를 찾지 못했습니다.",
+        description: "삭제할 고객사 정보를 찾지 못했습니다.",
       })
       setIsDeleteAlertOpen(false)
       return
     }
 
-    toast({
-      title: "고객사 삭제 완료",
-      description: `${result.customer.name} 고객사가 삭제되었습니다.`,
-    })
-    setIsDeleteAlertOpen(false)
-    router.push(backHref)
+    void (async () => {
+      try {
+        await deleteBackendCompany(backendId)
+        toast({
+          title: "고객사 삭제 완료",
+          description: `${customer.name} 고객사가 삭제되었습니다.`,
+        })
+        setIsDeleteAlertOpen(false)
+        router.push(backHref)
+      } catch {
+        toast({
+          title: "고객사 삭제 실패",
+          description: "백엔드에서 고객사를 삭제하지 못했습니다.",
+        })
+        setIsDeleteAlertOpen(false)
+      }
+    })()
   }
 
   if (!customer) {

@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getCustomers } from "@/lib/finding-data"
+import { type CustomerRecord } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
 import { Search } from "lucide-react"
 
 export default function FindingCustomersPage() {
@@ -18,16 +19,37 @@ export default function FindingCustomersPage() {
   const [isMounted, setIsMounted] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
+  const [customerRows, setCustomerRows] = useState<CustomerRecord[]>([])
 
   useEffect(() => {
     setIsMounted(true)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadBackendFindingData()
+      .then((data) => {
+        if (!cancelled) {
+          setCustomerRows(data.customers)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCustomerRows([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const customerCards = useMemo(
     () => {
       const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
 
-      return [...getCustomers()]
+      return [...customerRows]
         .filter((customer) => {
           if (!normalizedSearchTerm) return true
           return [customer.id, customer.name, customer.contact, customer.phone, customer.category]
@@ -42,7 +64,7 @@ export default function FindingCustomersPage() {
           return a.id.localeCompare(b.id)
         })
     },
-    [appliedSearchTerm],
+    [appliedSearchTerm, customerRows],
   )
 
   if (!isMounted) {

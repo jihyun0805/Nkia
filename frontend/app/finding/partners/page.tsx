@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
@@ -10,14 +10,35 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getPartners } from "@/lib/finding-data"
+import { type PartnerRecord } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
 import { Search } from "lucide-react"
 
 export default function FindingPartnersPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
-  const partnerRows = getPartners()
+  const [partnerRows, setPartnerRows] = useState<PartnerRecord[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadBackendFindingData()
+      .then((data) => {
+        if (!cancelled) {
+          setPartnerRows(data.partners)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPartnerRows([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const partnerCards = useMemo(
     () => {
