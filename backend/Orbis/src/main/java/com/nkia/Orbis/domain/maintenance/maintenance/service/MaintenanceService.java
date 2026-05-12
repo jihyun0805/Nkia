@@ -35,41 +35,54 @@ public class MaintenanceService {
     private final UploadFileRepository uploadFileRepository;
     private final UploadFileService uploadFileService;
 
+    /**
+     * 유지보수 (무상/유상) 신규 등록
+     */
     @Transactional
     public Long maintenanceRegister(MaintenanceCreateRequest dto) {
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
 
-        User salesRep = getUserOrNull(dto.getSalesRepId());
+        User salesRep = getUserOrNull(dto.getSalesRep());
         User primaryManager = getUserOrNull(dto.getManagerPrimary());
         User secondaryManager = getUserOrNull(dto.getManagerSecondary());
         User regularPm = getUserOrNull(dto.getRegularPm());
         UploadFile contractFile = getUploadFile(dto.getContractFileId());
 
-        Maintenance maintenance = Maintenance.builder()
+        Maintenance maintenance = createMaintenanceEntity(dto, project, salesRep, primaryManager, secondaryManager, regularPm, contractFile);
+
+        return maintenanceRepository.save(maintenance).getId();
+    }
+
+    /**
+     * 유지보수 엔티티 생성
+     */
+    private Maintenance createMaintenanceEntity(MaintenanceCreateRequest dto, Project project, User salesRep,
+                                                User primary, User secondary, User regularPm, UploadFile contractFile) {
+        return Maintenance.builder()
                 .project(project)
                 .salesRep(salesRep)
-                .managerPrimary(primaryManager)
-                .managerSecondary(secondaryManager)
+                .managerPrimary(primary)
+                .managerSecondary(secondary)
                 .category(dto.getCategory())
-                .isRemote(dto.isRemoteAvailable())
+                .isRemote(dto.isRemote())
                 .inspectionCycle(dto.getInspectionCycle())
                 .importance(dto.getImportance())
-                .type(dto.getMaintenanceType())
+                .type(dto.getType())
                 .location(dto.getLocation())
-                .rate(dto.getMaintenanceRate())
+                .rate(dto.getRate())
                 .contractAmount(dto.getContractAmount())
-                .annualAmount(dto.getAnnualMaintenanceAmount())
+                .annualAmount(dto.getAnnualAmount())
                 .contractDate(dto.getContractDate())
                 .startDate(dto.getStartDate())
                 .endDate(dto.getEndDate())
-                .reportSubmitted(dto.isReportSubmission())
+                .reportSubmitted(dto.isReportSubmitted())
                 .regularPm(regularPm)
                 .productFamily(dto.getProductFamily())
                 .apVersion(dto.getApVersion())
                 .aclPatchStatus(dto.isAclPatchStatus())
-                .vulnPatchStatus(dto.isVulnerabilityPatch())
-                .upgradePlan(dto.getLtsUpgradePlan())
+                .vulnPatchStatus(dto.isVulnPatchStatus())
+                .upgradePlan(dto.getUpgradePlan())
                 .apCount(dto.getApCount())
                 .esCount(dto.getEsCount())
                 .esVersion(dto.getEsVersion())
@@ -78,10 +91,11 @@ public class MaintenanceService {
                 .remarks(dto.getRemarks())
                 .contractFile(contractFile)
                 .build();
-
-        return maintenanceRepository.save(maintenance).getId();
     }
 
+    /**
+     * ID로 사용자 조회 (없을 경우 null 반환)
+     */
     private User getUserOrNull(UUID userId) {
         if (userId == null) {
             return null;
@@ -90,6 +104,9 @@ public class MaintenanceService {
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 
+    /**
+     * 유지보수 정보 수정 (계약서 파일 포함)
+     */
     @Transactional
     public MaintenanceDetailResponse updateMaintenance(Long id, MaintenanceUpdateRequest dto) {
         Maintenance maintenance = maintenanceRepository.findById(id)
@@ -100,15 +117,7 @@ public class MaintenanceService {
         User secondary = getUserOrNull(dto.getManagerSecondary());
         User regularPm = getUserOrNull(dto.getRegularPm());
 
-        if (dto.getContractFileId() != null) {
-            if (maintenance.getContractFile() != null && !maintenance.getContractFile().getId().equals(dto.getContractFileId())) {
-                maintenance.getContractFile().delete();
-            }
-        } else {
-            if (maintenance.getContractFile() != null) {
-                maintenance.getContractFile().delete();
-            }
-        }
+        handleContractFileUpdate(maintenance, dto.getContractFileId());
 
         UploadFile contractFile = getUploadFile(dto.getContractFileId());
         maintenance.updateMaintenance(dto, salesRep, primary, secondary, regularPm, contractFile);
@@ -116,6 +125,24 @@ public class MaintenanceService {
         return MaintenanceDetailResponse.from(maintenance);
     }
 
+    /**
+     * 계약서 파일 업데이트 및 기존 파일 소프트 삭제 처리
+     */
+    private void handleContractFileUpdate(Maintenance maintenance, Long newFileId) {
+        if (newFileId != null) {
+            if (maintenance.getContractFile() != null && !maintenance.getContractFile().getId().equals(newFileId)) {
+                maintenance.getContractFile().delete();
+            }
+        } else {
+            if (maintenance.getContractFile() != null) {
+                maintenance.getContractFile().delete();
+            }
+        }
+    }
+
+    /**
+     * 유지보수 및 연관 데이터(파일, 고객지원활동) 소프트 삭제
+     */
     @Transactional
     public void deleteMaintenance(Long id) {
         Maintenance maintenance = maintenanceRepository.findById(id)
@@ -132,6 +159,9 @@ public class MaintenanceService {
         maintenance.delete();
     }
 
+    /**
+     * 유지보수 상세 조회
+     */
     @Transactional(readOnly = true)
     public MaintenanceDetailResponse getMaintenanceDetail(Long id) {
         Maintenance maintenance = maintenanceRepository.findById(id)
@@ -140,6 +170,9 @@ public class MaintenanceService {
         return MaintenanceDetailResponse.from(maintenance);
     }
 
+    /**
+     * 유지보수 (무상/유상) 목록 조회
+     */
     @Transactional(readOnly = true)
     public List<MaintenanceListResponse> getMaintenanceList(MaintenanceType type) {
         List<Maintenance> list = maintenanceRepository.findAllByTypeOrderByIdDesc(type);
@@ -149,6 +182,9 @@ public class MaintenanceService {
                 .toList();
     }
 
+    /**
+     * ID로 파일 엔티티 조회
+     */
     private UploadFile getUploadFile(Long fileId) {
         if (fileId == null) {
             return null;

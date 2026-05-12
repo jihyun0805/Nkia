@@ -10,6 +10,9 @@ import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
+/**
+ * 유지보수 상세 정보 응답 DTO
+ */
 @Getter
 @Builder
 public class MaintenanceDetailResponse {
@@ -56,14 +59,21 @@ public class MaintenanceDetailResponse {
     private String createdBy;
     private LocalDateTime createdAt;
 
+    /**
+     * 엔티티를 DTO로 변환 (NPE 방지 처리 포함)
+     */
     public static MaintenanceDetailResponse from(Maintenance m) {
+        String customerName = m.getProject() != null && m.getProject().getOrderReport() != null &&
+                m.getProject().getOrderReport().getFinalCustomerCompany() != null ?
+                m.getProject().getOrderReport().getFinalCustomerCompany().getName() : "-";
+
         return MaintenanceDetailResponse.builder()
                 .id(m.getId())
-                .projectId(m.getProject().getId())
-                .projectName(m.getProject().getPjtName())
-                .customerName(m.getProject().getOrderReport().getFinalCustomerCompany().getName())
-                .salesRepName(m.getSalesRep().getName())
-                .regularPm(m.getRegularPm().getName())
+                .projectId(m.getProject() != null ? m.getProject().getId() : null)
+                .projectName(m.getProject() != null ? m.getProject().getPjtName() : "-")
+                .customerName(customerName)
+                .salesRepName(m.getSalesRep() != null ? m.getSalesRep().getName() : null)
+                .regularPm(m.getRegularPm() != null ? m.getRegularPm().getName() : null)
                 .managerPrimaryName(m.getManagerPrimary() != null ? m.getManagerPrimary().getName() : null)
                 .managerSecondaryName(m.getManagerSecondary() != null ? m.getManagerSecondary().getName() : null)
                 .type(m.getType()).category(m.getCategory())
