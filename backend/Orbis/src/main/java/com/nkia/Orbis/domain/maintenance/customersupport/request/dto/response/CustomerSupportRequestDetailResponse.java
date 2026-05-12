@@ -25,17 +25,17 @@ public class CustomerSupportRequestDetailResponse {
     public static CustomerSupportRequestDetailResponse from(CustomerSupportRequest request) {
         return CustomerSupportRequestDetailResponse.builder()
                 .id(request.getId())
-                .customerName(request.getCustomerCompany().getName())
+                .customerName(request.getCustomerCompany() != null ? request.getCustomerCompany().getName() : "-")
                 .requestStartDate(request.getRequestStartDate())
                 .requestEndDate(request.getRequestEndDate())
                 .requestContent(request.getRequestContent())
-                .requesterName(request.getRequester().getName())
+                .requesterName(request.getRequester() != null ? request.getRequester().getName() : "-")
                 .supportManagerName(request.getSupportManager() != null ?
-                        request.getSupportManager().getName() : null)
-                .registrantName(request.getRegistrant().getName())
-                .salesRepName(request.getSalesRep().getName())
+                        request.getSupportManager().getName() : "-")
+                .registrantName(request.getRegistrant() != null ? request.getRegistrant().getName() : "-")
+                .salesRepName(request.getSalesRep() != null ? request.getSalesRep().getName() : "-")
                 .remarks(request.getRemarks())
-                .approvalStatus(request.getApprovalStatus().name())
+                .approvalStatus(request.getApprovalStatus() != null ? request.getApprovalStatus().name() : null)
                 .attachedFileIds(request.getAttachedFiles().stream().map(f -> f.getId()).toList())
                 .build();
     }
