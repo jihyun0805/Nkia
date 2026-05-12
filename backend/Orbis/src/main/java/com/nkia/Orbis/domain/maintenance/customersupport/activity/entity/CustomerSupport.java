@@ -7,6 +7,8 @@ import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -49,6 +51,7 @@ public class CustomerSupport extends BaseEntity {
     @JoinColumn(name = "request_id")
     private CustomerSupportRequest request;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "activity_type", nullable = false)
     private ActivityType activityType; // 활동 구분 (정기점검 / 요청)
 
@@ -86,8 +89,8 @@ public class CustomerSupport extends BaseEntity {
 
     @Builder
     public CustomerSupport(CustomerSupportRequest request, Maintenance maintenance, Company customerCompany,
-                           ActivityType activityType, LocalDateTime activityStartTime, LocalDateTime activityEndTime,
-                           String activityContent, User registrant, String remarks) {
+            ActivityType activityType, LocalDateTime activityStartTime, LocalDateTime activityEndTime,
+            String activityContent, User registrant, String remarks) {
         this.request = request;
         this.maintenance = maintenance;
         this.customerCompany = customerCompany;
@@ -99,7 +102,8 @@ public class CustomerSupport extends BaseEntity {
         this.remarks = remarks;
     }
 
-    public void update(Company customerCompany, ActivityType type, LocalDateTime start, LocalDateTime end, String content, User registrant, String remarks) {
+    public void update(Company customerCompany, ActivityType type, LocalDateTime start, LocalDateTime end,
+            String content, User registrant, String remarks) {
         this.customerCompany = customerCompany;
         this.activityType = type;
         this.activityStartTime = start;

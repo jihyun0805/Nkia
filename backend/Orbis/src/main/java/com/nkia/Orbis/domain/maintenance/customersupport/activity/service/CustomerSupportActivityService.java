@@ -96,7 +96,7 @@ public class CustomerSupportActivityService {
         CustomerSupport support = supportRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
 
-        support.getAttachedFiles().forEach(file -> uploadFileService.removeFile(file.getId()));
+        support.getAttachedFiles().forEach(UploadFile::delete);
 
         support.delete();
     }
@@ -131,28 +131,28 @@ public class CustomerSupportActivityService {
         return IntegratedSupportListResponse.builder()
                 .dataType(SupportDataType.REQUEST)
                 .id(req.getId())
-                .customerName(req.getCustomerCompany().getName())
-                .startAt(req.getRequestStartDate().atStartOfDay())
-                .endAt(req.getRequestEndDate().atStartOfDay())
-                .ownerName(req.getRequester().getName())
-                .salesRepName(req.getSalesRep().getName())
-                .supportManagerName(req.getSupportManager() != null ? req.getSupportManager().getName() : null)
+                .customerName(req.getCustomerCompany() != null ? req.getCustomerCompany().getName() : "-")
+                .startAt(req.getRequestStartDate() != null ? req.getRequestStartDate().atStartOfDay() : null)
+                .endAt(req.getRequestEndDate() != null ? req.getRequestEndDate().atStartOfDay() : null)
+                .ownerName(req.getRequester() != null ? req.getRequester().getName() : "-")
+                .salesRepName(req.getSalesRep() != null ? req.getSalesRep().getName() : "-")
+                .supportManagerName(req.getSupportManager() != null ? req.getSupportManager().getName() : "-")
                 .build();
     }
 
     private IntegratedSupportListResponse mapToActivityStatus(CustomerSupport act) {
         String category = (act.getActivityType() == ActivityType.REQUEST && act.getRequest() != null)
                 ? "요청 (#" + act.getRequest().getId() + ")"
-                : act.getActivityType().name();
+                : (act.getActivityType() != null ? act.getActivityType().getDescription() : "-");
 
         return IntegratedSupportListResponse.builder()
                 .dataType(SupportDataType.ACTIVITY)
                 .id(act.getId())
-                .customerName(act.getCustomerCompany().getName())
+                .customerName(act.getCustomerCompany() != null ? act.getCustomerCompany().getName() : "-")
                 .activityCategory(category)
                 .startAt(act.getActivityStartTime())
                 .endAt(act.getActivityEndTime())
-                .ownerName(act.getRegistrant().getName())
+                .ownerName(act.getRegistrant() != null ? act.getRegistrant().getName() : "-")
                 .build();
     }
 
@@ -172,10 +172,10 @@ public class CustomerSupportActivityService {
     }
 
     private CustomerSupport createSupportEntity(CustomerSupportCreateRequest dto,
-                                                CustomerSupportRequest request,
-                                                Maintenance maintenance,
-                                                User registrant,
-                                                Company customerCompany) {
+            CustomerSupportRequest request,
+            Maintenance maintenance,
+            User registrant,
+            Company customerCompany) {
         return CustomerSupport.builder()
                 .request(request)
                 .maintenance(maintenance)
@@ -190,7 +190,7 @@ public class CustomerSupportActivityService {
     }
 
     private void mapParticipants(CustomerSupport support,
-                                 List<CustomerSupportCreateRequest.ParticipantDto> participantList) {
+            List<CustomerSupportCreateRequest.ParticipantDto> participantList) {
         if (participantList == null || participantList.isEmpty()) {
             return;
         }
