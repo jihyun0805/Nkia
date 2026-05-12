@@ -22,27 +22,19 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Tag(name = "EstimatedRevenue", description = "예상 매출액 API")
 @RestController
-@RequestMapping("/projects/{projectId}/revenues")
+@RequestMapping("/projects/revenues")
 @RequiredArgsConstructor
 public class ProjectRevenueController {
 
     private final OrderReportRepository orderReportRepository;
     private final ProjectRevenueService revenueService;
 
-    @Operation(summary = "전사 예상 매출액 조회", description = "2026년에 걸쳐 있는 수주보고서들의 금액을 월별로 합산합니다.")
+    @Operation(summary = "전사 예상 매출액 조회")
     @GetMapping("/annual")
     public ResponseEntity<ApiResponse<List<EstimatedRevenueResponse>>> getAnnualRevenueStatus(
-            @Parameter(description = "조회할 연도 (예: 2026). 미입력 시 올해", example = "2026")
             @RequestParam(required = false) Integer year) {
-
         int targetYear = (year != null) ? year : LocalDate.now().getYear();
-
-        LocalDate startOfYear = LocalDate.of(targetYear, 1, 1);
-        LocalDate endOfYear = LocalDate.of(targetYear, 12, 31);
-
-        List<OrderReport> activeReports = orderReportRepository.findAllOverlappingYear(startOfYear, endOfYear);
-
-        List<EstimatedRevenueResponse> response = revenueService.calculateTotalRevenue(activeReports, targetYear);
+        List<EstimatedRevenueResponse> response = revenueService.getAnnualRevenue(targetYear);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

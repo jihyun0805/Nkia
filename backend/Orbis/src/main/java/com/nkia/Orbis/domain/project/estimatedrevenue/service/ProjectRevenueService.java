@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.project.estimatedrevenue.service;
 
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
+import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.estimatedrevenue.dto.response.EstimatedRevenueResponse;
 import com.nkia.Orbis.domain.project.estimatedrevenue.enums.ProductCategory;
 import java.time.LocalDate;
@@ -22,14 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProjectRevenueService {
 
     private static final DateTimeFormatter YEAR_MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
-
+    private final OrderReportRepository orderReportRepository;
     /**
      * 올해 진행되는 전체 수주보고서의 제품군별/월별 매출 합계를 계산합니다.
      * @param reports 기준 연도에 해당하는 수주보고서 리스트
      * @param targetYear 기준 연도 (예: 2026)
      * @return 제품군별 통합 월간 매출 배분 목록
      */
-    @Transactional(readOnly = true)
     public List<EstimatedRevenueResponse> calculateTotalRevenue(List<OrderReport> reports, int targetYear) {
         List<EstimatedRevenueResponse> results = new ArrayList<>();
 
@@ -41,7 +41,7 @@ public class ProjectRevenueService {
                 categoryTotal += processReportProration(report, category, aggregateMap, targetYear);
             }
 
-            results.add(new EstimatedRevenueResponse(category, category.getDescription(), aggregateMap, categoryTotal));
+            results.add(EstimatedRevenueResponse.of(category, aggregateMap, categoryTotal));
         }
         return results;
     }
@@ -110,9 +110,24 @@ public class ProjectRevenueService {
             case EMS -> report.getEmsSummary();
             case ITG -> report.getItgSummary();
             case IOT -> report.getAiotionSummary();
-            case ETC -> report.getItoSummary() + report.getOtherSummary() + report.getDashboardSummary();
+            case ETC -> nullSafe(report.getItoSummary())
+                    + nullSafe(report.getOtherSummary())
+                    + nullSafe(report.getDashboardSummary());
             case EMS_MAINTENANCE -> report.getEmsMaintenanceSummary();
             case ITG_MAINTENANCE -> report.getItgMaintenanceSummary();
         };
+    }
+
+    @Transactional(readOnly = true)
+    public List<EstimatedRevenueResponse> getAnnualRevenue(int targetYear) {
+        LocalDate startOfYear = LocalDate.of(targetYear, 1, 1);
+        LocalDate endOfYear = LocalDate.of(targetYear, 12, 31);
+
+        List<OrderReport> activeReports = orderReportRepository.findAllOverlappingYear(startOfYear, endOfYear);
+        return calculateTotalRevenue(activeReports, targetYear);
+    }
+
+    private long nullSafe(Long value) {
+        return value == null ? 0L : value;
     }
 }

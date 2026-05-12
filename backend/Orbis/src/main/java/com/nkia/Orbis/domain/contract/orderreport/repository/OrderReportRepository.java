@@ -23,7 +23,8 @@ public interface OrderReportRepository extends JpaRepository<OrderReport, Long> 
     Optional<String> findLastOrderReportCodeIncludingDeleted(@Param("prefix") String prefix);
 
     @Query("SELECT o FROM OrderReport o " +
-            "WHERE o.contractStartDate <= :end AND o.contractEndDate >= :start")
+            "WHERE o.contractStartDate <= :end AND o.contractEndDate >= :start " +
+            "AND o.status = 'APPROVED'")
     List<OrderReport> findAllOverlappingYear(
             @Param("start") LocalDate start,
             @Param("end") LocalDate end);

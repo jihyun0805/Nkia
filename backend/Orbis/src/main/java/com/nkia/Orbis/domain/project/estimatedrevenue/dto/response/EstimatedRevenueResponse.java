@@ -9,7 +9,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public class EstimatedRevenueResponse {
     private ProductCategory productCategory; // EMS, ITG, IoT, 기타, EMS 유지보수, ITG 유지보수
-    private String CategoryName;
+    private String categoryName;
     private Map<String, Long> monthlyRevenue; // "2026-05": 1000000
     private Long totalAmount;
 
