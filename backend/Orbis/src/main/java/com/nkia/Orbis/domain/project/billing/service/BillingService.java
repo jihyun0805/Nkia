@@ -3,9 +3,14 @@ package com.nkia.Orbis.domain.project.billing.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
-import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCollectRequest;
@@ -34,6 +39,8 @@ public class BillingService {
     private final OrderReportRepository orderReportRepository;
     private final UploadFileService uploadFileService;
     private final UserRepository userRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     /**
      * 청구(세금계산서 발행) 등록
@@ -151,7 +158,7 @@ public class BillingService {
             uploadFileService.getUploadFile(oldImageId).delete();
         }
 
-        return BillingDetailResponse.from(billing);
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()));
     }
 
     /**
@@ -189,6 +196,42 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
-        return BillingDetailResponse.from(billing);
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()));
+    }
+
+    @Transactional
+    public void submitBilling(
+            Long billingId,
+            UUID firstApproverId
+    ) {
+        Billing billing = billingRepository.findById(billingId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        if (!billing.isDraft()) {
+            throw new ApiException(ProjectErrorCode.INVALID_BILLING_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.BILLING,
+                billing.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        billing.submit();
+    }
+
+    private Long getWorkflowId(Long billingId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.BILLING,
+                        billingId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }

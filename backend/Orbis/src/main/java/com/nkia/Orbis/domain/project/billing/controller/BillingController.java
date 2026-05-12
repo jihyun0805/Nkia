@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.project.billing.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCollectRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCreateRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingIssueRequest;
@@ -50,7 +51,7 @@ public class BillingController {
     }
 
     /**
-     *  세금계산서 발행 요청 등록
+     * 세금계산서 발행 요청 등록
      */
     @Operation(summary = "청구(발행 요청) 등록")
     @PostMapping
@@ -61,7 +62,7 @@ public class BillingController {
     }
 
     /**
-     *  세금계산서 발행 확인 처리
+     * 세금계산서 발행 확인 처리
      */
     @Operation(summary = "세금계산서 발행 확인")
     @PostMapping("/{billingId}/issue")
@@ -74,7 +75,7 @@ public class BillingController {
     }
 
     /**
-     *  수금 완료 확인 처리
+     * 수금 완료 확인 처리
      */
     @Operation(summary = "수금 확인 등록")
     @PostMapping("/{billingId}/collect")
@@ -131,5 +132,19 @@ public class BillingController {
 
         BillingDetailResponse response = billingService.getBillingDetail(billingId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "세금계산서 결재 상신")
+    @PostMapping("/submit/{billingId}")
+    public ResponseEntity<ApiResponse<String>> submitBilling(
+            @PathVariable("billingId") Long billingId,
+            @RequestBody SubmitRequest request
+    ) {
+        billingService.submitBilling(
+                billingId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("세금계산서 결재 상신 완료"));
     }
 }

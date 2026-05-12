@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.project.billing.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -11,6 +12,10 @@ import lombok.Getter;
 public class BillingDetailResponse {
 
     private Long id;
+
+    private Long workflowId;
+
+    private ApprovalStatus approvalStatus;
 
     private Long orderReportId;
 
@@ -36,9 +41,11 @@ public class BillingDetailResponse {
 
     private LocalDateTime createdAt;
 
-    public static BillingDetailResponse from(Billing billing) {
+    public static BillingDetailResponse from(Billing billing, Long workflowId) {
         return BillingDetailResponse.builder()
                 .id(billing.getId())
+                .workflowId(workflowId)
+                .approvalStatus(billing.getApprovalStatus())
                 .orderReportId(billing.getOrderReport().getId())
                 .customerName(billing.getOrderReport().getFinalCustomerCompany().getName())
                 .projectName(billing.getOrderReport().getProjectOpportunity().getOpportunityName())
