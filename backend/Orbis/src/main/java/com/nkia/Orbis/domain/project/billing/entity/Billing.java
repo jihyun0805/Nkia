@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.project.billing.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingUpdateRequest;
@@ -29,6 +30,8 @@ public class Billing extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private ApprovalStatus approvalStatus;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_report_id")
     private OrderReport orderReport;
@@ -49,12 +52,14 @@ public class Billing extends BaseEntity {
     private BillingStatus status;
 
     @Builder
-    public Billing(OrderReport orderReport, Long billingAmount, LocalDate requestedIssueDate, String remarks, BillingStatus status) {
+    public Billing(OrderReport orderReport, Long billingAmount, LocalDate requestedIssueDate, String remarks,
+                   BillingStatus status) {
         this.orderReport = orderReport;
         this.billingAmount = billingAmount;
         this.requestedIssueDate = requestedIssueDate;
         this.remarks = remarks;
         this.status = status;
+        this.approvalStatus = ApprovalStatus.DRAFT;
     }
 
     /**
@@ -94,5 +99,25 @@ public class Billing extends BaseEntity {
 
     public void delete() {
         super.delete();
+    }
+
+    public void submit() {
+        this.approvalStatus = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.approvalStatus = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.approvalStatus = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.approvalStatus = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.approvalStatus == ApprovalStatus.DRAFT;
     }
 }

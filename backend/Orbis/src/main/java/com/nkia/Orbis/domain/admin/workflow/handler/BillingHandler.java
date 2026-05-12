@@ -25,7 +25,6 @@ public class BillingHandler implements WorkflowDomainHandler {
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
         billing.approve();
-        billing.issued();
     }
 
     @Override
