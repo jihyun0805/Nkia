@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { AUTH_SESSION_STORAGE_KEY } from "@/lib/auth-session";
 
 // 로그인 없이 접근 가능한 경로 (페이지 및 API)
-const PUBLIC_PATHS = ["/login", "/auth"];
+const PUBLIC_PATHS = ["/", "/auth"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -31,7 +31,7 @@ export function middleware(request: NextRequest) {
 
   if (!authCookie?.value) {
     // 로그인 페이지로 리다이렉트
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
