@@ -1,7 +1,9 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.request.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestUpdateRequest;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import jakarta.persistence.CascadeType;
@@ -9,15 +11,14 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.ManyToOne;
-import com.nkia.Orbis.domain.company.entity.Company;
+import jakarta.persistence.OneToMany;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -79,7 +80,7 @@ public class CustomerSupportRequest extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status", nullable = false)
-    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+    private ApprovalStatus status;
 
     @Builder
     public CustomerSupportRequest(Company customerCompany, LocalDate requestStartDate, LocalDate requestEndDate,
@@ -93,10 +94,11 @@ public class CustomerSupportRequest extends BaseEntity {
         this.registrant = registrant;
         this.salesRep = salesRep;
         this.supportManager = supportManager;
-        this.remarks = remarks;
+        this.status = ApprovalStatus.DRAFT;
     }
 
-    public void update(CustomerSupportRequestUpdateRequest dto, User requester, User supportManager, Company customerCompany) {
+    public void update(CustomerSupportRequestUpdateRequest dto, User requester, User supportManager,
+                       Company customerCompany) {
         this.customerCompany = customerCompany;
         this.requestStartDate = dto.getRequestStartDate();
         this.requestEndDate = dto.getRequestEndDate();
@@ -113,4 +115,25 @@ public class CustomerSupportRequest extends BaseEntity {
     public void delete() {
         super.delete();
     }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
+    }
+
 }
