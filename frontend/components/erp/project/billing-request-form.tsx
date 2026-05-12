@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ExternalLink, Loader2, AlertCircle, Link as LinkIcon, Search } from "lucide-react";
 import { projectApi, type BillingFormInitResponse } from "@/lib/api/project-api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OrderReportSelector } from "@/components/erp/contract/order-report-selector";
+import { type OrderReportListResponse } from "@/lib/api/order-report-api";
 
 interface BillingRequestFormProps {
   onSuccess: () => void;
@@ -40,20 +43,55 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
   const [initData, setInitData] = useState<BillingFormInitResponse | null>(null);
   const [initLoading, setInitLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<OrderReportListResponse | null>(null);
+
+  // 현재 유효한 데이터
+  const currentCustomerName = initData?.customerName || selectedReport?.customerName || inheritedData?.customerName || "";
+  const currentProjectName = initData?.projectName || selectedReport?.projectName || inheritedData?.projectName || inheritedData?.opportunityName || "";
+  const currentOrderReportId = selectedReport?.id || inheritedData?.orderReportId || "";
+  const currentContractId = initData?.contractId || inheritedData?.contractId || "";
+  const currentRequester = initData?.requesterName || "";
 
   const today = new Date().toISOString().split("T")[0];
 
   const { register, handleSubmit, setValue, reset } = useForm<FormValues>({
     defaultValues: {
-      customerName: inheritedData?.customerName ?? "",
-      projectName: inheritedData?.projectName ?? inheritedData?.opportunityName ?? "",
+      customerName: currentCustomerName,
+      projectName: currentProjectName,
       billingAmount: "",
       requestedIssueDate: "",
       requestDate: today,
-      requester: "",
+      requester: currentRequester,
       remarks: "",
     },
   });
+
+  // 선택 시 폼 업데이트
+  const handleSelectReport = (report: OrderReportListResponse) => {
+    setSelectedReport(report);
+    // API를 통해 초기화 데이터 다시 가져오기
+    setInitLoading(true);
+    projectApi.getBillingFormInit(report.id)
+      .then(res => {
+        const data = res.data;
+        setInitData(data);
+        reset({
+          customerName: data.customerName,
+          projectName: data.projectName,
+          billingAmount: "",
+          requestedIssueDate: "",
+          requestDate: data.requestDate || today,
+          requester: data.requesterName,
+          remarks: "",
+        });
+      })
+      .catch(() => {
+        setValue("customerName", report.customerName);
+        setValue("projectName", report.projectName);
+        setValue("requester", report.salesRepName);
+      })
+      .finally(() => setInitLoading(false));
+  };
 
   // 수주보고서 ID가 있으면 백엔드에서 폼 초기 데이터 로딩
   useEffect(() => {
@@ -85,16 +123,17 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
       .finally(() => setInitLoading(false));
   }, [inheritedData?.orderReportId]);
 
-  // 등록 불가 조건 체크
+  // 등록 불가 조건 체크 (UX 개선)
+  const isDataMissing = !currentOrderReportId;
+
   useEffect(() => {
-    if (!inheritedData?.customerId || !inheritedData?.opportunityId || !inheritedData?.orderReportId) {
-      alert("고객사, 사업기회 또는 수주보고서가 등록되지 않았습니다. 먼저 등록을 진행해주십시오.");
-      onCancel();
+    if (isDataMissing) {
+      console.warn("필수 연계 데이터(수주보고서)가 누락되었습니다.");
     }
-  }, [inheritedData, onCancel]);
+  }, [isDataMissing]);
 
   const onSubmit = async (data: FormValues) => {
-    const orderReportId = inheritedData?.orderReportId;
+    const orderReportId = currentOrderReportId;
     const numericOrderReportId = typeof orderReportId === "string" ? parseInt(orderReportId.replace(/\D/g, "")) : (orderReportId ?? 0);
 
     if (!numericOrderReportId) {
@@ -143,12 +182,62 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>세금계산서 발행 요청</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <div className="space-y-6">
+      {/* 승계 정보 요약 카드 */}
+      <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-800 dark:text-blue-300">
+            <LinkIcon className="w-4 h-4" />
+            연계 정보 (승계 데이터)
+          </CardTitle>
+          {isDataMissing ? (
+            <OrderReportSelector onSelect={handleSelectReport} />
+          ) : (
+            <OrderReportSelector
+              onSelect={handleSelectReport}
+              trigger={
+                <Button variant="ghost" size="sm" className="h-8 text-blue-600 hover:text-blue-700 p-0 text-xs gap-1">
+                  <Search className="w-3 h-3" />
+                  변경하기
+                </Button>
+              }
+            />
+          )}
+        </CardHeader>
+        <CardContent className="py-3 px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+            <div className="space-y-1">
+              <p className="text-muted-foreground font-medium">고객사</p>
+              <p className="font-semibold">{currentCustomerName || "미선택"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-muted-foreground font-medium">사업명</p>
+              <p className="font-semibold">{currentProjectName || "미선택"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-muted-foreground font-medium">수주보고서 ID</p>
+              <p className="font-semibold">{currentOrderReportId || "미선택"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-muted-foreground font-medium">계약 번호</p>
+              <p className="font-semibold">{currentContractId || "미등록"}</p>
+            </div>
+          </div>
+          {isDataMissing && (
+            <p className="mt-3 text-[11px] text-destructive flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              연계할 수주보고서를 선택해 주세요.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>세금계산서 발행 요청</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-2 gap-6">
             {/* 고객사 */}
             <div className="space-y-2">
@@ -219,7 +308,7 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
             </h4>
             <div className="flex gap-4 text-sm">
               <Link href="/contract?tab=orders" className="text-blue-600 hover:underline flex items-center gap-1">
-                수주보고서 ({inheritedData?.orderReportId || "미등록"})
+                수주보고서 ({currentOrderReportId || "미등록"})
               </Link>
               {(initData?.contractId ?? inheritedData?.contractId) && (
                 <Link href="/contract?tab=contracts" className="text-blue-600 hover:underline flex items-center gap-1">
@@ -233,7 +322,7 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
             <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
               취소
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || isDataMissing}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 w-4 h-4 animate-spin" />
@@ -247,5 +336,6 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
         </form>
       </CardContent>
     </Card>
+    </div>
   );
 }
