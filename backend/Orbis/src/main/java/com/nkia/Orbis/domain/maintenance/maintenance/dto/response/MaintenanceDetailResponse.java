@@ -50,6 +50,7 @@ public class MaintenanceDetailResponse {
     private boolean dbHaStatus;
     private String dbVersion;
     private String remarks;
+    private Long contractFileId;
 
 
     private String createdBy;
@@ -80,6 +81,7 @@ public class MaintenanceDetailResponse {
                 .esVersion(m.getEsVersion()).dbHaStatus(m.isDbHaStatus())
                 .dbVersion(m.getDbVersion())
                 .remarks(m.getRemarks()).createdBy(m.getCreatedBy()).createdAt(m.getCreatedAt())
+                .contractFileId(m.getContractFile() != null ? m.getContractFile().getId() : null)
                 .build();
     }
 }

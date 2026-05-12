@@ -68,4 +68,6 @@ public class MaintenanceUpdateRequest {
     private String dbVersion;           // DB 버전
 
     private String remarks;             // 비고
+
+    private Long contractFileId;        // 계약서 첨부파일 ID
 }

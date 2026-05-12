@@ -57,4 +57,6 @@ public class MaintenanceCreateRequest {
     private String ltsUpgradePlan;      // LTS 8.4.0 업그레이드 계획
 
     private String remarks;             // 비고
+
+    private Long contractFileId;        // 계약서 첨부파일 ID
 }

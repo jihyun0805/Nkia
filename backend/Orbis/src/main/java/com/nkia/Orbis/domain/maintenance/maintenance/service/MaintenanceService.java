@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.maintenance.maintenance.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.UploadFileErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
@@ -15,6 +16,9 @@ import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
+import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
+import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +32,8 @@ public class MaintenanceService {
     private final MaintenanceRepository maintenanceRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final UploadFileRepository uploadFileRepository;
+    private final UploadFileService uploadFileService;
 
     @Transactional
     public Long maintenanceRegister(MaintenanceCreateRequest dto) {
@@ -38,6 +44,7 @@ public class MaintenanceService {
         User primaryManager = getUserOrNull(dto.getManagerPrimary());
         User secondaryManager = getUserOrNull(dto.getManagerSecondary());
         User regularPm = getUserOrNull(dto.getRegularPm());
+        UploadFile contractFile = getUploadFile(dto.getContractFileId());
 
         Maintenance maintenance = Maintenance.builder()
                 .project(project)
@@ -69,6 +76,7 @@ public class MaintenanceService {
                 .dbHaStatus(dto.isDbHaStatus())
                 .dbVersion(dto.getDbVersion())
                 .remarks(dto.getRemarks())
+                .contractFile(contractFile)
                 .build();
 
         return maintenanceRepository.save(maintenance).getId();
@@ -92,7 +100,18 @@ public class MaintenanceService {
         User secondary = getUserOrNull(dto.getManagerSecondary());
         User regularPm = getUserOrNull(dto.getRegularPm());
 
-        maintenance.updateMaintenance(dto, salesRep, primary, secondary, regularPm);
+        if (dto.getContractFileId() != null) {
+            if (maintenance.getContractFile() != null && !maintenance.getContractFile().getId().equals(dto.getContractFileId())) {
+                maintenance.getContractFile().delete();
+            }
+        } else {
+            if (maintenance.getContractFile() != null) {
+                maintenance.getContractFile().delete();
+            }
+        }
+
+        UploadFile contractFile = getUploadFile(dto.getContractFileId());
+        maintenance.updateMaintenance(dto, salesRep, primary, secondary, regularPm, contractFile);
 
         return MaintenanceDetailResponse.from(maintenance);
     }
@@ -101,6 +120,10 @@ public class MaintenanceService {
     public void deleteMaintenance(Long id) {
         Maintenance maintenance = maintenanceRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
+
+        if (maintenance.getContractFile() != null) {
+            maintenance.getContractFile().delete();
+        }
 
         maintenance.delete();
     }
@@ -120,5 +143,13 @@ public class MaintenanceService {
         return list.stream()
                 .map(MaintenanceListResponse::from)
                 .toList();
+    }
+
+    private UploadFile getUploadFile(Long fileId) {
+        if (fileId == null) {
+            return null;
+        }
+        return uploadFileRepository.findById(fileId)
+                .orElseThrow(() -> new ApiException(UploadFileErrorCode.FILE_NOT_FOUND));
     }
 }
