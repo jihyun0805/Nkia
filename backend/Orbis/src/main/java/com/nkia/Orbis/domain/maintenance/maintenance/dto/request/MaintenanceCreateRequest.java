@@ -20,7 +20,7 @@ public class MaintenanceCreateRequest {
     private Long projectId;             // PJT id
 
     @NotNull(message = "영업대표 정보는 필수입니다.")
-    private UUID salesRepId;          // 영업 (user id)
+    private UUID salesRep;          // 영업 (user id)
 
     private UUID managerPrimary;      // 변경(정) - 주 담당자
     private UUID managerSecondary;    // 변경(부) - 부 담당자
@@ -28,20 +28,20 @@ public class MaintenanceCreateRequest {
     private String category;            // 구분 (예: 공공, 금융 등)
 
     @NotNull(message = "유지보수 타입(유상/무상)은 필수입니다.")
-    private MaintenanceType maintenanceType;     // 유무상 (FREE / PAID)
+    private MaintenanceType type;     // 유무상 (FREE / PAID)
 
     private Long contractAmount;        // 계약금액
-    private Long annualMaintenanceAmount; // 연간 유지보수 금액
-    private Double maintenanceRate;     // 요율
+    private Long annualAmount; // 연간 유지보수 금액
+    private Double rate;     // 요율
     private LocalDate contractDate;     // 계약일
     private LocalDate startDate;        // 시작일
     private LocalDate endDate;          // 종료일
 
-    private boolean remoteAvailable;    // 원격 여부
+    private boolean isRemote;    // 원격 여부
     private InspectionCycle inspectionCycle;     // 점검주기
     private Importance importance;      // 중요도
     private String location;            // 위치
-    private boolean reportSubmission;   // 보고서제출여부
+    private boolean reportSubmitted;   // 보고서제출여부
     private UUID regularPm;             // 정기PM
 
     private ProdFamily productFamily;       // 제품군
@@ -53,8 +53,10 @@ public class MaintenanceCreateRequest {
     private boolean dbHaStatus;         // DB HA (고가용성 여부)
 
     private boolean aclPatchStatus;     // ACL패치여부
-    private boolean vulnerabilityPatch;  // 모니터템플릿 취약점 패치여부
-    private String ltsUpgradePlan;      // LTS 8.4.0 업그레이드 계획
+    private boolean vulnPatchStatus;  // 모니터템플릿 취약점 패치여부
+    private String upgradePlan;      // LTS 8.4.0 업그레이드 계획
 
     private String remarks;             // 비고
+
+    private Long contractFileId;        // 계약서 첨부파일 ID
 }
