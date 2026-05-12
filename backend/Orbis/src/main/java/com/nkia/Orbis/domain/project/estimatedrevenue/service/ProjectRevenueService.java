@@ -25,16 +25,13 @@ public class ProjectRevenueService {
     private static final DateTimeFormatter YEAR_MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
     private final OrderReportRepository orderReportRepository;
     /**
-     * 올해 진행되는 전체 수주보고서의 제품군별/월별 매출 합계를 계산합니다.
-     * @param reports 기준 연도에 해당하는 수주보고서 리스트
-     * @param targetYear 기준 연도 (예: 2026)
-     * @return 제품군별 통합 월간 매출 배분 목록
+     * 올해 진행되는 전체 수주보고서의 제품군별/월별 매출 합계 계산
      */
     public List<EstimatedRevenueResponse> calculateTotalRevenue(List<OrderReport> reports, int targetYear) {
         List<EstimatedRevenueResponse> results = new ArrayList<>();
 
         for (ProductCategory category : ProductCategory.values()) {
-            Map<String, Long> aggregateMap = new TreeMap<>(); // 월별 정렬을 위한 TreeMap
+            Map<String, Long> aggregateMap = new TreeMap<>();
             long categoryTotal = 0;
 
             for (OrderReport report : reports) {
@@ -46,6 +43,9 @@ public class ProjectRevenueService {
         return results;
     }
 
+    /**
+     * 개별 수주보고서의 일할 계산 및 월별 누적 처리
+     */
     private long processReportProration(OrderReport report, ProductCategory cat, Map<String, Long> map, int year) {
         Long amount = getAmountByCategory(report, cat);
         if (amount == null || amount == 0) return 0;
@@ -53,33 +53,27 @@ public class ProjectRevenueService {
         LocalDate startDate = report.getContractStartDate();
         LocalDate endDate = report.getContractEndDate();
 
-        // 날짜 유효성 검증
         if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
             return 0;
         }
 
-        // 전체 일수 계산
         long totalDays = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        return calculateAndAccumulateMonthlyRevenue(startDate, endDate, amount, totalDays, year, map);
+    }
+
+    /**
+     * 기간에 따른 월별 매출액 계산 및 누적
+     */
+    private long calculateAndAccumulateMonthlyRevenue(LocalDate startDate, LocalDate endDate, long amount, long totalDays, int targetYear, Map<String, Long> map) {
         long reportTotalInYear = 0;
         long allocatedAmount = 0;
 
         LocalDate current = startDate;
         while (!current.isAfter(endDate)) {
-            long daysInMonth = getDaysInPeriod(current, startDate, endDate);
-            
-            // 해당 달이 계약의 마지막 달인지 판별
-            boolean isLastMonth = (current.getYear() == endDate.getYear() && current.getMonthValue() == endDate.getMonthValue());
-            
-            long revenue;
-            if (isLastMonth) {
-                // 단수 조정: 마지막 달에는 총 금액에서 이전 달까지 누적된 금액을 빼서 나머지 금액을 모두 할당
-                revenue = amount - allocatedAmount;
-            } else {
-                revenue = Math.round((double) (amount * daysInMonth) / totalDays);
-            }
+            long revenue = calculateMonthlyRevenue(current, startDate, endDate, amount, totalDays, allocatedAmount);
             allocatedAmount += revenue;
 
-            if (current.getYear() == year) {
+            if (current.getYear() == targetYear) {
                 accumulateToMap(map, current, revenue);
                 reportTotalInYear += revenue;
             }
@@ -89,7 +83,21 @@ public class ProjectRevenueService {
     }
 
     /**
-     * 해당 월 내에서 수주보고서 기간이 차지하는 실제 일수를 계산합니다.
+     * 해당 월의 매출액 계산 (마지막 달 단수 조정 포함)
+     */
+    private long calculateMonthlyRevenue(LocalDate current, LocalDate startDate, LocalDate endDate, long amount, long totalDays, long allocatedAmount) {
+        boolean isLastMonth = (current.getYear() == endDate.getYear() && current.getMonthValue() == endDate.getMonthValue());
+        
+        if (isLastMonth) {
+            return amount - allocatedAmount;
+        }
+        
+        long daysInMonth = getDaysInPeriod(current, startDate, endDate);
+        return Math.round((double) (amount * daysInMonth) / totalDays);
+    }
+
+    /**
+     * 해당 월 내에서 수주보고서 기간이 차지하는 실제 일수 계산
      */
     private long getDaysInPeriod(LocalDate current, LocalDate start, LocalDate end) {
         LocalDate monthStart = current.withDayOfMonth(1).isBefore(start) ? start : current.withDayOfMonth(1);
@@ -98,13 +106,17 @@ public class ProjectRevenueService {
         return ChronoUnit.DAYS.between(monthStart, monthEnd) + 1;
     }
 
-    /** 맵에 기존 값이 있으면 더하고, 없으면 새로 넣습니다. */
+    /**
+     * 맵에 기존 값이 있으면 더하고, 없으면 새로 넣음
+     */
     private void accumulateToMap(Map<String, Long> map, LocalDate date, long revenue) {
         String key = date.format(YEAR_MONTH_FORMATTER);
         map.put(key, map.getOrDefault(key, 0L) + revenue);
     }
 
-    /** 제품 카테고리에 해당하는 수주보고서 금액을 매핑합니다. */
+    /**
+     * 제품 카테고리에 해당하는 수주보고서 금액 매핑
+     */
     private Long getAmountByCategory(OrderReport report, ProductCategory category) {
         return switch (category) {
             case EMS -> report.getEmsSummary();
@@ -118,6 +130,9 @@ public class ProjectRevenueService {
         };
     }
 
+    /**
+     * 지정된 연도의 전사 예상 매출액 조회
+     */
     @Transactional(readOnly = true)
     public List<EstimatedRevenueResponse> getAnnualRevenue(int targetYear) {
         LocalDate startOfYear = LocalDate.of(targetYear, 1, 1);
@@ -127,6 +142,9 @@ public class ProjectRevenueService {
         return calculateTotalRevenue(activeReports, targetYear);
     }
 
+    /**
+     * Null 방어 및 기본값 0 반환
+     */
     private long nullSafe(Long value) {
         return value == null ? 0L : value;
     }
