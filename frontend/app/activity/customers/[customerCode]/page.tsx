@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
-import { getActivities, getActivityDisplayType } from "@/lib/activity-data"
+import { type ActivityRecord, getActivityDisplayType } from "@/lib/activity-data"
 import { formatAttachmentSize } from "@/lib/attachments"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { deleteOpportunity, getFindingFields, getOpportunities, getCustomerByCode } from "@/lib/finding-data"
@@ -50,7 +50,7 @@ export default function ActivityCustomerDetailPage() {
   const customerCode = params.customerCode
   const opportunityId = searchParams.get("opportunityId") ?? ""
   const [page, setPage] = useState(1)
-  const [activityRecords, setActivityRecords] = useState<ReturnType<typeof getActivities>>([])
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [customer, setCustomer] = useState<CustomerRecord | null>(null)
   const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -77,7 +77,7 @@ export default function ActivityCustomerDetailPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords(getActivities())
+          setActivityRecords([])
         }
       })
 
