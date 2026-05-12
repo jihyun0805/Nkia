@@ -3,8 +3,8 @@ import { getAccessToken, loadAuthSession, saveAuthSession, clearAuthSession } fr
 
 // 1. 기본 인스턴스 생성 (환경 변수에서 API 주소 로드)
 export const customAxiosInstance = axios.create({
-  baseURL: "https://k14s106.p.ssafy.io", // 배포 주소
-  //baseURL: 'http://localhost', // 개발 주소
+  baseURL: "https://k14s106.p.ssafy.io/api/v1", // 배포 주소 (context-path 포함)
+  //baseURL: 'http://localhost:8080/api/v1', // 개발 주소
   headers: {
     "Content-Type": "application/json",
   },
