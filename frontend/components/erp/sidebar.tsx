@@ -12,7 +12,7 @@ const menuItems = [
   {
     id: "dashboard",
     label: "대시보드",
-    href: "/",
+    href: "/dashboard",
   },
   {
     id: "finding",
@@ -58,12 +58,24 @@ export function Sidebar() {
 
   // 세션 상태를 구독하여 로그인/로그아웃 시 실시간 반영
   useEffect(() => {
-    setSession(loadAuthSession());
+    const currentSession = loadAuthSession();
+    setSession(currentSession);
+
+    // 보호된 페이지에서 세션이 없으면 로그인 페이지로 리다이렉트
+    if (!currentSession && pathname !== "/") {
+      router.replace("/");
+    }
+
     const unsubscribe = subscribeAuthSession(() => {
-      setSession(loadAuthSession());
+      const updatedSession = loadAuthSession();
+      setSession(updatedSession);
+
+      if (!updatedSession && pathname !== "/") {
+        router.replace("/");
+      }
     });
     return unsubscribe;
-  }, []);
+  }, [pathname, router]);
 
   // 세션 정보에서 표시할 이름과 이메일 결정
   const displayName = session?.name || session?.email?.split("@")[0] || "사용자";
@@ -79,14 +91,14 @@ export function Sidebar() {
       console.error("로그아웃 실패:", error);
     } finally {
       clearAuthSession();
-      router.push("/login");
+      window.location.href = "/";
     }
   };
 
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-sidebar text-sidebar-foreground shadow-sm">
       <div className="grid grid-cols-[220px_1fr_220px] items-center gap-6 px-6 py-4">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/dashboard" className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded bg-primary">
             <Orbit className="h-6 w-6 text-primary-foreground" />
           </div>
@@ -101,7 +113,7 @@ export function Sidebar() {
             {menuItems
               // .filter((item) => (item.id === "admin" ? isAdmin : true))
               .map((item) => {
-                const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+                const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
                 return (
                   <li key={item.id}>
