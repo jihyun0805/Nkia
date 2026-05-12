@@ -1,12 +1,10 @@
 package com.nkia.Orbis.domain.project.estimatedrevenue.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.estimatedrevenue.dto.response.EstimatedRevenueResponse;
 import com.nkia.Orbis.domain.project.estimatedrevenue.service.ProjectRevenueService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.util.List;
@@ -18,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 사업 매출 분석 및 예상 실적 조회를 담당하는 컨트롤러입니다.
+ * 사업 매출 분석 및 예상 실적 조회를 담당하는 컨트롤러입
  */
 @Tag(name = "EstimatedRevenue", description = "예상 매출액 API")
 @RestController
@@ -26,7 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ProjectRevenueController {
 
-    private final OrderReportRepository orderReportRepository;
     private final ProjectRevenueService revenueService;
 
     @Operation(summary = "전사 예상 매출액 조회")
