@@ -1,6 +1,8 @@
 package com.nkia.Orbis.domain.contract.orderreport.repository;
 
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -19,4 +21,11 @@ public interface OrderReportRepository extends JpaRepository<OrderReport, Long> 
             nativeQuery = true
     )
     Optional<String> findLastOrderReportCodeIncludingDeleted(@Param("prefix") String prefix);
+
+    @Query("SELECT o FROM OrderReport o " +
+            "WHERE o.contractStartDate <= :end AND o.contractEndDate >= :start " +
+            "AND o.status = 'APPROVED'")
+    List<OrderReport> findAllOverlappingYear(
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end);
 }
