@@ -31,7 +31,7 @@ import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from
 import { findingStatuses, getCustomers, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
+import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 const customerGroupOptions = ["공공", "민간", "해외"]
@@ -1045,21 +1045,37 @@ export default function FindingEditPage() {
 
                 <section className="space-y-2">
                   <Label>RFP 문서</Label>
-                  <Input
+                  <div className="flex flex-col gap-2 md:flex-row">
+                    <Input
+                      ref={rfpInputRef}
+                      className="hidden"
                     type="file"
                     accept={RFP_DOCUMENT_ACCEPT}
                     multiple
                     disabled={rfpSummaryLoadingId !== null}
                     onChange={(event) => {
                       void handleRfpFileChange(event.target.files)
-                      event.target.value = ""
                     }}
                   />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-fit"
+                      disabled={rfpSummaryLoadingId !== null}
+                      onClick={() => rfpInputRef.current?.click()}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      파일 추가
+                    </Button>
+                  </div>
                   {rfpAttachments.length > 0 ? (
-                    <div className="space-y-2 rounded-md border border-border p-3">
+                    <div className="space-y-2 rounded-md border border-border bg-muted/30 px-3 py-2">
                       {rfpAttachments.map((attachment) => (
-                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                          <div className="min-w-0 flex-1">
+                        <div key={attachment.id} className="flex items-center gap-2 text-sm">
+                          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate font-medium">{attachment.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{Math.ceil(attachment.size / 1024).toLocaleString()}KB</span>
+                          <div className="hidden">
                             <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
                               {attachment.name}
                             </a>
@@ -1071,7 +1087,7 @@ export default function FindingEditPage() {
                               </div>
                             ) : null}
                           </div>
-                          <div className="flex shrink-0 items-center gap-1">
+                          <div className="ml-auto flex shrink-0 items-center gap-1">
                             <Button
                               type="button"
                               variant="ghost"
@@ -1085,16 +1101,34 @@ export default function FindingEditPage() {
                               {rfpSummaryLoadingId === attachment.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                               AI 요약
                             </Button>
-                            <Button type="button" variant="outline" size="sm" onClick={() => handleDeleteRfpAttachment(attachment.id)}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-[0px] text-destructive hover:text-destructive"
+                              disabled={rfpSummaryLoadingId === attachment.id}
+                              onClick={() => handleDeleteRfpAttachment(attachment.id)}
+                              title="삭제"
+                            >
+                              <Trash2 className="h-4 w-4" />
                               삭제
                             </Button>
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <Input readOnly value="등록된 첨부파일이 없습니다." />
-                  )}
+                  ) : null}
+                  {rfpAttachments.some((attachment) => attachment.summary) ? (
+                    <div className="space-y-3">
+                      {rfpAttachments.filter((attachment) => attachment.summary).map((attachment) => (
+                        <div key={attachment.id} className="space-y-3 rounded-md border border-border p-4">
+                          <h3 className="text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+                          <RfpSummaryMarkdown markdown={attachment.summary} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">사업기회와 함께 검토할 RFP 문서를 추가합니다.</p>
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">
