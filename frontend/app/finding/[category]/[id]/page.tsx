@@ -21,10 +21,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
+import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { formatAttachmentSize } from "@/lib/attachments"
 import { toast } from "@/hooks/use-toast"
 import { deleteOpportunity, deletePartner, getFindingCategoryLabel, getFindingFields, getFindingItem, type FindingCategory, type FindingFormField } from "@/lib/finding-data"
 import { FileText } from "lucide-react"
+
+function formatRfpSummaryTitle(fileName: string) {
+  const title = fileName.replace(/\.[^.]+$/, "").trim()
+  return title || "RFP 문서"
+}
 
 function FindingDetailControl({ field, value }: { field: FindingFormField; value: string }) {
   if (field.type === "file") return <Input readOnly value="등록된 첨부파일이 없습니다." />
@@ -270,19 +276,31 @@ export default function FindingDetailPage() {
                       <section className="space-y-3">
                         <h2 className="text-base font-semibold">RFP 문서</h2>
                         {Array.isArray(item.rfpAttachments) && item.rfpAttachments.length > 0 ? (
-                          <div className="space-y-2">
-                            {item.rfpAttachments.map((attachment: any) => (
-                              <div key={attachment.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
-                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                <div className="min-w-0 flex-1">
-                                  <a href={attachment.dataUrl} download={attachment.name} className="truncate font-medium text-primary hover:underline">
-                                    {attachment.name}
-                                  </a>
-                                  <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                          <>
+                            <div className="space-y-2">
+                              {item.rfpAttachments.map((attachment: any) => (
+                                <div key={attachment.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
+                                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  <div className="min-w-0 flex-1">
+                                    <a href={attachment.dataUrl} download={attachment.name} className="truncate font-medium text-primary hover:underline">
+                                      {attachment.name}
+                                    </a>
+                                    <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                                  </div>
                                 </div>
+                              ))}
+                            </div>
+                            {item.rfpAttachments.some((attachment: any) => attachment.summary) ? (
+                              <div className="space-y-3">
+                                {item.rfpAttachments.filter((attachment: any) => attachment.summary).map((attachment: any) => (
+                                  <div key={attachment.id} className="space-y-3 rounded-md border border-border p-4">
+                                    <h3 className="text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+                                    <RfpSummaryMarkdown markdown={attachment.summary} />
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            ) : null}
+                          </>
                         ) : (
                           <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">등록된 RFP 문서가 없습니다.</div>
                         )}
