@@ -1,19 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
-import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { contracts, contractStatuses, licenses, orderReports, purchaseContracts, type PurchaseContract } from "@/lib/contract-data";
-import { Plus, FileCheck, BookKey, Receipt, ClipboardList, Wrench, Settings } from "lucide-react";
+import { Plus, FileCheck, BookKey, Receipt, ClipboardList, Wrench } from "lucide-react";
 import { OrderReportList } from "@/components/erp/contract/order-report-list";
 import { ContractList } from "@/components/erp/contract/contract-list";
-import { PurchaseList } from "@/components/erp/contract/purchase-list";
 import { LicenseList } from "@/components/erp/contract/license-list";
 import { OrderReportForm } from "@/components/erp/contract/order-report-form";
 import { ContractForm } from "@/components/erp/contract/contract-form";
@@ -21,81 +16,100 @@ import { PurchaseForm } from "@/components/erp/contract/purchase-form";
 import { FreeMaintenanceForm } from "@/components/erp/contract/free-maintenance-form";
 import { PaidMaintenanceForm } from "@/components/erp/contract/paid-maintenance-form";
 import { LicenseRequestForm } from "@/components/erp/contract/license-request-form";
+import { PurchaseList } from "@/components/erp/contract/purchase-list";
+import { orderReportApi, contractApi, licenseApi, type OrderReportListResponse, type ContractListResponse, type LicenseListResponse } from "@/lib/api/contract-api";
+import { toast } from "sonner";
+
+type ActiveTab = "orders" | "contracts" | "purchases" | "licenses" | "maintenance";
 
 export default function ContractPage() {
-  const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"orders" | "contracts" | "purchases" | "licenses" | "maintenance">("orders");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("orders");
   const [isCreating, setIsCreating] = useState<boolean | "free" | "paid">(false);
 
-  useEffect(() => {
-    if (isCreating) {
-      const timer = setTimeout(() => {
-        // 사업명 입력칸에 자동으로 포커스 이동
-        const firstInput = document.querySelector('input[name="projectName"]') as HTMLInputElement;
-        if (firstInput) {
-          firstInput.focus();
-        }
-      }, 100);
-      return () => clearTimeout(timer);
+  // API 데이터 상태
+  const [orderReports, setOrderReports] = useState<OrderReportListResponse[]>([]);
+  const [contracts, setContracts] = useState<ContractListResponse[]>([]);
+  const [licenses, setLicenses] = useState<LicenseListResponse[]>([]);
+
+  // 로딩 상태
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [loadingContracts, setLoadingContracts] = useState(false);
+  const [loadingLicenses, setLoadingLicenses] = useState(false);
+
+  // 수주보고서 목록 조회
+  const fetchOrderReports = useCallback(async () => {
+    setLoadingOrders(true);
+    try {
+      const res = await orderReportApi.getOrderReports();
+      setOrderReports(res.data ?? []);
+    } catch {
+      toast.error("수주보고서 목록을 불러오지 못했습니다.");
+    } finally {
+      setLoadingOrders(false);
     }
-  }, [isCreating]);
+  }, []);
 
-  const contractFieldOptions =
-    activeTab === "orders"
-      ? [{ key: "customer", label: "고객사", options: uniqueOptions(orderReports, (i) => i.customer) }]
-      : activeTab === "contracts"
-        ? [{ key: "customer", label: "고객사", options: uniqueOptions(contracts, (i) => i.customer) }]
-        : activeTab === "purchases"
-          ? [{ key: "supplier", label: "공급사", options: uniqueOptions(purchaseContracts, (i) => i.supplier) }]
-          : activeTab === "licenses"
-            ? [
-                { key: "customer", label: "고객사", options: uniqueOptions(licenses, (i) => i.customer) },
-                { key: "product", label: "제품", options: uniqueOptions(licenses, (i) => i.product) },
-                { key: "type", label: "라이선스 유형", options: uniqueOptions(licenses, (i) => i.type) },
-              ]
-            : [];
+  // 계약 목록 조회
+  const fetchContracts = useCallback(async () => {
+    setLoadingContracts(true);
+    try {
+      const res = await contractApi.getContracts();
+      setContracts(res.data ?? []);
+    } catch {
+      toast.error("계약 목록을 불러오지 못했습니다.");
+    } finally {
+      setLoadingContracts(false);
+    }
+  }, []);
 
-  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
-  const matchesSearch = (values: Array<string | number | null | undefined>) => {
-    if (!normalizedSearchTerm) return true;
-    return values
-      .filter((value) => value !== null && value !== undefined)
-      .join(" ")
-      .toLowerCase()
-      .includes(normalizedSearchTerm);
+  // 라이선스 목록 조회
+  const fetchLicenses = useCallback(async () => {
+    setLoadingLicenses(true);
+    try {
+      const res = await licenseApi.getLicenses();
+      setLicenses(res.data ?? []);
+    } catch {
+      toast.error("라이선스 목록을 불러오지 못했습니다.");
+    } finally {
+      setLoadingLicenses(false);
+    }
+  }, []);
+
+  // 탭 변경 시 해당 데이터 로드
+  useEffect(() => {
+    if (activeTab === "orders") fetchOrderReports();
+    else if (activeTab === "contracts") fetchContracts();
+    else if (activeTab === "licenses") fetchLicenses();
+  }, [activeTab, fetchOrderReports, fetchContracts, fetchLicenses]);
+
+  // 등록 완료 후 목록 새로고침
+  const handleSuccess = () => {
+    setIsCreating(false);
+    if (activeTab === "orders") fetchOrderReports();
+    else if (activeTab === "contracts") fetchContracts();
+    else if (activeTab === "licenses") fetchLicenses();
   };
 
-  const filteredOrderReports = filterRecords(orderReports, filters, {
-    status: (i) => i.approvalStatus,
-    owner: (i) => i.salesRep,
-    date: (i) => i.orderDate,
-    fields: { customer: (i) => i.customer },
-  })
-    .filter((i) => matchesSearch([i.id, i.customer, i.product, i.salesRep, i.orderDate, i.approvalStatus]))
-    // 가장 최근에 등록된 것부터 과거 순서로 배열
-    .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
+  // 검색 필터링
+  const normalize = (s: string) => s.trim().toLowerCase();
+  const search = normalize(appliedSearchTerm);
 
-  const filteredContracts = filterRecords(contracts, filters, { status: (i) => i.status, date: (i) => i.contractDate, fields: { customer: (i) => i.customer } })
-    .filter((i) => matchesSearch([i.id, i.customer, i.amount, i.contractDate, i.startDate, i.endDate, i.status]))
-    // 가장 최근에 등록된 것부터 과거 순서로 배열
-    .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
+  const filteredOrderReports = orderReports.filter((i) => !search || [i.orderReportCode, i.projectName, i.pmName, i.finalCustomerCompanyName, i.contractDate].join(" ").toLowerCase().includes(search));
 
-  const filteredPurchases = filterRecords(purchaseContracts, filters, {
-    status: (i) => i.status,
-    date: (i) => i.contractDate,
-    fields: { supplier: (i) => i.supplier },
-  })
-    .filter((i) => matchesSearch([i.id, i.supplier, i.amount, i.contractDate, i.status]))
-    // 가장 최근에 등록된 계약부터 표시되도록 계약일 기준 내림차순 정렬
-    .sort((a, b) => new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime());
+  const filteredContracts = contracts.filter((i) => !search || [i.salesRepresentativeName, i.contractDate, String(i.contractAmount)].join(" ").toLowerCase().includes(search));
 
-  const filteredLicenses = filterRecords(licenses, filters, {
-    status: (i) => i.status,
-    date: (i) => i.issueDate,
-    fields: { customer: (i) => i.customer, product: (i) => i.product, type: (i) => i.type },
-  }).filter((i) => matchesSearch([i.id, i.customer, i.product, i.type, i.issueDate, i.status]));
+  const filteredLicenses = licenses.filter((i) => !search || [i.customerCompanyName, i.productName, i.licenseType, i.licenseStatus].join(" ").toLowerCase().includes(search));
+
+  const registerLabel = {
+    orders: "수주보고 등록",
+    contracts: "계약 등록",
+    purchases: "매입계약 등록",
+    licenses: "라이선스 발행 요청",
+    maintenance: "",
+  }[activeTab];
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -105,8 +119,8 @@ export default function ContractPage() {
           <Tabs
             value={activeTab}
             onValueChange={(value) => {
-              setActiveTab(value as "orders" | "contracts" | "purchases" | "licenses" | "maintenance");
-              setIsCreating(false); // 탭을 변경하면 목록화면으로 돌아가게 함
+              setActiveTab(value as ActiveTab);
+              setIsCreating(false);
             }}
             className="space-y-6"
           >
@@ -133,22 +147,14 @@ export default function ContractPage() {
                   유지보수
                 </TabsTrigger>
               </TabsList>
+
               <div className="flex items-center gap-2">
-                {activeTab !== "maintenance" && (
-                  <>
-                    <PageSearchForm
-                      value={searchTerm}
-                      onChange={setSearchTerm}
-                      onSearch={() => setAppliedSearchTerm(searchTerm)}
-                    />
-                    <FilterPopover title="계약" statusOptions={contractStatuses} value={filters} onApply={setFilters} fieldOptions={contractFieldOptions} />
-                  </>
-                )}
+                {activeTab !== "maintenance" && <PageSearchForm value={searchTerm} onChange={setSearchTerm} onSearch={() => setAppliedSearchTerm(searchTerm)} />}
                 {!isCreating ? (
                   activeTab !== "maintenance" && (
                     <Button onClick={() => setIsCreating(true)}>
                       <Plus className="mr-2 w-4 h-4" />
-                      {activeTab === "orders" ? "수주보고 등록" : activeTab === "contracts" ? "계약 등록" : activeTab === "purchases" ? "매입계약 등록" : "라이선스 발행 요청"}
+                      {registerLabel}
                     </Button>
                   )
                 ) : (
@@ -159,19 +165,21 @@ export default function ContractPage() {
               </div>
             </div>
 
+            {/* 목록 뷰 */}
             {!isCreating ? (
               <>
                 <TabsContent value="orders">
-                  <OrderReportList reports={filteredOrderReports} />
+                  <OrderReportList reports={filteredOrderReports} isLoading={loadingOrders} />
                 </TabsContent>
                 <TabsContent value="contracts">
-                  <ContractList contracts={filteredContracts} />
+                  <ContractList contracts={filteredContracts} isLoading={loadingContracts} />
                 </TabsContent>
                 <TabsContent value="purchases">
-                  <PurchaseList purchases={filteredPurchases} />
+                  {/* 매입계약은 별도 API가 없으므로 빈 상태 처리 */}
+                  <PurchaseList purchases={[]} />
                 </TabsContent>
                 <TabsContent value="licenses">
-                  <LicenseList licenses={filteredLicenses} />
+                  <LicenseList licenses={filteredLicenses} isLoading={loadingLicenses} />
                 </TabsContent>
                 <TabsContent value="maintenance">
                   <div className="flex gap-6 min-h-[400px]">
@@ -197,103 +205,29 @@ export default function ContractPage() {
               </>
             ) : activeTab === "orders" ? (
               <TabsContent value="orders">
-                {/* TODO: 폼 컴포넌트의 제출/취소 완료 prop 이름(onSuccess, onSubmit 등)에 맞춰 연결 */}
-                <OrderReportForm
-                  onSuccess={() => setIsCreating(false)}
-                  onCancel={() => setIsCreating(false)}
-                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
-                  inheritedData={{
-                    customerId: "CUST-001",
-                    customerName: "삼성전자",
-                    opportunityId: "OPP-2026-001",
-                    opportunityName: "삼성전자 EMS 구축",
-                  }}
-                />
+                <OrderReportForm onSuccess={handleSuccess} onCancel={() => setIsCreating(false)} inheritedData={null} />
               </TabsContent>
             ) : activeTab === "contracts" ? (
               <TabsContent value="contracts">
-                <ContractForm
-                  onSuccess={() => setIsCreating(false)}
-                  onCancel={() => setIsCreating(false)}
-                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
-                  inheritedData={{
-                    customerId: "CUST-001",
-                    customerName: "삼성전자",
-                    opportunityId: "OPP-2026-001",
-                    opportunityName: "삼성전자 EMS 구축",
-                    orderReportId: "ORD-2026-001",
-                  }}
-                />
+                <ContractForm onSuccess={handleSuccess} onCancel={() => setIsCreating(false)} inheritedData={null} />
               </TabsContent>
             ) : activeTab === "purchases" ? (
               <TabsContent value="purchases">
-                <PurchaseForm
-                  onSuccess={() => setIsCreating(false)}
-                  onCancel={() => setIsCreating(false)}
-                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
-                  inheritedData={{
-                    customerId: "CUST-001",
-                    customerName: "삼성전자",
-                    opportunityId: "OPP-2026-001",
-                    opportunityName: "삼성전자 EMS 구축",
-                    orderReportId: "ORD-2026-001",
-                  }}
-                />
+                <PurchaseForm onSuccess={handleSuccess} onCancel={() => setIsCreating(false)} inheritedData={null} />
               </TabsContent>
             ) : activeTab === "maintenance" && isCreating === "free" ? (
               <TabsContent value="maintenance">
-                <FreeMaintenanceForm
-                  onSuccess={() => setIsCreating(false)}
-                  onCancel={() => setIsCreating(false)}
-                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
-                  inheritedData={{
-                    customerId: "CUST-001",
-                    customerName: "삼성전자",
-                    opportunityId: "OPP-2026-001",
-                    opportunityName: "삼성전자 EMS 구축",
-                    orderReportId: "ORD-2026-001",
-                    contractId: "CTR-2026-001",
-                  }}
-                />
+                <FreeMaintenanceForm onSuccess={handleSuccess} onCancel={() => setIsCreating(false)} inheritedData={null} />
               </TabsContent>
             ) : activeTab === "maintenance" && isCreating === "paid" ? (
               <TabsContent value="maintenance">
-                <PaidMaintenanceForm
-                  onSuccess={() => setIsCreating(false)}
-                  onCancel={() => setIsCreating(false)}
-                  // TODO: 실제 환경에서는 선택된 사업기회/수주보고서 정보를 넘기거나, 없을 경우 null을 전달
-                  inheritedData={{
-                    customerId: "CUST-001",
-                    customerName: "삼성전자",
-                    opportunityId: "OPP-2026-001",
-                    opportunityName: "삼성전자 EMS 구축",
-                    orderReportId: "ORD-2026-001",
-                    contractId: "CTR-2026-001",
-                  }}
-                />
+                <PaidMaintenanceForm onSuccess={handleSuccess} onCancel={() => setIsCreating(false)} inheritedData={null} />
               </TabsContent>
             ) : activeTab === "licenses" ? (
               <TabsContent value="licenses">
-                <LicenseRequestForm
-                  onSuccess={() => setIsCreating(false)}
-                  onCancel={() => setIsCreating(false)}
-                  // TODO: 필요 시 앞 단계(수주/계약)에서 선택된 데이터 전달
-                  inheritedData={{
-                    customerId: "CUST-001",
-                    customerName: "삼성전자",
-                    opportunityId: "OPP-2026-001",
-                    opportunityName: "삼성전자 EMS 구축",
-                  }}
-                />
+                <LicenseRequestForm onSuccess={handleSuccess} onCancel={() => setIsCreating(false)} inheritedData={null} />
               </TabsContent>
-            ) : (
-              <TabsContent value={activeTab}>
-                <div className="bg-card rounded-lg border p-6 flex min-h-[400px] flex-col items-center justify-center space-y-4">
-                  <p className="text-muted-foreground text-lg">여기에 등록 폼 컴포넌트</p>
-                  <p className="text-sm text-muted-foreground">TODO: 컴포넌트 import</p>
-                </div>
-              </TabsContent>
-            )}
+            ) : null}
           </Tabs>
         </main>
       </div>
