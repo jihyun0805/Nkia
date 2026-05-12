@@ -6,6 +6,7 @@ const AUTH_SESSION_EVENT_NAME = "orbis-auth-session-change";
 export type AuthSession = {
   email: string;
   name?: string;
+  // roles?: string[];
   accessToken: string;
   refreshToken: string;
   issuedAt: string;
@@ -31,6 +32,7 @@ export function loadAuthSession(): AuthSession | null {
     return {
       email: parsed.email,
       name: parsed.name,
+      // roles: parsed.roles,
       accessToken: parsed.accessToken,
       refreshToken: parsed.refreshToken,
       issuedAt: parsed.issuedAt || new Date().toISOString(),

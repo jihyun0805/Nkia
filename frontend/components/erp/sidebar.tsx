@@ -65,9 +65,11 @@ export function Sidebar() {
     return unsubscribe;
   }, []);
 
-  // 이메일에서 이름 부분 추출 (표시용)
+  // 세션 정보에서 표시할 이름과 이메일 결정
   const displayName = session?.name || session?.email?.split("@")[0] || "사용자";
   const displayEmail = session?.email || "";
+  // const roles = session?.roles || [];
+  // const isAdmin = roles.includes("ADMIN") || roles.includes("ROLE_ADMIN");
 
   // 로그아웃 처리 함수
   const handleLogout = async () => {
@@ -96,24 +98,26 @@ export function Sidebar() {
 
         <nav className="min-w-0 overflow-hidden">
           <ul className="flex flex-wrap items-center justify-center gap-2">
-            {menuItems.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+            {menuItems
+              // .filter((item) => (item.id === "admin" ? isAdmin : true))
+              .map((item) => {
+                const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
 
-              return (
-                <li key={item.id}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200",
-                      "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                      isActive && "bg-red-500 text-white hover:bg-red-500 hover:text-white",
-                    )}
-                  >
-                    <span>{item.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
+                return (
+                  <li key={item.id}>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        "flex items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200",
+                        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        isActive && "bg-red-500 text-white hover:bg-red-500 hover:text-white",
+                      )}
+                    >
+                      <span>{item.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
           </ul>
         </nav>
 
