@@ -77,72 +77,83 @@ export default function ProjectPage() {
     }
   }, [activeTab, fetchBillings]);
 
-  // 예상 매출액
-  // TODO: 우선 로컬에서 계산, 추후 API 연동 필요
-  const { expectedRevenue, totalEms, totalItg, totalIot, totalOther, totalEmsMaint, totalItgMaint, totalRevenue } = useMemo(() => {
-    const y = 2026;
-    type MonthRow = { month: string; ems: number; itg: number; iot: number; other: number; emsMaint: number; itgMaint: number };
-    const monthlyData: Record<string, MonthRow> = {};
-    for (let i = 1; i <= 12; i++) {
-      const monthStr = `${y}-${String(i).padStart(2, "0")}`;
-      monthlyData[monthStr] = { month: monthStr, ems: 0, itg: 0, iot: 0, other: 0, emsMaint: 0, itgMaint: 0 };
-    }
+  // 예상 매출액 상태
+  const [expectedRevenue, setExpectedRevenue] = useState<any[]>([]);
+  const [totalEms, setTotalEms] = useState(0);
+  const [totalItg, setTotalItg] = useState(0);
+  const [totalIot, setTotalIot] = useState(0);
+  const [totalOther, setTotalOther] = useState(0);
+  const [totalEmsMaint, setTotalEmsMaint] = useState(0);
+  const [totalItgMaint, setTotalItgMaint] = useState(0);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [revenueLoading, setRevenueLoading] = useState(false);
 
-    contracts.forEach((contract) => {
-      const order = orderReports.find((o) => o.id === contract.orderId);
-      if (!order || !order.salesClassification) return;
+  const fetchRevenue = useCallback(async () => {
+    setRevenueLoading(true);
+    try {
+      const res = await projectApi.getAnnualRevenue(2026);
+      const data = res.data ?? [];
 
-      const sc = order.salesClassification;
-      const parseAmt = (v: string) => parseInt(v.replace(/,/g, "")) || 0;
-      const categoryAmounts = {
-        ems: parseAmt(sc.ems),
-        itg: parseAmt(sc.itg) + parseAmt(sc.dashboard) + parseAmt(sc.ito) + parseAmt(sc.aiotion),
-        iot: 0,
-        other: parseAmt(sc.others) + parseAmt(sc.verification),
-        emsMaint: parseAmt(sc.emsMaintenance),
-        itgMaint: parseAmt(sc.itgMaintenance),
-      };
-      const contractTotal = Object.values(categoryAmounts).reduce((s, v) => s + v, 0);
-      if (contractTotal === 0) return;
-
-      const amount = parseInt(contract.amount.replace(/,/g, ""));
-      const start = new Date(contract.startDate);
-      const end = new Date(contract.endDate);
-      const totalDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        if (d.getFullYear() === y) {
-          const monthStr = `${y}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-          if (monthlyData[monthStr]) {
-            for (const key of Object.keys(categoryAmounts) as (keyof typeof categoryAmounts)[]) {
-              monthlyData[monthStr][key] += (amount * (categoryAmounts[key] / contractTotal)) / totalDays;
-            }
-          }
-        }
+      const y = 2026;
+      type MonthRow = { month: string; ems: number; itg: number; iot: number; other: number; emsMaint: number; itgMaint: number };
+      const monthlyData: Record<string, MonthRow> = {};
+      for (let i = 1; i <= 12; i++) {
+        const monthStr = `${y}-${String(i).padStart(2, "0")}`;
+        monthlyData[monthStr] = { month: monthStr, ems: 0, itg: 0, iot: 0, other: 0, emsMaint: 0, itgMaint: 0 };
       }
-    });
 
-    const revenueList = Object.values(monthlyData).filter((row) => row.ems > 0 || row.itg > 0 || row.iot > 0 || row.other > 0 || row.emsMaint > 0 || row.itgMaint > 0);
+      data.forEach((categoryData) => {
+        const cat = categoryData.productCategory;
+        Object.entries(categoryData.monthlyRevenue).forEach(([month, amount]) => {
+          if (!monthlyData[month]) return;
+          if (cat === "EMS") monthlyData[month].ems += amount;
+          else if (cat === "ITG") monthlyData[month].itg += amount;
+          else if (cat === "IOT") monthlyData[month].iot += amount;
+          else if (cat === "ETC") monthlyData[month].other += amount;
+          else if (cat === "EMS_MAINTENANCE") monthlyData[month].emsMaint += amount;
+          else if (cat === "ITG_MAINTENANCE") monthlyData[month].itgMaint += amount;
+        });
+      });
 
-    let tEms = 0,
-      tItg = 0,
-      tIot = 0,
-      tOther = 0,
-      tEmsMaint = 0,
-      tItgMaint = 0,
-      tTotal = 0;
-    revenueList.forEach((row) => {
-      tEms += row.ems;
-      tItg += row.itg;
-      tIot += row.iot;
-      tOther += row.other;
-      tEmsMaint += row.emsMaint;
-      tItgMaint += row.itgMaint;
-      tTotal += row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
-    });
+      const revenueList = Object.values(monthlyData).filter((row) => row.ems > 0 || row.itg > 0 || row.iot > 0 || row.other > 0 || row.emsMaint > 0 || row.itgMaint > 0);
 
-    return { expectedRevenue: revenueList, totalEms: tEms, totalItg: tItg, totalIot: tIot, totalOther: tOther, totalEmsMaint: tEmsMaint, totalItgMaint: tItgMaint, totalRevenue: tTotal };
+      let tEms = 0,
+        tItg = 0,
+        tIot = 0,
+        tOther = 0,
+        tEmsMaint = 0,
+        tItgMaint = 0,
+        tTotal = 0;
+      revenueList.forEach((row) => {
+        tEms += row.ems;
+        tItg += row.itg;
+        tIot += row.iot;
+        tOther += row.other;
+        tEmsMaint += row.emsMaint;
+        tItgMaint += row.itgMaint;
+        tTotal += row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
+      });
+
+      setExpectedRevenue(revenueList);
+      setTotalEms(tEms);
+      setTotalItg(tItg);
+      setTotalIot(tIot);
+      setTotalOther(tOther);
+      setTotalEmsMaint(tEmsMaint);
+      setTotalItgMaint(tItgMaint);
+      setTotalRevenue(tTotal);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRevenueLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "revenue") {
+      fetchRevenue();
+    }
+  }, [activeTab, fetchRevenue]);
 
   // 검색 / 필터 적용
   const normalizedSearch = appliedSearchTerm.trim().toLowerCase();
