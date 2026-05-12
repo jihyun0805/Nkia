@@ -1,28 +1,12 @@
-import { customInstance } from './customAxios';
-import { ApiResponse } from './project-api';
-
-export interface OrderReportListResponse {
-  id: number;
-  customerName: string;
-  projectName: string;
-  orderDate: string;
-  salesRepName: string;
-  approvalStatus: string;
-  totalAmount: number;
-}
-
-export const orderReportApi = {
-  /** 수주보고서 목록 조회 */
-  getOrderReports: () =>
-    customInstance<ApiResponse<OrderReportListResponse[]>>({
-      url: '/contract/order-reports',
-      method: 'GET',
-    }),
-
-  /** 수주보고서 상세 조회 */
-  getOrderReport: (id: number) =>
-    customInstance<ApiResponse<any>>({
-      url: `/contract/order-reports/${id}`,
-      method: 'GET',
-    }),
-};
+// 하위 호환성을 위해 contract-api.ts에서 수주보고서 관련 항목을 re-export
+export {
+  orderReportApi,
+  type OrderReportListResponse,
+  type OrderReportResponse,
+  type OrderReportRequest,
+  type OrderReportHistoryListResponse,
+  type ApprovalStatus,
+  type OrderReportType,
+  type CodeType,
+  type VisitCycle,
+} from "./contract-api";

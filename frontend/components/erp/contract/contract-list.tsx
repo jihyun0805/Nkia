@@ -4,13 +4,20 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { type Contract } from "@/lib/contract-data";
+import { Skeleton } from "@/components/ui/skeleton";
+import { type ContractListResponse, type ProposalType } from "@/lib/api/contract-api";
 
 interface ContractListProps {
-  contracts: Contract[];
+  contracts: ContractListResponse[];
+  isLoading?: boolean;
 }
 
-export function ContractList({ contracts }: ContractListProps) {
+const proposalTypeLabel: Record<ProposalType, string> = {
+  SELF: "자체 제안",
+  SI: "SI 제안",
+};
+
+export function ContractList({ contracts, isLoading }: ContractListProps) {
   const router = useRouter();
 
   return (
@@ -18,34 +25,42 @@ export function ContractList({ contracts }: ContractListProps) {
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">계약 목록</CardTitle>
-          <Badge variant="secondary">{contracts.length}건</Badge>
+          <Badge variant="secondary">{isLoading ? "..." : `${contracts.length}건`}</Badge>
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>고객사</TableHead>
-              <TableHead>사업기회</TableHead>
-              <TableHead>계약일</TableHead>
-              <TableHead>계약기간</TableHead>
-              <TableHead className="text-right">계약금액</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {contracts.map((contract) => (
-              <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/contracts/${contract.id}`)}>
-                <TableCell>{contract.customer}</TableCell>
-                <TableCell className="max-w-[200px] truncate font-medium">{contract.name}</TableCell>
-                <TableCell>{contract.contractDate}</TableCell>
-                <TableCell className="text-sm">
-                  {contract.startDate} ~ {contract.endDate}
-                </TableCell>
-                <TableCell className="text-right font-medium">₩{parseInt(contract.amount.replace(/,/g, "")).toLocaleString()}</TableCell>
-              </TableRow>
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
             ))}
-          </TableBody>
-        </Table>
+          </div>
+        ) : contracts.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 계약이 없습니다.</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>제안 유형</TableHead>
+                <TableHead>영업대표</TableHead>
+                <TableHead>계약일</TableHead>
+                <TableHead className="text-right">계약금액</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {contracts.map((contract) => (
+                <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/contracts/${contract.id}`)}>
+                  <TableCell>
+                    <Badge variant="outline">{proposalTypeLabel[contract.proposalType] ?? contract.proposalType}</Badge>
+                  </TableCell>
+                  <TableCell>{contract.salesRepresentativeName}</TableCell>
+                  <TableCell>{contract.contractDate}</TableCell>
+                  <TableCell className="text-right font-medium">₩{(contract.contractAmount ?? 0).toLocaleString()}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );
