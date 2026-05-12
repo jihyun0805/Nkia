@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
-import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -24,7 +24,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
-import { getCustomerByName, getCustomers, updateCustomer, type CustomerAttachment, type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
+import { type CustomerAttachment, type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
+import {
+  buildFallbackManagerEmail,
+  loadBackendCompanyManagers,
+  loadBackendFindingData,
+  mapCustomerSector,
+  updateBackendCompany,
+  createBackendCompanyManager,
+  updateBackendCompanyManager,
+  deleteBackendCompanyManager,
+} from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
 
@@ -134,6 +144,10 @@ function CustomerEditPageContent() {
   const router = useRouter()
   const id = Array.isArray(params.id) ? params.id[0] : params.id ?? ""
   const [customer, setCustomer] = useState<CustomerRecord | null>(null)
+  const [customers, setCustomers] = useState<CustomerRecord[]>([])
+  const [existingManagers, setExistingManagers] = useState<
+    Awaited<ReturnType<typeof loadBackendCompanyManagers>>
+  >([])
   const [customerName, setCustomerName] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
   const [address, setAddress] = useState("")
@@ -142,30 +156,101 @@ function CustomerEditPageContent() {
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
-    const sync = () => {
-      const current = getCustomers().find((item) => item.id === id) ?? null
-      setCustomer(current)
-      if (current) {
+    let cancelled = false
+
+    const sync = async () => {
+      setLoading(true)
+      try {
+        const data = await loadBackendFindingData()
+        if (cancelled) return
+
+        setCustomers(data.customers)
+        const current = data.customers.find((item) => item.id === id) ?? null
+        setCustomer(current)
+
+        if (!current) {
+          setExistingManagers([])
+          return
+        }
+
         setCustomerName(current.name)
-        setCustomerGroup(current.category)
+        setCustomerGroup(current.category || "민간")
         setAddress(current.address ?? "")
         setMemo(current.memo ?? "")
         setContacts(normalizeContacts(current))
         setAttachments(current.attachments ?? [])
+
+        if (current.backendId) {
+          const managers = await loadBackendCompanyManagers(current.backendId)
+          if (cancelled) return
+          setExistingManagers(managers)
+        } else {
+          setExistingManagers([])
+        }
+      } catch {
+        if (!cancelled) {
+          setCustomer(null)
+          setCustomers([])
+          setExistingManagers([])
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
-    sync()
-    window.addEventListener("storage", sync)
-    return () => window.removeEventListener("storage", sync)
+    void sync()
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   const backHref = `/finding/customers/${id}?tab=${searchParams.get("tab") ?? "customers"}`
-  const selectedCustomer = useMemo(() => getCustomerByName(customerName), [customerName])
+  const duplicateCustomer = useMemo(
+    () => customers.find((item) => item.id !== id && item.name.trim().toLowerCase() === customerName.trim().toLowerCase()) ?? null,
+    [customers, customerName, id],
+  )
+
+  function syncBackendManagers(companyCode: string, companyId: number, filledContacts: ContactDraft[]) {
+    const existing = [...existingManagers]
+    const normalizedExisting = existing.sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+
+    return (async () => {
+      for (let index = 0; index < filledContacts.length; index += 1) {
+        const contact = filledContacts[index]
+        const payload = {
+          name: contact.name.trim(),
+          email: contact.email?.trim() || buildFallbackManagerEmail(companyCode, contact.name, index),
+          mobilePhone: contact.mobilePhone?.trim() || undefined,
+          officePhone: contact.landlinePhone?.trim() || undefined,
+          department: contact.department?.trim() || undefined,
+          position: contact.position?.trim() || undefined,
+          role: contact.duty?.trim() || undefined,
+        }
+
+        const manager = normalizedExisting[index]
+        if (manager?.id) {
+          await updateBackendCompanyManager(manager.id, payload)
+          continue
+        }
+
+        await createBackendCompanyManager(companyId, payload)
+      }
+
+      for (const manager of normalizedExisting.slice(filledContacts.length)) {
+        if (manager.id) {
+          await deleteBackendCompanyManager(manager.id)
+        }
+      }
+    })()
+  }
 
   const openBusinessCardInput = (contactIndex: number) => {
     pendingOcrIndexRef.current = contactIndex
@@ -233,7 +318,7 @@ function CustomerEditPageContent() {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const normalizedName = customerName.trim()
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
@@ -246,8 +331,7 @@ function CustomerEditPageContent() {
       return
     }
 
-    const duplicate = selectedCustomer && selectedCustomer.id !== id ? selectedCustomer : null
-    if (duplicate) {
+    if (duplicateCustomer) {
       toast({
         title: "고객사 중복 등록",
         description: "이미 등록된 동일한 이름의 고객사가 있습니다.",
@@ -255,29 +339,35 @@ function CustomerEditPageContent() {
       return
     }
 
-    const result = updateCustomer(id, {
-      name: normalizedName,
-      category: customerGroup,
-      contacts: filledContacts,
-      address,
-      memo,
-      aliases: customer?.aliases ?? [],
-      attachments,
-    })
-
-    if (result.status === "not_found") {
+    if (!customer?.backendId) {
       toast({
         title: "고객사 수정 실패",
-        description: "수정할 고객사를 찾지 못했습니다.",
+        description: "백엔드 고객사 정보를 찾지 못했습니다.",
       })
       return
     }
 
-    toast({
-      title: "고객사 수정 완료",
-      description: `${result.customer.name} 고객사 정보가 수정되었습니다.`,
-    })
-    router.push(`/finding/customers/${result.customer.id}?tab=${searchParams.get("tab") ?? "customers"}`)
+    setSubmitting(true)
+    try {
+      await updateBackendCompany(customer.backendId, {
+        name: normalizedName,
+        sector: mapCustomerSector(customerGroup),
+        address,
+      })
+      await syncBackendManagers(customer.id, customer.backendId, filledContacts)
+      toast({
+        title: "고객사 수정 완료",
+        description: `${normalizedName} 고객사 정보가 수정되었습니다.`,
+      })
+      router.push(`/finding/customers/${customer.id}?tab=${searchParams.get("tab") ?? "customers"}`)
+    } catch (error) {
+      toast({
+        title: "고객사 수정 실패",
+        description: error instanceof Error ? error.message : "수정에 실패했습니다.",
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleAttachmentChange = async (fileList: FileList | null) => {
@@ -285,6 +375,26 @@ function CustomerEditPageContent() {
     if (files.length === 0) return
     const nextAttachments = await Promise.all(files.map(readFileAsAttachment))
     setAttachments((prev) => [...prev, ...nextAttachments])
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title="고객사 수정" description="고객사 정보를 조회합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl">
+              <Card>
+                <CardContent className="py-10 text-center text-muted-foreground">
+                  불러오는 중...
+                </CardContent>
+              </Card>
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   if (!customer) {
@@ -343,13 +453,7 @@ function CustomerEditPageContent() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label>고객사명 *</Label>
-                      <CustomerAutocomplete
-                        value={customerName}
-                        onSelect={(nextCustomer) => setCustomerName(nextCustomer?.name ?? "")}
-                        onValueChange={setCustomerName}
-                        allowCustomValue
-                        placeholder="고객사명을 입력하세요"
-                      />
+                      <CustomerAutocomplete value={customerName} onSelect={(nextCustomer) => setCustomerName(nextCustomer?.name ?? "")} onValueChange={setCustomerName} allowCustomValue placeholder="고객사명을 입력하세요" />
                     </div>
                     <div className="space-y-2">
                       <Label>고객군 *</Label>
@@ -572,10 +676,12 @@ function CustomerEditPageContent() {
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">
-                  <Button variant="outline" asChild>
+                  <Button variant="outline" asChild disabled={submitting}>
                     <Link href={backHref}>취소</Link>
                   </Button>
-                  <Button onClick={handleSave}>저장</Button>
+                  <Button onClick={handleSave} disabled={submitting}>
+                    {submitting ? "저장 중..." : "저장"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
