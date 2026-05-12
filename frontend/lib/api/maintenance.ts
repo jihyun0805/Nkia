@@ -12,6 +12,18 @@ export interface MaintenanceListResponse {
   managerPrimaryName: string;
 }
 
+export interface IntegratedSupportListResponse {
+  dataType: "REQUEST" | "ACTIVITY";
+  id: number;
+  customerName: string;
+  activityCategory: string;
+  startAt: string;
+  endAt: string;
+  ownerName: string;
+  salesRepName: string;
+  supportManagerName: string;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -27,4 +39,8 @@ export const getFreeMaintenanceList = async (): Promise<ApiResponse<MaintenanceL
 
 export const getPaidMaintenanceList = async (): Promise<ApiResponse<MaintenanceListResponse[]>> => {
   return await customInstance({ url: "/maintenances/paid", method: "get" });
+};
+
+export const getSupportHistoryList = async (): Promise<ApiResponse<IntegratedSupportListResponse[]>> => {
+  return await customInstance({ url: "/maintenances/customer-supports/activities/integrated-status", method: "get" });
 };

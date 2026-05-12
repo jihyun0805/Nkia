@@ -13,8 +13,7 @@ import { Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { supportHistories } from "@/lib/maintenance-data";
-import { getFreeMaintenanceList, getPaidMaintenanceList, MaintenanceListResponse } from "@/lib/api/maintenance";
+import { getFreeMaintenanceList, getPaidMaintenanceList, getSupportHistoryList, MaintenanceListResponse, IntegratedSupportListResponse } from "@/lib/api/maintenance";
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
 
@@ -27,6 +26,7 @@ export default function MaintenancePage() {
   const [creationMode, setCreationMode] = useState<"none" | "request" | "result">("none");
   const [freeMaintenances, setFreeMaintenances] = useState<any[]>([]);
   const [paidMaintenances, setPaidMaintenances] = useState<any[]>([]);
+  const [supportHistories, setSupportHistories] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -84,6 +84,26 @@ export default function MaintenancePage() {
             };
           });
           setPaidMaintenances(mappedPaidData);
+        }
+
+        const supportResponse = await getSupportHistoryList();
+        if (supportResponse.success && supportResponse.data) {
+          const mappedSupportData = supportResponse.data.map((item) => {
+            return {
+              id: item.id?.toString() || "N/A",
+              customer: item.customerName || "-",
+              recordType: item.dataType === "REQUEST" ? "request" : "result",
+              requestType: item.activityCategory || "-",
+              startDate: item.startAt ? item.startAt.replace("T", " ").substring(0, 16) : "-",
+              endDate: item.endAt ? item.endAt.replace("T", " ").substring(0, 16) : "-",
+              requester: item.dataType === "REQUEST" ? item.ownerName || "-" : "-",
+              registrant: item.dataType === "ACTIVITY" ? item.ownerName || "-" : "-",
+              salesRep: item.salesRepName || "-",
+              supportRep: item.supportManagerName || "-",
+              registeredAt: item.startAt || new Date().toISOString(),
+            };
+          });
+          setSupportHistories(mappedSupportData);
         }
       } catch (error) {
         console.error("Failed to fetch maintenance lists:", error);
