@@ -1,10 +1,10 @@
 package com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 @Getter
-@AllArgsConstructor
+@RequiredArgsConstructor
 public enum ProjectOpportunityStage {
     FINDING("발굴"),
     ACTIVITY("활동"),
