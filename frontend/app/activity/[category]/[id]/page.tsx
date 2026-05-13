@@ -68,7 +68,7 @@ function buildQuotationDetailForm(record: QuotationRecord) {
     productGroup: record.productGroup,
     salesRep: record.salesRep,
     paymentTerms: record.paymentTerms ?? "현금",
-    contactName: record.contactName ?? record.salesRep,
+    contactName: record.contactName ?? "",
     items: record.items.map((entry) => ({ ...entry })),
     solutionSectionTitle: record.solutionSectionTitle,
     solutionRows: record.solutionRows?.map((entry) => ({ ...entry })) ?? [],

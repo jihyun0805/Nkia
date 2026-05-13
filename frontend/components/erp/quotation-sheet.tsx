@@ -200,11 +200,11 @@ function defaultTemplateText() {
     unitNote: "(단위 : 원 , VAT별도)",
     remarksTitle: "특기사항",
     evidenceTitle: "금액산출근거표",
-    supplierName: "(주) 엔키아",
-    addressLine1: "서울특별시 서초구 양재동 60",
-    addressLine2: "일동제약 빌딩 3층",
+    supplierName: "(주)엔키아",
+    addressLine1: "경기도 성남시 분당구 대왕판교로",
+    addressLine2: "660 유스페이스1 B동 10층",
     ceoLabel: "대표이사 :",
-    ceoName: "이선우",
+    ceoName: "",
     telLabel: "TEL :",
     tel: "02-2057-8724",
     faxLabel: "FAX :",
@@ -227,7 +227,7 @@ export function createEmptyQuotationForm(): QuotationFormState {
     productGroup: "EMS",
     salesRep: currentUser.name,
     paymentTerms: "현금",
-    contactName: "진원경",
+    contactName: "",
     items: [
       { id: "", name: "1) Solution Package", amount: "" },
       { id: "", name: "2) 인건비-커스터마이징", amount: "" },
@@ -601,7 +601,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 {readOnly ? <div>{templateText.addressLine2}</div> : <Input value={templateText.addressLine2} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), addressLine2: event.target.value } }))} className={`${inputClass} text-[16px]`} />}
                 <div className="flex items-center gap-2">
                   {readOnly ? <span>{templateText.ceoLabel}</span> : <Input value={templateText.ceoLabel} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), ceoLabel: event.target.value } }))} className={`${inputClass} w-[90px] text-[16px]`} />}
-                  {readOnly ? <span>{templateText.ceoName}</span> : <Input value={templateText.ceoName} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), ceoName: event.target.value } }))} className={`${inputClass} w-[100px] text-[16px]`} />}
+                  {readOnly ? <span>{templateText.ceoName || "-"}</span> : <Input value={templateText.ceoName} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), ceoName: event.target.value } }))} className={`${inputClass} w-[100px] text-[16px]`} placeholder="대표이사 입력" />}
                 </div>
                 <div className="flex items-center gap-2">
                   {readOnly ? <span>{templateText.telLabel}</span> : <Input value={templateText.telLabel} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), telLabel: event.target.value } }))} className={`${inputClass} w-[60px] text-[16px]`} />}
@@ -620,6 +620,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                       value={form.contactName ?? ""}
                       onChange={(event) => updateForm((prev) => ({ ...prev, contactName: event.target.value }))}
                       className={`${inputClass} w-[110px] text-[16px]`}
+                      placeholder="담당자 입력"
                     />
                   )}
                 </div>

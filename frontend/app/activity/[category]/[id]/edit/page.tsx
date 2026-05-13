@@ -218,7 +218,7 @@ export default function ActivityEditPage() {
       productGroup: quotation.productGroup,
       salesRep: quotation.salesRep,
       paymentTerms: quotation.paymentTerms ?? "현금",
-      contactName: quotation.contactName ?? quotation.salesRep,
+      contactName: quotation.contactName ?? "",
       items: quotation.items.map((entry) => ({ ...entry })),
       solutionSectionTitle: quotation.solutionSectionTitle ?? quotation.items[0]?.name ?? "1) Solution Package",
       solutionRows: quotation.solutionRows?.map((entry) => ({ ...entry })) ?? [],

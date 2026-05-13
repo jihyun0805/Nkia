@@ -355,7 +355,7 @@ function mapBackendQuotationRecord(
     productGroup: local?.productGroup ?? normalizeProductGroup(solutionItems[0]?.productGroup),
     salesRep: local?.salesRep ?? currentUser.name,
     paymentTerms: quotation.paymentCondition ?? local?.paymentTerms ?? "현금",
-    contactName: local?.contactName ?? local?.salesRep ?? currentUser.name,
+    contactName: local?.contactName ?? "",
     items: local?.items?.length
       ? local.items.map((item) => ({ ...item }))
       : [
