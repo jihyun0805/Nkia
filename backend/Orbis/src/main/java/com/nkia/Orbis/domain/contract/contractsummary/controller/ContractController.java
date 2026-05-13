@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.contract.contractsummary.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.request.ContractRequest;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.response.ContractListResponse;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.response.ContractResponse;
@@ -80,5 +81,19 @@ public class ContractController {
     ) {
         ContractResponse response = contractService.update(contractId, request);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "계약 결재 상신")
+    @PostMapping("/submit/{contractId}")
+    public ResponseEntity<ApiResponse<String>> submitContract(
+            @PathVariable("contractId") Long contractId,
+            @RequestBody SubmitRequest request
+    ) {
+        contractService.submitContract(
+                contractId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("계약 결재 상신 완료"));
     }
 }
