@@ -2,95 +2,278 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
+import { Search, Activity, FileText, Handshake, Briefcase, Wrench, ArrowRight, AlertCircle } from "lucide-react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { StatCard } from "@/components/erp/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { currentUser } from "@/lib/current-user";
 import { loadAuthSession } from "@/lib/auth-session";
-import { getWorkflowTasks, subscribeWorkflowUpdates, type WorkflowTask } from "@/lib/activity-request-workflow";
-import { Search, Activity, FileText, Handshake, Briefcase, Wrench, ArrowRight, Calendar, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { contractApi } from "@/lib/api/contract-api";
+import { projectApi } from "@/lib/api/project-api";
+import { getFreeMaintenanceList, getPaidMaintenanceList } from "@/lib/api/maintenance";
+import { getSalesActivities } from "@/lib/api/generated/sales-activity/sales-activity";
+import { getBackendApiBaseUrl } from "@/lib/api-base-url";
+import { buildAuthHeaders } from "@/lib/auth-session";
 
-// 영업 파이프라인 단계
-const pipelineStages = [
-  { id: "finding", label: "발굴", count: 12, icon: Search, href: "/finding", color: "bg-blue-500" },
-  { id: "activity", label: "활동", count: 12, icon: Activity, href: "/activity", color: "bg-cyan-500" },
-  { id: "bid", label: "입찰", count: 5, icon: FileText, href: "/bid", color: "bg-amber-500" },
-  { id: "contract", label: "계약", count: 3, icon: Handshake, href: "/contract", color: "bg-green-500" },
-  { id: "project", label: "사업", count: 7, icon: Briefcase, href: "/project", color: "bg-purple-500" },
-  { id: "maintenance", label: "유지보수", count: 15, icon: Wrench, href: "/maintenance", color: "bg-orange-500" },
+type DashboardMetrics = {
+  opportunityCount: number;
+  activityCount: number;
+  rfpCount: number;
+  inProgressRfpCount: number;
+  contractCount: number;
+  projectCount: number;
+  maintenanceCount: number;
+  upcomingMaintenanceCount: number;
+  monthlyContractAmount: number;
+};
+
+type DashboardStage = {
+  id: string;
+  label: string;
+  metricKey: keyof DashboardMetrics;
+  icon: LucideIcon;
+  href: string;
+  color: string;
+};
+
+type PageResponse<T> = {
+  content?: T[];
+  totalElements?: number;
+};
+
+type RfpSummaryResponse = {
+  status?: string;
+};
+
+const pipelineStages: DashboardStage[] = [
+  { id: "finding", label: "발굴", metricKey: "opportunityCount", icon: Search, href: "/finding", color: "bg-blue-500" },
+  { id: "activity", label: "활동", metricKey: "activityCount", icon: Activity, href: "/activity", color: "bg-cyan-500" },
+  { id: "bid", label: "입찰", metricKey: "rfpCount", icon: FileText, href: "/bid", color: "bg-amber-500" },
+  { id: "contract", label: "계약", metricKey: "contractCount", icon: Handshake, href: "/contract", color: "bg-green-500" },
+  { id: "project", label: "사업", metricKey: "projectCount", icon: Briefcase, href: "/project", color: "bg-purple-500" },
+  { id: "maintenance", label: "유지보수", metricKey: "maintenanceCount", icon: Wrench, href: "/maintenance", color: "bg-orange-500" },
 ];
 
-// 최근 활동 내역
-const recentActivities = [
-  { id: 1, type: "meeting", customer: "삼성전자", content: "EMS 제안 미팅 완료", date: "2026-03-17", status: "completed" },
-  { id: 2, type: "rfp", customer: "LG CNS", content: "RFP 분석 진행 중", date: "2026-03-16", status: "in-progress" },
-  { id: 3, type: "contract", customer: "현대자동차", content: "계약서 검토 대기", date: "2026-03-15", status: "pending" },
-  { id: 4, type: "demo", customer: "SK텔레콤", content: "제품 데모 예정", date: "2026-03-18", status: "scheduled" },
-  { id: 5, type: "support", customer: "카카오", content: "고객 지원 요청 접수", date: "2026-03-17", status: "in-progress" },
-];
+function formatCurrency(value: number) {
+  return `₩${value.toLocaleString("ko-KR")}`;
+}
 
-// 알림
-const alerts = [
-  { id: 1, type: "warning", message: "삼성SDS 유지보수 종료 D-30", href: "/maintenance" },
-  { id: 2, type: "info", message: "신규 사업기회 3건 등록됨", href: "/finding" },
-  { id: 3, type: "warning", message: "LG전자 유상유지보수 계약 미체결", href: "/maintenance" },
-];
+function parseDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isCurrentMonth(value?: string | null) {
+  const date = parseDate(value);
+  if (!date) return false;
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
+
+function isWithinDays(days: number, value?: string | null) {
+  const date = parseDate(value);
+  if (!date) return false;
+  const now = new Date();
+  const diff = date.getTime() - now.getTime();
+  return diff >= 0 && diff <= days * 24 * 60 * 60 * 1000;
+}
+
+async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  const payload = (await response.json().catch(() => null)) as { result?: string; data?: T | null; message?: string | null } | null;
+
+  if (!response.ok) {
+    throw new Error(payload?.message || fallbackMessage);
+  }
+
+  if (payload?.result !== "SUCCESS" || payload.data == null) {
+    throw new Error(payload?.message || fallbackMessage);
+  }
+
+  return payload.data;
+}
+
+async function fetchPageCount(url: string, fallbackMessage: string) {
+  const response = await fetch(url, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonResponse<PageResponse<unknown>>(response, fallbackMessage);
+  return payload.totalElements ?? payload.content?.length ?? 0;
+}
+
+async function fetchOpportunityCount() {
+  return fetchPageCount(`${getBackendApiBaseUrl()}/project-opportunities?size=1`, "사업기회 목록을 불러오지 못했습니다.");
+}
+
+async function fetchRfpMetrics() {
+  const response = await fetch(`${getBackendApiBaseUrl()}/rfp-analyze-results?size=2000`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  const payload = await parseJsonResponse<PageResponse<RfpSummaryResponse>>(response, "입찰 데이터를 불러오지 못했습니다.");
+  const rows = payload.content ?? [];
+
+  return {
+    total: payload.totalElements ?? rows.length,
+    inProgress: rows.filter((item) => item.status !== "COMPLETED").length,
+  };
+}
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [myTasks, setMyTasks] = useState<WorkflowTask[]>([]);
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    opportunityCount: 0,
+    activityCount: 0,
+    rfpCount: 0,
+    inProgressRfpCount: 0,
+    contractCount: 0,
+    projectCount: 0,
+    maintenanceCount: 0,
+    upcomingMaintenanceCount: 0,
+    monthlyContractAmount: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loadAuthSession()) {
       router.replace("/");
       return;
     }
-    const sync = () => setMyTasks(getWorkflowTasks(currentUser.name));
 
-    sync();
-    return subscribeWorkflowUpdates(sync);
-  }, []);
+    let cancelled = false;
+
+    const fetchDashboard = async () => {
+      setLoading(true);
+      setError(null);
+
+      const [
+        opportunityCountResult,
+        activityResult,
+        rfpResult,
+        contractResult,
+        projectResult,
+        freeMaintenanceResult,
+        paidMaintenanceResult,
+      ] = await Promise.allSettled([
+        fetchOpportunityCount(),
+        getSalesActivities(),
+        fetchRfpMetrics(),
+        contractApi.getContracts(),
+        projectApi.getProjects(),
+        getFreeMaintenanceList(),
+        getPaidMaintenanceList(),
+      ]);
+
+      if (cancelled) return;
+
+      const opportunityCount = opportunityCountResult.status === "fulfilled" ? opportunityCountResult.value : 0;
+      const activities = activityResult.status === "fulfilled" ? activityResult.value.data ?? [] : [];
+      const rfpMetrics = rfpResult.status === "fulfilled" ? rfpResult.value : { total: 0, inProgress: 0 };
+      const contracts = contractResult.status === "fulfilled" ? contractResult.value.data ?? [] : [];
+      const projects = projectResult.status === "fulfilled" ? projectResult.value.data ?? [] : [];
+      const freeMaintenances = freeMaintenanceResult.status === "fulfilled" && freeMaintenanceResult.value.success ? freeMaintenanceResult.value.data ?? [] : [];
+      const paidMaintenances = paidMaintenanceResult.status === "fulfilled" && paidMaintenanceResult.value.success ? paidMaintenanceResult.value.data ?? [] : [];
+
+      const allMaintenances = [...freeMaintenances, ...paidMaintenances];
+      const monthlyContractAmount = contracts
+        .filter((item) => isCurrentMonth(item.contractDate))
+        .reduce((sum, item) => sum + (item.contractAmount || 0), 0);
+
+      const nextError =
+        opportunityCountResult.status === "rejected"
+          ? "발굴 데이터를 불러오지 못했습니다."
+          : activityResult.status === "rejected"
+            ? "활동 데이터를 불러오지 못했습니다."
+            : rfpResult.status === "rejected"
+              ? "입찰 데이터를 불러오지 못했습니다."
+              : contractResult.status === "rejected"
+                ? "계약 데이터를 불러오지 못했습니다."
+                : projectResult.status === "rejected"
+                  ? "사업 데이터를 불러오지 못했습니다."
+                  : freeMaintenanceResult.status === "rejected" || paidMaintenanceResult.status === "rejected"
+                    ? "유지보수 데이터를 불러오지 못했습니다."
+                    : null;
+
+      setMetrics({
+        opportunityCount,
+        activityCount: activities.length,
+        rfpCount: rfpMetrics.total,
+        inProgressRfpCount: rfpMetrics.inProgress,
+        contractCount: contracts.length,
+        projectCount: projects.length,
+        maintenanceCount: allMaintenances.length,
+        upcomingMaintenanceCount: allMaintenances.filter((item) => isWithinDays(90, item.endDate)).length,
+        monthlyContractAmount,
+      });
+      setError(nextError);
+      setLoading(false);
+    };
+
+    void fetchDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
 
       <div className="flex-1 flex flex-col">
-        <Header title="대시보드" description="영업관리시스템 주요 현황을 한눈에 확인하세요" />
+        <Header title="대시보드" description="영업관리시스템 주요 현황을 백엔드 데이터 기준으로 확인하세요" />
 
         <main className="flex-1 p-6 overflow-auto">
-          {/* 통계 카드 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard title="이번 달 사업기회" value={28} change="+12% 전월 대비" changeType="positive" icon={Search} />
-            <StatCard title="진행 중인 입찰" value={5} change="3건 제안 준비 중" changeType="neutral" icon={FileText} />
-            <StatCard title="이번 달 수주" value="₩2.4억" change="+8% 전월 대비" changeType="positive" icon={Handshake} />
-            <StatCard title="유지보수 종료 예정" value={7} change="3개월 이내" changeType="negative" icon={Wrench} />
-          </div>
-
-          {/* 알림 영역 */}
-          {alerts.length > 0 && (
-            <Card className="mb-6 border-l-4 border-l-primary">
+          {error && (
+            <Card className="mb-6 border-l-4 border-l-amber-500">
               <CardContent className="p-4">
-                <div className="flex items-center gap-4 flex-wrap">
-                  <AlertCircle className="w-5 h-5 text-primary flex-shrink-0" />
-                  <div className="flex-1 flex items-center gap-4 flex-wrap">
-                    {alerts.map((alert) => (
-                      <Link key={alert.id} href={alert.href} className="text-sm hover:text-primary transition-colors flex items-center gap-2">
-                        <span className={alert.type === "warning" ? "text-amber-600" : "text-foreground"}>{alert.message}</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </Link>
-                    ))}
-                  </div>
+                <div className="flex items-start gap-3 text-sm text-foreground">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p>{error}</p>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* 영업 파이프라인 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              title="사업기회"
+              value={loading ? "불러오는 중" : metrics.opportunityCount}
+              change="백엔드 총건수"
+              changeType="neutral"
+              icon={Search}
+            />
+            <StatCard
+              title="진행 중인 입찰"
+              value={loading ? "불러오는 중" : metrics.inProgressRfpCount}
+              change="RFP 분석 완료 제외"
+              changeType="neutral"
+              icon={FileText}
+            />
+            <StatCard
+              title="이번 달 수주"
+              value={loading ? "불러오는 중" : formatCurrency(metrics.monthlyContractAmount)}
+              change="계약 백엔드 기준"
+              changeType="neutral"
+              icon={Handshake}
+            />
+            <StatCard
+              title="유지보수 종료 예정"
+              value={loading ? "불러오는 중" : metrics.upcomingMaintenanceCount}
+              change="90일 이내 종료"
+              changeType="neutral"
+              icon={Wrench}
+            />
+          </div>
+
           <Card className="mb-6">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-semibold">영업관리 단계별 현황</CardTitle>
@@ -100,114 +283,22 @@ export default function DashboardPage() {
                 {pipelineStages.map((stage, index) => (
                   <Link key={stage.id} href={stage.href} className="flex-1 min-w-[120px]">
                     <div className="relative group">
-                      <div
-                        className={`
-                        p-4 rounded-lg border-2 border-transparent
-                        hover:border-primary hover:shadow-md
-                        transition-all duration-200 bg-card
-                        flex flex-col items-center gap-2
-                      `}
-                      >
-                        <div className={`w-10 h-10 rounded-full ${stage.color} flex items-center justify-center`}>
-                          <stage.icon className="w-5 h-5 text-white" />
+                      <div className="flex flex-col items-center gap-2 rounded-lg border-2 border-transparent bg-card p-4 transition-all duration-200 hover:border-primary hover:shadow-md">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${stage.color}`}>
+                          <stage.icon className="h-5 w-5 text-white" />
                         </div>
                         <div className="text-center">
-                          <p className="font-semibold text-sm">{stage.label}</p>
-                          <p className="text-2xl font-bold text-foreground">{stage.count}</p>
+                          <p className="text-sm font-semibold">{stage.label}</p>
+                          <p className="text-2xl font-bold text-foreground">{loading ? "..." : metrics[stage.metricKey]}</p>
                         </div>
                       </div>
-                      {index < pipelineStages.length - 1 && <ArrowRight className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />}
+                      {index < pipelineStages.length - 1 && <ArrowRight className="absolute -right-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />}
                     </div>
                   </Link>
                 ))}
               </div>
             </CardContent>
           </Card>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 최근 활동 */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-4">
-                <CardTitle className="text-lg font-semibold">최근 활동</CardTitle>
-                <Link href="/activity">
-                  <Button variant="ghost" size="sm" className="text-primary">
-                    전체 보기 <ArrowRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </Link>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                      <div
-                        className={`
-                        w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
-                        ${
-                          activity.status === "completed"
-                            ? "bg-green-100 text-green-600"
-                            : activity.status === "in-progress"
-                              ? "bg-blue-100 text-blue-600"
-                              : activity.status === "pending"
-                                ? "bg-amber-100 text-amber-600"
-                                : "bg-purple-100 text-purple-600"
-                        }
-                      `}
-                      >
-                        {activity.status === "completed" ? <CheckCircle2 className="w-4 h-4" /> : activity.status === "scheduled" ? <Calendar className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm">{activity.customer}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {activity.type === "meeting" ? "미팅" : activity.type === "rfp" ? "RFP" : activity.type === "contract" ? "계약" : activity.type === "demo" ? "데모" : "지원"}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">{activity.content}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{activity.date}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 나의 업무 */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-4">
-                <CardTitle className="text-lg font-semibold">나의 업무</CardTitle>
-                <Link href="/workflow">
-                  <Button variant="ghost" size="sm" className="text-primary">
-                    전체 보기 <ArrowRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </Link>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {myTasks.map((task) => (
-                    <Link key={task.id} href={task.href} className="flex items-center gap-4 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors">
-                      <div
-                        className={`
-                        w-2 h-2 rounded-full flex-shrink-0
-                        ${task.statusLabel === "승인 필요" ? "bg-red-500" : "bg-green-500"}
-                      `}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{task.title}</p>
-                        <p className="text-xs text-muted-foreground">활동일: {task.dueDate}</p>
-                      </div>
-                      <Badge
-                        variant={task.statusLabel === "승인 필요" ? "destructive" : "secondary"}
-                        className={`text-xs ${task.statusLabel === "승인 필요" ? "" : "bg-green-100 text-green-700 hover:bg-green-100"}`}
-                      >
-                        {task.statusLabel}
-                      </Badge>
-                    </Link>
-                  ))}
-                  {myTasks.length === 0 && <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">표시할 업무가 없습니다.</div>}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </main>
       </div>
     </div>
