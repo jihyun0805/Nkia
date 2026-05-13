@@ -30,7 +30,7 @@ import {
 } from "@/lib/bid-data"
 import type { ActivityRequestRecord } from "@/lib/activity-data"
 import { getActivityRequests, notifyRfpAnalysisCompleted } from "@/lib/activity-request-workflow"
-import { getCustomerByCode, getOpportunitiesByCustomerName, type CustomerRecord } from "@/lib/finding-data"
+import { getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName, type CustomerRecord } from "@/lib/finding-data"
 import { createBackendRfpAnalysis, deleteBackendRfpAnalysis, loadBackendRfpAnalyses, updateBackendRfpAnalysis } from "@/lib/rfp-analysis-backend"
 import { toast } from "@/hooks/use-toast"
 
@@ -460,14 +460,18 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   useEffect(() => {
     if (!requestItem) return
 
-    const matchedCustomer = requestItem.customerCode ? getCustomerByCode(requestItem.customerCode) : null
+    const matchedCustomer = requestItem.customerCode
+      ? getCustomerByCode(requestItem.customerCode)
+      : requestItem.customer
+        ? getCustomerByName(requestItem.customer)
+        : null
     const linkedOpportunity =
-      requestItem.customer && requestItem.opportunityCode
-        ? getOpportunitiesByCustomerName(requestItem.customer).find((item) => item.id === requestItem.opportunityCode) ?? null
+      requestItem.customer && requestItem.opportunity
+        ? getOpportunitiesByCustomerName(requestItem.customer).find((item) => item.name === requestItem.opportunity) ?? null
         : null
 
     const nextCustomerName = matchedCustomer?.name ?? requestItem.customer ?? ""
-    const nextOpportunityCode = requestItem.opportunityCode ?? ""
+    const nextOpportunityCode = requestItem.opportunityCode ?? linkedOpportunity?.id ?? ""
     const nextBusinessType = linkedOpportunity?.product ?? requestItem.businessType ?? "EMS"
     const nextProposalType = linkedOpportunity
       ? (linkedOpportunity.partnerCode && linkedOpportunity.partnerCode !== "-" ? "SI 제안" : "자체 제안")
@@ -531,23 +535,35 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   }, [isStandalone, selectedOpportunity])
   const customerDisplay = isStandalone
     ? selectedCustomer ? `${selectedCustomer.name} (${selectedCustomer.id})` : selectedCustomerName
-    : requestItem ? `${requestItem.customer} (${requestItem.customerCode})` : ""
+    : requestItem
+      ? requestItem.customerCode
+        ? `${requestItem.customer} (${requestItem.customerCode})`
+        : requestItem.customer
+      : ""
   const opportunityDisplay = isStandalone
     ? selectedOpportunity ? `${selectedOpportunity.name} (${selectedOpportunity.id})` : ""
-    : requestItem ? `${requestItem.opportunity} (${requestItem.opportunityCode})` : ""
+    : requestItem
+      ? requestItem.opportunityCode
+        ? `${requestItem.opportunity} (${requestItem.opportunityCode})`
+        : requestItem.opportunity
+      : ""
   const analysisStatus = persistedAnalysis?.status ?? (activityRequestItem ? "접수" : (requestItem?.status ?? "분석중"))
   const salesRep = requestItem?.requester ?? ""
   const analyst = currentUser.name
   const requestDate = requestItem?.requestDate ?? requestItem?.receiveDate ?? ""
 
   const persistAnalysis = async (status: RfpAnalysisStatus) => {
-    const customerCode = isStandalone ? (selectedCustomer?.id ?? "") : (requestItem?.customerCode ?? "")
     const customerName = isStandalone ? (selectedCustomer?.name ?? selectedCustomerName) : (requestItem?.customer ?? "")
-    const opportunityCode = isStandalone ? (selectedOpportunity?.id ?? "") : (requestItem?.opportunityCode ?? "")
     const opportunityName = isStandalone ? (selectedOpportunity?.name ?? "") : (requestItem?.opportunity ?? "")
+    const customerCode = isStandalone
+      ? (selectedCustomer?.id ?? getCustomerByName(selectedCustomerName)?.id ?? "")
+      : (requestItem?.customerCode ?? getCustomerByName(requestItem?.customer ?? "")?.id ?? "")
+    const opportunityCode = isStandalone
+      ? (selectedOpportunity?.id ?? "")
+      : (requestItem?.opportunityCode ?? getOpportunitiesByCustomerName(requestItem?.customer ?? "").find((item) => item.name === (requestItem?.opportunity ?? ""))?.id ?? "")
     const linkedRequestId = activityRequestItem?.id ?? linkedSavedAnalysis?.requestId
 
-    if (!customerCode || !opportunityCode || !customerName || !opportunityName) {
+    if (!customerName || !opportunityName) {
       toast({
         title: "기본정보 확인",
         description: "고객사와 사업기회를 먼저 선택해주십시오.",
