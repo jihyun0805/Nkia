@@ -191,4 +191,69 @@ public class BidResult extends BaseEntity {
             recalculateTotalAnalysisScore();
         }
     }
+
+    // ==========================================
+    // 엔티티 상태 수정 (Update) 비즈니스 로직
+    // ==========================================
+
+    /**
+     * 1. 연관 관계 엔티티 수정
+     */
+    public void updateAssociations(ProjectOpportunity projectOpportunity, Proposal proposal,
+                                   User salesRepresentative, User projectManager) {
+        this.projectOpportunity = projectOpportunity;
+        this.proposal = proposal;
+        this.salesRepresentative = salesRepresentative;
+        this.projectManager = projectManager;
+    }
+
+    /**
+     * 2. 입찰 기본 정보 및 일정 수정
+     */
+    public void updateBidDetails(BigDecimal budget, Boolean isExternalPdInvolved,
+                                 LocalDate bidAnnouncementDate, LocalDate presentationDate) {
+        this.budget = budget;
+        this.isExternalPdInvolved = isExternalPdInvolved != null ? isExternalPdInvolved : false;
+        this.bidAnnouncementDate = bidAnnouncementDate;
+        this.presentationDate = presentationDate;
+    }
+
+    /**
+     * 3. 제안 전략 및 이슈 수정
+     */
+    public void updateStrategies(String keySuccessFactors, String rfpIssues, String proposalStrategy) {
+        this.keySuccessFactors = keySuccessFactors;
+        this.rfpIssues = rfpIssues;
+        this.proposalStrategy = proposalStrategy;
+    }
+
+    /**
+     * 4. 입찰 결과 및 상태 수정
+     */
+    public void updateOutcomes(BidOutcome bidOutcome, DisclosureStatus disclosureStatus) {
+        this.bidOutcome = bidOutcome;
+        this.disclosureStatus = disclosureStatus;
+    }
+
+    public void updateOurCompanyScore(CompanyScore ourCompanyScore) {
+        this.ourCompanyScore = ourCompanyScore;
+    }
+
+    /**
+     * @ElementCollection 리스트 업데이트 기존 컬렉션을 clear() 하고 새 데이터를 addAll() 하면, Hibernate가 기존 자식 레코드를 모두 지우고 새 레코드를 Insert.
+     */
+    public void updateCompetitorScores(List<CompanyScore> newScores) {
+        this.competitorScores.clear();
+        if (newScores != null) {
+            this.competitorScores.addAll(newScores);
+        }
+    }
+
+    public void updateAnalyses(List<WinLossAnalysis> newAnalyses) {
+        this.analyses.clear();
+        if (newAnalyses != null) {
+            this.analyses.addAll(newAnalyses);
+        }
+        recalculateTotalAnalysisScore(); // 데이터 변경 후 총점 재계산 필수!
+    }
 }
