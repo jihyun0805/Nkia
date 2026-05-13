@@ -10,6 +10,7 @@ import com.nkia.Orbis.domain.admin.permission.entity.Role;
 import com.nkia.Orbis.domain.admin.permission.repository.RoleRepository;
 import com.nkia.Orbis.domain.admin.user.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
+import com.nkia.Orbis.domain.admin.user.dto.response.MyInfoResponse;
 import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
 import com.nkia.Orbis.domain.admin.user.entity.Status;
 import com.nkia.Orbis.domain.admin.user.entity.User;
@@ -139,5 +140,13 @@ public class UserService {
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
         return UserResponse.from(user);
+    }
+
+    @Transactional
+    public MyInfoResponse getMyInfo(UUID userId) {
+        User user = userRepository.findByIdWithRolesAndPermissions(userId)
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+        return MyInfoResponse.from(user);
     }
 }

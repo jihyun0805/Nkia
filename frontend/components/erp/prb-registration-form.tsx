@@ -24,11 +24,9 @@ import { toast } from "@/hooks/use-toast"
 import { notifyPrbApprovalRequested } from "@/lib/activity-request-workflow"
 import {
   approvePrbStep,
-  deletePrb,
   getPrbById,
   getPrbRevisionHistory,
   getRfpAnalyses,
-  savePrb,
   subscribePrbUpdates,
   type PrbApprovalStep,
   type PrbLineItem,
@@ -37,6 +35,7 @@ import {
 } from "@/lib/bid-data"
 import { currentUser } from "@/lib/current-user"
 import { getCustomers, getOpportunities } from "@/lib/finding-data"
+import { deleteBackendPrb, loadBackendPrbs, saveBackendPrb } from "@/lib/prb-backend"
 
 type PrbRegistrationFormProps = {
   prbId?: string
@@ -259,6 +258,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     }
 
     sync()
+    void loadBackendPrbs().catch(() => undefined)
     return subscribePrbUpdates(sync)
   }, [cloneFromId, prbId])
 
@@ -330,7 +330,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     }))
   }
 
-  const persist = (nextStatus: PrbStatus) => {
+  const persist = async (nextStatus: PrbStatus) => {
     const firstApprovalPending = nextStatus === "검토 중"
     const approvalSteps: PrbApprovalStep[] = [
       { key: "author", label: "작성자", assignee: "영업대표", status: "completed", completedAt: today() },
@@ -339,7 +339,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       { key: "deploy", label: "배포", assignee: "권한 보유자", status: "waiting" },
       { key: "share", label: "공유", assignee: "권한 보유자", status: "waiting" },
     ]
-    const saved = savePrb({
+    const saved = await saveBackendPrb({
       id: cloneFromId ? undefined : prbId,
       customerCode: form.customerCode,
       customer: form.customer || form.formData.customerName,
@@ -377,22 +377,21 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       attendeeOpinions: [form.formData.salesOpinion],
       version: "v1.0",
     })
-
     setStatus(saved.status)
     return saved
   }
 
-  const handleDraft = () => {
+  const handleDraft = async () => {
     if (prbId && sourcePrb?.status === "승인") {
       router.push(`/bid/new/prb?cloneFrom=${prbId}`)
       return
     }
 
-    const saved = persist("작성 중")
+    const saved = await persist("작성 중")
     router.push(`/bid/prb/${saved.id}`)
   }
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     const requiredSelections: Array<{ key: keyof Pick<PrbFormState, "customerCode" | "opportunityCode" | "rfpAnalysisId">; label: string }> = [
       { key: "customerCode", label: "고객사명(코드)" },
       { key: "opportunityCode", label: "사업기회(코드)" },
@@ -405,7 +404,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       return
     }
 
-    const saved = persist("검토 중")
+    const saved = await persist("검토 중")
     notifyPrbApprovalRequested({
       requester: currentUser.name,
       nextApprover: "팀장",
@@ -415,25 +414,23 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     router.push(`/bid/prb/${saved.id}`)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!prbId) return
 
-    const result = deletePrb(prbId)
-    if (result.status === "not_found") {
+    try {
+      await deleteBackendPrb(prbId)
       toast({
-        title: "PRB 삭제 실패",
-        description: "삭제할 PRB 보고서를 찾지 못했습니다.",
+        title: "PRB 삭제 완료",
+        description: "PRB 보고서가 삭제되었습니다.",
       })
       setIsDeleteOpen(false)
-      return
+      router.push("/bid")
+    } catch {
+      toast({
+        title: "PRB 삭제 실패",
+        description: "PRB 보고서를 삭제하지 못했습니다.",
+      })
     }
-
-    toast({
-      title: "PRB 삭제 완료",
-      description: "PRB 보고서가 삭제되었습니다.",
-    })
-    setIsDeleteOpen(false)
-    router.push("/bid")
   }
 
   const pendingApprovalStep = sourcePrb?.approvalSteps.find((step) => step.status === "pending") ?? null
@@ -498,7 +495,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const reportTable = (
-    <div className={`overflow-x-auto rounded-md border border-r-0 ${readOnly ? "pointer-events-none" : ""}`}>
+    <div className="overflow-x-auto rounded-md border border-r-0">
       <table className="min-w-[1180px] border-collapse text-sm [&_td]:border [&_th]:border">
         <tbody>
           <tr>

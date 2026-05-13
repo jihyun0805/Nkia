@@ -5,6 +5,14 @@ import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UploadFileErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceDetailResponse;
@@ -14,8 +22,6 @@ import com.nkia.Orbis.domain.maintenance.maintenance.entity.MaintenanceType;
 import com.nkia.Orbis.domain.maintenance.maintenance.repository.MaintenanceRepository;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
-import com.nkia.Orbis.domain.admin.user.entity.User;
-import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
 import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
@@ -34,6 +40,8 @@ public class MaintenanceService {
     private final UserRepository userRepository;
     private final UploadFileRepository uploadFileRepository;
     private final UploadFileService uploadFileService;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     /**
      * 유지보수 (무상/유상) 신규 등록
@@ -49,7 +57,8 @@ public class MaintenanceService {
         User regularPm = getUserOrNull(dto.getRegularPm());
         UploadFile contractFile = getUploadFile(dto.getContractFileId());
 
-        Maintenance maintenance = createMaintenanceEntity(dto, project, salesRep, primaryManager, secondaryManager, regularPm, contractFile);
+        Maintenance maintenance = createMaintenanceEntity(dto, project, salesRep, primaryManager, secondaryManager,
+                regularPm, contractFile);
 
         return maintenanceRepository.save(maintenance).getId();
     }
@@ -122,7 +131,7 @@ public class MaintenanceService {
         UploadFile contractFile = getUploadFile(dto.getContractFileId());
         maintenance.updateMaintenance(dto, salesRep, primary, secondary, regularPm, contractFile);
 
-        return MaintenanceDetailResponse.from(maintenance);
+        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance));
     }
 
     /**
@@ -167,7 +176,7 @@ public class MaintenanceService {
         Maintenance maintenance = maintenanceRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
 
-        return MaintenanceDetailResponse.from(maintenance);
+        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance));
     }
 
     /**
@@ -191,5 +200,53 @@ public class MaintenanceService {
         }
         return uploadFileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException(UploadFileErrorCode.FILE_NOT_FOUND));
+    }
+
+    @Transactional
+    public void submitMaintenance(
+            Long maintenanceId,
+            UUID firstApproverId
+    ) {
+        Maintenance maintenance = maintenanceRepository.findById(maintenanceId)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
+
+        if (!maintenance.isDraft()) {
+            throw new ApiException(MaintenanceErrorCode.INVALID_MAINTENANCE_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        WorkflowDomain workflowDomain = resolveWorkflowDomain(maintenance);
+
+        Workflow workflow = workflowService.startWorkflow(
+                workflowDomain,
+                maintenance.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        maintenance.submit();
+    }
+
+    private Long getWorkflowId(Maintenance maintenance) {
+
+        WorkflowDomain workflowDomain = resolveWorkflowDomain(maintenance);
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        workflowDomain,
+                        maintenance.getId(),
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
+    }
+
+    private WorkflowDomain resolveWorkflowDomain(Maintenance maintenance) {
+        if (maintenance.getType() == MaintenanceType.FREE) {
+            return WorkflowDomain.FREE_MAINTENANCE_CONTRACT;
+        }
+
+        return WorkflowDomain.PAID_MAINTENANCE_CONTRACT;
     }
 }
