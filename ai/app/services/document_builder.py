@@ -59,12 +59,19 @@ INDEXED_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.SALES_ACTIVITY,
         id_fields=("activityCode", "activity_code", "id"),
         title_fields=("activityCode", "activity_code", "activity_content", "id"),
-        content_fields=("activity_type", "activity_purpose", "activity_content", "customer_interest", "issue", "next_activity"),
+        content_fields=(
+            "opportunity_name", "customer_name",
+            "activity_date_time",
+            "activity_type", "activity_purpose", "activity_content",
+            "customer_interest", "issue", "next_activity",
+        ),
         payload_aliases={
             "activityAt": ("activity_date_time",),
             "activityType": ("activity_type",),
             "content": ("activity_content",),
             "opportunityId": ("project_opportunity_id",),
+            "opportunityName": ("opportunity_name",),
+            "customerName": ("customer_name",),
         },
     ),
     DocumentConfig(

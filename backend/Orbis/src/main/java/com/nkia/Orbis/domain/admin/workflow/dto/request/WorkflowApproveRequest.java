@@ -6,8 +6,6 @@ import lombok.Getter;
 @Getter
 public class WorkflowApproveRequest {
 
-    private UUID approverId;
-
     private UUID nextApproverId;
 
     private String comment;
