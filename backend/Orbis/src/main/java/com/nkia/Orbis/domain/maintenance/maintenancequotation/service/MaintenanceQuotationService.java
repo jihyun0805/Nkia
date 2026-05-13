@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MaintenanceQuotationService {
 
     private final MaintenanceQuotationRepository quotationRepository;
@@ -81,7 +82,6 @@ public class MaintenanceQuotationService {
     /**
      * 유지보수 견적서의 상세 내역 조회
      */
-    @Transactional(readOnly = true)
     public MaintenanceQuotationDetailResponse getDetail(Long id) {
         MaintenanceQuotation quotation = quotationRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
@@ -123,6 +123,7 @@ public class MaintenanceQuotationService {
     /**
      * 서비스 내역 하위 엔티티 생성
      */
+    @Transactional
     private MaintenanceServiceInfo createServiceInfo(MaintenanceQuotationCreateRequest.ServiceInfoRequest s) {
         return MaintenanceServiceInfo.builder()
                 .productModule(getProductModuleOrNull(s.getProductId()))
@@ -135,6 +136,7 @@ public class MaintenanceQuotationService {
     /**
      * 금액 산출 근거 하위 엔티티 생성
      */
+    @Transactional
     private MaintenanceAmountReason createAmountReason(MaintenanceQuotationCreateRequest.AmountReasonRequest c) {
         return MaintenanceAmountReason.builder()
                 .productModule(getProductModuleOrNull(c.getProductId()))
@@ -156,6 +158,7 @@ public class MaintenanceQuotationService {
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MODULE_NOT_FOUND));
     }
 
+    @Transactional
     private void updateBasicInfo(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {
         q.updateInfo(dto.getPaymentTerms(), dto.getTotalAmount(),
                 dto.getStartDate(), dto.getEndDate(),
