@@ -231,7 +231,10 @@ export default function MaintenancePage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Table>
+                  {filteredFreeMaintenances.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 무상유지보수 내역이 없습니다.</div>
+                  ) : (
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>고객사</TableHead>
@@ -259,6 +262,7 @@ export default function MaintenancePage() {
                       ))}
                     </TableBody>
                   </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -272,7 +276,10 @@ export default function MaintenancePage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Table>
+                  {filteredPaidMaintenances.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 유상유지보수 내역이 없습니다.</div>
+                  ) : (
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>고객사</TableHead>
@@ -306,6 +313,7 @@ export default function MaintenancePage() {
                       ))}
                     </TableBody>
                   </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -320,7 +328,10 @@ export default function MaintenancePage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <Table>
+                    {filteredSupportHistories.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 고객지원 현황이 없습니다.</div>
+                    ) : (
+                      <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-[100px]">구분</TableHead>
@@ -363,6 +374,7 @@ export default function MaintenancePage() {
                         ))}
                       </TableBody>
                     </Table>
+                    )}
                   </CardContent>
                 </Card>
               )}
