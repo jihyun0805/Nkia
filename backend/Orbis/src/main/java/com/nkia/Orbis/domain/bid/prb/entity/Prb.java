@@ -15,6 +15,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -58,8 +59,8 @@ public class Prb extends BaseEntity {
     @Column(name = "sales_representative_opinion", columnDefinition = "TEXT")
     private String salesRepresentativeOpinion;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_opportunity_id")
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_opportunity_id", unique = true)
     private ProjectOpportunity projectOpportunity;
 
     @ManyToOne(fetch = FetchType.LAZY)
