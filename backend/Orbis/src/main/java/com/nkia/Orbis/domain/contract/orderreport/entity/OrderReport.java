@@ -516,4 +516,8 @@ public class OrderReport extends BaseEntity {
     public boolean isDraft() {
         return this.status == ApprovalStatus.DRAFT;
     }
+
+    public void assignProjectOpportunity(ProjectOpportunity projectOpportunity) {
+        this.projectOpportunity = projectOpportunity;
+    }
 }

@@ -170,4 +170,13 @@ public class ProjectOpportunity extends BaseEntity {
             prb.assignProjectOpportunity(this);
         }
     }
+
+    public void assignOrderReport(OrderReport orderReport) {
+        this.orderReport = orderReport;
+
+        // 무한 루프 방지 및 자식 엔티티의 참조 동기화
+        if (orderReport != null && orderReport.getProjectOpportunity() != this) {
+            orderReport.assignProjectOpportunity(this);
+        }
+    }
 }
