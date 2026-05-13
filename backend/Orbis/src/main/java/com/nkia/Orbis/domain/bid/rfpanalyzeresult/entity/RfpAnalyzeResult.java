@@ -125,4 +125,8 @@ public class RfpAnalyzeResult extends BaseEntity {
         this.proposalType = proposalType;
         this.assignee = assignee;
     }
+
+    public void assignProjectOpportunity(ProjectOpportunity projectOpportunity) {
+        this.projectOpportunity = projectOpportunity;
+    }
 }

@@ -154,4 +154,11 @@ public class ProjectOpportunity extends BaseEntity {
         this.competitionStatus = competitionStatus;
         this.salesRepresentative = salesRepresentative;
     }
+
+    public void assignRfpAnalyzeResult(RfpAnalyzeResult rfpAnalyzeResult) {
+        this.rfpAnalyzeResult = rfpAnalyzeResult;
+        if (rfpAnalyzeResult != null && rfpAnalyzeResult.getProjectOpportunity() != this) {
+            rfpAnalyzeResult.assignProjectOpportunity(this);
+        }
+    }
 }
