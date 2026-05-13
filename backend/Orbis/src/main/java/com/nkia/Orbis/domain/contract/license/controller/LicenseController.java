@@ -90,6 +90,7 @@ public class LicenseController {
 
     @Operation(summary = "라이선스 결재 상신")
     @PostMapping("/submit/{licenseId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'LICENSE', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> submitLicense(
             @PathVariable("licenseId") Long licenseId,
             @RequestBody SubmitRequest request

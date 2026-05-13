@@ -85,6 +85,7 @@ public class ContractController {
 
     @Operation(summary = "계약 결재 상신")
     @PostMapping("/submit/{contractId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CONTRACT', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> submitContract(
             @PathVariable("contractId") Long contractId,
             @RequestBody SubmitRequest request
