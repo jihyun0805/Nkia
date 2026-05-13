@@ -119,7 +119,6 @@ public class CustomerSupportActivityService {
     /**
      * 특정 고객지원 활동 결과의 상세 내역 조회
      */
-    @Transactional(readOnly = true)
     public CustomerSupportDetailResponse getActivityDetail(Long id) {
         CustomerSupport support = supportRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));

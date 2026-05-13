@@ -104,7 +104,6 @@ public class BillingService {
     /**
      * 수주보고서 ID와 현재 사용자 ID(혹은 이름)를 기반으로 폼 초기화 정보를 생성
      */
-    @Transactional(readOnly = true)
     public BillingFormInitResponse getBillingInitData(Long orderReportId, String userIdStr) {
         OrderReport report = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
@@ -179,7 +178,6 @@ public class BillingService {
     /**
      * 청구 및 수금 현황 목록을 최신순으로 조회
      */
-    @Transactional(readOnly = true)
     public List<BillingListResponse> getBillingList() {
         List<Billing> billings = billingRepository.findAllByOrderByIdDesc();
 
@@ -191,7 +189,6 @@ public class BillingService {
     /**
      * 특정 청구 건의 상세 정보 조회
      */
-    @Transactional(readOnly = true)
     public BillingDetailResponse getBillingDetail(Long billingId) {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));

@@ -1,9 +1,10 @@
 package com.nkia.Orbis.domain.contract.contractsummary.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
-import com.nkia.Orbis.domain.admin.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -33,6 +34,9 @@ public class Contract extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_report_id", unique = true)
@@ -79,6 +83,7 @@ public class Contract extends BaseEntity {
         contract.contractDate = contractDate;
         contract.maintenanceCondition = maintenanceCondition;
         contract.salesRepresentative = salesRepresentative;
+        contract.status = ApprovalStatus.DRAFT;
 
         return contract;
     }
@@ -131,5 +136,25 @@ public class Contract extends BaseEntity {
         for (ContractModuleItem item : contractModuleItems) {
             item.delete();
         }
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }
