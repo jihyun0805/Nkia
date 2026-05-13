@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.config import settings
@@ -318,8 +318,11 @@ def detect_duplicate_or_stale_event(
         return "SKIPPED_DUPLICATE"
 
     last_event_at = existing.get("last_event_at")
-    if last_event_at and occurred_at < last_event_at:
-        return "SKIPPED_STALE"
+    if last_event_at and occurred_at:
+        _occ = occurred_at if occurred_at.tzinfo else occurred_at.replace(tzinfo=timezone.utc)
+        _last = last_event_at if last_event_at.tzinfo else last_event_at.replace(tzinfo=timezone.utc)
+        if _occ < _last:
+            return "SKIPPED_STALE"
     return None
 
 
