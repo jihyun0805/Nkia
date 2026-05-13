@@ -3,13 +3,13 @@ package com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.bidresult.entity.BidResult;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.RfpAnalyzeResult;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,6 +24,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
@@ -99,24 +100,24 @@ public class ProjectOpportunity extends BaseEntity {
     @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Quotation> quotations = new ArrayList<>();
 
-    @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<RfpAnalyzeResult> rfpAnalyzeResults = new ArrayList<>();
+    @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private RfpAnalyzeResult rfpAnalyzeResult;
 
-    @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Prb> prbs = new ArrayList<>();
+    @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private Prb prb;
 
-    @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<BidResult> bidResults = new ArrayList<>();
+    @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private BidResult bidResult;
 
-    @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderReport> orderReports = new ArrayList<>();
+    @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private OrderReport orderReport;
 
     // 안전한 객체 생성을 위한 생성자 레벨의 @Builder - 컬렉션(List) 필드는 제외하여 JPA가 초기화한 ArrayList 객체를 보호합니다.
     @Builder
     public ProjectOpportunity(String opportunityCode, String opportunityName, ProjectOpportunityStage stage,
                               ProductClass projectType, LocalDate expectedBidDate,
                               BigDecimal expectedBudget, String description, String competitionStatus,
-                              User salesRepresentative,Company customerCompany) {
+                              User salesRepresentative, Company customerCompany) {
         this.opportunityCode = opportunityCode;
         this.opportunityName = opportunityName;
         this.stage = stage != null ? stage : ProjectOpportunityStage.FINDING;
@@ -152,5 +153,30 @@ public class ProjectOpportunity extends BaseEntity {
         this.description = description;
         this.competitionStatus = competitionStatus;
         this.salesRepresentative = salesRepresentative;
+    }
+
+    public void assignRfpAnalyzeResult(RfpAnalyzeResult rfpAnalyzeResult) {
+        this.rfpAnalyzeResult = rfpAnalyzeResult;
+        if (rfpAnalyzeResult != null && rfpAnalyzeResult.getProjectOpportunity() != this) {
+            rfpAnalyzeResult.assignProjectOpportunity(this);
+        }
+    }
+
+    public void assignPrb(Prb prb) {
+        this.prb = prb;
+
+        // 무한 루프 방지 및 자식 엔티티의 참조 동기화
+        if (prb != null && prb.getProjectOpportunity() != this) {
+            prb.assignProjectOpportunity(this);
+        }
+    }
+
+    public void assignOrderReport(OrderReport orderReport) {
+        this.orderReport = orderReport;
+
+        // 무한 루프 방지 및 자식 엔티티의 참조 동기화
+        if (orderReport != null && orderReport.getProjectOpportunity() != this) {
+            orderReport.assignProjectOpportunity(this);
+        }
     }
 }

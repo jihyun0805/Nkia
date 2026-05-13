@@ -84,8 +84,8 @@ public class OrderReport extends BaseEntity {
 
     private String remarks;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_opportunity_id")
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_opportunity_id", unique = true)
     private ProjectOpportunity projectOpportunity;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -515,5 +515,9 @@ public class OrderReport extends BaseEntity {
 
     public boolean isDraft() {
         return this.status == ApprovalStatus.DRAFT;
+    }
+
+    public void assignProjectOpportunity(ProjectOpportunity projectOpportunity) {
+        this.projectOpportunity = projectOpportunity;
     }
 }
