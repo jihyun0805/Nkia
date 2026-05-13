@@ -36,6 +36,9 @@ public class PrbService {
     public Long createPrb(PrbCreateRequestDto request) {
         // 1. 연관 엔티티 조회
         ProjectOpportunity opportunity = findProjectOpportunity(request.getProjectOpportunityId());
+        if (opportunity.getPrb() != null) {
+            throw new ApiException(PrbErrorCode.PRB_ALREADY_EXISTS); // 에러 코드 추가 필요
+        }
         User salesRepresentative = findUser(request.getSalesRepresentativeId());
 
         // 2. PRB 코드 채번 (실제로는 시퀀스나 채번 규칙에 따라 구현)
@@ -46,6 +49,7 @@ public class PrbService {
 
         // 4. 간접비 및 총 비용 계산 오케스트레이션
         prb.calculateTotalCost(request.getIndirectExpenseRate());
+        opportunity.assignPrb(prb);
 
         // 5. 영속화
         return prbRepository.save(prb).getId();

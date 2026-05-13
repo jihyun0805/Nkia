@@ -154,4 +154,8 @@ public class Prb extends BaseEntity {
     public void updateProfitLossInfo(PrbProfitLossInfo profitLossInfo) {
         this.profitLossInfo = profitLossInfo;
     }
+
+    public void assignProjectOpportunity(ProjectOpportunity projectOpportunity) {
+        this.projectOpportunity = projectOpportunity;
+    }
 }
