@@ -1,7 +1,7 @@
 package com.nkia.Orbis.domain.contract.orderreporthistory.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportPurchase;
+import com.nkia.Orbis.domain.contract.purchase.entity.Purchase;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -36,14 +36,14 @@ public class OrderReportPurchaseHistory extends BaseEntity {
     private Long totalPrice;
 
     public static OrderReportPurchaseHistory create(
-            OrderReportPurchase orderReportPurchase
+            Purchase purchase
     ) {
         OrderReportPurchaseHistory orderReportPurchaseHistory = new OrderReportPurchaseHistory();
 
-        orderReportPurchaseHistory.content = orderReportPurchase.getContent();
-        orderReportPurchaseHistory.quantity = orderReportPurchase.getQuantity();
-        orderReportPurchaseHistory.price = orderReportPurchase.getPrice();
-        orderReportPurchaseHistory.totalPrice = orderReportPurchase.getTotalPrice();
+        orderReportPurchaseHistory.content = purchase.getContent();
+        orderReportPurchaseHistory.quantity = purchase.getQuantity();
+        orderReportPurchaseHistory.price = purchase.getPrice();
+        orderReportPurchaseHistory.totalPrice = purchase.getTotalPrice();
 
         return orderReportPurchaseHistory;
     }

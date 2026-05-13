@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.contract.license.dto.response.LicenseFromOrderRepor
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
+import com.nkia.Orbis.domain.contract.purchase.dto.response.PurchaseResponse;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -91,7 +92,7 @@ public class OrderReportResponse {
 
     private List<OrderReportOtherResponse> others;
 
-    private List<OrderReportPurchaseResponse> purchases;
+    private List<PurchaseResponse> purchases;
 
     private Long itemTotalAmount;
 
@@ -117,7 +118,7 @@ public class OrderReportResponse {
     // OrderReportOther totalPrice들의 총합
     private Long otherTotal;
 
-    // OrderReportPurchase totalPrice들의 총합
+    // Purchase totalPrice들의 총합
     private Long purchaseTotal;
 
     // OrderReportLicense 중 ProductClass가 EMS인 것들의 totalPrice들의 총합
@@ -209,7 +210,7 @@ public class OrderReportResponse {
                         .map(OrderReportOtherResponse::from)
                         .toList())
                 .purchases(orderReport.getPurchases().stream()
-                        .map(OrderReportPurchaseResponse::from)
+                        .map(PurchaseResponse::from)
                         .toList())
 
                 .itemTotalAmount(orderReport.getItemTotalAmount())

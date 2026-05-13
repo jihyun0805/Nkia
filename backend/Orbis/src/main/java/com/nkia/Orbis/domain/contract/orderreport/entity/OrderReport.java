@@ -7,6 +7,7 @@ import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
 import com.nkia.Orbis.domain.contract.license.entity.License;
+import com.nkia.Orbis.domain.contract.purchase.entity.Purchase;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
@@ -124,7 +125,7 @@ public class OrderReport extends BaseEntity {
     private List<OrderReportOther> others = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderReportPurchase> purchases = new ArrayList<>();
+    private List<Purchase> purchases = new ArrayList<>();
 
     @OneToOne(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private Contract contract;
@@ -147,7 +148,7 @@ public class OrderReport extends BaseEntity {
     // OrderReportOther totalPrice들의 총합
     private Long otherTotal;
 
-    // OrderReportPurchase totalPrice들의 총합
+    // Purchase totalPrice들의 총합
     private Long purchaseTotal;
 
     // OrderReportLicense 중 ProductClass가 EMS인 것들의 totalPrice들의 총합
@@ -297,7 +298,7 @@ public class OrderReport extends BaseEntity {
         calculateOtherTotal();
     }
 
-    public void addPurchase(OrderReportPurchase purchase) {
+    public void addPurchase(Purchase purchase) {
         this.purchases.add(purchase);
         purchase.setOrderReport(this);
 
@@ -408,7 +409,7 @@ public class OrderReport extends BaseEntity {
             item.delete();
         }
 
-        for (OrderReportPurchase item : purchases) {
+        for (Purchase item : purchases) {
             item.delete();
         }
 

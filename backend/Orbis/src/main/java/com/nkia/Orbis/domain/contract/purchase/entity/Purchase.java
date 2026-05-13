@@ -1,6 +1,7 @@
-package com.nkia.Orbis.domain.contract.orderreport.entity;
+package com.nkia.Orbis.domain.contract.purchase.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -16,7 +17,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OrderReportPurchase extends BaseEntity {
+public class Purchase extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,21 +35,21 @@ public class OrderReportPurchase extends BaseEntity {
 
     private Long totalPrice;
 
-    public static OrderReportPurchase create(
+    public static Purchase create(
             String content,
             Integer quantity,
             Long price
     ) {
-        OrderReportPurchase orderReportPurchase = new OrderReportPurchase();
-        orderReportPurchase.content = content;
-        orderReportPurchase.quantity = quantity;
-        orderReportPurchase.price = price;
-        orderReportPurchase.totalPrice = price * quantity;
+        Purchase purchase = new Purchase();
+        purchase.content = content;
+        purchase.quantity = quantity;
+        purchase.price = price;
+        purchase.totalPrice = price * quantity;
 
-        return orderReportPurchase;
+        return purchase;
     }
 
-    void setOrderReport(OrderReport orderReport) {
+    public void setOrderReport(OrderReport orderReport) {
         this.orderReport = orderReport;
     }
 }

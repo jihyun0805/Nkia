@@ -135,7 +135,7 @@ public class OrderReportHistory extends BaseEntity {
     // OrderReportOther totalPrice들의 총합
     private Long otherTotal;
 
-    // OrderReportPurchase totalPrice들의 총합
+    // Purchase totalPrice들의 총합
     private Long purchaseTotal;
 
     // OrderReportLicense 중 ProductClass가 EMS인 것들의 totalPrice들의 총합
