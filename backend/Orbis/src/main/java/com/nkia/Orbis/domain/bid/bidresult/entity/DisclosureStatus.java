@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum DisclosureStatus {
-    PUBLIC("전면 공개"),
+    PUBLIC("공개"),
     PRIVATE("비공개");
 
     private final String description;
