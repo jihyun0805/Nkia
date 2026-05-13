@@ -74,6 +74,8 @@ public class OrderReportResponse {
 
     private String contractCounterpartManagerName;
 
+    private String contractCounterpartPhone;
+
     private Long finalCustomerCompanyId;
 
     private String finalCustomerCompanyName;
@@ -81,6 +83,8 @@ public class OrderReportResponse {
     private Long finalCustomerManagerId;
 
     private String finalCustomerManagerName;
+
+    private String finalCustomerPhone;
 
     private List<OrderReportMaintenanceResponse> maintenances;
 
@@ -180,6 +184,8 @@ public class OrderReportResponse {
                         ? orderReport.getContractCounterpartManager().getId() : null)
                 .contractCounterpartManagerName(orderReport.getContractCounterpartManager() != null
                         ? orderReport.getContractCounterpartManager().getName() : null)
+                .contractCounterpartPhone(orderReport.getContractCounterpartManager() != null
+                        ? orderReport.getContractCounterpartManager().getMobilePhone() : null)
 
                 .finalCustomerCompanyId(
                         orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany().getId()
@@ -192,6 +198,10 @@ public class OrderReportResponse {
                                 : null)
                 .finalCustomerManagerName(
                         orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getName()
+                                : null)
+                .finalCustomerPhone(
+                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager()
+                                .getMobilePhone()
                                 : null)
 
                 .maintenances(orderReport.getMaintenances().stream()
