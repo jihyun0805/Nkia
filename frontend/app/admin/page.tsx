@@ -1,43 +1,42 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
-import { Sidebar } from "@/components/erp/sidebar"
-import { Header } from "@/components/erp/header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
-import { UserPlus, Users, Shield, Settings, Search, Loader2, PackagePlus, Plus, Building } from "lucide-react"
-import { permissionGroups as mockPermissionGroups, users as mockUsers, workflows as mockWorkflows, products as mockProducts, departments as mockDepartments } from "@/lib/admin-data"
-import { adminApi, UserResponse, RoleListResponse, WorkflowTemplateListResponse, ProductModuleResponse, DepartmentResponse } from "@/lib/api/admin-api"
-import { format } from "date-fns"
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { Sidebar } from "@/components/erp/sidebar";
+import { Header } from "@/components/erp/header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { UserPlus, Users, Shield, Settings, Search, Loader2, PackagePlus, Plus, Building } from "lucide-react";
+import { adminApi, UserResponse, RoleListResponse, WorkflowTemplateListResponse, ProductModuleResponse, DepartmentResponse } from "@/lib/api/admin-api";
+import { format } from "date-fns";
 
 export default function AdminPage() {
-  const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState("")
-  
-  const [loading, setLoading] = useState(true)
-  const [users, setUsers] = useState<any[]>(mockUsers)
-  const [roles, setRoles] = useState<any[]>(mockPermissionGroups)
-  const [workflows, setWorkflows] = useState<any[]>(mockWorkflows)
-  const [products, setProducts] = useState<any[]>(mockProducts)
-  const [departments, setDepartments] = useState<any[]>(mockDepartments)
+  const router = useRouter();
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        setLoading(true)
+        setLoading(true);
         const [usersRes, rolesRes, workflowsRes, productsRes, departmentsRes] = await Promise.all([
           adminApi.getUsers().catch(() => null),
           adminApi.getRoles().catch(() => null),
           adminApi.getWorkflows().catch(() => null),
           adminApi.getProducts().catch(() => null),
           adminApi.getDepartments().catch(() => null),
-        ])
+        ]);
 
         if (usersRes && usersRes.data && usersRes.data.length > 0) {
           const mappedUsers = usersRes.data.map((u: UserResponse) => ({
@@ -53,10 +52,8 @@ export default function AdminPage() {
             status: u.status,
             lastLogin: u.createdAt ? format(new Date(u.createdAt), "yyyy-MM-dd HH:mm") : "-",
             isPresales: false,
-          }))
-          setUsers(mappedUsers)
-        } else {
-          setUsers(mockUsers)
+          }));
+          setUsers(mappedUsers);
         }
 
         if (rolesRes && rolesRes.data && rolesRes.data.length > 0) {
@@ -66,10 +63,8 @@ export default function AdminPage() {
             description: r.permissions ? r.permissions.join(", ") : "설명 없음",
             userCount: "-",
             permissions: r.permissions,
-          }))
-          setRoles(mappedRoles)
-        } else {
-          setRoles(mockPermissionGroups)
+          }));
+          setRoles(mappedRoles);
         }
 
         if (workflowsRes && workflowsRes.data && workflowsRes.data.length > 0) {
@@ -80,10 +75,8 @@ export default function AdminPage() {
             status: w.active ? "활성" : "비활성",
             lastModified: "-",
             active: w.active,
-          }))
-          setWorkflows(mappedWorkflows)
-        } else {
-          setWorkflows(mockWorkflows)
+          }));
+          setWorkflows(mappedWorkflows);
         }
 
         if (productsRes && productsRes.data && productsRes.data.length > 0) {
@@ -95,10 +88,8 @@ export default function AdminPage() {
             licenseStandard: p.licenseStandard,
             licenseUnit: p.licenseUnit,
             unitPrice: p.unitPrice,
-          }))
-          setProducts(mappedProducts)
-        } else {
-          setProducts(mockProducts)
+          }));
+          setProducts(mappedProducts);
         }
 
         if (departmentsRes && departmentsRes.data && departmentsRes.data.length > 0) {
@@ -106,19 +97,28 @@ export default function AdminPage() {
             id: d.id.toString(),
             headquarters: d.headquarters,
             team: d.team,
-          }))
-          setDepartments(mappedDepartments)
-        } else {
-          setDepartments(mockDepartments)
+          }));
+          setDepartments(mappedDepartments);
         }
       } catch (e) {
-        console.error("Failed to load admin data", e)
+        console.error("Failed to load admin data", e);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
-    fetchData()
-  }, [])
+    fetchData();
+  }, []);
+
+  // 검색 필터링 로직
+  const filteredUsers = users.filter((u) => !searchTerm || [u.employeeNumber, u.name, u.position, u.email, u.department, u.role].some((v) => v?.toLowerCase().includes(searchTerm.toLowerCase())));
+
+  const filteredRoles = roles.filter((r) => !searchTerm || [r.name, r.description].some((v) => v?.toLowerCase().includes(searchTerm.toLowerCase())));
+
+  const filteredWorkflows = workflows.filter((w) => !searchTerm || [w.name].some((v) => v?.toLowerCase().includes(searchTerm.toLowerCase())));
+
+  const filteredProducts = products.filter((p) => !searchTerm || [p.productClass, p.productGroup, p.productName].some((v) => v?.toLowerCase().includes(searchTerm.toLowerCase())));
+
+  const filteredDepartments = departments.filter((d) => !searchTerm || [d.headquarters, d.team].some((v) => v?.toLowerCase().includes(searchTerm.toLowerCase())));
 
   return (
     <div className="min-h-screen bg-background">
@@ -130,19 +130,24 @@ export default function AdminPage() {
             <div className="flex items-center justify-between overflow-x-auto pb-2">
               <TabsList>
                 <TabsTrigger value="users" className="gap-2">
-                  <Users className="w-4 h-4" />계정관리
+                  <Users className="w-4 h-4" />
+                  계정관리
                 </TabsTrigger>
                 <TabsTrigger value="permissions" className="gap-2">
-                  <Shield className="w-4 h-4" />권한관리
+                  <Shield className="w-4 h-4" />
+                  권한관리
                 </TabsTrigger>
                 <TabsTrigger value="workflow" className="gap-2">
-                  <Settings className="w-4 h-4" />프로세스관리
+                  <Settings className="w-4 h-4" />
+                  프로세스관리
                 </TabsTrigger>
                 <TabsTrigger value="products" className="gap-2">
-                  <PackagePlus className="w-4 h-4" />제품관리
+                  <PackagePlus className="w-4 h-4" />
+                  제품관리
                 </TabsTrigger>
                 <TabsTrigger value="departments" className="gap-2">
-                  <Building className="w-4 h-4" />부서관리
+                  <Building className="w-4 h-4" />
+                  부서관리
                 </TabsTrigger>
               </TabsList>
               <div className="relative">
@@ -158,14 +163,19 @@ export default function AdminPage() {
                     <CardTitle className="text-lg">사용자 목록</CardTitle>
                     <Button asChild>
                       <Link href="/admin/users/new">
-                        <UserPlus className="mr-2 w-4 h-4" />계정 등록
+                        <UserPlus className="mr-2 w-4 h-4" />
+                        계정 등록
                       </Link>
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {loading ? (
-                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredUsers.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 사용자가 없습니다.</div>
                   ) : (
                     <Table>
                       <TableHeader>
@@ -183,7 +193,7 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {users.map((user) => (
+                        {filteredUsers.map((user) => (
                           <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/users/${user.rawId || user.id}`)}>
                             <TableCell>{user.employeeNumber || user.id}</TableCell>
                             <TableCell>{user.name}</TableCell>
@@ -211,16 +221,21 @@ export default function AdminPage() {
                     <CardTitle className="text-lg">권한 그룹</CardTitle>
                     <Button asChild>
                       <Link href="/admin/permissions/new">
-                        <Plus className="mr-2 w-4 h-4" />권한 등록
+                        <Plus className="mr-2 w-4 h-4" />
+                        권한 등록
                       </Link>
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {loading ? (
-                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-                  ) : roles.length > 0 ? (
-                    roles.map((group) => (
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredRoles.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 권한 그룹이 없습니다.</div>
+                  ) : (
+                    filteredRoles.map((group) => (
                       <div key={group.id} className="cursor-pointer rounded-lg border p-4 hover:bg-muted/50" onClick={() => router.push(`/admin/permissions/${group.id}`)}>
                         <div className="flex items-center justify-between">
                           <div>
@@ -231,8 +246,6 @@ export default function AdminPage() {
                         </div>
                       </div>
                     ))
-                  ) : (
-                    <div className="text-center p-4 text-muted-foreground">권한 그룹이 없습니다.</div>
                   )}
                 </CardContent>
               </Card>
@@ -245,17 +258,26 @@ export default function AdminPage() {
                     <CardTitle className="text-lg">워크플로우 설정</CardTitle>
                     <Button asChild>
                       <Link href="/admin/workflow/new">
-                        <Plus className="mr-2 w-4 h-4" />템플릿 등록
+                        <Plus className="mr-2 w-4 h-4" />
+                        템플릿 등록
                       </Link>
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {loading ? (
-                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-                  ) : workflows.length > 0 ? (
-                    workflows.map((workflow) => (
-                      <div key={workflow.id} className="flex cursor-pointer items-center justify-between rounded-lg border p-4 hover:bg-muted/50" onClick={() => router.push(`/admin/workflow/${workflow.id}`)}>
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredWorkflows.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 프로세스 템플릿이 없습니다.</div>
+                  ) : (
+                    filteredWorkflows.map((workflow) => (
+                      <div
+                        key={workflow.id}
+                        className="flex cursor-pointer items-center justify-between rounded-lg border p-4 hover:bg-muted/50"
+                        onClick={() => router.push(`/admin/workflow/${workflow.id}`)}
+                      >
                         <div>
                           <p className="font-semibold">{workflow.name}</p>
                           <p className="text-sm text-muted-foreground">{workflow.steps ? workflow.steps.join(" → ") : ""}</p>
@@ -266,8 +288,6 @@ export default function AdminPage() {
                         </div>
                       </div>
                     ))
-                  ) : (
-                    <div className="text-center p-4 text-muted-foreground">워크플로우 템플릿이 없습니다.</div>
                   )}
                 </CardContent>
               </Card>
@@ -280,15 +300,20 @@ export default function AdminPage() {
                     <CardTitle className="text-lg">제품 목록</CardTitle>
                     <Button asChild>
                       <Link href="/admin/products/new">
-                        <Plus className="mr-2 w-4 h-4" />제품 등록
+                        <Plus className="mr-2 w-4 h-4" />
+                        제품 등록
                       </Link>
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {loading ? (
-                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-                  ) : products.length > 0 ? (
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 제품이 없습니다.</div>
+                  ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -301,7 +326,7 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {products.map((product) => (
+                        {filteredProducts.map((product) => (
                           <TableRow key={product.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/products/${product.id}`)}>
                             <TableCell>{product.productClass}</TableCell>
                             <TableCell>{product.productGroup}</TableCell>
@@ -313,8 +338,6 @@ export default function AdminPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  ) : (
-                    <div className="text-center p-4 text-muted-foreground">등록된 제품이 없습니다.</div>
                   )}
                 </CardContent>
               </Card>
@@ -327,15 +350,20 @@ export default function AdminPage() {
                     <CardTitle className="text-lg">부서 목록</CardTitle>
                     <Button asChild>
                       <Link href="/admin/departments/new">
-                        <Plus className="mr-2 w-4 h-4" />부서 등록
+                        <Plus className="mr-2 w-4 h-4" />
+                        부서 등록
                       </Link>
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {loading ? (
-                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-                  ) : departments.length > 0 ? (
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredDepartments.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 부서가 없습니다.</div>
+                  ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -345,7 +373,7 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {departments.map((dept) => (
+                        {filteredDepartments.map((dept) => (
                           <TableRow key={dept.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/departments/${dept.id}`)}>
                             <TableCell>{dept.id}</TableCell>
                             <TableCell>{dept.headquarters}</TableCell>
@@ -354,16 +382,13 @@ export default function AdminPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  ) : (
-                    <div className="text-center p-4 text-muted-foreground">등록된 부서가 없습니다.</div>
                   )}
                 </CardContent>
               </Card>
             </TabsContent>
-
           </Tabs>
         </main>
       </div>
     </div>
-  )
+  );
 }
