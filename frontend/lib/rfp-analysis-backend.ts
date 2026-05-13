@@ -17,10 +17,10 @@ type BackendPage<T> = {
   content?: T[]
 }
 
-type BackendUser = {
-  id?: string
-  email?: string
+type BackendMyInfo = {
+  userId?: string
   name?: string
+  email?: string
 }
 
 type BackendProjectOpportunity = {
@@ -147,14 +147,14 @@ async function parseApiResponse<T>(response: Response, fallbackMessage: string):
   return payload.data
 }
 
-async function fetchUsers() {
-  const response = await fetch(`${getBackendApiBaseUrl()}/user`, {
+async function fetchMyInfo() {
+  const response = await fetch(`${getBackendApiBaseUrl()}/user/me`, {
     headers: buildAuthHeaders(),
     credentials: "include",
     cache: "no-store",
   })
 
-  return parseApiResponse<BackendUser[]>(response, "사용자 목록을 불러오지 못했습니다.")
+  return parseApiResponse<BackendMyInfo>(response, "내 사용자 정보를 불러오지 못했습니다.")
 }
 
 async function fetchProjectOpportunities() {
@@ -332,29 +332,21 @@ function mapBackendRfpRecord(
   }
 }
 
-function normalizeAssignee(users: BackendUser[]) {
-  const currentEmail = normalizeLookupText(currentUser.email)
-  const currentName = normalizeLookupText(currentUser.name)
-  const byEmail = users.find((user) => normalizeLookupText(user.email) === currentEmail)
-  if (byEmail?.id) return byEmail.id
-
-  const byName = users.find((user) => normalizeLookupText(user.name) === currentName)
-  if (byName?.id) return byName.id
-
-  return null
-}
-
 async function resolveAssigneeId(input?: { assigneeId?: string }) {
   if (input?.assigneeId) {
     return input.assigneeId
   }
 
-  const users = await fetchUsers()
-  const assigneeId = normalizeAssignee(users)
-  if (!assigneeId) {
-    throw new Error("현재 사용자에 매핑되는 백엔드 사용자 ID를 찾지 못했습니다.")
+  try {
+    const myInfo = await fetchMyInfo()
+    if (myInfo.userId) {
+      return myInfo.userId
+    }
+  } catch {
+    // `/user/me` 실패 시 프론트 세션의 기본 사용자로 우회한다.
   }
-  return assigneeId
+
+  return currentUser.id
 }
 
 async function resolveProjectOpportunityId(input: {

@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { notFound } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { BidResultDetailPage } from "@/components/erp/bid-result-detail-page"
@@ -88,8 +87,36 @@ export default async function BidDetailPage({
     )
   }
 
+  if (category === "rfp") {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title="RFP 분석" description="기본 정보와 요구사항 기준으로 RFP를 분석합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-6xl space-y-6">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href={backHref}>입찰</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{id}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              <RfpAnalysisSheetLoader title="RFP 분석" requestId={id} />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
   const item = getBidItem(category, id)
-  if (category === "rfp" && !item) notFound()
 
   const detailItem = item as Exclude<typeof item, null>
   const label = getBidCategoryLabel(category)
@@ -116,17 +143,13 @@ export default async function BidDetailPage({
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-            {category === "rfp" ? (
-              <RfpAnalysisSheetLoader title="RFP 분석" requestId={id} />
-            ) : (
-              <DetailFormCard
-                title={`${label} 상세`}
-                fields={getBidFields(category, detailItem)}
-                listHref={backHref}
-                editHref={tab ? `/bid/${category}/${id}/edit?tab=${tab}` : `/bid/${category}/${id}/edit`}
-                includeAttachment
-              />
-            )}
+            <DetailFormCard
+              title={`${label} 상세`}
+              fields={getBidFields(category, detailItem)}
+              listHref={backHref}
+              editHref={tab ? `/bid/${category}/${id}/edit?tab=${tab}` : `/bid/${category}/${id}/edit`}
+              includeAttachment
+            />
           </div>
         </main>
       </div>
