@@ -29,8 +29,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ProjectService {
     private final ProjectRepository projectRepository;
     private final OrderReportRepository orderReportRepository;
@@ -52,6 +52,7 @@ public class ProjectService {
     /**
      * 사업 생성
      */
+    @Transactional
     private Project createProject(OrderReport report) {
         String pjtNumber = generatePjtNumber(report.getContractDate());
         ProjectCode code = determineProjectCode(report);
@@ -186,3 +187,4 @@ public class ProjectService {
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 }
+
