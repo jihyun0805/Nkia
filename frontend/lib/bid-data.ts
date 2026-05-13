@@ -101,6 +101,8 @@ export type PrbRecord = {
   opportunityCode: string
   opportunity: string
   rfpAnalysisId: string
+  projectOpportunityId?: number
+  salesRepresentativeId?: string
   author: string
   reviewer: string
   nextApprover: string
@@ -244,65 +246,7 @@ export const rfpList: RfpAnalysisRecord[] = [
   { id: "RFP-2026-001", requestId: "REQ-2026-011", customer: "삼성전자", customerCode: "CUS-001", opportunity: "삼성전자 EMS 구축", opportunityCode: "OPP-2026-001", requester: "박지은", analyst: "김영업", receiveDate: "2026-03-10", requestDate: "2026-03-10", dueDate: "2026-03-25", status: "완료", businessType: "EMS", proposalType: "SI 제안" },
   { id: "RFP-2026-002", requestId: "REQ-2026-012", customer: "국방부", customerCode: "CUS-002", opportunity: "국방부 ITSM 도입", opportunityCode: "OPP-2026-002", requester: "한서준", analyst: "이대리", receiveDate: "2026-03-05", requestDate: "2026-03-05", dueDate: "2026-03-20", status: "분석중", businessType: "ITSM", proposalType: "자체 제안" },
 ]
-const seedPrbList = [
-  { id: "PRB-2026-001", rfpId: "RFP-2026-001", name: "삼성전자 통합 모니터링 시스템 구축", customer: "삼성전자", proposalDeadline: "2026-03-25", createdDate: "2026-03-15", author: "김영업", status: "승인", reviewer: "본부장" },
-  { id: "PRB-2026-002", rfpId: "RFP-2026-002", name: "국방부 IT서비스관리 시스템 구축", customer: "국방부", proposalDeadline: "2026-03-20", createdDate: "2026-03-16", author: "이대리", status: "검토 중", reviewer: "본부장" },
-  { id: "PRB-2026-003", rfpId: "RFP-2026-003", name: "SK텔레콤 NMS 업그레이드", customer: "SK텔레콤", proposalDeadline: "2026-03-30", createdDate: "2026-03-18", author: "최민수", status: "작성 중", reviewer: "-" },
-  { id: "PRB-2026-004", rfpId: "RFP-2026-004", name: "현대차 Automation 확장", customer: "현대자동차", proposalDeadline: "2026-03-28", createdDate: "2026-03-19", author: "박과장", status: "반려", reviewer: "본부장" },
-  { id: "PRB-2026-005", rfpId: "RFP-2026-001", name: "삼성전자 EMS 구축 2차 제안", customer: "삼성전자", proposalDeadline: "2026-04-02", createdDate: "2026-03-27", author: "김영업", status: "승인", reviewer: "본부장" },
-  { id: "PRB-2026-006", rfpId: "RFP-2026-003", name: "SK텔레콤 NMS 고도화 추가 범위", customer: "SK텔레콤", proposalDeadline: "2026-04-05", createdDate: "2026-03-29", author: "김영업", status: "승인", reviewer: "본부장" },
-]
-
-export const prbList: PrbRecord[] = seedPrbList.map((item, index) => ({
-  id: item.id,
-  customerCode: `CUS-PRB-${String(index + 1).padStart(3, "0")}`,
-  customer: item.customer,
-  opportunityCode: `OPP-PRB-${String(index + 1).padStart(3, "0")}`,
-  opportunity: item.name,
-  rfpAnalysisId: item.rfpId,
-  author: item.author,
-  reviewer: item.reviewer,
-  nextApprover: item.reviewer === "-" ? "영업팀장" : item.reviewer,
-  deployOwner: "배포 권한 보유자",
-  shareOwner: "공유 권한 보유자",
-  proposalDeadline: item.proposalDeadline,
-  createdDate: item.createdDate,
-  status: item.status as PrbStatus,
-  notificationsSent: item.status === "검토 중",
-  approvalSteps: [
-    { key: "author", label: "작성자", assignee: "영업대표", status: "completed", completedAt: item.createdDate },
-    { key: "firstApproval", label: "1차 승인", assignee: "팀장", status: item.status === "작성 중" ? "waiting" : item.status === "승인" ? "completed" : "pending" },
-    { key: "secondApproval", label: "2차 승인", assignee: "본부장", status: item.status === "승인" ? "completed" : "waiting" },
-    { key: "deploy", label: "배포", assignee: "권한 보유자", status: "waiting" },
-    { key: "share", label: "공유", assignee: "권한 보유자", status: "waiting" },
-  ],
-  revisionGroupId: `PRB-GROUP-${index + 1}`,
-  revisionNumber: 1,
-  formData: {
-    reportDate: item.createdDate,
-    businessName: item.name,
-    customerName: item.customer,
-    authorDepartment: "영업본부",
-  },
-  salesItems: [],
-  expenseItems: [],
-  purchaseItems: [],
-  productItems: [],
-  personnelItems: [],
-  indirectItems: [],
-  generalItems: [],
-  approvalLines: [
-    { role: "영업대표", name: item.author },
-    { role: "팀장", name: "영업팀장" },
-    { role: "본부장", name: item.reviewer === "-" ? "본부장" : item.reviewer },
-    { role: "배포", name: "권한 보유자" },
-    { role: "공유", name: "권한 보유자" },
-  ],
-  attendeeOpinions: ["", "", ""],
-  version: "v1.0",
-  createdAt: `${item.createdDate}T09:00:00.000Z`,
-  updatedAt: `${item.createdDate}T09:00:00.000Z`,
-}))
+export const prbList: PrbRecord[] = []
 export const proposalList: ProposalRecord[] = [
   {
     id: "PRO-2026-001",
@@ -689,7 +633,7 @@ function readStoredPrbs() {
   if (!isBrowser()) return prbList
 
   const stored = window.localStorage.getItem(PRBS_STORAGE_KEY)
-  if (!stored) return prbList
+  if (!stored) return []
 
   try {
     const parsed = JSON.parse(stored) as PrbRecord[]
@@ -704,15 +648,25 @@ function readStoredPrbs() {
         ).map((item) => normalizePrbRecord(item))
       : []
 
-    const merged = new Map<string, PrbRecord>()
-    const deletedIds = new Set(readDeletedIds(DELETED_PRB_IDS_STORAGE_KEY))
-    for (const item of prbList) {
-      if (!deletedIds.has(item.id)) merged.set(item.id, item)
+    const isLegacyMock = storedItems.some(
+      (item) =>
+        item.id.startsWith("PRB-2026-") ||
+        item.customerCode.startsWith("CUS-PRB-") ||
+        item.opportunityCode.startsWith("OPP-PRB-"),
+    )
+
+    if (isLegacyMock) {
+      window.localStorage.removeItem(PRBS_STORAGE_KEY)
+      window.localStorage.removeItem(DELETED_PRB_IDS_STORAGE_KEY)
+      return []
     }
-    for (const item of storedItems) merged.set(item.id, normalizePrbRecord(item, merged.get(item.id)))
-    return [...merged.values()]
+
+    const deletedIds = new Set(readDeletedIds(DELETED_PRB_IDS_STORAGE_KEY))
+    return storedItems
+      .filter((item) => !deletedIds.has(item.id))
+      .map((item) => normalizePrbRecord(item))
   } catch {
-    return prbList
+    return []
   }
 }
 
@@ -767,6 +721,20 @@ export function getPrbResults() {
     writeStoredPrbResults(items)
   }
   return items
+}
+
+export function replacePrbs(records: PrbRecord[]) {
+  writeStoredPrbs(records)
+  writeDeletedIds(DELETED_PRB_IDS_STORAGE_KEY, [])
+  emitPrbsUpdate()
+  return records
+}
+
+export function replacePrbResults(records: PrbResultRecord[]) {
+  writeStoredPrbResults(records)
+  writeDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY, [])
+  emitPrbResultsUpdate()
+  return records
 }
 
 export function getProposalById(id: string) {
