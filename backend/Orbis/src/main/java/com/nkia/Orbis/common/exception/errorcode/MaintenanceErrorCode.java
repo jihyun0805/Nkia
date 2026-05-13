@@ -16,7 +16,9 @@ public enum MaintenanceErrorCode implements ErrorCode {
     ACTIVITY_NOT_FOUND(HttpStatus.NOT_FOUND, "MAINTENANCE_0007", "해당 고객지원 활동 결과를 찾을 수 없습니다."),
     QUOTATION_NOT_FOUND(HttpStatus.NOT_FOUND, "MAINTENANCE_0008", "해당 유지보수 견적서를 찾을 수 없습니다."),
     INVALID_CS_REQUEST_STATUS(HttpStatus.BAD_REQUEST, "MAINTENANCE_0009",
-            "유효하지 않은 CS request status 입니다.");
+            "유효하지 않은 CS request status 입니다."),
+    INVALID_MAINTENANCE_STATUS(HttpStatus.BAD_REQUEST, "MAINTENANCE_0010",
+            "유효하지 않은 maintenance status 입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

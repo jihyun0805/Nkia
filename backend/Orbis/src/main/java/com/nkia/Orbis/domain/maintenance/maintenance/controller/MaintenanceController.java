@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.maintenance.maintenance.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceDetailResponse;
@@ -53,7 +54,7 @@ public class MaintenanceController {
     public ResponseEntity<ApiResponse<MaintenanceDetailResponse>> update(
             @PathVariable Long id,
             @RequestBody MaintenanceUpdateRequest request) {
-        MaintenanceDetailResponse response =maintenanceService.updateMaintenance(id, request);
+        MaintenanceDetailResponse response = maintenanceService.updateMaintenance(id, request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -99,5 +100,19 @@ public class MaintenanceController {
     public ResponseEntity<ApiResponse<List<MaintenanceListResponse>>> getPaidList() {
         List<MaintenanceListResponse> response = maintenanceService.getMaintenanceList(MaintenanceType.PAID);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "유지보수 결재 상신")
+    @PostMapping("/submit/{maintenanceId}")
+    public ResponseEntity<ApiResponse<String>> submitMaintenance(
+            @PathVariable("maintenanceId") Long maintenanceId,
+            @RequestBody SubmitRequest request
+    ) {
+        maintenanceService.submitMaintenance(
+                maintenanceId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("유지보수 결재 상신 완료"));
     }
 }
