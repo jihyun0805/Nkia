@@ -24,6 +24,7 @@ import { FilterPopover } from "@/components/erp/filter-popover"
 import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { bidStatuses, getBidCreateActionLabel, getBidResults, getPrbResults, getProposals, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbResultUpdates, subscribePrbUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
+import { loadBackendRfpAnalyses } from "@/lib/rfp-analysis-backend"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { getOpportunities } from "@/lib/finding-data"
@@ -112,8 +113,13 @@ function BidPageContent() {
 
   useEffect(() => {
     const sync = () => setRfpItems(getRfpAnalyses())
-    sync()
-    return subscribeRfpAnalysesUpdates(sync)
+    const unsubscribe = subscribeRfpAnalysesUpdates(sync)
+
+    void loadBackendRfpAnalyses()
+      .then((records) => setRfpItems(records))
+      .catch(() => setRfpItems([]))
+
+    return () => unsubscribe()
   }, [])
 
   useEffect(() => {

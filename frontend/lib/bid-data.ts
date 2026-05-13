@@ -22,6 +22,8 @@ export type RfpAnalysisRequirement = {
 export type RfpAnalysisRecord = {
   id: string
   requestId?: string
+  projectOpportunityId?: number
+  assigneeId?: string
   customer: string
   customerCode: string
   opportunity: string
@@ -919,6 +921,13 @@ export function saveRfpAnalysis(record: Omit<RfpAnalysisRecord, "id"> & { id?: s
   emitRfpAnalysesUpdate()
 
   return nextRecord
+}
+
+export function replaceRfpAnalyses(records: RfpAnalysisRecord[]) {
+  writeStoredRfpAnalyses(records)
+  writeDeletedIds(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY, [])
+  emitRfpAnalysesUpdate()
+  return records
 }
 
 export function deleteRfpAnalysis(id: string) {
