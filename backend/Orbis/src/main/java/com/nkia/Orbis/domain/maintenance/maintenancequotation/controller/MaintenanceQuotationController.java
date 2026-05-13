@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.maintenance.maintenancequotation.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.MaintenanceQuotationCreateResponse;
@@ -62,5 +63,19 @@ public class MaintenanceQuotationController {
     public ResponseEntity<ApiResponse<MaintenanceQuotationDetailResponse>> getDetail(@PathVariable Long id) {
         MaintenanceQuotationDetailResponse response = quotationService.getDetail(id);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "유지보수 견적서 결재 상신")
+    @PostMapping("/submit/{quotationId}")
+    public ResponseEntity<ApiResponse<String>> submitMaintenanceQuotation(
+            @PathVariable("quotationId") Long quotationId,
+            @RequestBody SubmitRequest request
+    ) {
+        quotationService.submitMaintenanceQuotation(
+                quotationId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("유지보수 견적서 결재 상신 완료"));
     }
 }

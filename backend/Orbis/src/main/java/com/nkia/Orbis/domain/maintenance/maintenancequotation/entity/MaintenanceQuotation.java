@@ -1,10 +1,13 @@
 package com.nkia.Orbis.domain.maintenance.maintenancequotation.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -30,6 +33,9 @@ public class MaintenanceQuotation extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id")
@@ -62,7 +68,9 @@ public class MaintenanceQuotation extends BaseEntity {
     private List<MaintenanceAmountReason> amountReasons = new ArrayList<>();
 
     @Builder
-    public MaintenanceQuotation(String refNo, Project project, LocalDate quotationDate, String paymentTerms, Long totalAmount, LocalDate startDate, LocalDate endDate, Long monthlySupplyPrice, Long totalQuotationAmount, String specialNotes, Long spMaintenanceCost) {
+    public MaintenanceQuotation(String refNo, Project project, LocalDate quotationDate, String paymentTerms,
+                                Long totalAmount, LocalDate startDate, LocalDate endDate, Long monthlySupplyPrice,
+                                Long totalQuotationAmount, String specialNotes, Long spMaintenanceCost) {
         this.refNo = refNo;
         this.project = project;
         this.quotationDate = quotationDate;
@@ -73,6 +81,7 @@ public class MaintenanceQuotation extends BaseEntity {
         this.monthlySupplyPrice = monthlySupplyPrice;
         this.totalQuotationAmount = totalQuotationAmount;
         this.specialNotes = specialNotes;
+        this.status = ApprovalStatus.DRAFT;
     }
 
     public void addPackageCost(MaintenancePackageCost packageCost) {
@@ -114,5 +123,25 @@ public class MaintenanceQuotation extends BaseEntity {
         for (MaintenanceAmountReason amountReason : this.amountReasons) {
             amountReason.delete();
         }
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }

@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
 import java.time.LocalDate;
 import java.util.List;
@@ -12,6 +13,8 @@ import lombok.Getter;
 public class MaintenanceQuotationDetailResponse {
 
     private Long id;
+    private Long workflowId;
+    private ApprovalStatus status;
     private String companyName;
     private String projectName;
     private String refNo;
@@ -28,7 +31,7 @@ public class MaintenanceQuotationDetailResponse {
     private List<ServiceInfoResponse> serviceInfos;
     private List<AmountReasonResponse> amountReasons;
 
-    public static MaintenanceQuotationDetailResponse from(MaintenanceQuotation entity) {
+    public static MaintenanceQuotationDetailResponse from(MaintenanceQuotation entity, Long workflowId) {
         return MaintenanceQuotationDetailResponse.builder()
                 .id(entity.getId())
                 .companyName(entity.getProject().getPjtName())
@@ -50,6 +53,8 @@ public class MaintenanceQuotationDetailResponse {
                 .amountReasons(entity.getAmountReasons().stream()
                         .map(AmountReasonResponse::from)
                         .collect(Collectors.toList()))
+                .status(entity.getStatus())
+                .workflowId(workflowId)
                 .build();
     }
 
@@ -59,7 +64,8 @@ public class MaintenanceQuotationDetailResponse {
         private String packageName;
         private Long amount;
 
-        public static PackageCostResponse from(com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenancePackageCost entity) {
+        public static PackageCostResponse from(
+                com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenancePackageCost entity) {
             return PackageCostResponse.builder()
                     .packageName(entity.getPackageName())
                     .amount(entity.getAmount())
@@ -76,7 +82,8 @@ public class MaintenanceQuotationDetailResponse {
         private String item;
         private String content;
 
-        public static ServiceInfoResponse from(com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceServiceInfo entity) {
+        public static ServiceInfoResponse from(
+                com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceServiceInfo entity) {
             return ServiceInfoResponse.builder()
                     .productId(entity.getProductModule() != null ? entity.getProductModule().getId() : null)
                     .productName(entity.getProductModule() != null ? entity.getProductModule().getProductName() : "N/A")
@@ -97,7 +104,8 @@ public class MaintenanceQuotationDetailResponse {
         private Integer months;
         private String remarks;
 
-        public static AmountReasonResponse from(com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceAmountReason entity) {
+        public static AmountReasonResponse from(
+                com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceAmountReason entity) {
             return AmountReasonResponse.builder()
                     .productId(entity.getProductModule() != null ? entity.getProductModule().getId() : null)
                     .productName(entity.getProductModule() != null ? entity.getProductModule().getProductName() : "N/A")
