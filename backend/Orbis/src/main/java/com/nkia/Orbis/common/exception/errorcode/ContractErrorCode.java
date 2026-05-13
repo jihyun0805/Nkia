@@ -22,7 +22,9 @@ public enum ContractErrorCode implements ErrorCode {
     INVALID_LICENSE_STATUS(HttpStatus.BAD_REQUEST, "CONTRACT_0007",
             "유효하지 않은 license status 입니다."),
     ORDER_REPORT_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "CONTRACT_0008",
-            "사업 기회에 이미 수주보고서가 존재합니다.");
+            "사업 기회에 이미 수주보고서가 존재합니다."),
+    INVALID_CONTRACT_STATUS(HttpStatus.BAD_REQUEST, "CONTRACT_0009",
+            "유효하지 않은 contract status 입니다.");
 
 
     private final HttpStatus httpStatus;

@@ -5,10 +5,16 @@ import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UploadFileErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.request.ContractModuleItemRequest;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.request.ContractRequest;
 import com.nkia.Orbis.domain.contract.contractsummary.dto.response.ContractListResponse;
@@ -21,6 +27,7 @@ import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportReposito
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +41,8 @@ public class ContractService {
     private final ProductModuleRepository productModuleRepository;
     private final UploadFileRepository uploadFileRepository;
     private final UserRepository userRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     @Transactional
     public ContractResponse create(ContractRequest request) {
@@ -77,7 +86,7 @@ public class ContractService {
 
         Contract savedContract = contractRepository.save(contract);
 
-        return ContractResponse.from(savedContract);
+        return ContractResponse.from(savedContract, savedContract.getId());
     }
 
     @Transactional
@@ -93,7 +102,7 @@ public class ContractService {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.CONTRACT_SUMMARY_NOT_FOUND));
 
-        return ContractResponse.from(contract);
+        return ContractResponse.from(contract, contract.getId());
     }
 
     @Transactional
@@ -152,6 +161,42 @@ public class ContractService {
                 contract.addModuleItem(item);
             }
         }
-        return ContractResponse.from(contract);
+        return ContractResponse.from(contract, contract.getId());
+    }
+
+    @Transactional
+    public void submitContract(
+            Long contractId,
+            UUID firstApproverId
+    ) {
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new ApiException(ContractErrorCode.CONTRACT_SUMMARY_NOT_FOUND));
+
+        if (!contract.isDraft()) {
+            throw new ApiException(ContractErrorCode.INVALID_CONTRACT_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.CONTRACT,
+                contract.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        contract.submit();
+    }
+
+    private Long getWorkflowId(Long contractId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.CONTRACT,
+                        contractId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }
