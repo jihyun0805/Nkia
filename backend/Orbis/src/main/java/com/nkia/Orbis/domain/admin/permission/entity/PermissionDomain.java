@@ -12,6 +12,7 @@ public enum PermissionDomain {
     BID_RESULT,
     ORDER_REPORT,
     CONTRACT,
+    PURCHASE,
     LICENSE,
     PROJECT,
     PROJECT_RESULT,
