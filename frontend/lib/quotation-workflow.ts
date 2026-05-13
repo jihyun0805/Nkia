@@ -254,7 +254,15 @@ function createSnapshotForm(record: Omit<QuotationRecord, "id">): Omit<Quotation
 }
 
 export function getQuotations() {
-  const records = readStorage<QuotationRecord[]>(QUOTATIONS_STORAGE_KEY, cloneQuotations()).map(normalizeQuotation)
+  const storedRecords = readStorage<QuotationRecord[]>(QUOTATIONS_STORAGE_KEY, cloneQuotations())
+  const hasLegacyMock = storedRecords.some((item) => item.id.startsWith("QT-2026-") || item.requestId?.startsWith("REQ-2026-") === true)
+
+  if (hasLegacyMock && isBrowser()) {
+    window.localStorage.removeItem(QUOTATIONS_STORAGE_KEY)
+    return []
+  }
+
+  const records = storedRecords.map(normalizeQuotation)
 
   if (isBrowser()) {
     saveQuotations(records)

@@ -13,7 +13,6 @@ import {
   requestOptionalActivityContents,
   type ActivityRecord,
 } from "@/lib/activity-data"
-import { currentUser } from "@/lib/current-user"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 
@@ -91,7 +90,7 @@ export function ActivityFormFields({
   const [content, setContent] = useState(defaultValues?.content ?? "")
   const [issues, setIssues] = useState(defaultValues?.issues ?? "")
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
-  const registrant = defaultValues?.registrant ?? currentUser.name
+  const registrant = defaultValues?.registrant ?? ""
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
   const linkedRequestId = typeof requestIdValue === "string" ? requestIdValue : defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
@@ -203,7 +202,7 @@ export function ActivityFormFields({
     <>
       <div className="space-y-2">
         <Label>등록자</Label>
-        <Input value={registrant} readOnly />
+        <Input value={registrant} readOnly placeholder="등록자명을 입력하세요" />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">

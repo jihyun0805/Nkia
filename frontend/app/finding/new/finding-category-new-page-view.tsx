@@ -41,7 +41,6 @@ import {
   mapPartnerCategory,
   resolveSalesRepresentativeId,
 } from "@/lib/finding-backend"
-import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
@@ -121,6 +120,10 @@ function parseExpectedBudget(value?: string) {
 
   const numeric = Number.parseFloat(compact)
   return Number.isNaN(numeric) ? undefined : numeric
+}
+
+function createAutoBusinessRegistrationNumber(prefix: "CUS" | "PTN", code: string) {
+  return `${prefix}-${code.trim()}`
 }
 
 function buildOpportunityDescription(params: {
@@ -262,10 +265,8 @@ export function FindingCategoryNewPageView({
   const [loadingBackend, setLoadingBackend] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [customerName, setCustomerName] = useState("")
-  const [customerBusinessRegistrationNumber, setCustomerBusinessRegistrationNumber] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
   const [partnerName, setPartnerName] = useState("")
-  const [partnerBusinessRegistrationNumber, setPartnerBusinessRegistrationNumber] = useState("")
   const [partnerType, setPartnerType] = useState("SI")
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
@@ -277,8 +278,8 @@ export function FindingCategoryNewPageView({
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
-  const [opportunityRegistrant] = useState(currentUser.name)
-  const [opportunitySalesRep, setOpportunitySalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
+  const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
+  const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -461,10 +462,10 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !customerBusinessRegistrationNumber.trim() || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "고객사 등록 확인",
-        description: "고객사명, 사업자등록번호, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -483,7 +484,7 @@ export function FindingCategoryNewPageView({
           companyType: "CUSTOMER",
           code,
           name: normalizedName,
-          businessRegistrationNumber: customerBusinessRegistrationNumber.trim(),
+          businessRegistrationNumber: createAutoBusinessRegistrationNumber("CUS", code),
           sector: mapCustomerSector(customerGroup),
           address,
         })
@@ -520,10 +521,10 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !partnerType || !partnerBusinessRegistrationNumber.trim() || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "협력사 등록 확인",
-        description: "협력사명, 사업자등록번호, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -545,7 +546,7 @@ export function FindingCategoryNewPageView({
           companyType: "PARTNER",
           code,
           name: normalizedName,
-          businessRegistrationNumber: partnerBusinessRegistrationNumber.trim(),
+          businessRegistrationNumber: createAutoBusinessRegistrationNumber("PTN", code),
           category: mapPartnerCategory(partnerType),
           address,
         })
@@ -618,14 +619,6 @@ export function FindingCategoryNewPageView({
                           allowCustomValue
                           placeholder="협력사명을 입력하세요"
                           emptyMessage="등록된 협력사가 없습니다."
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>사업자등록번호 *</Label>
-                        <Input
-                          value={partnerBusinessRegistrationNumber}
-                          onChange={(event) => setPartnerBusinessRegistrationNumber(event.target.value)}
-                          placeholder="사업자등록번호를 입력하세요"
                         />
                       </div>
                       <div className="space-y-2">
@@ -1053,7 +1046,7 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>등록자</Label>
-                        <Input value={opportunityRegistrant} readOnly />
+                        <Input value={opportunityRegistrant} onChange={(event) => setOpportunityRegistrant(event.target.value)} placeholder="등록자명을 입력하세요" />
                       </div>
                       <div className="space-y-2">
                         <Label>영업대표</Label>
@@ -1296,14 +1289,6 @@ export function FindingCategoryNewPageView({
                         onValueChange={setCustomerName}
                         allowCustomValue
                         placeholder="고객사명을 입력하세요"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>사업자등록번호 *</Label>
-                      <Input
-                        value={customerBusinessRegistrationNumber}
-                        onChange={(event) => setCustomerBusinessRegistrationNumber(event.target.value)}
-                        placeholder="사업자등록번호를 입력하세요"
                       />
                     </div>
                     <div className="space-y-2">

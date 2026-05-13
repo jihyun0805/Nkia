@@ -27,77 +27,12 @@ export type WorkflowTask = {
   href: string
 }
 
-const defaultNotifications: WorkflowNotification[] = [
-  {
-    id: "notice-1",
-    title: "견적서 수정 요청",
-    category: "활동",
-    description: "LG CNS 견적서에 수정 요청이 등록되었습니다.",
-    href: "/activity/quotations/QT-2026-003",
-    createdAt: "2026-03-17",
-  },
-  {
-    id: "notice-2",
-    title: "PRB 검토 대기",
-    category: "입찰",
-    description: "국방부 ITSM 도입 건이 본부장 검토 대기 상태입니다.",
-    href: "/workflow",
-    createdAt: "2026-03-17",
-  },
-  {
-    id: "notice-3",
-    title: "유지보수 종료 예정",
-    category: "유지보수",
-    description: "삼성SDS EMS 유상유지보수 계약이 종료 예정입니다.",
-    href: "/maintenance",
-    createdAt: "2026-03-17",
-  },
-]
-
 function isBrowser() {
   return typeof window !== "undefined"
 }
 
 function cloneRequests() {
   return activityRequests.map((item) => ({ ...item }))
-}
-
-function createCurrentUserApprovalSeed(): ActivityRequestRecord {
-  return {
-    id: "REQ-2026-099",
-    date: "2026-04-24",
-    requester: "박과장",
-    receiver: currentUser.name,
-    type: "RFP 분석",
-    customerCode: "CUS-004",
-    customer: "SK텔레콤",
-    opportunityCode: "OPP-2026-004",
-    opportunity: "SK텔레콤 NMS 업그레이드",
-    content: "고객사 전달 RFP 분석 요청",
-    dueDate: "2026-04-29",
-    status: "요청",
-    lastAction: "created",
-    lastActionAt: "2026-04-24",
-  }
-}
-
-function createCurrentUserProposalSeed(): ActivityRequestRecord {
-  return {
-    id: "REQ-2026-098",
-    date: "2026-05-06",
-    requester: "박과장",
-    receiver: currentUser.name,
-    type: "SI 제안서 작성",
-    customerCode: "CUS-001",
-    customer: "삼성전자",
-    opportunityCode: "OPP-2026-001",
-    opportunity: "삼성전자 EMS 구축",
-    content: "제안서 최종본 등록 진행 요청",
-    dueDate: "2026-05-12",
-    status: "요청",
-    lastAction: "created",
-    lastActionAt: "2026-05-06",
-  }
 }
 
 function getLinkedRfpAnalysis(requestId: string) {
@@ -138,35 +73,6 @@ function normalizeRequests(requests: ActivityRequestRecord[]) {
   })
 
   return Array.from(requestMap.values()).sort((a, b) => b.date.localeCompare(a.date))
-}
-
-function ensureCurrentUserApprovalRequest(requests: ActivityRequestRecord[]) {
-  const hasSeedRequest = requests.some((item) => item.id === "REQ-2026-099")
-  const hasPendingApproval = requests.some(
-    (item) => item.receiver === currentUser.name && item.status === "요청",
-  )
-
-  if (hasSeedRequest || hasPendingApproval) {
-    return requests
-  }
-
-  return [createCurrentUserApprovalSeed(), ...requests]
-}
-
-function ensureCurrentUserProposalRequest(requests: ActivityRequestRecord[]) {
-  const hasSeedRequest = requests.some((item) => item.id === "REQ-2026-098")
-  const hasPendingProposal = requests.some(
-    (item) =>
-      item.receiver === currentUser.name &&
-      item.status === "요청" &&
-      (item.type === "제안서 작성" || item.type === "SI 제안서 작성"),
-  )
-
-  if (hasSeedRequest || hasPendingProposal) {
-    return requests
-  }
-
-  return [createCurrentUserProposalSeed(), ...requests]
 }
 
 function today() {
@@ -214,13 +120,21 @@ function createWorkflowNotification(notification: Omit<WorkflowNotification, "id
 }
 
 export function getActivityRequests() {
-  const requests = ensureCurrentUserProposalRequest(
-    ensureCurrentUserApprovalRequest(
-      normalizeRequests(readStorage<ActivityRequestRecord[]>(REQUESTS_STORAGE_KEY, cloneRequests())),
-    ),
-  )
+  const requests = normalizeRequests(readStorage<ActivityRequestRecord[]>(REQUESTS_STORAGE_KEY, cloneRequests()))
 
   if (isBrowser()) {
+    const hasLegacyMock = requests.some(
+      (item) =>
+        item.id.startsWith("REQ-2026-") ||
+        item.customerCode?.startsWith("CUS-") === true ||
+        item.opportunityCode?.startsWith("OPP-") === true,
+    )
+
+    if (hasLegacyMock) {
+      window.localStorage.removeItem(REQUESTS_STORAGE_KEY)
+      return []
+    }
+
     writeStorage(REQUESTS_STORAGE_KEY, requests)
   }
 
@@ -228,9 +142,7 @@ export function getActivityRequests() {
 }
 
 export function getWorkflowNotifications(userName: string = currentUser.name) {
-  const stored = readStorage<WorkflowNotification[]>(NOTIFICATIONS_STORAGE_KEY, defaultNotifications).filter(
-    (item) => !item.audience || item.audience === userName,
-  )
+  const stored = readStorage<WorkflowNotification[]>(NOTIFICATIONS_STORAGE_KEY, []).filter((item) => !item.audience || item.audience === userName)
   const overdueRfpNotifications = getActivityRequests()
     .filter((item) => item.receiver === userName && isOverdueRfpAnalysis(item))
     .map((item) =>
@@ -255,14 +167,12 @@ function saveWorkflowNotifications(notifications: WorkflowNotification[]) {
 }
 
 function pushNotification(notification: Omit<WorkflowNotification, "id" | "createdAt">) {
-  const notifications = readStorage<WorkflowNotification[]>(NOTIFICATIONS_STORAGE_KEY, defaultNotifications)
+  const notifications = readStorage<WorkflowNotification[]>(NOTIFICATIONS_STORAGE_KEY, [])
   saveWorkflowNotifications([createWorkflowNotification(notification), ...notifications])
 }
 
 export function dismissWorkflowNotification(id: string) {
-  const notifications = readStorage<WorkflowNotification[]>(NOTIFICATIONS_STORAGE_KEY, defaultNotifications).filter(
-    (item) => item.id !== id,
-  )
+  const notifications = readStorage<WorkflowNotification[]>(NOTIFICATIONS_STORAGE_KEY, []).filter((item) => item.id !== id)
   saveWorkflowNotifications(notifications)
   emitWorkflowUpdate()
 }

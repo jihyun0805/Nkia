@@ -20,13 +20,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { getCustomers, getOpportunities, type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
+import { loadBackendProposals } from "@/lib/proposal-backend"
 import {
   getBidResultById,
   getBidResultByProposalId,
-  getProposals,
   saveBidResult,
   subscribeBidResultUpdates,
-  subscribeProposalUpdates,
   type BidOutcome,
   type BidResultAnalysisSheet,
   type BidResultAttachment,
@@ -299,21 +298,21 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
   const [validationMessage, setValidationMessage] = useState("")
 
   useEffect(() => {
-    const sync = () => {
-      setProposals(getProposals())
+    setProposals([])
+    void loadBackendProposals()
+      .then((records) => setProposals(records))
+      .catch(() => setProposals([]))
+    const syncContext = () => {
       setCustomers(getCustomers())
       setOpportunities(getOpportunities())
     }
-
-    sync()
-    const unsubscribeProposal = subscribeProposalUpdates(sync)
-    const unsubscribeBidResult = subscribeBidResultUpdates(sync)
-    window.addEventListener("storage", sync)
+    syncContext()
+    const unsubscribeBidResult = subscribeBidResultUpdates(syncContext)
+    window.addEventListener("storage", syncContext)
 
     return () => {
-      unsubscribeProposal()
       unsubscribeBidResult()
-      window.removeEventListener("storage", sync)
+      window.removeEventListener("storage", syncContext)
     }
   }, [])
 
