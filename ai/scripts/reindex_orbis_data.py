@@ -563,19 +563,24 @@ def build_current_activity_documents(
     if conn is not None and opp_id and not enriched_row.get("opportunity_name"):
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT o.opportunity_name, c.company_name
-                    FROM project_opportunity o
-                    LEFT JOIN company c ON c.id = o.customer_company_id
-                    WHERE o.id = %s
-                    """,
-                    (opp_id,),
-                )
-                result = cur.fetchone()
-                if result:
-                    enriched_row["opportunity_name"] = result[0]
-                    enriched_row["customer_name"] = result[1]
+                cur.execute("SAVEPOINT enrich_sa")
+                try:
+                    cur.execute(
+                        """
+                        SELECT o.opportunity_name, c.company_name
+                        FROM project_opportunity o
+                        LEFT JOIN company c ON c.id = o.customer_company_id
+                        WHERE o.id = %s
+                        """,
+                        (opp_id,),
+                    )
+                    result = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_sa")
+                    if result:
+                        enriched_row["opportunity_name"] = result[0]
+                        enriched_row["customer_name"] = result[1]
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_sa")
         except Exception:
             pass
 
