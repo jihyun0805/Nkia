@@ -29,7 +29,6 @@ import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type 
 import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { createActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
-import { currentUser } from "@/lib/current-user"
 import { getPresalesUsers } from "@/lib/admin-data"
 import {
   type CustomerRecord,
@@ -61,6 +60,7 @@ function ActivityCategoryNewPageContent() {
   const [activityOpportunity, setActivityOpportunity] = useState("")
   const [activityOpportunityCode, setActivityOpportunityCode] = useState("")
   const [activityRequester, setActivityRequester] = useState("")
+  const [activityRegistrant, setActivityRegistrant] = useState("")
   const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
   const [activityAttachments, setActivityAttachments] = useState<AttachmentDraft[]>([])
   const [requestAttachments, setRequestAttachments] = useState<AttachmentDraft[]>([])
@@ -79,7 +79,7 @@ function ActivityCategoryNewPageContent() {
   const [form, setForm] = useState({
     date: "",
     type: "",
-    requester: currentUser.name,
+    requester: "",
     receiver: presalesUsers[0]?.name ?? "",
     customerCode: "",
     customer: "",
@@ -335,6 +335,15 @@ function ActivityCategoryNewPageContent() {
     setActivityOpportunityCode(firstOpportunity?.id ?? "")
   }
 
+  const handleActivityCustomerValueChange = (value: string) => {
+    setActivityCustomer(value)
+    const matchedCustomer = getCustomerByName(value)
+    setActivityCustomerCode(matchedCustomer?.id ?? "")
+    const firstOpportunity = matchedCustomer ? getOpportunitiesByCustomerName(matchedCustomer.name)[0] : null
+    setActivityOpportunity(firstOpportunity?.name ?? (matchedCustomer ? "미확인" : value ? activityOpportunity : ""))
+    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+  }
+
   const handleActivityOpportunityChange = (value: string) => {
     const opportunity = activityOpportunityOptions.find((item) => item.name === value)
     setActivityOpportunity(value)
@@ -378,20 +387,22 @@ function ActivityCategoryNewPageContent() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {category === "activities" && (
-                  <ActivityFormFields
-                    defaultValues={{
-                      registrant: currentUser.name,
+                    <ActivityFormFields
+                      defaultValues={{
                       requester: linkedRequest?.requester ?? "",
                       requestId: linkedRequest?.id ?? linkedRequestId,
                       activityContent: linkedRequest?.type ?? "",
                       opportunity: linkedRequest?.opportunity ?? "",
-                    }}
-                    customerValue={activityCustomer}
-                    customerCodeValue={activityCustomerCode}
-                    onCustomerSelect={handleActivityCustomerSelect}
-                    onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
-                    opportunityValue={activityOpportunity}
-                    opportunityCodeValue={activityOpportunity === "미확인" ? "-" : activityOpportunityCode || "-"}
+                      }}
+                      registrantValue={activityRegistrant}
+                      onRegistrantChange={setActivityRegistrant}
+                      customerValue={activityCustomer}
+                      customerCodeValue={activityCustomerCode}
+                      onCustomerSelect={handleActivityCustomerSelect}
+                      onCustomerValueChange={handleActivityCustomerValueChange}
+                      onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
+                      opportunityValue={activityOpportunity}
+                      opportunityCodeValue={activityOpportunity === "미확인" ? "-" : activityOpportunityCode || "-"}
                     opportunityOptions={activityOpportunityOptions}
                     onOpportunityChange={handleActivityOpportunityChange}
                     onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
@@ -433,7 +444,11 @@ function ActivityCategoryNewPageContent() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>요청자 *</Label>
-                        <Input value={form.requester} readOnly />
+                        <Input
+                          value={form.requester}
+                          onChange={(event) => setForm((prev) => ({ ...prev, requester: event.target.value }))}
+                          placeholder="요청자 이름을 입력하세요"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>담당자 *</Label>
@@ -456,6 +471,16 @@ function ActivityCategoryNewPageContent() {
                         <Label>고객사 *</Label>
                         <CustomerAutocomplete
                           value={form.customer}
+                          onValueChange={(value) => {
+                            const matched = getCustomerByName(value)
+                            setForm((prev) => ({
+                              ...prev,
+                              customer: value,
+                              customerCode: matched?.id ?? prev.customerCode,
+                              opportunity: matched ? "미확인" : prev.opportunity,
+                              opportunityCode: matched ? "" : prev.opportunityCode,
+                            }))
+                          }}
                           onSelect={(customer) => {
                             setForm((prev) => ({
                               ...prev,
@@ -471,7 +496,7 @@ function ActivityCategoryNewPageContent() {
                       </div>
                       <div className="space-y-2">
                         <Label>고객사 코드</Label>
-                        <Input value={matchedCustomer?.id ?? "-"} readOnly />
+                        <Input value={form.customerCode || matchedCustomer?.id || "-"} readOnly />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">

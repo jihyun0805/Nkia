@@ -23,13 +23,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { bidStatuses, getBidCreateActionLabel, getBidResults, getPrbResults, getProposals, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbResultUpdates, subscribePrbUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
+import { bidStatuses, getBidCreateActionLabel, getBidResults, getPrbResults, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbResultUpdates, subscribePrbUpdates, subscribeRfpAnalysesUpdates, type ProposalRecord } from "@/lib/bid-data"
 import { loadBackendPrbs } from "@/lib/prb-backend"
 import { loadBackendPrbResults } from "@/lib/prb-result-backend"
 import { loadBackendRfpAnalyses } from "@/lib/rfp-analysis-backend"
-import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
+import { loadBackendProposals } from "@/lib/proposal-backend"
+import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
-import { getOpportunities } from "@/lib/finding-data"
+import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
 import { Plus, FileText, ClipboardCheck, Presentation, Trophy, ClipboardList } from "lucide-react"
 
 type ProposalOverviewRow = {
@@ -74,6 +75,10 @@ type PrbResultOverviewRow = {
 
 const BID_ACTIVE_TAB_STORAGE_KEY = "orbis.bid.active-tab"
 
+function isBackendRequestId(value: string) {
+  return /^\d+$/.test(value)
+}
+
 function BidPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -85,8 +90,9 @@ function BidPageContent() {
   const [prbItems, setPrbItems] = useState<ReturnType<typeof getPrbs>>([])
   const [prbResultItems, setPrbResultItems] = useState<ReturnType<typeof getPrbResults>>([])
   const [proposalRequests, setProposalRequests] = useState<ActivityRequestRecord[]>([])
-  const [proposals, setProposals] = useState<ReturnType<typeof getProposals>>([])
+  const [proposals, setProposals] = useState<ProposalRecord[]>([])
   const [results, setResults] = useState<ReturnType<typeof getBidResults>>([])
+  const [findingData, setFindingData] = useState<FindingBackendData>({ opportunities: [], customers: [], partners: [] })
   const [proposalConfirmTarget, setProposalConfirmTarget] = useState<ProposalOverviewRow | null>(null)
   const [resultConfirmTarget, setResultConfirmTarget] = useState<BidResultOverviewRow | null>(null)
 
@@ -110,6 +116,26 @@ function BidPageContent() {
     if (typeof window === "undefined") return
     window.sessionStorage.setItem(BID_ACTIVE_TAB_STORAGE_KEY, activeTab)
   }, [activeTab])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void loadBackendFindingData()
+      .then((data) => {
+        if (!cancelled) {
+          setFindingData(data)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFindingData({ opportunities: [], customers: [], partners: [] })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const buildBidHref = (pathname: string) => `${pathname}?tab=${activeTab}`
 
@@ -143,20 +169,39 @@ function BidPageContent() {
   }, [])
 
   useEffect(() => {
-    const sync = () =>
-      setProposalRequests(
-        getActivityRequests().filter((item) => item.type === "제안서 작성" || item.type === "SI 제안서 작성"),
-      )
+    let cancelled = false
 
-    sync()
-    return subscribeWorkflowUpdates(sync)
+    void loadBackendActivityRequests()
+      .then((records) => {
+        if (cancelled) return
+        setProposalRequests(
+          records.filter(
+            (item) =>
+              isBackendRequestId(item.id) &&
+              (item.type === "제안서 작성" || item.type === "SI 제안서 작성"),
+          ),
+        )
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProposalRequests([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
-    const sync = () => setProposals(getProposals())
-
-    sync()
-    return subscribeProposalUpdates(sync)
+    setProposals([])
+    void loadBackendProposals()
+      .then((records) => {
+        setProposals(records)
+      })
+      .catch(() => {
+        setProposals([])
+      })
   }, [])
 
   useEffect(() => {
@@ -166,20 +211,18 @@ function BidPageContent() {
     return subscribeBidResultUpdates(sync)
   }, [])
 
-  const opportunityMap = new Map(getOpportunities().map((item) => [item.id, item]))
+  const opportunityMap = new Map(findingData.opportunities.map((item) => [item.id, item]))
   const getMatchedProposalRequest = (proposal: (typeof proposals)[number]) =>
-    proposal.requestId
-      ? proposalRequests.find((request) => request.id === proposal.requestId) ?? null
-      : proposalRequests.find(
-          (request) =>
-            request.customerCode === proposal.customerCode &&
-            request.opportunityCode === proposal.opportunityCode &&
-            (request.type === "SI 제안서 작성" ? "SI 제안" : "자체 제안") === proposal.proposalType,
-        ) ?? null
+    proposalRequests.find(
+      (request) =>
+        request.customerCode === proposal.customerCode &&
+        request.opportunityCode === proposal.opportunityCode &&
+        (request.type === "SI 제안서 작성" ? "SI 제안" : "자체 제안") === proposal.proposalType,
+    ) ?? null
 
   const completedRequestIds = new Set(
     proposals
-      .map((item) => getMatchedProposalRequest(item)?.id ?? item.requestId)
+      .map((item) => getMatchedProposalRequest(item)?.id)
       .filter((value): value is string => Boolean(value)),
   )
   const pendingProposalRows: ProposalOverviewRow[] = proposalRequests

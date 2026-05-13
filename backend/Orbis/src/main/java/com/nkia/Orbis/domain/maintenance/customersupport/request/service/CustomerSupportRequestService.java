@@ -100,7 +100,6 @@ public class CustomerSupportRequestService {
     /**
      * 고객지원 요청 목록을 조회
      */
-    @Transactional(readOnly = true)
     public List<CustomerSupportRequestListResponse> getRequests() {
         List<CustomerSupportRequest> requests = requestRepository.findAllByOrderByIdDesc();
 
@@ -112,7 +111,6 @@ public class CustomerSupportRequestService {
     /**
      * 특정 고객지원 요청의 상세 정보 조회
      */
-    @Transactional(readOnly = true)
     public CustomerSupportRequestDetailResponse getRequestDetail(Long id) {
         CustomerSupportRequest request = requestRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));

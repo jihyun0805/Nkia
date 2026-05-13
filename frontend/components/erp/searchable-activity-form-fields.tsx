@@ -13,7 +13,6 @@ import {
   requestOptionalActivityContents,
   type ActivityRecord,
 } from "@/lib/activity-data"
-import { currentUser } from "@/lib/current-user"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 
@@ -21,9 +20,12 @@ const automaticLocationModes = ["이메일", "전화", "영상회의"]
 
 type ActivityFormFieldsProps = {
   defaultValues?: Partial<ActivityRecord>
+  registrantValue?: string
+  onRegistrantChange?: (value: string) => void
   customerValue?: string
   customerCodeValue?: string
   onCustomerSelect?: (customer: CustomerRecord | null) => void
+  onCustomerValueChange?: (value: string) => void
   onUnregisteredCustomerAttempt?: () => void
   opportunityValue?: string
   opportunityCodeValue?: string
@@ -68,9 +70,12 @@ type ActivityFormFieldsProps = {
 
 export function ActivityFormFields({
   defaultValues,
+  registrantValue,
+  onRegistrantChange,
   customerValue,
   customerCodeValue,
   onCustomerSelect,
+  onCustomerValueChange,
   onUnregisteredCustomerAttempt,
   opportunityValue,
   opportunityCodeValue,
@@ -91,7 +96,7 @@ export function ActivityFormFields({
   const [content, setContent] = useState(defaultValues?.content ?? "")
   const [issues, setIssues] = useState(defaultValues?.issues ?? "")
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
-  const registrant = defaultValues?.registrant ?? currentUser.name
+  const [registrant, setRegistrant] = useState(registrantValue ?? defaultValues?.registrant ?? "")
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
   const linkedRequestId = typeof requestIdValue === "string" ? requestIdValue : defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
@@ -187,6 +192,10 @@ export function ActivityFormFields({
     setNextAction(defaultValues?.nextAction ?? "")
   }, [defaultValues?.nextAction])
 
+  useEffect(() => {
+    setRegistrant(registrantValue ?? defaultValues?.registrant ?? "")
+  }, [registrantValue, defaultValues?.registrant])
+
   const handleActivityModeChange = (nextMode: string) => {
     updateValues((current) => ({
       ...current,
@@ -203,7 +212,15 @@ export function ActivityFormFields({
     <>
       <div className="space-y-2">
         <Label>등록자</Label>
-        <Input value={registrant} readOnly />
+        <Input
+          value={registrant}
+          onChange={(event) => {
+            const next = event.target.value
+            setRegistrant(next)
+            onRegistrantChange?.(next)
+          }}
+          placeholder="등록자명을 입력하세요"
+        />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -235,6 +252,7 @@ export function ActivityFormFields({
             <CustomerAutocomplete
               value={customerValue}
               onSelect={onCustomerSelect}
+              onValueChange={onCustomerValueChange}
               placeholder="고객사명을 입력하세요"
               onUnregisteredAttempt={onUnregisteredCustomerAttempt}
             />

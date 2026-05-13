@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MaintenanceService {
 
     private final MaintenanceRepository maintenanceRepository;
@@ -66,6 +67,7 @@ public class MaintenanceService {
     /**
      * 유지보수 엔티티 생성
      */
+    @Transactional
     private Maintenance createMaintenanceEntity(MaintenanceCreateRequest dto, Project project, User salesRep,
                                                 User primary, User secondary, User regularPm, UploadFile contractFile) {
         return Maintenance.builder()
@@ -171,7 +173,6 @@ public class MaintenanceService {
     /**
      * 유지보수 상세 조회
      */
-    @Transactional(readOnly = true)
     public MaintenanceDetailResponse getMaintenanceDetail(Long id) {
         Maintenance maintenance = maintenanceRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
@@ -182,7 +183,6 @@ public class MaintenanceService {
     /**
      * 유지보수 (무상/유상) 목록 조회
      */
-    @Transactional(readOnly = true)
     public List<MaintenanceListResponse> getMaintenanceList(MaintenanceType type) {
         List<Maintenance> list = maintenanceRepository.findAllByTypeOrderByIdDesc(type);
 
