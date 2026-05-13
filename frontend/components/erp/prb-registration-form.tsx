@@ -498,7 +498,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const reportTable = (
-    <div className={`overflow-x-auto rounded-md border border-r-0 ${readOnly ? "pointer-events-none" : ""}`}>
+    <div className="overflow-x-auto rounded-md border border-r-0">
       <table className="min-w-[1180px] border-collapse text-sm [&_td]:border [&_th]:border">
         <tbody>
           <tr>
