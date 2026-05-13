@@ -60,7 +60,12 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.SALES_ACTIVITY,
         id_fields=("activityCode", "activity_code", "id"),
         title_fields=("activityCode", "activity_code", "activity_content", "id"),
-        content_fields=("activity_type", "activity_purpose", "activity_content", "customer_interest", "issue", "next_activity"),
+        content_fields=(
+            "opportunity_name", "customer_name",
+            "activity_date_time",
+            "activity_type", "activity_purpose", "activity_content",
+            "customer_interest", "issue", "next_activity",
+        ),
         payload_aliases={
             "activityAt": ("activity_date_time",),
             "activityType": ("activity_type",),
@@ -70,6 +75,8 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "nextAction": ("next_activity",),
             "progressStatus": ("status",),
             "opportunityId": ("project_opportunity_id",),
+            "opportunityName": ("opportunity_name",),
+            "customerName": ("customer_name",),
         },
     ),
     DocumentConfig(
@@ -436,7 +443,7 @@ def build_documents(
             if config.table == "project_opportunity":
                 documents.extend(build_current_opportunity_documents(conn=conn, row=row))
             elif config.table == "sales_activity":
-                documents.extend(build_current_activity_documents(row))
+                documents.extend(build_current_activity_documents(conn=conn, row=row))
             elif config.table == "rfp_analyze_result":
                 documents.extend(build_current_rfp_documents(row))
             elif config.table in {"rfp_analyze_requirement", "rfp_requirement"}:
@@ -544,10 +551,34 @@ _ACTIVITY_PURPOSE_LABELS: dict[str, str] = {
 }
 
 
-def build_current_activity_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
+def build_current_activity_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
     source_type = SourceType.SALES_ACTIVITY if row.get("project_opportunity_id") else SourceType.POST_SALES
     config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "sales_activity")
     enriched_row = dict(row)
+
+    opp_id = enriched_row.get("project_opportunity_id")
+    if conn is not None and opp_id and not enriched_row.get("opportunity_name"):
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT o.opportunity_name, c.company_name
+                    FROM project_opportunity o
+                    LEFT JOIN company c ON c.id = o.customer_company_id
+                    WHERE o.id = %s
+                    """,
+                    (opp_id,),
+                )
+                result = cur.fetchone()
+                if result:
+                    enriched_row["opportunity_name"] = result[0]
+                    enriched_row["customer_name"] = result[1]
+        except Exception:
+            pass
+
     if enriched_row.get("activity_type"):
         enriched_row["activity_type"] = _ACTIVITY_TYPE_LABELS.get(
             enriched_row["activity_type"], enriched_row["activity_type"]
