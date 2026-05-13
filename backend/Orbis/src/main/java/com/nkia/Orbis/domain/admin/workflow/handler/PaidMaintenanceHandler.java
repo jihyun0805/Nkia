@@ -10,11 +10,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class MaintenanceHandler implements WorkflowDomainHandler {
-
+public class PaidMaintenanceHandler implements WorkflowDomainHandler {
     private final MaintenanceRepository maintenanceRepository;
 
-    // TODO: 무상/유상 구분 기능 추가
     @Override
     public WorkflowDomain getDomain() {
         return WorkflowDomain.PAID_MAINTENANCE_CONTRACT;

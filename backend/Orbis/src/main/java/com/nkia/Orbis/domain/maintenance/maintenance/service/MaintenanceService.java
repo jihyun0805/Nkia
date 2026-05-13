@@ -131,7 +131,7 @@ public class MaintenanceService {
         UploadFile contractFile = getUploadFile(dto.getContractFileId());
         maintenance.updateMaintenance(dto, salesRep, primary, secondary, regularPm, contractFile);
 
-        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance.getId()));
+        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance));
     }
 
     /**
@@ -176,7 +176,7 @@ public class MaintenanceService {
         Maintenance maintenance = maintenanceRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
 
-        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance.getId()));
+        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance));
     }
 
     /**
@@ -216,8 +216,10 @@ public class MaintenanceService {
 
         UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
 
+        WorkflowDomain workflowDomain = resolveWorkflowDomain(maintenance);
+
         Workflow workflow = workflowService.startWorkflow(
-                WorkflowDomain.PAID_MAINTENANCE_CONTRACT,
+                workflowDomain,
                 maintenance.getId(),
                 requesterId,
                 firstApproverId
@@ -226,15 +228,25 @@ public class MaintenanceService {
         maintenance.submit();
     }
 
-    private Long getWorkflowId(Long maintenanceId) {
+    private Long getWorkflowId(Maintenance maintenance) {
+
+        WorkflowDomain workflowDomain = resolveWorkflowDomain(maintenance);
 
         return workflowRepository
                 .findByWorkflowDomainAndTargetIdAndStatus(
-                        WorkflowDomain.PAID_MAINTENANCE_CONTRACT,
-                        maintenanceId,
+                        workflowDomain,
+                        maintenance.getId(),
                         WorkflowStatus.IN_PROGRESS
                 )
                 .map(Workflow::getId)
                 .orElse(null);
+    }
+
+    private WorkflowDomain resolveWorkflowDomain(Maintenance maintenance) {
+        if (maintenance.getType() == MaintenanceType.FREE) {
+            return WorkflowDomain.FREE_MAINTENANCE_CONTRACT;
+        }
+
+        return WorkflowDomain.PAID_MAINTENANCE_CONTRACT;
     }
 }
