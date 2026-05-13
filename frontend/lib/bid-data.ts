@@ -241,11 +241,7 @@ const PRB_RESULTS_STORAGE_KEY = "orbis.prbResults"
 const DELETED_PRB_RESULT_IDS_STORAGE_KEY = "orbis.deleted-prb-result-ids"
 const PRB_RESULTS_EVENT_NAME = "orbis-prb-results-updated"
 
-export const rfpList: RfpAnalysisRecord[] = [
-  { id: "RFP-2026-003", requestId: "REQ-2026-010", customer: "SK텔레콤", customerCode: "CUS-004", opportunity: "SK텔레콤 NMS 업그레이드", opportunityCode: "OPP-2026-004", requester: "최민수", analyst: "김영업", receiveDate: "2026-03-12", requestDate: "2026-03-12", dueDate: "2026-03-30", status: "접수", businessType: "EMS", proposalType: "SI 제안" },
-  { id: "RFP-2026-001", requestId: "REQ-2026-011", customer: "삼성전자", customerCode: "CUS-001", opportunity: "삼성전자 EMS 구축", opportunityCode: "OPP-2026-001", requester: "박지은", analyst: "김영업", receiveDate: "2026-03-10", requestDate: "2026-03-10", dueDate: "2026-03-25", status: "완료", businessType: "EMS", proposalType: "SI 제안" },
-  { id: "RFP-2026-002", requestId: "REQ-2026-012", customer: "국방부", customerCode: "CUS-002", opportunity: "국방부 ITSM 도입", opportunityCode: "OPP-2026-002", requester: "한서준", analyst: "이대리", receiveDate: "2026-03-05", requestDate: "2026-03-05", dueDate: "2026-03-20", status: "분석중", businessType: "ITSM", proposalType: "자체 제안" },
-]
+export const rfpList: RfpAnalysisRecord[] = []
 export const prbList: PrbRecord[] = []
 export const proposalList: ProposalRecord[] = [
   {
