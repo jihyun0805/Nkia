@@ -19,11 +19,14 @@ import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowLineRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowStepRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowTemplateRepository;
+import com.nkia.Orbis.domain.alarm.entity.AlarmType;
+import com.nkia.Orbis.domain.alarm.event.AlarmEvent;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +38,7 @@ public class WorkflowService {
     private final WorkflowStepRepository workflowStepRepository;
     private final WorkflowLineRepository workflowLineRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final Map<WorkflowDomain, WorkflowDomainHandler> handlerMap;
 
@@ -87,6 +91,14 @@ public class WorkflowService {
 
         workflowLineRepository.save(firstLine);
 
+        eventPublisher.publishEvent(new AlarmEvent(
+                requester,
+                firstApprover,
+                resolveApprovalRequestAlarmType(workflow.getWorkflowDomain()),
+                "새로운 결재 요청이 등록되었습니다.",
+                targetId
+        ));
+
         return workflow;
     }
 
@@ -125,6 +137,14 @@ public class WorkflowService {
             workflow.approveComplete();
             handleApproved(workflow);
 
+            eventPublisher.publishEvent(new AlarmEvent(
+                    currentLine.getApprover(),
+                    workflow.getRequester(),
+                    resolveApprovedAlarmType(workflow.getWorkflowDomain()),
+                    "결재 요청이 최종 승인되었습니다.",
+                    workflow.getTargetId()
+            ));
+
             return;
         }
 
@@ -150,6 +170,14 @@ public class WorkflowService {
         workflowLineRepository.save(nextLine);
 
         workflow.approveNext(nextStepOrder);
+
+        eventPublisher.publishEvent(new AlarmEvent(
+                currentLine.getApprover(),
+                nextApprover,
+                resolveApprovalRequestAlarmType(workflow.getWorkflowDomain()),
+                "새로운 결재 요청이 등록되었습니다.",
+                workflow.getTargetId()
+        ));
     }
 
     // 반려
@@ -170,6 +198,14 @@ public class WorkflowService {
         currentLine.reject(comment);
         workflow.reject();
         handleRejected(workflow);
+
+        eventPublisher.publishEvent(new AlarmEvent(
+                currentLine.getApprover(),
+                workflow.getRequester(),
+                resolveRejectedAlarmType(workflow.getWorkflowDomain()),
+                "결재 요청이 반려되었습니다.",
+                workflow.getTargetId()
+        ));
     }
 
     // 취소
@@ -353,6 +389,7 @@ public class WorkflowService {
             WorkflowStepRepository workflowStepRepository,
             WorkflowLineRepository workflowLineRepository,
             UserRepository userRepository,
+            ApplicationEventPublisher eventPublisher,
             List<WorkflowDomainHandler> handlers
     ) {
         this.workflowRepository = workflowRepository;
@@ -360,10 +397,23 @@ public class WorkflowService {
         this.workflowStepRepository = workflowStepRepository;
         this.workflowLineRepository = workflowLineRepository;
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
         this.handlerMap = handlers.stream()
                 .collect(Collectors.toMap(
                         WorkflowDomainHandler::getDomain,
                         handler -> handler
                 ));
+    }
+
+    private AlarmType resolveApprovalRequestAlarmType(WorkflowDomain workflowDomain) {
+        return AlarmType.valueOf(workflowDomain.name() + "_APPROVAL_REQUEST");
+    }
+
+    private AlarmType resolveApprovedAlarmType(WorkflowDomain workflowDomain) {
+        return AlarmType.valueOf(workflowDomain.name() + "_APPROVED");
+    }
+
+    private AlarmType resolveRejectedAlarmType(WorkflowDomain workflowDomain) {
+        return AlarmType.valueOf(workflowDomain.name() + "_REJECTED");
     }
 }
