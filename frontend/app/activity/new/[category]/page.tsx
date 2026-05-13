@@ -29,7 +29,6 @@ import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type 
 import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { createActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
-import { currentUser } from "@/lib/current-user"
 import { getPresalesUsers } from "@/lib/admin-data"
 import {
   type CustomerRecord,
@@ -79,7 +78,7 @@ function ActivityCategoryNewPageContent() {
   const [form, setForm] = useState({
     date: "",
     type: "",
-    requester: currentUser.name,
+    requester: "",
     receiver: presalesUsers[0]?.name ?? "",
     customerCode: "",
     customer: "",
@@ -380,7 +379,7 @@ function ActivityCategoryNewPageContent() {
                 {category === "activities" && (
                   <ActivityFormFields
                     defaultValues={{
-                      registrant: currentUser.name,
+                      registrant: "",
                       requester: linkedRequest?.requester ?? "",
                       requestId: linkedRequest?.id ?? linkedRequestId,
                       activityContent: linkedRequest?.type ?? "",
@@ -433,7 +432,11 @@ function ActivityCategoryNewPageContent() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>요청자 *</Label>
-                        <Input value={form.requester} readOnly />
+                        <Input
+                          value={form.requester}
+                          onChange={(event) => setForm((prev) => ({ ...prev, requester: event.target.value }))}
+                          placeholder="요청자 이름을 입력하세요"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>담당자 *</Label>

@@ -35,7 +35,9 @@ const productGroupOptions: ProposalProductGroup[] = ["EMS", "ITSM", "Automation"
 type FormState = {
   requestId: string
   customerCode: string
+  customerName: string
   opportunityCode: string
+  opportunityName: string
   proposalType: ProposalType
   productGroup: ProposalProductGroup | ""
   requestDate: string
@@ -49,7 +51,9 @@ type FormState = {
 const emptyForm: FormState = {
   requestId: "",
   customerCode: "",
+  customerName: "",
   opportunityCode: "",
+  opportunityName: "",
   proposalType: "자체 제안",
   productGroup: "",
   requestDate: "",
@@ -218,13 +222,15 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
 
   useEffect(() => {
     if (proposalDetail) {
-      setForm({
-        requestId: proposalDetail.requestId,
-        customerCode: proposalDetail.customerCode,
-        opportunityCode: proposalDetail.opportunityCode,
-        proposalType: proposalDetail.proposalType,
-        productGroup: proposalDetail.productGroup,
-        requestDate: proposalDetail.requestDate,
+    setForm({
+      requestId: proposalDetail.requestId,
+      customerCode: proposalDetail.customerCode,
+      customerName: proposalDetail.customer,
+      opportunityCode: proposalDetail.opportunityCode,
+      opportunityName: proposalDetail.opportunity,
+      proposalType: proposalDetail.proposalType,
+      productGroup: proposalDetail.productGroup,
+      requestDate: proposalDetail.requestDate,
         proposalDeadline: proposalDetail.proposalDeadline,
         salesRep: proposalDetail.salesRep,
         contactName: proposalDetail.contactName,
@@ -259,14 +265,16 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
       ? findingData.customers.find((item) => item.id === request.customerCode) ?? null
       : findingData.customers.find((item) => item.id === (matchedOpportunity?.customerCode ?? "")) ?? null
 
-    setForm((current) => ({
-      ...current,
-      requestId: request.id,
-      customerCode: request.customerCode ?? matchedOpportunity?.customerCode ?? current.customerCode,
-      opportunityCode: request.opportunityCode ?? current.opportunityCode,
-      proposalType: toProposalType(request.type),
-      productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
-      requestDate: request.date,
+      setForm((current) => ({
+        ...current,
+        requestId: request.id,
+        customerCode: request.customerCode ?? matchedOpportunity?.customerCode ?? current.customerCode,
+        customerName: request.customer ?? matchedCustomer?.name ?? current.customerName,
+        opportunityCode: request.opportunityCode ?? current.opportunityCode,
+        opportunityName: request.opportunity ?? matchedOpportunity?.name ?? current.opportunityName,
+        proposalType: toProposalType(request.type),
+        productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
+        requestDate: request.date,
       proposalDeadline: request.dueDate,
       salesRep: matchedOpportunity?.salesRep ?? current.salesRep,
       contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
@@ -285,12 +293,29 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
 
   const handleCustomerChange = (customerCode: string) => {
     const matchedCustomer = findingData.customers.find((item) => item.id === customerCode) ?? null
+    const matchedOpportunity = findingData.opportunities.find((item) => item.id === form.opportunityCode && item.customerCode === customerCode) ?? null
     setForm((current) => ({
       ...current,
       customerCode,
+      customerName: matchedCustomer?.name ?? current.customerName,
       opportunityCode:
         findingData.opportunities.find((item) => item.id === current.opportunityCode && item.customerCode === customerCode)?.id ?? "",
+      opportunityName: matchedOpportunity?.name ?? current.opportunityName,
       contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
+    }))
+  }
+
+  const handleCustomerNameChange = (customerName: string) => {
+    const matchedCustomer = findingData.customers.find((item) => item.name === customerName) ?? null
+    setForm((current) => ({
+      ...current,
+      customerName,
+      customerCode: matchedCustomer?.id ?? current.customerCode,
+      contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
+      opportunityCode:
+        matchedCustomer && current.opportunityCode
+          ? findingData.opportunities.find((item) => item.id === current.opportunityCode && item.customerCode === matchedCustomer.id)?.id ?? ""
+          : current.opportunityCode,
     }))
   }
 
@@ -299,6 +324,19 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     setForm((current) => ({
       ...current,
       opportunityCode,
+      opportunityName: matchedOpportunity?.name ?? current.opportunityName,
+      customerCode: matchedOpportunity?.customerCode ?? current.customerCode,
+      productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
+      salesRep: matchedOpportunity?.salesRep ?? current.salesRep,
+    }))
+  }
+
+  const handleOpportunityNameChange = (opportunityName: string) => {
+    const matchedOpportunity = findingData.opportunities.find((item) => item.name === opportunityName) ?? null
+    setForm((current) => ({
+      ...current,
+      opportunityName,
+      opportunityCode: matchedOpportunity?.id ?? current.opportunityCode,
       customerCode: matchedOpportunity?.customerCode ?? current.customerCode,
       productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
       salesRep: matchedOpportunity?.salesRep ?? current.salesRep,
@@ -307,12 +345,18 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
 
   const handleComplete = () => {
     if (!form.customerCode) {
-      setValidationMessage(getMissingCodeMessage("customer"))
-      return
+      const matchedCustomer = findingData.customers.find((item) => item.name === form.customerName)
+      if (!matchedCustomer) {
+        setValidationMessage(getMissingCodeMessage("customer"))
+        return
+      }
     }
     if (!form.opportunityCode) {
-      setValidationMessage(getMissingCodeMessage("opportunity"))
-      return
+      const matchedOpportunity = findingData.opportunities.find((item) => item.name === form.opportunityName)
+      if (!matchedOpportunity) {
+        setValidationMessage(getMissingCodeMessage("opportunity"))
+        return
+      }
     }
     if (form.existingAttachments.length + form.selectedFiles.length === 0) {
       setValidationMessage("첨부파일을 등록해야 제안서를 완료할 수 있습니다.")
@@ -320,8 +364,12 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     }
 
     const matchedRequest = availableRequests.find((item) => item.id === form.requestId)
-    const matchedCustomer = findingData.customers.find((item) => item.id === form.customerCode)
-    const matchedOpportunity = findingData.opportunities.find((item) => item.id === form.opportunityCode)
+    const matchedCustomer =
+      findingData.customers.find((item) => item.id === form.customerCode) ??
+      findingData.customers.find((item) => item.name === form.customerName)
+    const matchedOpportunity =
+      findingData.opportunities.find((item) => item.id === form.opportunityCode) ??
+      findingData.opportunities.find((item) => item.name === form.opportunityName)
 
     if (!matchedCustomer || !matchedOpportunity) {
       setValidationMessage("연계 대상 코드 정보를 확인할 수 없습니다. 선택 후 다시 시도해주십시오.")
@@ -332,9 +380,9 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
       proposalId,
       requestId: matchedRequest?.id || form.requestId || undefined,
       customerCode: matchedCustomer.id,
-      customerName: matchedCustomer.name,
+      customerName: form.customerName || matchedCustomer.name,
       opportunityCode: matchedOpportunity.id,
-      opportunityName: matchedOpportunity.name,
+      opportunityName: form.opportunityName || matchedOpportunity.name,
       projectOpportunityId: matchedOpportunity.backendId,
       proposalType: form.proposalType,
       productGroup: (form.productGroup || matchedOpportunity.product) as ProposalProductGroup,
@@ -393,7 +441,11 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
             </div>
             <div className="space-y-2">
               <Label>고객사명</Label>
-              <Input readOnly value={selectedCustomer?.name ?? ""} />
+              <Input
+                value={form.customerName}
+                onChange={(event) => handleCustomerNameChange(event.target.value)}
+                placeholder="고객사명을 입력하세요"
+              />
             </div>
             <div className="space-y-2">
               <Label>사업기회 코드 *</Label>
@@ -412,7 +464,11 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
             </div>
             <div className="space-y-2">
               <Label>사업명</Label>
-              <Input readOnly value={selectedOpportunity?.name ?? ""} />
+              <Input
+                value={form.opportunityName}
+                onChange={(event) => handleOpportunityNameChange(event.target.value)}
+                placeholder="사업명을 입력하세요"
+              />
             </div>
             <div className="space-y-2">
               <Label>제안형태</Label>

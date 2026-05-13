@@ -243,68 +243,8 @@ const PRB_RESULTS_EVENT_NAME = "orbis-prb-results-updated"
 
 export const rfpList: RfpAnalysisRecord[] = []
 export const prbList: PrbRecord[] = []
-export const proposalList: ProposalRecord[] = [
-  {
-    id: "PRO-2026-001",
-    requestId: "REQ-2026-014",
-    customerCode: "CUS-004",
-    customer: "SK텔레콤",
-    opportunityCode: "OPP-2026-004",
-    opportunity: "SK텔레콤 NMS 업그레이드",
-    proposalType: "SI 제안",
-    productGroup: "EMS",
-    requestDate: "2026-04-22",
-    proposalDeadline: "2026-04-30",
-    salesRep: "김영업",
-    contactName: "박민수",
-    attachments: [{ name: "SKT_NMS_제안서_최종본.pdf" }],
-    attachmentNames: ["SKT_NMS_제안서_최종본.pdf"],
-    createdAt: "2026-04-29T09:00:00.000Z",
-    updatedAt: "2026-04-29T09:00:00.000Z",
-  },
-  {
-    id: "PRO-2026-002",
-    requestId: "REQ-2026-015",
-    customerCode: "CUS-003",
-    customer: "현대자동차",
-    opportunityCode: "OPP-2026-003",
-    opportunity: "현대차 Automation 확장",
-    proposalType: "자체 제안",
-    productGroup: "Automation",
-    requestDate: "2026-04-28",
-    proposalDeadline: "2026-05-08",
-    salesRep: "박과장",
-    contactName: "이영희",
-    attachments: [{ name: "현대차_Automation_제안서_vFinal.pptx" }],
-    attachmentNames: ["현대차_Automation_제안서_vFinal.pptx"],
-    createdAt: "2026-05-02T06:30:00.000Z",
-    updatedAt: "2026-05-02T06:30:00.000Z",
-  },
-]
-export const bidResults: BidResultRecord[] = [
-  {
-    id: "BID-2026-001",
-    proposalId: "PRO-2026-001",
-    requestId: "REQ-2026-014",
-    customerCode: "CUS-004",
-    customer: "SK텔레콤",
-    opportunityCode: "OPP-2026-004",
-    opportunity: "SK텔레콤 NMS 업그레이드",
-    proposalType: "SI 제안",
-    productGroup: "EMS",
-    proposalDeadline: "2026-04-30",
-    salesRep: "김영업",
-    bidDate: "2026-05-03",
-    result: "수주",
-    amount: "3억",
-    competitor: "와이즈스톤",
-    reason: "기술 적합성과 기존 레퍼런스 경쟁력이 우세했습니다.",
-    attachments: [{ name: "SKT_NMS_입찰결과보고.pdf" }],
-    attachmentNames: ["SKT_NMS_입찰결과보고.pdf"],
-    createdAt: "2026-05-03T10:30:00.000Z",
-    updatedAt: "2026-05-03T10:30:00.000Z",
-  },
-]
+export const proposalList: ProposalRecord[] = []
+export const bidResults: BidResultRecord[] = []
 
 export const prbResults: PrbResultRecord[] = [
 ]
@@ -348,7 +288,22 @@ function readStoredRfpAnalyses() {
 
   try {
     const parsed = JSON.parse(stored) as RfpAnalysisRecord[]
-    const storedItems = Array.isArray(parsed) ? parsed.filter((item) => item && typeof item.id === "string") : []
+    const storedItems = Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item.id === "string" && typeof item.requestId === "string")
+      : []
+
+    const isLegacyMock = storedItems.some(
+      (item) =>
+        item.id.startsWith("RFP-2026-") ||
+        item.requestId?.startsWith("REQ-2026-") === true,
+    )
+
+    if (isLegacyMock) {
+      window.localStorage.removeItem(RFP_ANALYSES_STORAGE_KEY)
+      window.localStorage.removeItem(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY)
+      return []
+    }
+
     const deletedIds = new Set(readDeletedIds(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY))
     const merged = new Map<string, RfpAnalysisRecord>()
     for (const item of rfpList) {
@@ -397,6 +352,18 @@ function readStoredProposals() {
               : [],
           }))
       : []
+
+    const isLegacyMock = storedItems.some(
+      (item) =>
+        item.id.startsWith("PRO-2026-") ||
+        item.requestId.startsWith("REQ-2026-"),
+    )
+
+    if (isLegacyMock) {
+      window.localStorage.removeItem(PROPOSALS_STORAGE_KEY)
+      window.localStorage.removeItem(DELETED_PROPOSAL_IDS_STORAGE_KEY)
+      return []
+    }
 
     const merged = new Map<string, ProposalRecord>()
     const deletedIds = new Set(readDeletedIds(DELETED_PROPOSAL_IDS_STORAGE_KEY))
@@ -448,6 +415,19 @@ function readStoredBidResults() {
               : [],
           }))
       : []
+
+    const isLegacyMock = storedItems.some(
+      (item) =>
+        item.id.startsWith("BID-2026-") ||
+        item.proposalId.startsWith("PRO-2026-") ||
+        item.requestId.startsWith("REQ-2026-"),
+    )
+
+    if (isLegacyMock) {
+      window.localStorage.removeItem(BID_RESULTS_STORAGE_KEY)
+      window.localStorage.removeItem(DELETED_BID_RESULT_IDS_STORAGE_KEY)
+      return []
+    }
 
     const merged = new Map<string, BidResultRecord>()
     const deletedIds = new Set(readDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY))
