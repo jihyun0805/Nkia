@@ -12,6 +12,10 @@ public class PurchaseResponse {
 
     private Long orderReportId;
 
+    private Long projectOpportunityId;
+
+    private String projectOpportunityName;
+
     private String content;
 
     private Integer quantity;
