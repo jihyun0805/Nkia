@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -48,6 +49,9 @@ public class BidResultUpdateRequest {
 
     @NotNull(message = "공개 여부는 필수입니다.")
     private DisclosureStatus disclosureStatus;
+
+    private LocalDate bidAnnouncementDate;
+    private LocalDate presentationDate;
 
     @Valid
     @NotNull(message = "자사 점수는 필수입니다.")

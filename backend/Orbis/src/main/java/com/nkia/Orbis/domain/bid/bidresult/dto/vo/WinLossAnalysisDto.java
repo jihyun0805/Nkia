@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.bid.bidresult.dto.vo;
 
 import com.nkia.Orbis.domain.bid.bidresult.entity.AnalysisCategory;
+import com.nkia.Orbis.domain.bid.bidresult.entity.WinLossAnalysis;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -29,4 +30,13 @@ public class WinLossAnalysisDto {
     private Integer score;
 
     private String reason; // 평가 이유
+
+    public WinLossAnalysis toValueObject() {
+        return WinLossAnalysis.builder()
+                .category(this.category)
+                .evaluationItem(this.evaluationItem)
+                .score(this.score)
+                .reason(this.reason)
+                .build();
+    }
 }

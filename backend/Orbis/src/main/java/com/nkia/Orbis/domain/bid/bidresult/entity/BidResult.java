@@ -22,6 +22,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AccessLevel;
@@ -84,6 +85,14 @@ public class BidResult extends BaseEntity {
     @Column(nullable = false)
     private DisclosureStatus disclosureStatus;
 
+    // 입찰 공고일
+    @Column(name = "bid_announcement_date")
+    private LocalDate bidAnnouncementDate;
+
+    // 제안 발표일
+    @Column(name = "presentation_date")
+    private LocalDate presentationDate;
+
     @Embedded
     private CompanyScore ourCompanyScore;
 
@@ -102,10 +111,11 @@ public class BidResult extends BaseEntity {
 
     @Builder
     public BidResult(ProjectOpportunity projectOpportunity, Proposal proposal, User salesRepresentative,
-                     User projectManager, BigDecimal budget, Boolean isExternalPdInvolved, String keySuccessFactors,
-                     String rfpIssues, String proposalStrategy, BidOutcome bidOutcome,
-                     DisclosureStatus disclosureStatus,
-                     CompanyScore ourCompanyScore) {
+                     User projectManager, BigDecimal budget, Boolean isExternalPdInvolved,
+                     String keySuccessFactors, String rfpIssues, String proposalStrategy,
+                     BidOutcome bidOutcome, DisclosureStatus disclosureStatus,
+                     CompanyScore ourCompanyScore,
+                     LocalDate bidAnnouncementDate, LocalDate presentationDate) { // 파라미터 추가
         this.projectOpportunity = projectOpportunity;
         this.proposal = proposal;
         this.salesRepresentative = salesRepresentative;
@@ -118,7 +128,9 @@ public class BidResult extends BaseEntity {
         this.bidOutcome = bidOutcome;
         this.disclosureStatus = disclosureStatus;
         this.ourCompanyScore = ourCompanyScore;
-        this.totalAnalysisScore = 0; // 초기화
+        this.bidAnnouncementDate = bidAnnouncementDate; // 할당 추가
+        this.presentationDate = presentationDate;       // 할당 추가
+        this.totalAnalysisScore = 0;
     }
 
     // --- 비즈니스 로직 (도메인 주도 설계) ---
