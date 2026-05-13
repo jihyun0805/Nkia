@@ -637,6 +637,13 @@ export function getProposals() {
   return items
 }
 
+export function replaceProposals(records: ProposalRecord[]) {
+  writeStoredProposals(records)
+  writeDeletedIds(DELETED_PROPOSAL_IDS_STORAGE_KEY, [])
+  emitProposalsUpdate()
+  return records
+}
+
 export function getBidResults() {
   const items = readStoredBidResults()
   if (isBrowser() && !window.localStorage.getItem(BID_RESULTS_STORAGE_KEY)) {
