@@ -6,11 +6,9 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class PurchaseResponse {
+public class PurchaseFromOrderReportResponse {
 
     private Long id;
-
-    private Long orderReportId;
 
     private String content;
 
@@ -20,10 +18,9 @@ public class PurchaseResponse {
 
     private Long totalPrice;
 
-    public static PurchaseResponse from(Purchase purchase) {
-        return PurchaseResponse.builder()
+    public static PurchaseFromOrderReportResponse from(Purchase purchase) {
+        return PurchaseFromOrderReportResponse.builder()
                 .id(purchase.getId())
-                .orderReportId(purchase.getOrderReport().getId())
                 .content(purchase.getContent())
                 .quantity(purchase.getQuantity())
                 .price(purchase.getPrice())

@@ -5,7 +5,7 @@ import com.nkia.Orbis.domain.contract.license.dto.response.LicenseFromOrderRepor
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
-import com.nkia.Orbis.domain.contract.purchase.dto.response.PurchaseResponse;
+import com.nkia.Orbis.domain.contract.purchase.dto.response.PurchaseFromOrderReportResponse;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -92,7 +92,7 @@ public class OrderReportResponse {
 
     private List<OrderReportOtherResponse> others;
 
-    private List<PurchaseResponse> purchases;
+    private List<PurchaseFromOrderReportResponse> purchases;
 
     private Long itemTotalAmount;
 
@@ -210,7 +210,7 @@ public class OrderReportResponse {
                         .map(OrderReportOtherResponse::from)
                         .toList())
                 .purchases(orderReport.getPurchases().stream()
-                        .map(PurchaseResponse::from)
+                        .map(PurchaseFromOrderReportResponse::from)
                         .toList())
 
                 .itemTotalAmount(orderReport.getItemTotalAmount())

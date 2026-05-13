@@ -3,7 +3,7 @@ package com.nkia.Orbis.domain.contract.orderreport.dto.request;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseFromOrderReportRequest;
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
-import com.nkia.Orbis.domain.contract.purchase.dto.request.PurchaseRequest;
+import com.nkia.Orbis.domain.contract.purchase.dto.request.PurchaseFromOrderReportRequest;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -39,7 +39,7 @@ public class OrderReportRequest {
     private List<OrderReportServiceRequest> services;
     private List<OrderReportMaintenanceOnlyItemRequest> maintenanceOnlyItems;
     private List<OrderReportOtherRequest> others;
-    private List<PurchaseRequest> purchases;
+    private List<PurchaseFromOrderReportRequest> purchases;
     private Long emsMaintenanceSummary;
     private Long itgMaintenanceSummary;
     private Double itemTotalMaintenanceRate;

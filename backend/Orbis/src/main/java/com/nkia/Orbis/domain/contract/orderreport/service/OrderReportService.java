@@ -46,7 +46,7 @@ import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportOther
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportPurchaseHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportServiceItemHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.repository.OrderReportHistoryRepository;
-import com.nkia.Orbis.domain.contract.purchase.dto.request.PurchaseRequest;
+import com.nkia.Orbis.domain.contract.purchase.dto.request.PurchaseFromOrderReportRequest;
 import com.nkia.Orbis.domain.contract.purchase.entity.Purchase;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
@@ -334,12 +334,12 @@ public class OrderReportService {
         }
 
         if (request.getPurchases() != null) {
-            for (PurchaseRequest purchaseRequest : request.getPurchases()) {
+            for (PurchaseFromOrderReportRequest purchaseFromOrderReportRequest : request.getPurchases()) {
                 orderReport.addPurchase(
                         Purchase.create(
-                                purchaseRequest.getContent(),
-                                purchaseRequest.getQuantity(),
-                                purchaseRequest.getPrice()
+                                purchaseFromOrderReportRequest.getContent(),
+                                purchaseFromOrderReportRequest.getQuantity(),
+                                purchaseFromOrderReportRequest.getPrice()
                         )
                 );
             }
