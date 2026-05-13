@@ -100,6 +100,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 변경 이력 상세 조회")
     @GetMapping("/histories/{orderReportHistoryId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'READ')")
     public ResponseEntity<ApiResponse<OrderReportHistoryResponse>> getOrderReportHistory(
             @PathVariable("orderReportHistoryId") Long orderReportHistoryId
     ) {
@@ -110,6 +111,7 @@ public class OrderReportController {
 
     @Operation(summary = "수주보고서 결재 상신")
     @PostMapping("/submit/{orderReportId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'ORDER_REPORT', 'CREATE')")
     public ResponseEntity<ApiResponse<String>> submitOrderReport(
             @PathVariable("orderReportId") Long orderReportId,
             @RequestBody SubmitRequest request
