@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api/generated/auth/auth";
+import { customInstance } from "@/lib/api/customAxios";
 import { saveAuthSession, loadAuthSession } from "@/lib/auth-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,12 +46,28 @@ export default function LoginPage() {
 
       saveAuthSession({
         email: email,
-        // name: response?.data?.name || email,
-        // roles: response?.data?.roles || [],
         accessToken: accessToken,
         refreshToken: refreshToken,
         issuedAt: new Date().toISOString(),
       });
+
+      try {
+        const userInfoResponse = await customInstance<any>({ url: "/user/me", method: "GET" });
+        const userData = userInfoResponse?.data;
+        if (userData) {
+          saveAuthSession({
+            email: userData.email || email,
+            name: userData.name,
+            roles: userData.roles || [],
+            permissions: userData.permissions || [],
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            issuedAt: new Date().toISOString(),
+          });
+        }
+      } catch (userError) {
+        console.error("Failed to fetch user info", userError);
+      }
 
       toast({
         title: "로그인 성공",
