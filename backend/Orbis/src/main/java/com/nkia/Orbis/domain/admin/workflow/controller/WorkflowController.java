@@ -15,7 +15,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,9 +53,7 @@ public class WorkflowController {
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'APPROVE')")
     public ResponseEntity<ApiResponse<String>> approve(
             @PathVariable("workflowId") Long workflowId,
-            @RequestBody WorkflowApproveRequest request,
-            Authentication authentication
-    ) {
+            @RequestBody WorkflowApproveRequest request) {
         UUID userId = UUID.fromString(SecurityUtil.getCurrentUserId());
         workflowService.approve(
                 workflowId,
@@ -73,9 +70,7 @@ public class WorkflowController {
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'APPROVE')")
     public ResponseEntity<ApiResponse<String>> reject(
             @PathVariable("workflowId") Long workflowId,
-            @RequestBody WorkflowRejectRequest request,
-            Authentication authentication
-    ) {
+            @RequestBody WorkflowRejectRequest request) {
         UUID userId = UUID.fromString(SecurityUtil.getCurrentUserId());
         workflowService.reject(
                 workflowId,

@@ -1,8 +1,10 @@
 package com.nkia.Orbis.domain.admin.user.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.user.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
+import com.nkia.Orbis.domain.admin.user.dto.response.MyInfoResponse;
 import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
 import com.nkia.Orbis.domain.admin.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -81,6 +83,16 @@ public class UserController {
             @PathVariable("userId") UUID userId
     ) {
         UserResponse response = userService.getUser(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "내 정보 조회")
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<MyInfoResponse>> getMyInfo() {
+        UUID userId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        MyInfoResponse response = userService.getMyInfo(userId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
