@@ -60,10 +60,11 @@ const MAX_HISTORY_MESSAGES = 8
 const DEFAULT_LIMIT = 5
 
 const EXAMPLE_PROMPTS = [
-  "Q-REAL-002-R1 견적의 지급 조건을 알려줘",
-  "Q-REAL-008-R1 견적의 주요 내용을 알려줘",
-  "CMDB 모듈의 단가를 알려줘",
-  "통합대시보드 모듈의 유형과 단가를 알려줘",
+  "현재 진행 중인 사업기회 목록을 알려줘",
+  "QT-260520-0001 견적의 주요 내용과 금액을 알려줘",
+  "유지보수 중인 고객사와 계약 기간은?",
+  "올해 계약된 프로젝트와 계약 금액을 알려줘",
+  "PRB 심의 결과를 알려줘",
 ]
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
