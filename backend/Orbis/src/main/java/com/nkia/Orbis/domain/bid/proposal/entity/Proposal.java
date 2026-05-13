@@ -1,6 +1,8 @@
 package com.nkia.Orbis.domain.bid.proposal.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.ProposalErrorCode;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityRequest;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
@@ -70,7 +72,7 @@ public class Proposal extends BaseEntity {
 
     public void submitProposal() {
         if (this.files.isEmpty()) {
-            throw new IllegalStateException("제안서를 제출하려면 최소 1개 이상의 첨부파일이 필요합니다.");
+            throw new ApiException(ProposalErrorCode.FILES_REQUIRED_FOR_COMPLETION);
         }
         this.status = ProposalStatus.COMPLETED;
     }
