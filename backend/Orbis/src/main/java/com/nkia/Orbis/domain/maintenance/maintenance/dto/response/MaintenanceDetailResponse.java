@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.maintenance.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Importance;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.InspectionCycle;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
@@ -18,6 +19,9 @@ import lombok.Getter;
 public class MaintenanceDetailResponse {
 
     private Long id;
+
+    private Long workflowId;
+    private ApprovalStatus status;
 
     private Long projectId;
     private String projectName;
@@ -62,7 +66,7 @@ public class MaintenanceDetailResponse {
     /**
      * 엔티티를 DTO로 변환 (NPE 방지 처리 포함)
      */
-    public static MaintenanceDetailResponse from(Maintenance m) {
+    public static MaintenanceDetailResponse from(Maintenance m, Long workflowId) {
         String customerName = m.getProject() != null && m.getProject().getOrderReport() != null &&
                 m.getProject().getOrderReport().getFinalCustomerCompany() != null ?
                 m.getProject().getOrderReport().getFinalCustomerCompany().getName() : "-";
@@ -86,12 +90,15 @@ public class MaintenanceDetailResponse {
                 .contractDate(m.getContractDate())
                 .inspectionCycle(m.getInspectionCycle()).location(m.getLocation())
                 .productFamily(m.getProductFamily()).apVersion(m.getApVersion())
-                .aclPatchStatus(m.isAclPatchStatus()).vulnPatchStatus(m.isVulnPatchStatus()).upgradePlan(m.getUpgradePlan())
+                .aclPatchStatus(m.isAclPatchStatus()).vulnPatchStatus(m.isVulnPatchStatus())
+                .upgradePlan(m.getUpgradePlan())
                 .apCount(m.getApCount()).esCount(m.getEsCount())
                 .esVersion(m.getEsVersion()).dbHaStatus(m.isDbHaStatus())
                 .dbVersion(m.getDbVersion())
                 .remarks(m.getRemarks()).createdBy(m.getCreatedBy()).createdAt(m.getCreatedAt())
                 .contractFileId(m.getContractFile() != null ? m.getContractFile().getId() : null)
+                .status(m.getStatus())
+                .workflowId(workflowId)
                 .build();
     }
 }
