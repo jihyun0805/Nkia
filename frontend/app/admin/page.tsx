@@ -333,7 +333,7 @@ export default function AdminPage() {
                             <TableCell className="font-medium">{product.productName}</TableCell>
                             <TableCell>{product.licenseStandard}</TableCell>
                             <TableCell>{product.licenseUnit}</TableCell>
-                            <TableCell className="text-right">{product.unitPrice.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{(product.unitPrice || 0).toLocaleString()}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
