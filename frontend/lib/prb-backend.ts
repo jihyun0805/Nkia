@@ -17,10 +17,10 @@ type BackendPage<T> = {
   content?: T[]
 }
 
-type BackendUser = {
-  id?: string
-  email?: string
+type BackendMyInfoResponse = {
+  userId?: string
   name?: string
+  email?: string
 }
 
 type BackendProjectOpportunity = {
@@ -248,14 +248,19 @@ function parseApiResponse<T>(response: Response, fallbackMessage: string): Promi
   })
 }
 
-async function fetchUsers() {
-  const response = await fetch(`${getBackendApiBaseUrl()}/user`, {
-    headers: buildAuthHeaders(),
-    credentials: "include",
-    cache: "no-store",
-  })
+async function fetchCurrentUserId() {
+  try {
+    const response = await fetch(`${getBackendApiBaseUrl()}/user/me`, {
+      headers: buildAuthHeaders(),
+      credentials: "include",
+      cache: "no-store",
+    })
 
-  return parseApiResponse<BackendUser[]>(response, "사용자 목록을 불러오지 못했습니다.")
+    const payload = await parseApiResponse<BackendMyInfoResponse>(response, "현재 사용자 정보를 불러오지 못했습니다.")
+    return payload.userId ?? currentUser.id
+  } catch {
+    return currentUser.id
+  }
 }
 
 async function fetchProjectOpportunities() {
@@ -280,20 +285,12 @@ async function fetchPrbList() {
   return payload.content ?? []
 }
 
-function resolveAssigneeId(users: BackendUser[]) {
-  const email = normalizeLookupText(currentUser.email)
-  const name = normalizeLookupText(currentUser.name)
-  return users.find((user) => normalizeLookupText(user.email) === email)?.id
-    ?? users.find((user) => normalizeLookupText(user.name) === name)?.id
-    ?? ""
-}
-
-function resolveAssigneeIdFromInput(input: PrbRecord, users: BackendUser[]) {
+async function resolveAssigneeIdFromInput(input: PrbRecord) {
   if (input.salesRepresentativeId) {
     return input.salesRepresentativeId
   }
 
-  return resolveAssigneeId(users)
+  return fetchCurrentUserId()
 }
 
 function mapBidTypeToDisplay(value?: string) {
@@ -751,15 +748,13 @@ async function loadOpportunityLookup() {
 }
 
 export async function loadBackendPrbs() {
-  const [opportunityLookup, users, prbs] = await Promise.all([
+  const [opportunityLookup, prbs] = await Promise.all([
     loadOpportunityLookup(),
-    fetchUsers(),
     fetchPrbList(),
   ])
 
   const localLookup = new Map(getPrbs().map((item) => [item.id, item]))
   const rfpLookup = buildRfpLookup()
-  const salesRepresentativeId = resolveAssigneeId(users)
 
   const records = prbs.map((item) =>
     mapBackendPrbRecord(
@@ -770,24 +765,18 @@ export async function loadBackendPrbs() {
     ),
   )
 
-  const normalized = records.map((record) => ({
-    ...record,
-    salesRepresentativeId: record.salesRepresentativeId || salesRepresentativeId || undefined,
-  }))
-
-  replacePrbs(normalized)
-  return normalized
+  replacePrbs(records)
+  return records
 }
 
 async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const opportunityLookup = await loadOpportunityLookup()
-  const users = await fetchUsers()
   const projectOpportunityId = await resolveProjectOpportunityId(input as PrbRecord, opportunityLookup)
   if (projectOpportunityId == null) {
     throw new Error("선택한 고객사/사업기회를 백엔드에서 찾을 수 없습니다.")
   }
 
-  const salesRepresentativeId = resolveAssigneeIdFromInput(input as PrbRecord, users)
+  const salesRepresentativeId = await resolveAssigneeIdFromInput(input as PrbRecord)
   if (!salesRepresentativeId) {
     throw new Error("현재 사용자에 매핑되는 백엔드 사용자 ID를 찾지 못했습니다.")
   }

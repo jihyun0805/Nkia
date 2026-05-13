@@ -17,11 +17,10 @@ type BackendPage<T> = {
   content?: T[]
 }
 
-type BackendUser = {
-  id?: string
-  email?: string
+type BackendMyInfoResponse = {
+  userId?: string
   name?: string
-  employeeNumber?: string
+  email?: string
 }
 
 type BackendPrbResultAttendeeOpinion = {
@@ -97,14 +96,19 @@ function parseNumber(value?: string | number | null) {
   return Number.isNaN(parsed) ? null : parsed
 }
 
-async function fetchUsers() {
-  const response = await fetch(`${getBackendApiBaseUrl()}/user`, {
-    headers: buildAuthHeaders(),
-    credentials: "include",
-    cache: "no-store",
-  })
+async function fetchCurrentUserId() {
+  try {
+    const response = await fetch(`${getBackendApiBaseUrl()}/user/me`, {
+      headers: buildAuthHeaders(),
+      credentials: "include",
+      cache: "no-store",
+    })
 
-  return parseApiResponse<BackendUser[]>(response, "사용자 목록을 불러오지 못했습니다.")
+    const payload = await parseApiResponse<BackendMyInfoResponse>(response, "현재 사용자 정보를 불러오지 못했습니다.")
+    return payload.userId ?? currentUser.id
+  } catch {
+    return currentUser.id
+  }
 }
 
 async function fetchPrbResultList() {
@@ -129,16 +133,6 @@ async function fetchPrbResultDetail(id: string) {
   })
 
   return parseApiResponse<BackendPrbResultResponse>(response, "PRB 결과 상세를 불러오지 못했습니다.")
-}
-
-function resolveUserIdByName(users: BackendUser[], value?: string | null) {
-  const normalized = normalizeLookupText(value)
-  if (!normalized) return ""
-
-  return users.find((user) => normalizeLookupText(user.email) === normalized)?.id
-    ?? users.find((user) => normalizeLookupText(user.name) === normalized)?.id
-    ?? users.find((user) => normalizeLookupText(user.employeeNumber) === normalized)?.id
-    ?? ""
 }
 
 function mapApprovalStatusToBackend(value?: string) {
@@ -176,6 +170,25 @@ function normalizeAttendeeOpinions(
   }
 
   return normalized
+}
+
+function resolveAttendeeUserId(participant?: string | null, currentUserId?: string) {
+  const normalized = normalizeLookupText(participant)
+  if (!normalized) return ""
+
+  const currentNormalizedName = normalizeLookupText(currentUser.name)
+  const currentNormalizedEmail = normalizeLookupText(currentUser.email)
+  const currentNormalizedId = normalizeLookupText(currentUserId ?? currentUser.id)
+
+  if (
+    normalized === currentNormalizedName ||
+    normalized === currentNormalizedEmail ||
+    normalized === currentNormalizedId
+  ) {
+    return currentUserId ?? currentUser.id
+  }
+
+  return ""
 }
 
 function mapBackendPrbResult(
@@ -217,10 +230,13 @@ function mapBackendPrbResult(
   }
 }
 
-function buildAttendeeOpinionRequests(opinions: PrbResultRecord["attendeeOpinions"], users: BackendUser[]) {
+function buildAttendeeOpinionRequests(
+  opinions: PrbResultRecord["attendeeOpinions"],
+  currentUserId?: string,
+) {
   const requests: BackendPrbResultAttendeeOpinionRequest[] = []
 
-  for (const [index, item] of (opinions ?? []).entries()) {
+  for (const item of opinions ?? []) {
     const participant = item.participant.trim()
     const opinion = item.opinion.trim()
     const decision = item.decision.trim()
@@ -233,9 +249,9 @@ function buildAttendeeOpinionRequests(opinions: PrbResultRecord["attendeeOpinion
       continue
     }
 
-    const attendeeUserId = resolveUserIdByName(users, participant)
+    const attendeeUserId = resolveAttendeeUserId(participant, currentUserId)
     if (!attendeeUserId) {
-      throw new Error(`참석자 ${index + 1}를 백엔드 사용자와 매칭하지 못했습니다.`)
+      continue
     }
 
     requests.push({
@@ -249,13 +265,13 @@ function buildAttendeeOpinionRequests(opinions: PrbResultRecord["attendeeOpinion
 }
 
 async function buildPrbResultRequest(input: Omit<PrbResultRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
-  const users = await fetchUsers()
   const prbId = parseNumber(input.prbId)
   if (prbId == null) {
     throw new Error("PRB 결과를 저장할 PRB를 찾지 못했습니다.")
   }
 
-  const attendeeOpinions = buildAttendeeOpinionRequests(input.attendeeOpinions, users)
+  const currentUserId = await fetchCurrentUserId()
+  const attendeeOpinions = buildAttendeeOpinionRequests(input.attendeeOpinions, currentUserId)
 
   return {
     prbId,
