@@ -10,7 +10,8 @@ public enum AlarmType {
     APPROVAL_REJECTED("결재 반려"),
     QUOTE_REVIEW("견적서 검토 요청"),
     DEADLINE_WARNING("마감 기한 알림"),
-    MAINTENANCE_EXPIRY("유지보수 만료 알림");
+    MAINTENANCE_EXPIRY("유지보수 만료 알림"),
+    ACTIVITY_REQUEST("활동 요청");
 
     private final String description;
 }
