@@ -13,7 +13,6 @@ import { ClipboardList, Receipt, TrendingUp, Plus, Loader2, AlertCircle } from "
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { contracts, orderReports } from "@/lib/contract-data";
 import { ProjectResultForm } from "@/components/erp/project/project-result-form";
 import { BillingRequestForm } from "@/components/erp/project/billing-request-form";
 import { projectApi, type ProjectListResponse, type BillingListResponse } from "@/lib/api/project-api";
@@ -264,16 +263,8 @@ export default function ProjectPage() {
                         <Loader2 className="w-5 h-5 animate-spin" />
                         불러오는 중...
                       </div>
-                    ) : projectsError ? (
-                      <div className="flex justify-center items-center py-16 gap-2 text-destructive">
-                        <AlertCircle className="w-5 h-5" />
-                        {projectsError}
-                        <Button variant="ghost" size="sm" onClick={fetchProjects}>
-                          재시도
-                        </Button>
-                      </div>
-                    ) : filteredProjects.length === 0 ? (
-                      <div className="text-center py-16 text-muted-foreground">등록된 사업이 없습니다.</div>
+                    ) : (projectsError || filteredProjects.length === 0) ? (
+                      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 사업 결과보고 내역이 없습니다.</div>
                     ) : (
                       <Table>
                         <TableHeader>
@@ -343,16 +334,8 @@ export default function ProjectPage() {
                         <Loader2 className="w-5 h-5 animate-spin" />
                         불러오는 중...
                       </div>
-                    ) : billingsError ? (
-                      <div className="flex justify-center items-center py-16 gap-2 text-destructive">
-                        <AlertCircle className="w-5 h-5" />
-                        {billingsError}
-                        <Button variant="ghost" size="sm" onClick={fetchBillings}>
-                          재시도
-                        </Button>
-                      </div>
-                    ) : filteredBillings.length === 0 ? (
-                      <div className="text-center py-16 text-muted-foreground">등록된 청구 내역이 없습니다.</div>
+                    ) : (billingsError || filteredBillings.length === 0) ? (
+                      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 청구 및 수금 내역이 없습니다.</div>
                     ) : (
                       <Table>
                         <TableHeader>
@@ -425,6 +408,14 @@ export default function ProjectPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {revenueLoading ? (
+                    <div className="flex justify-center items-center py-16 gap-2 text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      불러오는 중...
+                    </div>
+                  ) : expectedRevenue.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 예상 매출액이 없습니다.</div>
+                  ) : (
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
@@ -468,6 +459,7 @@ export default function ProjectPage() {
                       </TableRow>
                     </TableFooter>
                   </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
