@@ -18,7 +18,9 @@ public enum MaintenanceErrorCode implements ErrorCode {
     INVALID_CS_REQUEST_STATUS(HttpStatus.BAD_REQUEST, "MAINTENANCE_0009",
             "유효하지 않은 CS request status 입니다."),
     INVALID_MAINTENANCE_STATUS(HttpStatus.BAD_REQUEST, "MAINTENANCE_0010",
-            "유효하지 않은 maintenance status 입니다.");
+            "유효하지 않은 maintenance status 입니다."),
+    INVALID_MAINTENANCE_QUOTATION_STATUS(HttpStatus.BAD_REQUEST, "MAINTENANCE_0011",
+            "유효하지 않은 maintenance quotation status 입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
