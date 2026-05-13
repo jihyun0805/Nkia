@@ -311,72 +311,6 @@ export const bidResults: BidResultRecord[] = [
 ]
 
 export const prbResults: PrbResultRecord[] = [
-  {
-    id: "PRBR-2026-001",
-    prbId: "PRB-2026-004",
-    customerCode: "CUS-PRB-004",
-    customer: "현대자동차",
-    opportunityCode: "OPP-PRB-004",
-    opportunity: "현대차 Automation 확장",
-    proposalDeadline: "2026-03-28",
-    createdDate: "2026-03-21",
-    author: "박과장",
-    meetingDate: "2026-03-21 14:00",
-    location: "현대자동차 본사 5층 회의실",
-    riskFactors: "원가 경쟁 심화와 일정 단축 요구에 대한 대응 방안 재정비 필요.",
-    attendeeOpinions: Array.from({ length: 7 }, (_, index) => ({
-      participant: `참석자 ${index + 1}`,
-      opinion: "",
-      decision: "찬성",
-    })),
-    overallOpinion: "추가 원가 검토 후 조건부 진행.",
-    createdAt: "2026-03-21T09:30:00.000Z",
-    updatedAt: "2026-03-21T09:30:00.000Z",
-  },
-  {
-    id: "PRBR-2026-002",
-    prbId: "PRB-2026-002",
-    customerCode: "CUS-PRB-002",
-    customer: "국방부",
-    opportunityCode: "OPP-PRB-002",
-    opportunity: "국방부 IT서비스관리 시스템 구축",
-    proposalDeadline: "2026-03-20",
-    createdDate: "2026-03-22",
-    author: "이대리",
-    meetingDate: "2026-03-22 10:00",
-    location: "국방부 화상회의",
-    riskFactors: "파트너 역할 분담과 고객 요구 범위가 일부 불명확.",
-    attendeeOpinions: Array.from({ length: 7 }, (_, index) => ({
-      participant: `참석자 ${index + 1}`,
-      opinion: "",
-      decision: "찬성",
-    })),
-    overallOpinion: "파트너 범위 확인 후 진행.",
-    createdAt: "2026-03-22T10:00:00.000Z",
-    updatedAt: "2026-03-22T10:00:00.000Z",
-  },
-  {
-    id: "PRBR-2026-003",
-    prbId: "PRB-2026-001",
-    customerCode: "CUS-PRB-001",
-    customer: "삼성전자",
-    opportunityCode: "OPP-PRB-001",
-    opportunity: "삼성전자 통합 모니터링 시스템 구축",
-    proposalDeadline: "2026-03-25",
-    createdDate: "2026-03-24",
-    author: "김영업",
-    meetingDate: "2026-03-24 15:00",
-    location: "삼성전자 서초사옥",
-    riskFactors: "제안 발표 일정이 촉박하여 산출물 품질 관리 필요.",
-    attendeeOpinions: Array.from({ length: 7 }, (_, index) => ({
-      participant: `참석자 ${index + 1}`,
-      opinion: "",
-      decision: "찬성",
-    })),
-    overallOpinion: "승인 기준 충족으로 추진.",
-    createdAt: "2026-03-24T14:00:00.000Z",
-    updatedAt: "2026-03-24T14:00:00.000Z",
-  },
 ]
 
 export const bidStatuses = ["접수", "분석중", "완료", "승인", "검토중", "작성중", "미정", "수주", "실주"]
@@ -540,7 +474,7 @@ function readStoredPrbResults() {
   if (!isBrowser()) return prbResults
 
   const stored = window.localStorage.getItem(PRB_RESULTS_STORAGE_KEY)
-  if (!stored) return prbResults
+  if (!stored) return []
 
   try {
     const parsed = JSON.parse(stored) as PrbResultRecord[]
@@ -568,15 +502,23 @@ function readStoredPrbResults() {
         }))
       : []
 
-    const merged = new Map<string, PrbResultRecord>()
-    const deletedIds = new Set(readDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY))
-    for (const item of prbResults) {
-      if (!deletedIds.has(item.id)) merged.set(item.id, item)
+    const isLegacyMock = storedItems.some(
+      (item) =>
+        item.id.startsWith("PRBR-2026-") ||
+        item.prbId.startsWith("PRB-2026-") ||
+        item.customerCode.startsWith("CUS-PRB-"),
+    )
+
+    if (isLegacyMock) {
+      window.localStorage.removeItem(PRB_RESULTS_STORAGE_KEY)
+      window.localStorage.removeItem(DELETED_PRB_RESULT_IDS_STORAGE_KEY)
+      return []
     }
-    for (const item of storedItems) merged.set(item.id, item)
-    return [...merged.values()]
+
+    const deletedIds = new Set(readDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY))
+    return storedItems.filter((item) => !deletedIds.has(item.id))
   } catch {
-    return prbResults
+    return []
   }
 }
 
