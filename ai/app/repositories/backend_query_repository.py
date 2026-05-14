@@ -135,15 +135,70 @@ def customer_type_select_expr(*, table_alias: str = "c", output_name: str = "cus
 
 
 def customer_group_value_expr(*, table_alias: str = "c") -> str:
-    return _first_existing_column_expr(
-        table_name="company",
-        table_alias=table_alias,
-        candidates=("customer_group",),
-    )
+    columns = fetch_public_table_columns("company")
+    if "customer_group" in columns:
+        return f"{table_alias}.customer_group"
+    if "sector" in columns:
+        return (
+            f"CASE "
+            f"WHEN upper({table_alias}.sector) = 'PUBLIC' THEN '공공' "
+            f"WHEN upper({table_alias}.sector) = 'PRIVATE' THEN '민간' "
+            f"ELSE {table_alias}.sector END"
+        )
+    return "NULL::text"
 
 
 def customer_group_select_expr(*, table_alias: str = "c", output_name: str = "customer_group") -> str:
     return f"{customer_group_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def order_report_code_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("won_report_code", "order_report_code"),
+    )
+
+
+def order_report_amount_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("contract_amount", "total_amount", "item_total_amount"),
+        cast_type="numeric",
+    )
+
+
+def order_report_revenue_category_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("revenue_category", "type", "code_type"),
+    )
+
+
+def order_report_payment_terms_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("payment_terms", "payment_condition"),
+    )
+
+
+def order_report_business_scope_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("business_scope", "scope_of_work"),
+    )
+
+
+def order_report_special_notes_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("special_notes", "remarks"),
+    )
 
 
 def opportunity_status_value_expr(*, table_alias: str = "o") -> str:
@@ -322,6 +377,8 @@ def fetch_metric_rows_for_opportunity_codes(
         return []
     metric_column = metric_key
     customer_name_expr = company_name_select_expr()
+    customer_group_expr = customer_group_select_expr()
+    customer_type_expr = customer_type_select_expr()
     opportunity_status_expr = opportunity_status_select_expr()
     opportunity_expected_amount_expr = opportunity_expected_amount_select_expr()
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
@@ -370,25 +427,33 @@ def fetch_metric_rows_for_opportunity_codes(
                     {"opportunity_codes": opportunity_codes},
                 )
             elif metric_key == "contract_amount":
+                contract_amount_expr = _first_existing_column_expr(
+                    table_name="contract",
+                    table_alias="ct",
+                    candidates=("contract_amount", "total_amount"),
+                    cast_type="numeric",
+                )
                 cur.execute(
                     f"""
                     SELECT
-                        w.won_report_code AS reference_code,
+                        CONCAT('CTR-', ct.id)::text AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
                         {customer_name_expr},
                         {opportunity_status_expr},
-                        w.contract_amount,
-                        w.revenue_category,
-                        w.payment_terms,
-                        w.business_scope,
-                        w.special_notes
-                    FROM {_WR} w
-                    JOIN {_OPP} o ON o.id = w.opportunity_id
+                        {contract_amount_expr} AS contract_amount,
+                        {order_report_revenue_category_value_expr()} AS revenue_category,
+                        {order_report_payment_terms_value_expr()} AS payment_terms,
+                        {order_report_business_scope_value_expr()} AS business_scope,
+                        {order_report_special_notes_value_expr()} AS special_notes
+                    FROM {_CT} ct
+                    JOIN {_WR} w ON w.id = ct.order_report_id
+                    JOIN {_OPP} o ON o.id = w.project_opportunity_id
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     WHERE o.opportunity_code = ANY(%(opportunity_codes)s::varchar[])
-                      AND w.contract_amount IS NOT NULL
-                    ORDER BY w.contract_amount DESC, w.id
+                      AND {contract_amount_expr} IS NOT NULL
+                      AND ct.deleted = false
+                    ORDER BY {contract_amount_expr} DESC, ct.id
                     """,
                     {"opportunity_codes": opportunity_codes},
                 )
@@ -2926,26 +2991,34 @@ def build_metric_query(
         )
 
     if metric_key == "contract_amount":
+        contract_amount_expr = _first_existing_column_expr(
+            table_name="contract",
+            table_alias="ct",
+            candidates=("contract_amount", "total_amount"),
+            cast_type="numeric",
+        )
         return (
             f"""
             SELECT
-                w.won_report_code AS reference_code,
+                CONCAT('CTR-', ct.id)::text AS reference_code,
                 o.opportunity_code,
                 o.opportunity_name,
                 c.name AS customer_name,
                 {status_select},
-                w.contract_amount,
-                w.revenue_category,
-                w.payment_terms,
-                w.business_scope,
-                w.special_notes
-            FROM {_WR} w
-            JOIN {_OPP} o ON o.id = w.opportunity_id
+                {contract_amount_expr} AS contract_amount,
+                {order_report_revenue_category_value_expr()} AS revenue_category,
+                {order_report_payment_terms_value_expr()} AS payment_terms,
+                {order_report_business_scope_value_expr()} AS business_scope,
+                {order_report_special_notes_value_expr()} AS special_notes
+            FROM {_CT} ct
+            JOIN {_WR} w ON w.id = ct.order_report_id
+            JOIN {_OPP} o ON o.id = w.project_opportunity_id
             JOIN {_CO} c ON c.id = o.customer_company_id
-            WHERE w.contract_amount IS NOT NULL
+            WHERE {contract_amount_expr} IS NOT NULL
+              AND ct.deleted = false
               {status_filter_sql}
               {opportunity_filter_sql}
-            ORDER BY w.contract_amount {direction}, w.id
+            ORDER BY {contract_amount_expr} {direction}, ct.id
             LIMIT %(limit)s
             """,
             metric_key,
@@ -3024,13 +3097,32 @@ def build_query_params(
     filters: dict[str, list[str]],
     limit: int,
 ) -> dict[str, Any]:
+    customer_group_filters = expand_customer_group_filters(filters.get("customer_group") or [])
     return {
         "status_filters": status_filters,
-        "customer_group": filters.get("customer_group") or [],
+        "customer_group": customer_group_filters,
         "customer_type": filters.get("customer_type") or [],
         "business_type": filters.get("business_type") or [],
         "limit": limit,
     }
+
+
+def expand_customer_group_filters(values: list[str]) -> list[str]:
+    expanded: list[str] = []
+    mapping = {
+        "PUBLIC": "공공",
+        "PRIVATE": "민간",
+        "공공": "공공",
+        "민간": "민간",
+    }
+    for value in values:
+        normalized = str(value or "").strip()
+        if not normalized:
+            continue
+        mapped = mapping.get(normalized.upper(), mapping.get(normalized, normalized))
+        if mapped not in expanded:
+            expanded.append(mapped)
+    return expanded
 
 
 _ENTITY_COUNT_TABLE_MAP: dict[str, str] = {
@@ -3068,6 +3160,8 @@ def fetch_entity_count(entity_type: str) -> int | None:
 def fetch_opportunity_list_rows(*, limit: int = 50) -> list[dict[str, Any]]:
     db_url = build_backend_database_url()
     customer_name_expr = company_name_select_expr()
+    customer_group_expr = customer_group_select_expr()
+    customer_type_expr = customer_type_select_expr()
     opportunity_status_expr = opportunity_status_select_expr()
     opportunity_expected_amount_expr = opportunity_expected_amount_select_expr()
     opportunity_business_type_expr = opportunity_business_type_select_expr()
@@ -3080,6 +3174,8 @@ def fetch_opportunity_list_rows(*, limit: int = 50) -> list[dict[str, Any]]:
                         o.opportunity_code,
                         o.opportunity_name,
                         {customer_name_expr},
+                        {customer_group_expr},
+                        {customer_type_expr},
                         {opportunity_status_expr},
                         {opportunity_expected_amount_expr},
                         {opportunity_business_type_expr}

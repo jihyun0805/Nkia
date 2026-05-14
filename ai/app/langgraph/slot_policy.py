@@ -130,6 +130,15 @@ def apply_slot_policy(
         priority="OPTIONAL",
         source="user_query" if document_scope else None,
     )
+    attachment_session_required = should_require_attachment_session(query=query, graph_state=graph_state)
+    slots["attachment_session"] = GraphSlotEntry(
+        value=graph_state.attachmentSessionId,
+        status="EXPLICIT" if graph_state.attachmentSessionId else (
+            "MISSING_REQUIRED" if attachment_session_required else "OPTIONAL_EMPTY"
+        ),
+        priority="REQUIRED" if attachment_session_required else "OPTIONAL",
+        source="request" if graph_state.attachmentSessionId else None,
+    )
 
     meaningful_entity_terms = extract_meaningful_entity_terms(graph_state.entityScope.entityTerms)
     meaningful_customer_terms = extract_meaningful_entity_terms(graph_state.entityScope.customerTerms)
@@ -203,6 +212,31 @@ def detect_document_scope(*, query: str, normalization: QueryNormalization) -> s
     if len(normalization.source_type_hints) == 1:
         return normalization.source_type_hints[0]
     return None
+
+
+def should_require_attachment_session(*, query: str, graph_state: GraphState) -> bool:
+    if graph_state.attachmentSessionId:
+        return False
+
+    normalized_query = " ".join(query.lower().split())
+    has_attachment_reference = any(
+        keyword in normalized_query
+        for keyword in ("첨부", "업로드", "첨부파일", "내가 올린", "올린 문서", "올린 파일")
+    )
+    has_related_business_request = any(
+        keyword in normalized_query
+        for keyword in (
+            "관련된 사업",
+            "관련 사업",
+            "관련된 사업기회",
+            "관련 사업기회",
+            "어떤 사업",
+            "어느 사업",
+            "사업 알려",
+            "사업기회 알려",
+        )
+    )
+    return has_attachment_reference and has_related_business_request
 
 
 def determine_population_scope(*, graph_state: GraphState, has_entity_scope: bool) -> str:
