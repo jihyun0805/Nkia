@@ -32,6 +32,7 @@ type CompanySummaryResponse = {
   sector?: "PUBLIC" | "PRIVATE" | "OVERSEAS" | string;
   category?: "SI" | "SOLUTION" | "ETC" | string;
   address?: string;
+  memo?: string;
 };
 
 type CompanyManagerSummaryResponse = {
@@ -45,6 +46,7 @@ type CompanyManagerSummaryResponse = {
   department?: string;
   position?: string;
   role?: string;
+  memo?: string;
 };
 
 type ProjectOpportunitySummaryResponse = {
@@ -60,6 +62,15 @@ type ProjectOpportunitySummaryResponse = {
   salesRepresentativeName?: string;
   createUserName?: string;
   description?: string;
+  competitionStatus?: string;
+};
+
+type OpportunityDisplayOverride = {
+  competitionStatus?: string;
+};
+
+type CompanyDisplayOverride = {
+  memo?: string;
 };
 
 type OrderReportSummaryResponse = {
@@ -75,6 +86,9 @@ export type FindingBackendData = {
   customers: CustomerRecord[];
   partners: PartnerRecord[];
 };
+
+const opportunityDisplayOverrideStorageKey = "orbis.project-opportunity-display-overrides";
+const companyDisplayOverrideStorageKey = "orbis.company-display-overrides";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -95,6 +109,80 @@ function normalizeResponseMessage<T>(response: Response, fallbackMessage: string
       }
       return body.data;
     });
+}
+
+function loadOpportunityDisplayOverrides() {
+  if (!isBrowser()) return {} as Record<string, OpportunityDisplayOverride>;
+
+  const stored = window.localStorage.getItem(opportunityDisplayOverrideStorageKey);
+  if (!stored) return {} as Record<string, OpportunityDisplayOverride>;
+
+  try {
+    const parsed = JSON.parse(stored) as Record<string, OpportunityDisplayOverride>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveOpportunityDisplayOverrides(overrides: Record<string, OpportunityDisplayOverride>) {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(opportunityDisplayOverrideStorageKey, JSON.stringify(overrides));
+}
+
+function setOpportunityDisplayOverride(opportunityCode?: string, override?: OpportunityDisplayOverride) {
+  const normalizedCode = opportunityCode?.trim();
+  if (!normalizedCode) return;
+
+  const overrides = loadOpportunityDisplayOverrides();
+  overrides[normalizedCode] = {
+    ...overrides[normalizedCode],
+    ...override,
+  };
+  saveOpportunityDisplayOverrides(overrides);
+}
+
+function getOpportunityDisplayOverride(opportunityCode?: string) {
+  const normalizedCode = opportunityCode?.trim();
+  if (!normalizedCode) return null;
+  return loadOpportunityDisplayOverrides()[normalizedCode] ?? null;
+}
+
+function loadCompanyDisplayOverrides() {
+  if (!isBrowser()) return {} as Record<string, CompanyDisplayOverride>;
+
+  const stored = window.localStorage.getItem(companyDisplayOverrideStorageKey);
+  if (!stored) return {} as Record<string, CompanyDisplayOverride>;
+
+  try {
+    const parsed = JSON.parse(stored) as Record<string, CompanyDisplayOverride>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCompanyDisplayOverrides(overrides: Record<string, CompanyDisplayOverride>) {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(companyDisplayOverrideStorageKey, JSON.stringify(overrides));
+}
+
+function setCompanyDisplayOverride(companyCode?: string, override?: CompanyDisplayOverride) {
+  const normalizedCode = companyCode?.trim();
+  if (!normalizedCode) return;
+
+  const overrides = loadCompanyDisplayOverrides();
+  overrides[normalizedCode] = {
+    ...overrides[normalizedCode],
+    ...override,
+  };
+  saveCompanyDisplayOverrides(overrides);
+}
+
+function getCompanyDisplayOverride(companyCode?: string) {
+  const normalizedCode = companyCode?.trim();
+  if (!normalizedCode) return null;
+  return loadCompanyDisplayOverrides()[normalizedCode] ?? null;
 }
 
 async function normalizeVoidResponse(response: Response, fallbackMessage: string): Promise<void> {
@@ -207,6 +295,78 @@ function stageLabel(value?: string) {
   return "-";
 }
 
+function parseOpportunityDescription(description?: string | null) {
+  const normalized = String(description ?? "").trim();
+  if (!normalized || normalized === "-") {
+    return {
+      moduleName: "",
+      issue: "",
+      decisionInfo: "",
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(normalized) as {
+      moduleName?: string
+      issue?: string
+      decisionInfo?: string
+    }
+    if (parsed && typeof parsed === "object") {
+      const moduleName = String(parsed.moduleName ?? "").trim()
+      const issue = String(parsed.issue ?? "").trim()
+      const decisionInfo = String(parsed.decisionInfo ?? "").trim()
+      if (moduleName || issue || decisionInfo) {
+        return {
+          moduleName,
+          issue,
+          decisionInfo,
+        }
+      }
+    }
+  } catch {
+    // Fall back to the legacy free-form format below.
+  }
+
+  const blocks = normalized
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  if (blocks.length === 0) {
+    return {
+      moduleName: "",
+      issue: "",
+      decisionInfo: "",
+    };
+  }
+
+  if (blocks.length === 1) {
+    return {
+      moduleName: "",
+      issue: blocks[0],
+      decisionInfo: "",
+    };
+  }
+
+  const moduleName = blocks[0];
+  const decisionInfo = blocks[blocks.length - 1];
+  const issueBlocks = blocks.slice(1, -1);
+
+  while (issueBlocks.length > 0 && issueBlocks[0] === moduleName) {
+    issueBlocks.shift();
+  }
+
+  while (issueBlocks.length > 0 && issueBlocks[issueBlocks.length - 1] === decisionInfo) {
+    issueBlocks.pop();
+  }
+
+  return {
+    moduleName,
+    issue: issueBlocks.join("\n\n"),
+    decisionInfo,
+  };
+}
+
 function formatAmount(value?: number | string | null) {
   if (value == null) return "-";
   if (typeof value === "number") return Number.isFinite(value) ? value.toLocaleString("ko-KR") : "-";
@@ -228,7 +388,7 @@ function toContacts(managers: CompanyManagerSummaryResponse[]): CustomerContact[
       landlinePhone: manager.officePhone ?? "",
       fax: "",
       duty: manager.role ?? "",
-      memo: "",
+      memo: manager.memo ?? "",
     }))
     .filter((item) => item.name || item.mobilePhone || item.landlinePhone || item.email || item.department || item.position);
 }
@@ -321,6 +481,8 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
 
   const customerLookup = new Map(customerCompanies.map((company) => [company.id ?? -1, company] as const));
   const opportunities: OpportunityRecord[] = projectOpportunities.map((item, index) => {
+    const parsedDescription = parseOpportunityDescription(item.description);
+    const displayOverride = getOpportunityDisplayOverride(item.opportunityCode);
     return {
       id: item.opportunityCode ?? String(item.id ?? `OPP-${index + 1}`),
       backendId: item.id,
@@ -335,12 +497,12 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       partners: [],
       category: "-",
       product: item.projectType ? String(item.projectType) : "-",
-      module: item.projectType ? String(item.projectType) : "-",
+      module: parsedDescription.moduleName || "-",
       expectedAmount: formatAmount(item.expectedBudget),
       expectedDate: item.expectedBidDate ?? "-",
-      issue: item.description ?? "-",
-      competition: "-",
-      decisionInfo: item.createUserName ?? "-",
+      issue: parsedDescription.issue || "-",
+      competition: displayOverride?.competitionStatus?.trim() || item.competitionStatus || "-",
+      decisionInfo: parsedDescription.decisionInfo || item.createUserName || "-",
       partnerType: "-",
       partnerContact: "-",
       partnerPhone: "-",
@@ -352,6 +514,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
 
   const customers: CustomerRecord[] = customerCompanies.map((company) => {
     const managers = customerManagersByCode.get(company.code ?? "") ?? [];
+    const displayOverride = getCompanyDisplayOverride(company.code);
     return {
       id: buildCustomerRecordCode(company),
       backendId: company.id,
@@ -363,7 +526,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       phone: firstContactPhone(managers),
       contacts: toContacts(managers),
       address: company.address ?? "",
-      memo: `진행중 사업기회 ${company.id != null ? (customerOppCount.get(String(company.id)) ?? 0) : 0}건 / 계약 ${company.id != null ? (customerContractCount.get(String(company.id)) ?? 0) : 0}건`,
+      memo: displayOverride?.memo?.trim() || company.memo || `진행중 사업기회 ${company.id != null ? (customerOppCount.get(String(company.id)) ?? 0) : 0}건 / 계약 ${company.id != null ? (customerContractCount.get(String(company.id)) ?? 0) : 0}건`,
       aliases: [company.code ?? "", company.name ?? ""].filter(Boolean),
       attachments: [],
       contactName: managers[0]?.name ?? "",
@@ -378,6 +541,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
   const partners: PartnerRecord[] = partnerCompanies.map((company) => {
     const managers = partnerManagersByCode.get(company.code ?? "") ?? [];
     const projectsCount = 0;
+    const displayOverride = getCompanyDisplayOverride(company.code);
     return {
       id: company.code ?? `PTN-${company.id ?? ""}`,
       backendId: company.id,
@@ -389,7 +553,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       phone: firstContactPhone(managers),
       contacts: toContacts(managers),
       address: company.address ?? "",
-      memo: `진행중 사업기회 0건 / 진행중 프로젝트 ${projectsCount}건`,
+      memo: displayOverride?.memo?.trim() || company.memo || `진행중 사업기회 0건 / 진행중 프로젝트 ${projectsCount}건`,
       attachments: [],
       contactName: managers[0]?.name ?? "",
       position: managers[0]?.position ?? "",
@@ -433,6 +597,7 @@ export async function createBackendCompany(input: {
   sector?: "PUBLIC" | "PRIVATE" | "OVERSEAS" | null;
   category?: "SI" | "SOLUTION" | "ETC" | null;
   address?: string;
+  memo?: string;
 }) {
   const response = await fetch(`${getBackendApiBaseUrl()}/companies`, {
     method: "POST",
@@ -449,6 +614,7 @@ export async function createBackendCompany(input: {
       sector: input.sector ?? null,
       category: input.category ?? null,
       address: input.address ?? null,
+      memo: input.memo ?? null,
     }),
   });
 
@@ -470,6 +636,7 @@ export async function createBackendCompany(input: {
 
   const created = await findCompanyByCode(input.companyType, input.code);
   if (typeof created?.id === "number") {
+    setCompanyDisplayOverride(input.code, { memo: input.memo });
     return created.id;
   }
 
@@ -483,7 +650,9 @@ export async function updateBackendCompany(
     sector?: "PUBLIC" | "PRIVATE" | "OVERSEAS" | null;
     category?: "SI" | "SOLUTION" | "ETC" | null;
     address?: string;
+    memo?: string;
   },
+  companyCode?: string,
 ) {
   const response = await fetch(`${getBackendApiBaseUrl()}/companies/${companyId}`, {
     method: "PUT",
@@ -497,9 +666,11 @@ export async function updateBackendCompany(
       sector: input.sector ?? null,
       category: input.category ?? null,
       address: input.address ?? null,
+      memo: input.memo ?? null,
     }),
   });
 
+  setCompanyDisplayOverride(companyCode, { memo: input.memo });
   await normalizeVoidResponse(response, "회사를 수정하지 못했습니다.");
   return true;
 }
@@ -514,6 +685,7 @@ export async function createBackendCompanyManager(
     department?: string;
     position?: string;
     role?: string;
+    memo?: string;
   },
 ) {
   const response = await fetch(`${getBackendApiBaseUrl()}/companies/${companyId}/managers`, {
@@ -531,6 +703,7 @@ export async function createBackendCompanyManager(
       department: input.department ?? null,
       position: input.position ?? null,
       role: input.role ?? null,
+      memo: input.memo ?? null,
     }),
   });
 
@@ -546,6 +719,7 @@ export async function updateBackendCompanyManager(
     department?: string;
     position?: string;
     role?: string;
+    memo?: string;
   },
 ) {
   const response = await fetch(`${getBackendApiBaseUrl()}/companies/managers/${managerId}`, {
@@ -562,6 +736,7 @@ export async function updateBackendCompanyManager(
       department: input.department ?? null,
       position: input.position ?? null,
       role: input.role ?? null,
+      memo: input.memo ?? null,
     }),
   });
 
@@ -610,7 +785,11 @@ export async function createBackendProjectOpportunity(input: {
     }),
   });
 
-  return normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 등록하지 못했습니다.");
+  const saved = await normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 등록하지 못했습니다.");
+  setOpportunityDisplayOverride(saved.opportunityCode, {
+    competitionStatus: input.competitionStatus,
+  });
+  return saved;
 }
 
 export async function updateBackendProjectOpportunity(
@@ -645,7 +824,11 @@ export async function updateBackendProjectOpportunity(
     }),
   });
 
-  return normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 수정하지 못했습니다.");
+  const saved = await normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 수정하지 못했습니다.");
+  setOpportunityDisplayOverride(saved.opportunityCode, {
+    competitionStatus: input.competitionStatus,
+  });
+  return saved;
 }
 
 export async function deleteBackendProjectOpportunity(id: number) {

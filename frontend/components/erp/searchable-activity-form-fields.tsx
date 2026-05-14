@@ -26,6 +26,7 @@ type ActivityFormFieldsProps = {
   registrantValue?: string
   onRegistrantChange?: (value: string) => void
   customerValue?: string
+  customerCodeValue?: string
   onCustomerSelect?: (customer: CustomerRecord | null) => void
   onCustomerValueChange?: (value: string) => void
   onUnregisteredCustomerAttempt?: () => void
@@ -74,6 +75,7 @@ export function ActivityFormFields({
   registrantValue,
   onRegistrantChange,
   customerValue,
+  customerCodeValue,
   onCustomerSelect,
   onCustomerValueChange,
   onUnregisteredCustomerAttempt,
@@ -107,6 +109,7 @@ export function ActivityFormFields({
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
   const linkedRequestId = defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
+  const customerCode = typeof customerCodeValue === "string" ? customerCodeValue.trim() : ""
   const resolvedDate = values?.date ?? date
   const resolvedActivityMode = values?.activityMode ?? activityMode
   const resolvedActivityContent = values?.activityContent ?? activityContent
@@ -310,8 +313,12 @@ export function ActivityFormFields({
               emptyMessage="등록된 사업기회가 없습니다."
               filterSuggestion={(suggestion) =>
                 !customerValue ||
-                suggestion.metadata.customerCode === customerValue ||
-                suggestion.metadata.customerId === customerValue
+                [suggestion.metadata.customerCode, suggestion.metadata.customerId]
+                  .filter((value): value is string => typeof value === "string")
+                  .some((value) => value.trim() === customerCode) ||
+                [suggestion.metadata.customerCompanyName, suggestion.metadata.customerName]
+                  .filter((value): value is string => typeof value === "string")
+                  .some((value) => value.trim() === customerValue.trim())
               }
             />
           ) : (

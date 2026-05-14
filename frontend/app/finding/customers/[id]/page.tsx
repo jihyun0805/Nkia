@@ -214,18 +214,10 @@ function CustomerDetailPageContent() {
                             <Label>유선전화번호</Label>
                             <CustomerDetailControl label="유선전화번호" value={contact.landlinePhone ?? ""} />
                           </div>
-                          <div className="space-y-2">
-                            <Label>FAX</Label>
-                            <CustomerDetailControl label="FAX" value={contact.fax ?? ""} />
-                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label>담당 직무</Label>
                           <CustomerDetailControl label="담당 직무" value={contact.duty ?? ""} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>비고</Label>
-                          <CustomerDetailControl label="메모" value={contact.memo ?? ""} />
                         </div>
                       </section>
                     ))}

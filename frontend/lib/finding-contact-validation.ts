@@ -42,7 +42,11 @@ export function validateManagerContacts(contacts: ContactValidationInput[]) {
       return `${label}의 성명을 입력해주십시오.`
     }
 
-    if (email && !EMAIL_PATTERN.test(email)) {
+    if (!email) {
+      return `${label}의 이메일을 입력해주십시오.`
+    }
+
+    if (!EMAIL_PATTERN.test(email)) {
       return `${label}의 이메일 형식이 올바르지 않습니다.`
     }
 

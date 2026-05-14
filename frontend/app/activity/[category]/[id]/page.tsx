@@ -44,7 +44,7 @@ import {
 } from "@/lib/activity-data"
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
-import { deleteBackendActivityRecord, loadBackendActivityRecords } from "@/lib/sales-activity-backend"
+import { deleteBackendActivityRecord, loadBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { deleteBackendQuotationRecord, loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
@@ -106,7 +106,7 @@ export default function ActivityDetailPage() {
   const router = useRouter()
   const category = params.category
   const id = params.id
-  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
+  const [activityRecord, setActivityRecord] = useState<ActivityRecord | null | undefined>(undefined)
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -129,22 +129,24 @@ export default function ActivityDetailPage() {
 
     let cancelled = false
 
-    loadBackendActivityRecords()
-      .then((records) => {
+    setActivityRecord(undefined)
+
+    loadBackendActivityRecord(id)
+      .then((record) => {
         if (!cancelled) {
-          setActivityRecords(records)
+          setActivityRecord(record)
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords([])
+          setActivityRecord(null)
         }
       })
 
     return () => {
       cancelled = true
     }
-  }, [category])
+  }, [category, id])
 
   useEffect(() => {
     let cancelled = false
@@ -193,10 +195,10 @@ export default function ActivityDetailPage() {
   }, [])
 
   const item = useMemo(() => {
-    if (category === "activities") return activityRecords.find((entry) => entry.id === id) ?? null
+    if (category === "activities") return activityRecord ?? null
     if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
     return requests.find((entry) => entry.id === id) ?? null
-  }, [activityRecords, category, id, quotations, requests])
+  }, [activityRecord, category, id, quotations, requests])
   const categoryLabel = getCategoryLabel(category)
   const isRequest = category === "requests"
   const isQuotation = category === "quotations"
@@ -427,6 +429,22 @@ export default function ActivityDetailPage() {
       setSelectedQuotationVersion(quotationVersions[0].key)
     }
   }, [quotationVersions, selectedQuotationVersion])
+
+  if (category === "activities" && activityRecord === undefined) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title={`${categoryLabel} 상세`} description={`${categoryLabel} 건을 페이지에서 확인합니다`} />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto flex max-w-6xl items-center justify-center py-24 text-sm text-muted-foreground">
+              영업활동 상세를 불러오는 중입니다.
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
 
   if (!item) {
     return null

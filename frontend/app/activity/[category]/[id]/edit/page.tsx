@@ -471,6 +471,7 @@ export default function ActivityEditPage() {
                     registrantValue={activityRegistrant}
                     onRegistrantChange={setActivityRegistrant}
                     customerValue={activityCustomer}
+                    customerCodeValue={activityCustomerCode}
                     onCustomerSelect={handleActivityCustomerSelect}
                     onCustomerValueChange={handleActivityCustomerValueChange}
                     onUnregisteredCustomerAttempt={() => {}}

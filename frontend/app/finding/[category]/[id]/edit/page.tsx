@@ -156,13 +156,13 @@ function parseExpectedBudget(value?: string) {
 function buildOpportunityDescription(params: {
   moduleName: string
   issue: string
-  competition: string
   decisionInfo: string
 }) {
-  return [params.moduleName, params.issue, params.competition, params.decisionInfo]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join("\n\n")
+  return JSON.stringify({
+    moduleName: params.moduleName.trim(),
+    issue: params.issue.trim(),
+    decisionInfo: params.decisionInfo.trim(),
+  })
 }
 
 function getFindingCategoryLabel(category: FindingCategory) {
@@ -507,10 +507,10 @@ export default function FindingEditPage() {
       const filledContacts = contacts.filter(hasContactValue)
       const primaryContact = filledContacts[0]
 
-      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
         toast({
           title: "협력사 수정 확인",
-          description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+          description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
         })
         return
       }
@@ -549,7 +549,8 @@ export default function FindingEditPage() {
             name: normalizedName,
             category: mapPartnerCategory(partnerType),
             address,
-          })
+            memo,
+          }, currentPartner.id)
 
           const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
           const sortedManagers = [...existingManagers].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
@@ -563,6 +564,7 @@ export default function FindingEditPage() {
               department: contact.department?.trim() || undefined,
               position: contact.position?.trim() || undefined,
               role: contact.duty?.trim() || undefined,
+              memo: contact.memo?.trim() || undefined,
             }
 
             const managerId = sortedManagers[index]?.id
@@ -649,7 +651,6 @@ export default function FindingEditPage() {
           description: buildOpportunityDescription({
             moduleName,
             issue,
-            competition,
             decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
           }),
           competitionStatus: competition,
@@ -747,7 +748,7 @@ export default function FindingEditPage() {
                         <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
                       </div>
                       <div className="space-y-2">
-                        <Label>유형 *</Label>
+                        <Label>유형</Label>
                         <Select value={partnerType} onValueChange={setPartnerType}>
                           <SelectTrigger>
                             <SelectValue placeholder="선택하세요" />
@@ -845,7 +846,7 @@ export default function FindingEditPage() {
                           ) : null}
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>담당자명</Label>
+                              <Label>담당자명 *</Label>
                               <Input
                                 value={contact.name}
                                 onChange={(event) =>
@@ -877,7 +878,7 @@ export default function FindingEditPage() {
                           </div>
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>이메일</Label>
+                              <Label>이메일 *</Label>
                               <Input
                                 type="email"
                                 inputMode="email"
@@ -890,7 +891,7 @@ export default function FindingEditPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호</Label>
+                              <Label>무선전화번호 *</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -922,17 +923,6 @@ export default function FindingEditPage() {
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                               }
                               placeholder="담당 직무를 입력하세요."
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>비고</Label>
-                            <Textarea
-                              value={contact.memo}
-                              onChange={(event) =>
-                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
-                              }
-                              rows={3}
-                              placeholder="담당자 관련 특기사항을 입력하세요."
                             />
                           </div>
                         </section>

@@ -127,13 +127,13 @@ function createAutoBusinessRegistrationNumber(prefix: "CUS" | "PTN", code: strin
 function buildOpportunityDescription(params: {
   moduleName: string
   issue: string
-  competition: string
   decisionInfo: string
 }) {
-  return [params.moduleName, params.issue, params.competition, params.decisionInfo]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join("\n\n")
+  return JSON.stringify({
+    moduleName: params.moduleName.trim(),
+    issue: params.issue.trim(),
+    decisionInfo: params.decisionInfo.trim(),
+  })
 }
 
 function mapOpportunityProductClass(value: string) {
@@ -155,6 +155,7 @@ function createCompanyManagerPayload(params: {
     department: params.contact.department.trim() || undefined,
     position: params.contact.position.trim() || undefined,
     role: params.contact.duty.trim() || undefined,
+    memo: params.contact.memo.trim() || undefined,
   }
 }
 
@@ -444,10 +445,10 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "고객사 등록 확인",
-        description: "고객사명, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -478,6 +479,7 @@ export function FindingCategoryNewPageView({
           businessRegistrationNumber: createAutoBusinessRegistrationNumber("CUS", code),
           sector: mapCustomerSector(customerGroup),
           address,
+          memo,
         })
 
         for (let index = 0; index < filledContacts.length; index += 1) {
@@ -512,10 +514,10 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "협력사 등록 확인",
-        description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -549,6 +551,7 @@ export function FindingCategoryNewPageView({
           businessRegistrationNumber: createAutoBusinessRegistrationNumber("PTN", code),
           category: mapPartnerCategory(partnerType),
           address,
+          memo,
         })
 
         for (let index = 0; index < filledContacts.length; index += 1) {
@@ -622,7 +625,7 @@ export function FindingCategoryNewPageView({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>유형 *</Label>
+                        <Label>유형</Label>
                         <Select value={partnerType} onValueChange={setPartnerType}>
                           <SelectTrigger>
                             <SelectValue placeholder="선택하세요" />
@@ -732,7 +735,7 @@ export function FindingCategoryNewPageView({
                           ) : null}
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>담당자명</Label>
+                              <Label>담당자명 *</Label>
                               <Input
                                 value={contact.name}
                                 onChange={(event) =>
@@ -764,7 +767,7 @@ export function FindingCategoryNewPageView({
                           </div>
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>이메일</Label>
+                              <Label>이메일 *</Label>
                               <Input
                                 type="email"
                                 inputMode="email"
@@ -777,7 +780,7 @@ export function FindingCategoryNewPageView({
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호</Label>
+                              <Label>무선전화번호 *</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -809,17 +812,6 @@ export function FindingCategoryNewPageView({
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                               }
                               placeholder="담당 직무를 입력하세요."
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>비고</Label>
-                            <Textarea
-                              value={contact.memo}
-                              onChange={(event) =>
-                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
-                              }
-                              rows={3}
-                              placeholder="담당자 관련 특기사항을 입력하세요."
                             />
                           </div>
                         </section>
@@ -897,7 +889,6 @@ export function FindingCategoryNewPageView({
             description: buildOpportunityDescription({
               moduleName,
               issue,
-              competition,
               decisionInfo: buildDecisionInfoFromCustomer(resolvedCustomer),
             }),
             competitionStatus: competition,
@@ -1271,7 +1262,7 @@ export function FindingCategoryNewPageView({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>고객군 *</Label>
+                      <Label>고객군</Label>
                       <Select value={customerGroup} onValueChange={setCustomerGroup}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
@@ -1362,7 +1353,7 @@ export function FindingCategoryNewPageView({
                         ) : null}
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>담당자명</Label>
+                            <Label>담당자명 *</Label>
                             <Input
                               value={contact.name}
                               onChange={(event) =>
@@ -1394,7 +1385,7 @@ export function FindingCategoryNewPageView({
                         </div>
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>이메일</Label>
+                            <Label>이메일 *</Label>
                             <Input
                               type="email"
                               inputMode="email"
@@ -1407,7 +1398,7 @@ export function FindingCategoryNewPageView({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호</Label>
+                            <Label>무선전화번호 *</Label>
                             <Input
                               inputMode="tel"
                               autoComplete="tel"
@@ -1439,17 +1430,6 @@ export function FindingCategoryNewPageView({
                               setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                             }
                             placeholder="담당 직무를 입력하세요."
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>비고</Label>
-                          <Textarea
-                            value={contact.memo}
-                            onChange={(event) =>
-                              setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
-                            }
-                            rows={3}
-                            placeholder="담당자 관련 특기사항을 입력하세요."
                           />
                         </div>
                       </section>
