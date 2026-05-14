@@ -36,6 +36,7 @@ type ProjectOpportunitySummaryResponse = {
   id?: number
   opportunityCode?: string
   opportunityName?: string
+  customerCompanyId?: number
   customerCompanyName?: string
 }
 
@@ -356,27 +357,30 @@ async function resolveProjectOpportunityId(params: {
 function mapBackendActivityRecord(
   activity: SalesActivityBackendItem,
   company: CompanySummaryResponse | null,
+  opportunity: ProjectOpportunitySummaryResponse | null,
   index: number,
 ): ActivityRecord {
   const extras = activity.id != null ? getActivityExtraFields(String(activity.id)) : {}
   const date = activity.activityDateTime?.slice(0, 10) || ""
   const activityMode = mapActivityType(activity.activityType)
   const activityPurpose = mapActivityPurpose(activity.activityPurpose)
+  const customerId = activity.companyId ?? opportunity?.customerCompanyId
+  const opportunityId = activity.projectOpportunityId ?? opportunity?.id
 
   return {
     id: String(activity.id ?? index + 1),
     date,
     requestId: activity.salesActivityRequestId != null ? String(activity.salesActivityRequestId) : undefined,
-    projectOpportunityId: activity.projectOpportunityId,
+    projectOpportunityId: opportunityId,
     registrant: extras.registrant ?? "",
     requester: extras.requester ?? "",
-    customerCode: company?.code ?? String(activity.companyId ?? activity.projectOpportunityId ?? activity.id ?? ""),
-    businessCode: activity.projectOpportunityId != null ? String(activity.projectOpportunityId) : "",
+    customerCode: company?.code ?? (customerId != null ? String(customerId) : String(activity.id ?? "")),
+    businessCode: opportunityId != null ? String(opportunityId) : "",
     activityMode,
     activityContent: activityPurpose,
     type: activityPurpose,
-    customer: activity.companyName ?? company?.name ?? "",
-    opportunity: activity.projectOpportunityName ?? "",
+    customer: activity.companyName ?? company?.name ?? opportunity?.customerCompanyName ?? "",
+    opportunity: activity.projectOpportunityName ?? opportunity?.opportunityName ?? "",
     location: activity.location ?? "",
     attendees: activity.attendeeUserIds?.length ? activity.attendeeUserIds.join(", ") : "",
     content: activity.activityContent ?? "",
@@ -389,10 +393,16 @@ function mapBackendActivityRecord(
 
 export async function loadBackendActivityRecords() {
   const activities = await fetchSalesActivities()
+  const opportunities = (await fetchProjectOpportunities()).content ?? []
+  const opportunityLookup = new Map(
+    opportunities
+      .filter((opportunity) => typeof opportunity.id === "number")
+      .map((opportunity) => [opportunity.id as number, opportunity] as const),
+  )
   const uniqueCompanyIds = Array.from(
     new Set(
       activities
-        .map((activity) => activity.companyId)
+        .map((activity) => activity.companyId ?? (activity.projectOpportunityId != null ? opportunityLookup.get(activity.projectOpportunityId)?.customerCompanyId : undefined))
         .filter((companyId): companyId is number => typeof companyId === "number"),
     ),
   )
@@ -411,8 +421,10 @@ export async function loadBackendActivityRecords() {
   const companyLookup = new Map<number, CompanySummaryResponse | null>(companyEntries)
 
   return activities.map((activity, index) => {
-    const company = activity.companyId != null ? companyLookup.get(activity.companyId) ?? null : null
-    return mapBackendActivityRecord(activity, company, index)
+    const opportunity = activity.projectOpportunityId != null ? opportunityLookup.get(activity.projectOpportunityId) ?? null : null
+    const companyId = activity.companyId ?? opportunity?.customerCompanyId
+    const company = companyId != null ? companyLookup.get(companyId) ?? null : null
+    return mapBackendActivityRecord(activity, company, opportunity, index)
   })
 }
 
@@ -439,7 +451,7 @@ async function postSalesActivity(
 
 async function mapSavedSalesActivityResponse(saved: SalesActivityResponse & SalesActivityBackendItem) {
   const company = saved.companyId != null ? await fetchCompanySummary(saved.companyId) : null
-  return mapBackendActivityRecord(saved, company, 0)
+  return mapBackendActivityRecord(saved, company, null, 0)
 }
 
 export async function loadBackendActivityRecord(salesActivityId: string) {
