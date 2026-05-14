@@ -32,7 +32,7 @@ public class PurchaseController {
     }
 
     @Operation(summary = "매입계약 상세 조회")
-    @GetMapping
+    @GetMapping("/{purchaseId}")
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PURCHASE_CONTRACT', 'READ')")
     public ResponseEntity<ApiResponse<PurchaseResponse>> getPurchase(
             @PathVariable("purchaseId") Long purchaseId
