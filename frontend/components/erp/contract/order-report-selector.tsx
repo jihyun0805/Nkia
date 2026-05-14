@@ -37,11 +37,7 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
     }
   }, [open]);
 
-  const filteredReports = reports.filter(
-    (r) =>
-      r.finalCustomerCompanyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.projectName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredReports = reports.filter((r) => r.finalCustomerCompanyName?.toLowerCase().includes(searchTerm.toLowerCase()) || r.projectName?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -53,7 +49,7 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>사업 선택</DialogTitle>
         </DialogHeader>
@@ -108,9 +104,7 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
                           {report.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right text-xs font-semibold">
-                        ₩{report.totalAmount?.toLocaleString()}
-                      </TableCell>
+                      <TableCell className="text-right text-xs font-semibold">₩{report.totalAmount?.toLocaleString()}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           size="sm"

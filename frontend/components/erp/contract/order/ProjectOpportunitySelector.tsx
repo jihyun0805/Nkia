@@ -55,7 +55,7 @@ export function ProjectOpportunitySelector({ onSelect, selectedId }: ProjectOppo
               {selectedOpp ? "사업기회 변경" : "사업기회 찾기"}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>사업기회 검색</DialogTitle>
             </DialogHeader>
