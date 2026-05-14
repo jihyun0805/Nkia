@@ -92,11 +92,26 @@ sys.modules["app.llm.gms_client"] = _gms_client_mod
 
 # app.orchestration (langgraph 전체에 의존 — mock 으로 단락)
 _orch_init_mod = _stub("app.orchestration")
+_orch_init_mod.OrbisGraphCallbacks = MagicMock
 _orch_init_mod.invoke_orbis_agent_graph = MagicMock(return_value=None)
 _orch_runtime_mod = _stub("app.orchestration.langgraph_runtime")
 _orch_runtime_mod.invoke_orbis_agent_graph = MagicMock(return_value=None)
 sys.modules["app.orchestration"] = _orch_init_mod
 sys.modules["app.orchestration.langgraph_runtime"] = _orch_runtime_mod
+
+# app.langgraph (공식 LangGraph 런타임/DB 의존 경로 단락)
+_langgraph_mod = _stub("app.langgraph")
+_langgraph_mod.evaluate_corrective_retrieval = MagicMock(return_value=None)
+_langgraph_mod.build_discovery_execution_plan = MagicMock(return_value=MagicMock(is_empty=True))
+_langgraph_mod.StructuredExecutionPlan = MagicMock
+_langgraph_mod.StructuredExecutionStep = MagicMock
+_langgraph_mod.build_preflight_graph_state = MagicMock()
+_langgraph_mod.build_retrieval_execution_plan = MagicMock(return_value=None)
+_langgraph_mod.build_structured_execution_plan = MagicMock(return_value=MagicMock(is_empty=True, structured_intent=None))
+_langgraph_mod.execute_discovery_execution_plan = MagicMock(return_value=None)
+_langgraph_mod.execute_structured_execution_plan = MagicMock(return_value=None)
+_langgraph_mod.route_to_response_value = MagicMock(return_value="discovery")
+sys.modules["app.langgraph"] = _langgraph_mod
 
 # app.repositories (psycopg DB 에 의존)
 _repo_pkg_mod = _stub("app.repositories")
@@ -108,7 +123,33 @@ sys.modules["app.repositories.backend_query_repository"] = _bqr_mod
 # app.services.query_normalization_service (다른 서비스에 의존할 수 있으므로 mock)
 _qns_mod = _stub("app.services.query_normalization_service")
 _qns_mod.normalize_query_context = MagicMock(return_value=MagicMock())
+_qns_mod.summarize_normalization = MagicMock(return_value="")
 sys.modules["app.services.query_normalization_service"] = _qns_mod
+
+_structured_answer_mod = _stub("app.services.structured_answer_service")
+_structured_answer_mod.answer_graph_structured_extension = MagicMock(return_value=None)
+sys.modules["app.services.structured_answer_service"] = _structured_answer_mod
+
+_chat_planner_mod = _stub("app.services.chat_planner_service")
+_chat_planner_mod.plan_chat_query = MagicMock()
+sys.modules["app.services.chat_planner_service"] = _chat_planner_mod
+
+_query_intent_mod = _stub("app.services.query_intent_service")
+_query_intent_mod.parse_structured_query_intent = MagicMock(return_value=None)
+sys.modules["app.services.query_intent_service"] = _query_intent_mod
+
+_query_plan_mod = _stub("app.services.query_plan_service")
+_query_plan_mod.plan_structured_query_with_gms = MagicMock(return_value=None)
+sys.modules["app.services.query_plan_service"] = _query_plan_mod
+
+_search_service_mod = _stub("app.services.search_service")
+_search_service_mod.build_query_plan_view = MagicMock(return_value=None)
+_search_service_mod.search_knowledge = MagicMock(return_value=None)
+sys.modules["app.services.search_service"] = _search_service_mod
+
+_evidence_service_mod = _stub("app.services.evidence_service")
+_evidence_service_mod.group_answer_evidences = MagicMock()
+sys.modules["app.services.evidence_service"] = _evidence_service_mod
 
 # ---------------------------------------------------------------------------
 # 3. 테스트 대상 임포트
