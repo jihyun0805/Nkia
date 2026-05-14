@@ -549,7 +549,8 @@ export default function FindingEditPage() {
             name: normalizedName,
             category: mapPartnerCategory(partnerType),
             address,
-          })
+            memo,
+          }, currentPartner.id)
 
           const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
           const sortedManagers = [...existingManagers].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
@@ -563,6 +564,7 @@ export default function FindingEditPage() {
               department: contact.department?.trim() || undefined,
               position: contact.position?.trim() || undefined,
               role: contact.duty?.trim() || undefined,
+              memo: contact.memo?.trim() || undefined,
             }
 
             const managerId = sortedManagers[index]?.id
@@ -921,17 +923,6 @@ export default function FindingEditPage() {
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                               }
                               placeholder="담당 직무를 입력하세요."
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>비고</Label>
-                            <Textarea
-                              value={contact.memo}
-                              onChange={(event) =>
-                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
-                              }
-                              rows={3}
-                              placeholder="담당자 관련 특기사항을 입력하세요."
                             />
                           </div>
                         </section>

@@ -442,6 +442,20 @@ async function mapSavedSalesActivityResponse(saved: SalesActivityResponse & Sale
   return mapBackendActivityRecord(saved, company, 0)
 }
 
+export async function loadBackendActivityRecord(salesActivityId: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/sales-activities/${salesActivityId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  const saved = await parseApiResponse<SalesActivityResponse & SalesActivityBackendItem>(
+    response,
+    "영업 활동 상세를 불러오지 못했습니다.",
+  )
+  return mapSavedSalesActivityResponse(saved)
+}
+
 async function buildSalesActivityPayload(params: {
   customerName?: string
   opportunityName?: string

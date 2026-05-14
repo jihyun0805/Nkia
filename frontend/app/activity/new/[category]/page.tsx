@@ -35,7 +35,7 @@ import {
   getOpportunitiesByCustomerName,
   hasRegisteredCustomer,
 } from "@/lib/finding-data"
-import { loadBackendFindingData } from "@/lib/finding-backend"
+import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
 import { X } from "lucide-react"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
@@ -44,6 +44,48 @@ import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { createBackendQuotationRecord } from "@/lib/sales-quotation-backend"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
+
+const emptyFindingData: FindingBackendData = { opportunities: [], customers: [], partners: [] }
+
+function normalizeLookupText(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function findCustomerByNameOrCode(
+  customers: FindingBackendData["customers"],
+  customerName: string,
+  customerCode: string,
+) {
+  const normalizedName = normalizeLookupText(customerName)
+  const normalizedCode = normalizeLookupText(customerCode)
+
+  return (
+    customers.find((customer) => {
+      if (normalizedCode && normalizeLookupText(customer.id) === normalizedCode) return true
+      if (normalizedName && normalizeLookupText(customer.name) === normalizedName) return true
+      return customer.aliases?.some((alias) => normalizeLookupText(alias) === normalizedName) ?? false
+    }) ?? null
+  )
+}
+
+function getOpportunitiesForCustomer(
+  findingData: FindingBackendData,
+  customerName: string,
+  customerCode: string,
+) {
+  const normalizedName = normalizeLookupText(customerName)
+  const normalizedCode = normalizeLookupText(customerCode)
+
+  return findingData.opportunities.filter((opportunity) => {
+    const opportunityCustomerCode = normalizeLookupText(opportunity.customerCode)
+    const opportunityCustomerName = normalizeLookupText(opportunity.customer)
+
+    return (
+      (normalizedCode && opportunityCustomerCode === normalizedCode) ||
+      (normalizedName && opportunityCustomerName === normalizedName)
+    )
+  })
+}
 
 function ActivityCategoryNewPageContent() {
   const params = useParams<{ category: ActivityCategory }>()
@@ -59,6 +101,7 @@ function ActivityCategoryNewPageContent() {
   const [activityRegistrant, setActivityRegistrant] = useState("")
   const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
   const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
+  const [findingData, setFindingData] = useState<FindingBackendData>(emptyFindingData)
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
   const [activityForm, setActivityForm] = useState({
     date: "",
@@ -82,6 +125,26 @@ function ActivityCategoryNewPageContent() {
     dueDate: "",
     content: "",
   })
+
+  useEffect(() => {
+    let cancelled = false
+
+    void loadBackendFindingData()
+      .then((data) => {
+        if (!cancelled) {
+          setFindingData(data)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFindingData(emptyFindingData)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (category !== "quotations") return
@@ -186,7 +249,7 @@ function ActivityCategoryNewPageContent() {
     category === "activities" ? activityCustomer : category === "quotations" ? quotationForm.customer : form.customer
   const matchedCustomer = category === "requests" ? getCustomerByName(form.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(form.customer) : []
-  const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
+  const activityOpportunityOptions = getOpportunitiesForCustomer(findingData, activityCustomer, activityCustomerCode)
 
   const matchesCustomerName = (customers: CustomerRecord[], customerName: string) => {
     const normalized = customerName.trim().toLowerCase()
@@ -249,6 +312,14 @@ function ActivityCategoryNewPageContent() {
         toast({
           title: "활동 필수값 확인",
           description: "고객사, 활동일, 활동형태, 활동내용, 주요 내용을 입력해주십시오.",
+        })
+        return
+      }
+
+      if (activityOpportunityOptions.length > 1 && !activityOpportunityCode) {
+        toast({
+          title: "사업기회 선택 필요",
+          description: "선택한 고객사에 연결된 사업기회가 여러 개 있습니다. 사업기회를 선택해주십시오.",
         })
         return
       }
@@ -319,18 +390,31 @@ function ActivityCategoryNewPageContent() {
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
     setActivityCustomer(customer?.name ?? "")
     setActivityCustomerCode(customer?.id ?? "")
-    const firstOpportunity = customer ? getOpportunitiesByCustomerName(customer.name)[0] : null
-    setActivityOpportunity(firstOpportunity?.name ?? (customer ? "미확인" : ""))
-    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+    const matchedOpportunities = customer ? getOpportunitiesForCustomer(findingData, customer.name, customer.id) : []
+    const preservedOpportunity = matchedOpportunities.find((item) => item.name === activityOpportunity || item.id === activityOpportunityCode) ?? null
+    const nextOpportunity = matchedOpportunities.length === 1 ? matchedOpportunities[0] : preservedOpportunity
+    setActivityOpportunity(nextOpportunity?.name ?? "")
+    setActivityOpportunityCode(nextOpportunity?.id ?? "")
   }
 
   const handleActivityCustomerValueChange = (value: string) => {
     setActivityCustomer(value)
-    const matchedCustomer = getCustomerByName(value)
-    setActivityCustomerCode(matchedCustomer?.id ?? "")
-    const firstOpportunity = matchedCustomer ? getOpportunitiesByCustomerName(matchedCustomer.name)[0] : null
-    setActivityOpportunity(firstOpportunity?.name ?? (matchedCustomer ? "미확인" : value ? activityOpportunity : ""))
-    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+    const matchedCustomer =
+      getCustomerByName(value) ??
+      findCustomerByNameOrCode(findingData.customers, value, value)
+    const nextCustomerCode = matchedCustomer?.id ?? ""
+    setActivityCustomerCode(nextCustomerCode)
+
+    const matchedOpportunities = matchedCustomer
+      ? getOpportunitiesForCustomer(findingData, matchedCustomer.name, nextCustomerCode)
+      : value
+        ? getOpportunitiesForCustomer(findingData, value, nextCustomerCode)
+        : []
+    const preservedOpportunity =
+      matchedOpportunities.find((item) => item.name === activityOpportunity || item.id === activityOpportunityCode) ?? null
+    const nextOpportunity = matchedOpportunities.length === 1 ? matchedOpportunities[0] : preservedOpportunity
+    setActivityOpportunity(nextOpportunity?.name ?? "")
+    setActivityOpportunityCode(nextOpportunity?.id ?? "")
   }
 
   const handleActivityOpportunityChange = (value: string) => {
@@ -386,6 +470,7 @@ function ActivityCategoryNewPageContent() {
                       registrantValue={activityRegistrant}
                       onRegistrantChange={setActivityRegistrant}
                       customerValue={activityCustomer}
+                      customerCodeValue={activityCustomerCode}
                       onCustomerSelect={handleActivityCustomerSelect}
                       onCustomerValueChange={handleActivityCustomerValueChange}
                       onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}

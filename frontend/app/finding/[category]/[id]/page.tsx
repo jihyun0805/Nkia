@@ -377,10 +377,6 @@ export default function FindingDetailPage() {
                               <Label>담당 직무</Label>
                               <Input readOnly value={contact.duty || "-"} />
                             </div>
-                            <div className="space-y-2">
-                              <Label>비고</Label>
-                              <Textarea readOnly rows={3} value={contact.memo || "-"} />
-                            </div>
                           </section>
                         ))}
                       </div>
