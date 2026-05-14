@@ -1202,7 +1202,7 @@ export default function FindingEditPage() {
                             <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
                               {attachment.name}
                             </a>
-                            <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                            <p className="text-xs text-muted-foreground">{`${Math.ceil(attachment.size / 1024).toLocaleString()}KB`}</p>
                             {attachment.summary ? (
                               <div className="mt-3 rounded-md border border-border p-4">
                                 <h3 className="mb-3 text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>

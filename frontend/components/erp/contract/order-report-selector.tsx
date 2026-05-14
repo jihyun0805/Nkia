@@ -39,7 +39,7 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
 
   const filteredReports = reports.filter(
     (r) =>
-      r.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.finalCustomerCompanyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.projectName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -99,13 +99,13 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
                 ) : (
                   filteredReports.map((report) => (
                     <TableRow key={report.id}>
-                      <TableCell className="font-medium text-xs">{report.customerName}</TableCell>
+                      <TableCell className="font-medium text-xs">{report.finalCustomerCompanyName}</TableCell>
                       <TableCell className="max-w-[150px] truncate text-xs">{report.projectName}</TableCell>
-                      <TableCell className="text-xs">{report.salesRepName}</TableCell>
-                      <TableCell className="text-xs">{report.orderDate}</TableCell>
+                      <TableCell className="text-xs">{report.pmName}</TableCell>
+                      <TableCell className="text-xs">{report.contractDate}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] px-1 h-5">
-                          {report.approvalStatus}
+                          {report.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-xs font-semibold">

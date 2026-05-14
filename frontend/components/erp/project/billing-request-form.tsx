@@ -46,7 +46,7 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
   const [selectedReport, setSelectedReport] = useState<OrderReportListResponse | null>(null);
 
   // 현재 유효한 데이터
-  const currentCustomerName = initData?.customerName || selectedReport?.customerName || inheritedData?.customerName || "";
+  const currentCustomerName = initData?.customerName || selectedReport?.finalCustomerCompanyName || inheritedData?.customerName || "";
   const currentProjectName = initData?.projectName || selectedReport?.projectName || inheritedData?.projectName || inheritedData?.opportunityName || "";
   const currentOrderReportId = selectedReport?.id || inheritedData?.orderReportId || "";
   const currentContractId = initData?.contractId || inheritedData?.contractId || "";
@@ -86,9 +86,9 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
         });
       })
       .catch(() => {
-        setValue("customerName", report.customerName);
+        setValue("customerName", report.finalCustomerCompanyName);
         setValue("projectName", report.projectName);
-        setValue("requester", report.salesRepName);
+        setValue("requester", report.pmName);
       })
       .finally(() => setInitLoading(false));
   };
