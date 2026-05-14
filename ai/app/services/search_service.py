@@ -187,6 +187,7 @@ def search_knowledge(
     start_at: str | None,
     end_at: str | None,
     embedder: EmbeddingModel,
+    metadata_filters: dict[str, Any] | None = None,
     chat_plan: ChatQueryPlan | None = None,
     normalization: QueryNormalization | None = None,
     retrieval_plan: RetrievalExecutionPlan | None = None,
@@ -219,12 +220,18 @@ def search_knowledge(
             )
 
         query_embedding = embedder.encode_query(effective_query)
-        exact_scope = merge_exact_scopes(
-            resolve_exact_code_scope(conn=conn, exact_codes=exact_codes),
-            resolve_named_entity_scope(
+        exact_code_scope = resolve_exact_code_scope(conn=conn, exact_codes=exact_codes)
+        named_entity_scope = (
+            None
+            if explicit_source_types
+            else resolve_named_entity_scope(
                 conn=conn,
                 entity_terms=normalization.scope_terms if normalization else extract_entity_tokens(query),
-            ),
+            )
+        )
+        exact_scope = merge_exact_scopes(
+            exact_code_scope,
+            *(scope for scope in [named_entity_scope] if scope is not None),
         )
         vector_rows, keyword_rows = fetch_candidates(
             conn=conn,
@@ -237,6 +244,7 @@ def search_knowledge(
             exact_scope=exact_scope,
             time_from=effective_time_from,
             time_to=effective_time_to,
+            metadata_filters=metadata_filters,
         )
         if not vector_rows and not keyword_rows and not explicit_source_types and normalized_source_types:
             vector_rows, keyword_rows = fetch_candidates(
@@ -250,6 +258,7 @@ def search_knowledge(
                 exact_scope=exact_scope,
                 time_from=effective_time_from,
                 time_to=effective_time_to,
+                metadata_filters=metadata_filters,
             )
 
     rows = merge_candidates(
@@ -314,14 +323,19 @@ def apply_segment_filter(
         return rows
 
     segment_keywords = [keyword.strip() for keyword in normalization.customer_name_keywords if keyword.strip()]
+    segment_label = (normalization.customer_segment_label or "").strip()
     business_types = [value.strip() for value in normalization.business_type_filters if value.strip()]
     proposal_types = [value.strip() for value in normalization.proposal_type_filters if value.strip()]
 
-    if not segment_keywords and not business_types and not proposal_types:
+    if not segment_label and not segment_keywords and not business_types and not proposal_types:
         return rows
 
     def matches(row: dict[str, Any]) -> bool:
         haystack = _build_segment_haystack(row)
+        if segment_label == "공공" and not _matches_public_customer_haystack(haystack):
+            return False
+        if segment_label == "민간" and _matches_public_customer_haystack(haystack):
+            return False
         if segment_keywords and not any(keyword in haystack for keyword in segment_keywords):
             return False
         if business_types and not any(value.lower() in haystack.lower() for value in business_types):
@@ -341,6 +355,9 @@ def _build_segment_haystack(row: dict[str, Any]) -> str:
     candidates = [
         metadata.get("customerName"),
         metadata.get("rootCustomerName"),
+        metadata.get("customerGroup"),
+        metadata.get("customerType"),
+        metadata.get("sector"),
         metadata.get("opportunityName"),
         metadata.get("rootOpportunityName"),
         metadata.get("businessType"),
@@ -350,6 +367,13 @@ def _build_segment_haystack(row: dict[str, Any]) -> str:
         row.get("content"),
     ]
     return " ".join(str(value) for value in candidates if value)
+
+
+def _matches_public_customer_haystack(haystack: str) -> bool:
+    upper = haystack.upper()
+    if "PUBLIC" in upper or "공공" in haystack or "공기업" in haystack:
+        return True
+    return any(keyword in haystack for keyword in ("공사", "공단", "발전"))
 
 
 def apply_user_context_filter(
@@ -412,6 +436,7 @@ def fetch_candidates(
     exact_scope: Any,
     time_from: str | None,
     time_to: str | None,
+    metadata_filters: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     vector_rows = fetch_vector_candidates(
         conn=conn,
@@ -423,6 +448,7 @@ def fetch_candidates(
         exact_scope=exact_scope,
         time_from=time_from,
         time_to=time_to,
+        metadata_filters=metadata_filters,
     )
     keyword_rows = fetch_keyword_candidates(
         conn=conn,
@@ -435,6 +461,7 @@ def fetch_candidates(
         exact_scope=exact_scope,
         time_from=time_from,
         time_to=time_to,
+        metadata_filters=metadata_filters,
     )
     return vector_rows, keyword_rows
 

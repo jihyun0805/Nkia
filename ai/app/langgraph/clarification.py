@@ -19,6 +19,9 @@ def build_clarification_question(*, graph_state: GraphState, missing_slots: list
         return None
 
     primary = missing_slots[0]
+    if primary == "attachment_session":
+        return "첨부 문서 기준으로 매칭하려면 업로드된 첨부 세션이 필요합니다. 문서를 먼저 업로드한 뒤 다시 질문해 주세요."
+
     if primary == "metric":
         return "순위를 정하려면 비교 기준이 필요합니다. 예: 횟수, 금액, 최근성, 예상 수주율, 유지보수 건수, 계약 금액."
 

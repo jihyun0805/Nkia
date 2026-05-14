@@ -44,8 +44,6 @@ type FormState = {
   proposalDeadline: string
   salesRep: string
   contactName: string
-  existingAttachments: { fileId: number; name: string }[]
-  selectedFiles: File[]
 }
 
 const emptyForm: FormState = {
@@ -60,8 +58,6 @@ const emptyForm: FormState = {
   proposalDeadline: "",
   salesRep: "",
   contactName: "",
-  existingAttachments: [],
-  selectedFiles: [],
 }
 
 function toProposalType(requestType: string): ProposalType {
@@ -231,12 +227,10 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
       proposalType: proposalDetail.proposalType,
       productGroup: proposalDetail.productGroup,
       requestDate: proposalDetail.requestDate,
-        proposalDeadline: proposalDetail.proposalDeadline,
-        salesRep: proposalDetail.salesRep,
-        contactName: proposalDetail.contactName,
-        existingAttachments: proposalDetail.files.map((file) => ({ fileId: file.fileId, name: file.name })),
-        selectedFiles: [],
-      })
+      proposalDeadline: proposalDetail.proposalDeadline,
+      salesRep: proposalDetail.salesRep,
+      contactName: proposalDetail.contactName,
+    })
       return
     }
 
@@ -248,15 +242,7 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     }
   }, [initialRequestId, proposalDetail, requests, findingData.customers, findingData.opportunities])
 
-  const selectedCustomer = findingData.customers.find((item) => item.id === form.customerCode) ?? null
   const customerOpportunities = findingData.opportunities.filter((item) => item.customerCode === form.customerCode)
-  const selectedOpportunity = customerOpportunities.find((item) => item.id === form.opportunityCode)
-    ?? findingData.opportunities.find((item) => item.id === form.opportunityCode)
-    ?? null
-  const attachmentNames = [
-    ...form.existingAttachments.map((attachment) => attachment.name),
-    ...form.selectedFiles.map((file) => file.name),
-  ]
   function applyRequest(request: ActivityRequestRecord) {
     const matchedOpportunity = request.opportunityCode
       ? findingData.opportunities.find((item) => item.id === request.opportunityCode) ?? null
@@ -358,11 +344,6 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
         return
       }
     }
-    if (form.existingAttachments.length + form.selectedFiles.length === 0) {
-      setValidationMessage("첨부파일을 등록해야 제안서를 완료할 수 있습니다.")
-      return
-    }
-
     const matchedRequest = availableRequests.find((item) => item.id === form.requestId)
     const matchedCustomer =
       findingData.customers.find((item) => item.id === form.customerCode) ??
@@ -390,8 +371,6 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
       proposalDeadline: form.proposalDeadline || matchedRequest?.dueDate || "",
       salesRep: form.salesRep || matchedOpportunity.salesRep || "",
       contactName: form.contactName || matchedCustomer.contactName || matchedCustomer.contact || "",
-      existingFileIds: form.existingAttachments.map((attachment) => attachment.fileId),
-      files: form.selectedFiles,
     })
       .then((savedId) => {
         router.push(`/bid/proposal/${savedId}`)
@@ -425,42 +404,12 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>고객사 코드 *</Label>
-              <Select value={form.customerCode} onValueChange={handleCustomerChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="고객사 코드를 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {findingData.customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.id} / {customer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <Label>고객사명</Label>
               <Input
                 value={form.customerName}
                 onChange={(event) => handleCustomerNameChange(event.target.value)}
                 placeholder="고객사명을 입력하세요"
               />
-            </div>
-            <div className="space-y-2">
-              <Label>사업기회 코드 *</Label>
-              <Select value={form.opportunityCode} onValueChange={handleOpportunityChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="사업기회 코드를 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customerOpportunities.map((opportunity) => (
-                    <SelectItem key={opportunity.id} value={opportunity.id}>
-                      {opportunity.id} / {opportunity.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
             <div className="space-y-2">
               <Label>사업명</Label>
@@ -515,23 +464,6 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
             <div className="space-y-2">
               <Label>담당자</Label>
               <Input value={form.contactName} onChange={(event) => setForm((current) => ({ ...current, contactName: event.target.value }))} />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>첨부파일: 제안서</Label>
-              <Input
-                type="file"
-                multiple
-                onChange={async (event) => {
-                  setForm((current) => ({
-                    ...current,
-                    selectedFiles: Array.from(event.target.files ?? []),
-                  }))
-                }}
-              />
-              <Input
-                readOnly
-                value={attachmentNames.length > 0 ? attachmentNames.join(", ") : "등록된 첨부파일이 없습니다."}
-              />
             </div>
           </div>
 
