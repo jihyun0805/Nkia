@@ -7,6 +7,7 @@ import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
 import com.nkia.Orbis.domain.contract.license.entity.License;
+import com.nkia.Orbis.domain.contract.purchase.entity.Purchase;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
@@ -48,41 +49,41 @@ public class OrderReport extends BaseEntity {
     @Column(nullable = false, unique = true)
     private String orderReportCode;
 
-    private Long totalAmount;
+    private Long totalAmount;           // 총 계약금액
 
-    private String paymentCondition;
+    private String paymentCondition;    // 대금지급조건
 
-    private boolean quotationProvided;
+    private boolean quotationProvided;  // 첨부서류: 견적서
 
-    private boolean contractProvided;
+    private boolean contractProvided;   // 첨부서류: 계약서
 
-    private boolean purchaseOrderProvided;
+    private boolean purchaseOrderProvided;      // 첨부서류: 발주서
 
-    private boolean prbReportProvided;
+    private boolean prbReportProvided;          // 첨부서류: PRB보고서
 
-    private String additionalDocuments;
-
-    @Enumerated(EnumType.STRING)
-    private OrderReportType type;
-
-    private boolean channel;
+    private String additionalDocuments;         // 첨부서류: 기타서류
 
     @Enumerated(EnumType.STRING)
-    private CodeType codeType;
+    private OrderReportType type;               // 유형
 
-    private LocalDate contractDate;
+    private boolean channel;                    // 채널유무
 
-    private Integer freeMaintenancePeriodMonths;
+    @Enumerated(EnumType.STRING)
+    private CodeType codeType;                  // 코드분류
 
-    private LocalDate contractStartDate;
+    private LocalDate contractDate;             // 계약일자(발주일자)
 
-    private LocalDate contractEndDate;
+    private Integer freeMaintenancePeriodMonths;    // 무상유지보수기간
 
-    private Integer contractPeriodMonths;
+    private LocalDate contractStartDate;            // 계약기간: 시작일
 
-    private String scopeOfWork;
+    private LocalDate contractEndDate;              // 계약기간: 종료일
 
-    private String remarks;
+    private Integer contractPeriodMonths;           // 계약기간
+
+    private String scopeOfWork;                     // 사업범위
+
+    private String remarks;                         // 특이사항
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_opportunity_id", unique = true)
@@ -90,23 +91,23 @@ public class OrderReport extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pm_user_id")
-    private User pm;
+    private User pm;                                // 수행PM
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_counterpart_company_id")
-    private Company contractCounterpartCompany;
+    private Company contractCounterpartCompany;     // 계약상대
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_counterpart_manager_id")
-    private CompanyManager contractCounterpartManager;
+    private CompanyManager contractCounterpartManager;      // 계약상대 담당자
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "final_customer_company_id")
-    private Company finalCustomerCompany;
+    private Company finalCustomerCompany;                   // 최종고객사
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "final_customer_manager_id")
-    private CompanyManager finalCustomerManager;
+    private CompanyManager finalCustomerManager;            // 최종고객사 담당자
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderReportMaintenance> maintenances = new ArrayList<>();
@@ -124,7 +125,7 @@ public class OrderReport extends BaseEntity {
     private List<OrderReportOther> others = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderReportPurchase> purchases = new ArrayList<>();
+    private List<Purchase> purchases = new ArrayList<>();
 
     @OneToOne(mappedBy = "orderReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private Contract contract;
@@ -136,54 +137,54 @@ public class OrderReport extends BaseEntity {
     private List<Billing> billings = new ArrayList<>();
 
     // OrderReportLicense totalPrice들의 총합
-    private Long licenseTotal;
+    private Long licenseTotal;                      // 라이선스 합계
 
     // OrderReportService totalPrice들의 총합
-    private Long serviceTotal;
+    private Long serviceTotal;                      // 용역 합계
 
     // OrderReportMaintenance totalPrice들의 총합
-    private Long maintenanceTotal;
+    private Long maintenanceTotal;                  // 유지보수 합계
 
     // OrderReportOther totalPrice들의 총합
-    private Long otherTotal;
+    private Long otherTotal;                        // 기타 합계
 
-    // OrderReportPurchase totalPrice들의 총합
-    private Long purchaseTotal;
+    // Purchase totalPrice들의 총합
+    private Long purchaseTotal;                     // 매입 합계
 
     // OrderReportLicense 중 ProductClass가 EMS인 것들의 totalPrice들의 총합
-    private Long emsSummary;
+    private Long emsSummary;                        // 매출분류: EMS
 
     // OrderReportLicense 중 ProductClass가 ITSM인 것들의 totalPrice들의 총합
-    private Long itgSummary;
+    private Long itgSummary;                        // 매출분류: ITG
 
     // OrderReportLicense 중 ProductClass가 DASHBOARD인 것들의 totalPrice들의 총합
-    private Long dashboardSummary;
+    private Long dashboardSummary;                  // 매출분류: 대시보드
 
     // OrderReportLicense 중 ProductClass가 DATACENTER, RCA, DCA인 것들의 totalPrice들의 총합
-    private Long aiotionSummary;
+    private Long aiotionSummary;                    // 매출분류: AIOTION
 
-    private Long emsMaintenanceSummary;
+    private Long emsMaintenanceSummary;             // 매출분류: EMS유지보수
 
-    private Long itgMaintenanceSummary;
+    private Long itgMaintenanceSummary;             // 매출분류: ITG유지보수
 
     // OrderReportLicense 중 ProductClass가 ITAM인 것들의 totalPrice들의 총합
-    private Long itoSummary;
+    private Long itoSummary;                        // 매출분류: ITO
 
     // OrderReportLicense 중 ProductClass가 앞의 분류에 해당하지 않는것들의 totalPrice들의 총합
-    private Long otherSummary;
+    private Long otherSummary;                      // 매출분류: 기타
 
     // 아래는 유지보수 only 부분의 합계 영역
-    private Long itemTotalAmount;
+    private Long itemTotalAmount;                   // 사업금액 합계
 
-    private Long itemTotalLicense;
+    private Long itemTotalLicense;                  // 라이선스 합계
 
-    private Long itemTotalThirdParty;
+    private Long itemTotalThirdParty;               // 3rd 합계
 
-    private Long itemTotalService;
+    private Long itemTotalService;                  // 용역 합계
 
-    private Long itemTotalMaintenance;
+    private Long itemTotalMaintenance;              // 유지보수 합계
 
-    private Double itemTotalMaintenanceRate;
+    private Double itemTotalMaintenanceRate;        // 요율
 
 
     public static OrderReport create(
@@ -297,7 +298,7 @@ public class OrderReport extends BaseEntity {
         calculateOtherTotal();
     }
 
-    public void addPurchase(OrderReportPurchase purchase) {
+    public void addPurchase(Purchase purchase) {
         this.purchases.add(purchase);
         purchase.setOrderReport(this);
 
@@ -408,7 +409,7 @@ public class OrderReport extends BaseEntity {
             item.delete();
         }
 
-        for (OrderReportPurchase item : purchases) {
+        for (Purchase item : purchases) {
             item.delete();
         }
 

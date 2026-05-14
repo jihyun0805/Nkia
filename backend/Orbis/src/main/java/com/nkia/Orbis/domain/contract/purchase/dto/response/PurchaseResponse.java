@@ -1,14 +1,20 @@
-package com.nkia.Orbis.domain.contract.orderreport.dto.response;
+package com.nkia.Orbis.domain.contract.purchase.dto.response;
 
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportPurchase;
+import com.nkia.Orbis.domain.contract.purchase.entity.Purchase;
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
-public class OrderReportPurchaseResponse {
+public class PurchaseResponse {
 
     private Long id;
+
+    private Long orderReportId;
+
+    private Long projectOpportunityId;
+
+    private String projectOpportunityName;
 
     private String content;
 
@@ -18,9 +24,10 @@ public class OrderReportPurchaseResponse {
 
     private Long totalPrice;
 
-    public static OrderReportPurchaseResponse from(OrderReportPurchase purchase) {
-        return OrderReportPurchaseResponse.builder()
+    public static PurchaseResponse from(Purchase purchase) {
+        return PurchaseResponse.builder()
                 .id(purchase.getId())
+                .orderReportId(purchase.getOrderReport().getId())
                 .content(purchase.getContent())
                 .quantity(purchase.getQuantity())
                 .price(purchase.getPrice())

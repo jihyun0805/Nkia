@@ -36,6 +36,7 @@ public class PermissionInitializer implements CommandLineRunner {
             PermissionDomain.BID_RESULT,
             PermissionDomain.ORDER_REPORT,
             PermissionDomain.CONTRACT,
+            PermissionDomain.PURCHASE_CONTRACT,
             PermissionDomain.LICENSE,
             PermissionDomain.PROJECT,
             PermissionDomain.PROJECT_RESULT,

@@ -26,7 +26,6 @@ import com.nkia.Orbis.domain.contract.license.entity.License;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportMaintenanceOnlyItemRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportMaintenanceRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportOtherRequest;
-import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportPurchaseRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.request.OrderReportServiceRequest;
 import com.nkia.Orbis.domain.contract.orderreport.dto.response.OrderReportListResponse;
@@ -35,7 +34,6 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportMaintenance;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportMaintenanceOnlyItem;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportOther;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportPurchase;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportServiceItem;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.contract.orderreporthistory.dto.response.OrderReportHistoryListResponse;
@@ -48,6 +46,8 @@ import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportOther
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportPurchaseHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportServiceItemHistory;
 import com.nkia.Orbis.domain.contract.orderreporthistory.repository.OrderReportHistoryRepository;
+import com.nkia.Orbis.domain.contract.purchase.dto.request.PurchaseFromOrderReportRequest;
+import com.nkia.Orbis.domain.contract.purchase.entity.Purchase;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
 import java.time.LocalDate;
@@ -334,12 +334,12 @@ public class OrderReportService {
         }
 
         if (request.getPurchases() != null) {
-            for (OrderReportPurchaseRequest purchaseRequest : request.getPurchases()) {
+            for (PurchaseFromOrderReportRequest purchaseFromOrderReportRequest : request.getPurchases()) {
                 orderReport.addPurchase(
-                        OrderReportPurchase.create(
-                                purchaseRequest.getContent(),
-                                purchaseRequest.getQuantity(),
-                                purchaseRequest.getPrice()
+                        Purchase.create(
+                                purchaseFromOrderReportRequest.getContent(),
+                                purchaseFromOrderReportRequest.getQuantity(),
+                                purchaseFromOrderReportRequest.getPrice()
                         )
                 );
             }

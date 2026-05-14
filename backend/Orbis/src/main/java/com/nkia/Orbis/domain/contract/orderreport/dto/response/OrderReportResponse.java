@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.contract.license.dto.response.LicenseFromOrderRepor
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
+import com.nkia.Orbis.domain.contract.purchase.dto.response.PurchaseFromOrderReportResponse;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -73,6 +74,8 @@ public class OrderReportResponse {
 
     private String contractCounterpartManagerName;
 
+    private String contractCounterpartPhone;
+
     private Long finalCustomerCompanyId;
 
     private String finalCustomerCompanyName;
@@ -80,6 +83,8 @@ public class OrderReportResponse {
     private Long finalCustomerManagerId;
 
     private String finalCustomerManagerName;
+
+    private String finalCustomerPhone;
 
     private List<OrderReportMaintenanceResponse> maintenances;
 
@@ -91,7 +96,7 @@ public class OrderReportResponse {
 
     private List<OrderReportOtherResponse> others;
 
-    private List<OrderReportPurchaseResponse> purchases;
+    private List<PurchaseFromOrderReportResponse> purchases;
 
     private Long itemTotalAmount;
 
@@ -117,7 +122,7 @@ public class OrderReportResponse {
     // OrderReportOther totalPrice들의 총합
     private Long otherTotal;
 
-    // OrderReportPurchase totalPrice들의 총합
+    // Purchase totalPrice들의 총합
     private Long purchaseTotal;
 
     // OrderReportLicense 중 ProductClass가 EMS인 것들의 totalPrice들의 총합
@@ -179,6 +184,8 @@ public class OrderReportResponse {
                         ? orderReport.getContractCounterpartManager().getId() : null)
                 .contractCounterpartManagerName(orderReport.getContractCounterpartManager() != null
                         ? orderReport.getContractCounterpartManager().getName() : null)
+                .contractCounterpartPhone(orderReport.getContractCounterpartManager() != null
+                        ? orderReport.getContractCounterpartManager().getMobilePhone() : null)
 
                 .finalCustomerCompanyId(
                         orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany().getId()
@@ -191,6 +198,10 @@ public class OrderReportResponse {
                                 : null)
                 .finalCustomerManagerName(
                         orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getName()
+                                : null)
+                .finalCustomerPhone(
+                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager()
+                                .getMobilePhone()
                                 : null)
 
                 .maintenances(orderReport.getMaintenances().stream()
@@ -209,7 +220,7 @@ public class OrderReportResponse {
                         .map(OrderReportOtherResponse::from)
                         .toList())
                 .purchases(orderReport.getPurchases().stream()
-                        .map(OrderReportPurchaseResponse::from)
+                        .map(PurchaseFromOrderReportResponse::from)
                         .toList())
 
                 .itemTotalAmount(orderReport.getItemTotalAmount())
