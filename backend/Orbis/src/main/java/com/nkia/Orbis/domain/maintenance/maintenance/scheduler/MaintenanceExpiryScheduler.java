@@ -47,20 +47,21 @@ public class MaintenanceExpiryScheduler {
         List<Maintenance> paidList = maintenanceRepository.findByTypeAndEndDate(
                 MaintenanceType.PAID, targetDate);
 
+        processAlarmList(freeList, monthsRemaining, AlarmType.FREE_MAINTENANCE_EXPIRY,
+                "무상유지보수", "새로운 무상유지보수 계약 체결을 진행해주십시오.");
+        processAlarmList(paidList, monthsRemaining, AlarmType.PAID_MAINTENANCE_EXPIRY,
+                "유상유지보수", "새로운 유상유지보수 계약 체결을 진행해주십시오.");
+    }
 
-        for (Maintenance m : freeList) {
+    private void processAlarmList(List<Maintenance> list, int monthsRemaining,
+            AlarmType alarmType, String typeName, String actionMessage) {
+        for (Maintenance m : list) {
             User receiver = m.getRegularPm();
-            if(receiver != null) {
-                sendExpiryAlarm(m, receiver, monthsRemaining, AlarmType.FREE_MAINTENANCE_EXPIRY,
-                        "무상유지보수", "새로운 무상유지보수 계약 체결을 진행해주십시오.");
-            }
-        }
-
-        for (Maintenance m : paidList) {
-            User receiver = m.getRegularPm();
-            if(receiver != null) {
-                sendExpiryAlarm(m, receiver, monthsRemaining, AlarmType.PAID_MAINTENANCE_EXPIRY,
-                        "유상유지보수", "새로운 유상유지보수 계약 체결을 진행해주십시오.");
+            if (receiver != null) {
+                sendExpiryAlarm(m, receiver, monthsRemaining, alarmType, typeName, actionMessage);
+            } else {
+                log.warn("[유지보수 만료 알림] 정기 PM이 설정되지 않아 알림을 보낼 수 없습니다. (ID: {}, 고객사: {})",
+                        m.getId(), getCustomerName(m));
             }
         }
     }
