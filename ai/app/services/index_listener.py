@@ -152,7 +152,7 @@ async def _fetch_row(*, table: str, row_id: int, db_url: str) -> dict[str, Any] 
                         """
                         SELECT a.*,
                                o.opportunity_name,
-                               c.company_name AS customer_name
+                               c.name AS customer_name
                         FROM public.sales_activity a
                         LEFT JOIN public.project_opportunity o ON o.id = a.project_opportunity_id
                         LEFT JOIN public.company c ON c.id = o.customer_company_id

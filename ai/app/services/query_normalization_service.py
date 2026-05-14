@@ -24,6 +24,8 @@ STOPWORDS = {
     "사업",
     "결과",
     "올해",
+    "지금",
+    "진행중인",
     "상반기",
     "하반기",
     "지난달",
@@ -237,14 +239,26 @@ def has_metric_hint(normalized_query: str) -> bool:
         "횟수",
         "건수",
         "금액",
+        "총액",
+        "총금액",
+        "총비용",
+        "비용",
+        "단가",
+        "예산",
         "매출",
         "이익",
         "수익성",
         "사업비",
         "수주율",
+        "수주 가능성",
+        "기대 수주율",
+        "예상 수주율",
         "리스크",
         "기간",
         "최근",
+        "오래된",
+        "확률",
+        "달성률",
     )
     return any(keyword in normalized_query for keyword in keywords)
 
@@ -263,6 +277,13 @@ def has_summary_intent(normalized_query: str) -> bool:
 # 사용자가 자연어로 말하는 '카드사/저축은행/캐피탈' 같은 sub-segment 는 공식 분류에 없으므로
 # 회사명 키워드로 풀어 후처리에서 매칭한다.
 CUSTOMER_SEGMENT_KEYWORDS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("공공 고객", "공공", ()),
+    ("공공기관", "공공", ()),
+    ("공기업", "공공", ()),
+    ("공공", "공공", ()),
+    ("민간 고객", "민간", ()),
+    ("민간기업", "민간", ()),
+    ("민간", "민간", ()),
     ("저축은행", "저축은행", ("저축은행",)),
     ("카드사", "카드사", ("카드",)),
     ("카드회사", "카드사", ("카드",)),
@@ -429,6 +450,21 @@ def parse_time_range(query: str, *, today: date) -> TimeRange:
         start = date(prev_month_end.year, prev_month_end.month, 1)
         end = date(prev_month_end.year, prev_month_end.month, monthrange(prev_month_end.year, prev_month_end.month)[1])
         return build_time_range(f"{prev_month_end.year}-{prev_month_end.month:02d}", start, end)
+    if "이번주" in compact_query or "금주" in compact_query:
+        # 이번 주 월요일 ~ 일요일 (today.weekday()=0이 월)
+        monday = today - timedelta(days=today.weekday())
+        sunday = monday + timedelta(days=6)
+        return build_time_range(f"이번주({monday}~{sunday})", monday, sunday)
+    if "지난주" in compact_query or "전주" in compact_query:
+        monday_this = today - timedelta(days=today.weekday())
+        monday_last = monday_this - timedelta(days=7)
+        sunday_last = monday_last + timedelta(days=6)
+        return build_time_range(f"지난주({monday_last}~{sunday_last})", monday_last, sunday_last)
+    if "다음주" in compact_query or "차주" in compact_query:
+        monday_this = today - timedelta(days=today.weekday())
+        monday_next = monday_this + timedelta(days=7)
+        sunday_next = monday_next + timedelta(days=6)
+        return build_time_range(f"다음주({monday_next}~{sunday_next})", monday_next, sunday_next)
 
     recent_days_match = re.search(r"최근\s*(\d{1,3})\s*일", query)
     if recent_days_match:

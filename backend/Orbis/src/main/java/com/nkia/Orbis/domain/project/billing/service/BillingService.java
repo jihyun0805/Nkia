@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.project.billing.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
@@ -11,6 +12,8 @@ import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
 import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
+import com.nkia.Orbis.domain.alarm.entity.AlarmType;
+import com.nkia.Orbis.domain.alarm.event.AlarmEvent;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCollectRequest;
@@ -28,6 +31,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +45,7 @@ public class BillingService {
     private final UserRepository userRepository;
     private final WorkflowRepository workflowRepository;
     private final WorkflowService workflowService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 청구(세금계산서 발행) 등록
@@ -80,6 +85,23 @@ public class BillingService {
         }
 
         billing.issue(request.getIssuedAt(), request.getInvoiceImageId());
+
+        sendCollectionRequestAlarm(billingId);
+    }
+
+    private void sendCollectionRequestAlarm(Long billingId) {
+        User sender = userRepository.findById(UUID.fromString(SecurityUtil.getCurrentUserId()))
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+        User receiver = userRepository.findByEmail("admin@admin.com")
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+        eventPublisher.publishEvent(new AlarmEvent(
+                sender,
+                receiver,
+                AlarmType.BILLING_COLLECTION_REQUEST,
+                "세금계산서가 발행되었습니다. 수금 결과를 확정하시겠습니까?",
+                billingId
+        ));
     }
 
     /**
