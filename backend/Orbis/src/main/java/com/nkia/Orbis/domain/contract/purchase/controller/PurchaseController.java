@@ -23,7 +23,7 @@ public class PurchaseController {
 
     @Operation(summary = "매입계약 목록 조회")
     @GetMapping
-    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PURCHASE', 'READ')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CONTRACT', 'READ')")
     public ResponseEntity<ApiResponse<List<PurchaseResponse>>> getLicenses() {
         List<PurchaseResponse> response = purchaseService.getPurchases();
 
