@@ -46,7 +46,7 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
   const [selectedReport, setSelectedReport] = useState<OrderReportListResponse | null>(null);
 
   // 현재 유효한 데이터
-  const currentCustomerName = initData?.customerName || selectedReport?.customerName || inheritedData?.customerName || "";
+  const currentCustomerName = initData?.customerName || selectedReport?.finalCustomerCompanyName || inheritedData?.customerName || "";
   const currentProjectName = initData?.projectName || selectedReport?.projectName || inheritedData?.projectName || inheritedData?.opportunityName || "";
   const currentOrderReportId = selectedReport?.id || inheritedData?.orderReportId || "";
   const currentContractId = initData?.contractId || inheritedData?.contractId || "";
@@ -71,8 +71,9 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
     setSelectedReport(report);
     // API를 통해 초기화 데이터 다시 가져오기
     setInitLoading(true);
-    projectApi.getBillingFormInit(report.id)
-      .then(res => {
+    projectApi
+      .getBillingFormInit(report.id)
+      .then((res) => {
         const data = res.data;
         setInitData(data);
         reset({
@@ -86,9 +87,9 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
         });
       })
       .catch(() => {
-        setValue("customerName", report.customerName);
+        setValue("customerName", report.finalCustomerCompanyName || "");
         setValue("projectName", report.projectName);
-        setValue("requester", report.salesRepName);
+        setValue("requester", report.pmName || "");
       })
       .finally(() => setInitLoading(false));
   };
@@ -238,104 +239,104 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-2 gap-6">
-            {/* 고객사 */}
-            <div className="space-y-2">
-              <Label htmlFor="customerName">고객사</Label>
-              <Input id="customerName" {...register("customerName", { required: true })} readOnly className="bg-muted" placeholder="고객사 입력" />
+            <div className="grid grid-cols-2 gap-6">
+              {/* 고객사 */}
+              <div className="space-y-2">
+                <Label htmlFor="customerName">고객사</Label>
+                <Input id="customerName" {...register("customerName", { required: true })} readOnly className="bg-muted" placeholder="고객사 입력" />
+              </div>
+
+              {/* 사업명 */}
+              <div className="space-y-2">
+                <Label htmlFor="projectName">사업명</Label>
+                <Input id="projectName" {...register("projectName", { required: true })} readOnly className="bg-muted" placeholder="사업명" />
+              </div>
+
+              {/* 청구 금액 */}
+              <div className="space-y-2">
+                <Label htmlFor="billingAmount">청구 금액 *</Label>
+                <Input
+                  id="billingAmount"
+                  type="text"
+                  {...register("billingAmount", {
+                    required: true,
+                    onChange: (e) => {
+                      const value = e.target.value.replace(/[^\d]/g, "");
+                      const formatted = value ? Number(value).toLocaleString() : "";
+                      setValue("billingAmount", formatted, { shouldValidate: true, shouldDirty: true });
+                    },
+                  })}
+                  placeholder="청구 금액 입력"
+                />
+              </div>
+
+              {/* 세금계산서 발행 희망일 */}
+              <div className="space-y-2">
+                <Label htmlFor="requestedIssueDate">세금계산서 발행 희망일 *</Label>
+                <Input id="requestedIssueDate" type="date" {...register("requestedIssueDate", { required: true })} />
+              </div>
+
+              {/* 요청일 */}
+              <div className="space-y-2">
+                <Label htmlFor="requestDate">요청일</Label>
+                <Input id="requestDate" type="date" {...register("requestDate")} readOnly className="bg-muted" />
+              </div>
+
+              {/* 요청자 */}
+              <div className="space-y-2">
+                <Label htmlFor="requester">요청자</Label>
+                <Input id="requester" {...register("requester")} readOnly className="bg-muted" placeholder="자동 입력" />
+              </div>
             </div>
 
-            {/* 사업명 */}
+            {/* 특기사항 */}
             <div className="space-y-2">
-              <Label htmlFor="projectName">사업명</Label>
-              <Input id="projectName" {...register("projectName", { required: true })} readOnly className="bg-muted" placeholder="사업명" />
+              <Label htmlFor="remarks">특기사항</Label>
+              <Textarea id="remarks" {...register("remarks")} placeholder="특기사항을 입력해주십시오." rows={3} />
             </div>
 
-            {/* 청구 금액 */}
-            <div className="space-y-2">
-              <Label htmlFor="billingAmount">청구 금액 *</Label>
-              <Input
-                id="billingAmount"
-                type="text"
-                {...register("billingAmount", {
-                  required: true,
-                  onChange: (e) => {
-                    const value = e.target.value.replace(/[^\d]/g, "");
-                    const formatted = value ? Number(value).toLocaleString() : "";
-                    setValue("billingAmount", formatted, { shouldValidate: true, shouldDirty: true });
-                  },
-                })}
-                placeholder="청구 금액 입력"
-              />
+            {/* 안내 */}
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
+              <p>• 세금계산서 발행일 및 발행 파일은 담당자가 발행 후 등록합니다.</p>
+              <p>• 수금일은 수금 확인 담당자가 별도로 입력합니다.</p>
             </div>
 
-            {/* 세금계산서 발행 희망일 */}
-            <div className="space-y-2">
-              <Label htmlFor="requestedIssueDate">세금계산서 발행 희망일 *</Label>
-              <Input id="requestedIssueDate" type="date" {...register("requestedIssueDate", { required: true })} />
-            </div>
-
-            {/* 요청일 */}
-            <div className="space-y-2">
-              <Label htmlFor="requestDate">요청일</Label>
-              <Input id="requestDate" type="date" {...register("requestDate")} readOnly className="bg-muted" />
-            </div>
-
-            {/* 요청자 */}
-            <div className="space-y-2">
-              <Label htmlFor="requester">요청자</Label>
-              <Input id="requester" {...register("requester")} readOnly className="bg-muted" placeholder="자동 입력" />
-            </div>
-          </div>
-
-          {/* 특기사항 */}
-          <div className="space-y-2">
-            <Label htmlFor="remarks">특기사항</Label>
-            <Textarea id="remarks" {...register("remarks")} placeholder="특기사항을 입력해주십시오." rows={3} />
-          </div>
-
-          {/* 안내 */}
-          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
-            <p>• 세금계산서 발행일 및 발행 파일은 담당자가 발행 후 등록합니다.</p>
-            <p>• 수금일은 수금 확인 담당자가 별도로 입력합니다.</p>
-          </div>
-
-          {/* 관련 문서 링크 */}
-          <div className="bg-muted/50 p-4 rounded-md space-y-3 mt-2 border">
-            <h4 className="text-sm font-semibold flex items-center gap-2">
-              <ExternalLink className="w-4 h-4" />
-              관련 문서 참고
-            </h4>
-            <div className="flex gap-4 text-sm">
-              <Link href="/contract?tab=orders" className="text-blue-600 hover:underline flex items-center gap-1">
-                수주보고서 ({currentOrderReportId || "미등록"})
-              </Link>
-              {(initData?.contractId ?? inheritedData?.contractId) && (
-                <Link href="/contract?tab=contracts" className="text-blue-600 hover:underline flex items-center gap-1">
-                  계약 ({initData?.contractId ?? inheritedData?.contractId})
+            {/* 관련 문서 링크 */}
+            <div className="bg-muted/50 p-4 rounded-md space-y-3 mt-2 border">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <ExternalLink className="w-4 h-4" />
+                관련 문서 참고
+              </h4>
+              <div className="flex gap-4 text-sm">
+                <Link href="/contract?tab=orders" className="text-blue-600 hover:underline flex items-center gap-1">
+                  수주보고서 ({currentOrderReportId || "미등록"})
                 </Link>
-              )}
+                {(initData?.contractId ?? inheritedData?.contractId) && (
+                  <Link href="/contract?tab=contracts" className="text-blue-600 hover:underline flex items-center gap-1">
+                    계약 ({initData?.contractId ?? inheritedData?.contractId})
+                  </Link>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
-              취소
-            </Button>
-            <Button type="submit" disabled={isSubmitting || isDataMissing}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 w-4 h-4 animate-spin" />
-                  등록 중...
-                </>
-              ) : (
-                "세금계산서 발행 요청"
-              )}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+                취소
+              </Button>
+              <Button type="submit" disabled={isSubmitting || isDataMissing}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                    등록 중...
+                  </>
+                ) : (
+                  "세금계산서 발행 요청"
+                )}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

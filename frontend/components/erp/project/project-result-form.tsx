@@ -48,11 +48,11 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
   const [selectedReport, setSelectedReport] = useState<OrderReportListResponse | null>(null);
 
   // 현재 유효한 데이터 (상속된 데이터 또는 직접 선택한 데이터)
-  const currentCustomerName = selectedReport?.customerName || inheritedData?.customerName || "";
+  const currentCustomerName = selectedReport?.finalCustomerCompanyName || inheritedData?.customerName || "";
   const currentProjectName = selectedReport?.projectName || inheritedData?.projectName || inheritedData?.opportunityName || "";
   const currentOrderReportId = selectedReport?.id || inheritedData?.orderReportId || "";
   const currentContractId = inheritedData?.contractId || "";
-  const currentSalesRep = selectedReport?.salesRepName || inheritedData?.salesRep || "";
+  const currentSalesRep = selectedReport?.pmName || inheritedData?.salesRep || "";
   const currentProjectAmount = selectedReport?.totalAmount?.toString() || inheritedData?.projectAmount || "";
 
   const { register, handleSubmit, setValue, reset } = useForm<FormValues>({
@@ -70,10 +70,10 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
   // 선택 시 폼 업데이트
   const handleSelectReport = (report: OrderReportListResponse) => {
     setSelectedReport(report);
-    setValue("customerName", report.customerName);
+    setValue("customerName", report.finalCustomerCompanyName || "");
     setValue("projectName", report.projectName);
     setValue("projectAmount", report.totalAmount?.toLocaleString() || "");
-    setValue("salesRep", report.salesRepName);
+    setValue("salesRep", report.pmName || "");
   };
 
   // 필수 데이터 체크 (UX 개선)
