@@ -349,11 +349,12 @@ export default function ActivityEditPage() {
           description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
         })
         router.push(`/activity/${category}/${id}`)
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "백엔드에서 영업활동을 수정하지 못했습니다."
         scrollToTop()
         toast({
           title: "영업활동 수정 실패",
-          description: "백엔드에서 영업활동을 수정하지 못했습니다.",
+          description: message,
         })
       }
       return
@@ -448,14 +449,14 @@ export default function ActivityEditPage() {
                 ) : category === "requests" ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {[
-                      { label: "요청일", key: "date", type: "date" },
-                      { label: "요청 유형", key: "type" },
-                      { label: "요청자", key: "requester" },
-                      { label: "담당자", key: "receiver" },
-                      { label: "고객사", key: "customer" },
-                      { label: "사업기회", key: "opportunity" },
-                      { label: "활동일", key: "dueDate", type: "date" },
-                      { label: "요청 내용", key: "content" },
+                      { label: "요청일 *", key: "date", type: "date" },
+                      { label: "요청 유형 *", key: "type" },
+                      { label: "요청자 *", key: "requester" },
+                      { label: "담당자 *", key: "receiver" },
+                      { label: "고객사 *", key: "customer" },
+                      { label: "사업기회 *", key: "opportunity" },
+                      { label: "활동일 *", key: "dueDate", type: "date" },
+                      { label: "요청 내용 *", key: "content" },
                     ].map((field) => (
                       <div
                         key={field.key}

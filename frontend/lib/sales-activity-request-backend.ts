@@ -5,6 +5,7 @@ import { buildAuthHeaders } from "@/lib/auth-session"
 import { getActivityRequests } from "@/lib/activity-request-workflow"
 import { type ActivityAttachment, type ActivityRequestRecord } from "@/lib/activity-data"
 import { getPresalesUsers } from "@/lib/admin-data"
+import { loadBackendUsers } from "@/lib/workflow-backend"
 import type {
   SalesActivityRequestCreateRequest,
   SalesActivityRequestResponse,
@@ -94,12 +95,40 @@ function activityPurposeEnum(value: string) {
   return ACTIVITY_PURPOSE_TO_ENUM[value] ?? "ETC"
 }
 
+function normalizeLookupText(value: string) {
+  return value.trim().toLowerCase()
+}
+
 function loadLocalRequestIndex() {
   return new Map(getActivityRequests().map((item) => [item.id, item]))
 }
 
-function getTargetUserIdByName(name: string) {
-  return getPresalesUsers().find((user) => user.name === name)?.id
+async function getTargetUserIdByName(name: string) {
+  const normalized = normalizeLookupText(name)
+  if (!normalized) return null
+
+  let backendUsers: { id?: string; employeeNumber?: string; name?: string }[] = []
+  try {
+    backendUsers = await loadBackendUsers()
+  } catch {
+    backendUsers = []
+  }
+
+  const presalesUsers = getPresalesUsers().map((user) => ({
+    id: user.id,
+    employeeNumber: user.employeeNumber,
+    name: user.name,
+  }))
+
+  const matched = [...backendUsers, ...presalesUsers].find((user) => {
+    const userId = normalizeLookupText(user.id ?? "")
+    const employeeNumber = normalizeLookupText(user.employeeNumber ?? "")
+    const userName = normalizeLookupText(user.name ?? "")
+
+    return userId === normalized || employeeNumber === normalized || userName === normalized
+  })
+
+  return matched?.id ?? null
 }
 
 function getTargetUserNameById(id?: string) {
@@ -199,9 +228,9 @@ export async function loadBackendActivityRequests() {
 }
 
 export async function createBackendActivityRequest(input: RequestCreateInput) {
-  const targetUserId = getTargetUserIdByName(input.receiver)
+  const targetUserId = await getTargetUserIdByName(input.receiver)
   if (!targetUserId) {
-    throw new Error("담당자를 백엔드 사용자에서 찾을 수 없습니다.")
+    throw new Error("입력한 담당자명을 백엔드 사용자에서 찾을 수 없습니다.")
   }
 
   const payload: SalesActivityRequestCreateRequest = {

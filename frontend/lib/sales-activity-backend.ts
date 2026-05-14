@@ -271,6 +271,9 @@ async function resolveProjectOpportunityId(params: {
   const normalizedCustomer = params.customerName?.trim()
   const normalizedOpportunity = params.opportunityName?.trim()
   const normalizedOpportunityCode = params.opportunityCode?.trim()
+  const customerMatches = normalizedCustomer
+    ? opportunities.filter((item) => item.customerCompanyName?.trim() === normalizedCustomer)
+    : []
 
   const matched = opportunities.find((item) => {
     if (normalizedOpportunityCode && item.opportunityCode === normalizedOpportunityCode) {
@@ -284,6 +287,14 @@ async function resolveProjectOpportunityId(params: {
       item.opportunityName?.trim() === normalizedOpportunity
     )
   })
+
+  if (matched?.id != null) {
+    return matched.id
+  }
+
+  if (normalizedCustomer && customerMatches.length === 1) {
+    return customerMatches[0]?.id ?? null
+  }
 
   return matched?.id ?? null
 }
@@ -436,7 +447,7 @@ export async function createBackendActivityRecord(params: {
   })
 
   if (projectOpportunityId == null) {
-    throw new Error("선택한 고객사/사업기회를 백엔드에서 찾을 수 없습니다.")
+    throw new Error("선택한 고객사에 연결된 사업기회를 찾을 수 없습니다. 먼저 사업기회를 등록한 뒤 활동을 등록해주세요.")
   }
 
   const payload = await buildSalesActivityPayload({
@@ -475,7 +486,7 @@ export async function updateBackendActivityRecord(
   })
 
   if (projectOpportunityId == null) {
-    throw new Error("선택한 고객사/사업기회를 백엔드에서 찾을 수 없습니다.")
+    throw new Error("선택한 고객사에 연결된 사업기회를 찾을 수 없습니다. 먼저 사업기회를 등록한 뒤 활동을 수정해주세요.")
   }
 
   const payload = {

@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { Plus, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -91,6 +93,15 @@ export function ActivityFormFields({
   const [issues, setIssues] = useState(defaultValues?.issues ?? "")
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
   const [registrant, setRegistrant] = useState(registrantValue ?? defaultValues?.registrant ?? "")
+  const [attendeeRows, setAttendeeRows] = useState<string[]>(
+    (() => {
+      const initial = (defaultValues?.attendees ?? "")
+        .split(/[\n,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+      return initial.length > 0 ? initial : [""]
+    })(),
+  )
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
   const linkedRequestId = defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
@@ -154,6 +165,14 @@ export function ActivityFormFields({
     setNextAction(next.nextAction)
   }
 
+  const updateAttendeeItems = (items: string[]) => {
+    setAttendeeRows(items)
+    updateValues((current) => ({
+      ...current,
+      attendees: items.map((item) => item.trim()).filter(Boolean).join(", "),
+    }))
+  }
+
   useEffect(() => {
     setActivityMode(defaultValues?.activityMode ?? "")
   }, [defaultValues?.activityMode])
@@ -171,8 +190,14 @@ export function ActivityFormFields({
   }, [defaultValues?.date])
 
   useEffect(() => {
-    setAttendees(defaultValues?.attendees ?? "")
-  }, [defaultValues?.attendees])
+    const nextAttendees = values?.attendees ?? defaultValues?.attendees ?? ""
+    setAttendees(nextAttendees)
+    const normalized = nextAttendees
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+    setAttendeeRows(normalized.length > 0 ? normalized : [""])
+  }, [defaultValues?.attendees, values?.attendees])
 
   useEffect(() => {
     setContent(defaultValues?.content ?? "")
@@ -250,10 +275,8 @@ export function ActivityFormFields({
             <Input defaultValue={defaultValues?.customer} placeholder="고객사를 입력하세요" />
           )}
         </div>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>사업기회</Label>
+          <Label>사업기회 *</Label>
           {onOpportunityChange && opportunityOptions ? (
             <EntityAutocomplete
               value={opportunity}
@@ -313,14 +336,10 @@ export function ActivityFormFields({
               </SelectContent>
             </Select>
             {needsActivityRequest && !linkedRequestId && (
-              <p className="text-sm text-muted-foreground">
-                상담/기타를 제외한 활동내용은 일반적으로 활동 요청을 받아 진행합니다.
-              </p>
+              <p className="text-sm text-muted-foreground">상담/기타를 제외한 활동내용은 일반적으로 활동 요청을 받아 진행합니다.</p>
             )}
             {resolvedActivityContent !== "" && !needsActivityRequest && (
-              <p className="text-sm text-muted-foreground">
-                상담/기타 유형은 활동 요청 없이 영업대표가 직접 등록하는 경우가 많습니다.
-              </p>
+              <p className="text-sm text-muted-foreground">상담/기타 유형은 활동 요청 없이 영업대표가 직접 등록하는 경우가 많습니다.</p>
             )}
           </div>
         </div>
@@ -337,12 +356,34 @@ export function ActivityFormFields({
         </div>
         <div className="space-y-2">
           <Label>참석자</Label>
-          <Input
-            value={resolvedAttendees}
-            onChange={(event) => updateValues((current) => ({ ...current, attendees: event.target.value }))}
-            placeholder="참석자 이름 또는 사번을 쉼표로 구분해 입력하세요"
-          />
-          <p className="text-sm text-muted-foreground">저장 시 백엔드에는 사용자 ID 배열로 전달됩니다.</p>
+          <div className="max-h-64 space-y-2 overflow-auto rounded-md border border-border p-3">
+            {attendeeRows.map((item, index) => (
+              <div key={index} className="grid grid-cols-[1fr_auto] gap-2">
+                <Input
+                  value={item}
+                  onChange={(event) => {
+                    const next = [...attendeeRows]
+                    next[index] = event.target.value
+                    updateAttendeeItems(next)
+                  }}
+                  placeholder="참석자 이름 또는 사번"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => updateAttendeeItems(attendeeRows.filter((_, itemIndex) => itemIndex !== index))}
+                  aria-label="참석자 삭제"
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" className="w-full border-dashed" onClick={() => updateAttendeeItems([...attendeeRows, ""])}>
+              <Plus className="mr-2 size-4" />
+              참석자 추가
+            </Button>
+          </div>
         </div>
       </div>
       <div className="space-y-2">
