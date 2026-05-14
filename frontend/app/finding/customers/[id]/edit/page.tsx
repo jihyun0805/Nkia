@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
+import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   buildFallbackManagerEmail,
   loadBackendCompanyManagers,
@@ -337,6 +338,15 @@ function CustomerEditPageContent() {
       return
     }
 
+    const contactValidationMessage = validateManagerContacts(filledContacts)
+    if (contactValidationMessage) {
+      toast({
+        title: "담당자 입력 확인",
+        description: contactValidationMessage,
+      })
+      return
+    }
+
     if (duplicateCustomer) {
       toast({
         title: "고객사 중복 등록",
@@ -580,6 +590,9 @@ function CustomerEditPageContent() {
                           <div className="space-y-2">
                             <Label>이메일</Label>
                             <Input
+                              type="email"
+                              inputMode="email"
+                              autoComplete="email"
                               value={contact.email ?? ""}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
@@ -590,6 +603,8 @@ function CustomerEditPageContent() {
                           <div className="space-y-2">
                             <Label>무선전화번호</Label>
                             <Input
+                              inputMode="tel"
+                              autoComplete="tel"
                               value={contact.mobilePhone ?? ""}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
@@ -600,6 +615,8 @@ function CustomerEditPageContent() {
                           <div className="space-y-2">
                             <Label>유선전화번호</Label>
                             <Input
+                              inputMode="tel"
+                              autoComplete="tel"
                               value={contact.landlinePhone ?? ""}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))

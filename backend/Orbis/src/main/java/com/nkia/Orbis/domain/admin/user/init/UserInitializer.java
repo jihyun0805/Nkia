@@ -11,12 +11,14 @@ import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Profile("!no-seed")
 @RequiredArgsConstructor
 @Order(3)
 public class UserInitializer implements CommandLineRunner {

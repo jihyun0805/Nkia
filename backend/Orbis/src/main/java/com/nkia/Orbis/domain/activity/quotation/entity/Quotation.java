@@ -101,11 +101,11 @@ public class Quotation extends BaseEntity {
 
     public void calculateTotalAmount() {
         this.consumerTotalPrice = quotationSolutionItems.stream()
-                .mapToLong(QuotationSolutionItem::getConsumerPrice)
+                .mapToLong(QuotationSolutionItem::getConsumerTotalPrice)
                 .sum();
 
         this.supplyTotalPrice = quotationSolutionItems.stream()
-                .mapToLong(QuotationSolutionItem::getSupplyPrice)
+                .mapToLong(QuotationSolutionItem::getSupplyTotalPrice)
                 .sum();
 
         this.laborTotalPrice = quotationLaborItems.stream()
