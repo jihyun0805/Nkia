@@ -37,10 +37,13 @@ public class BillingHandler implements WorkflowDomainHandler {
         billing.approve();
         billing.approveBilling();
 
+        sendBillingRegistrationAlarm(targetId);
+    }
+
+    private void sendBillingRegistrationAlarm(Long billingId) {
         User sender = userRepository.findById(UUID.fromString(SecurityUtil.getCurrentUserId()))
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
-        // 세금계산서 발행 담당자에게 알림 발송 (임시: admin 유저 이메일로 조회)
         User receiver = userRepository.findByEmail("admin@admin.com")
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 

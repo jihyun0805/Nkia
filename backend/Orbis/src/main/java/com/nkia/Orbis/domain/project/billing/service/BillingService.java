@@ -86,7 +86,10 @@ public class BillingService {
 
         billing.issue(request.getIssuedAt(), request.getInvoiceImageId());
 
-        // 수금 담당자에게 알림 발송 (임시: admin 유저)
+        sendCollectionRequestAlarm(billingId);
+    }
+
+    private void sendCollectionRequestAlarm(Long billingId) {
         User sender = userRepository.findById(UUID.fromString(SecurityUtil.getCurrentUserId()))
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
         User receiver = userRepository.findByEmail("admin@admin.com")
