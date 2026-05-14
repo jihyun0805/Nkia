@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
-import { type CustomerAttachment, type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
+import { type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
 import {
   buildFallbackManagerEmail,
   loadBackendCompanyManagers,
@@ -41,7 +41,15 @@ import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
 const customerGroupOptions = ["공공", "민간", "해외"]
 
 type ContactDraft = CustomerContact
-type AttachmentDraft = CustomerAttachment
+
+type AttachmentDraft = {
+  id: string
+  name: string
+  size: number
+  contentType: string
+  dataUrl: string
+  createdAt: string
+}
 
 function createEmptyContactDraft(): ContactDraft {
   return {
@@ -153,7 +161,6 @@ function CustomerEditPageContent() {
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
-  const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -184,7 +191,6 @@ function CustomerEditPageContent() {
         setAddress(current.address ?? "")
         setMemo(current.memo ?? "")
         setContacts(normalizeContacts(current))
-        setAttachments(current.attachments ?? [])
 
         if (current.backendId) {
           const managers = await loadBackendCompanyManagers(current.backendId)
@@ -368,13 +374,6 @@ function CustomerEditPageContent() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const handleAttachmentChange = async (fileList: FileList | null) => {
-    const files = Array.from(fileList ?? [])
-    if (files.length === 0) return
-    const nextAttachments = await Promise.all(files.map(readFileAsAttachment))
-    setAttachments((prev) => [...prev, ...nextAttachments])
   }
 
   if (loading) {
@@ -643,36 +642,6 @@ function CustomerEditPageContent() {
                       </section>
                     ))}
                   </div>
-                </section>
-
-                <section className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>첨부파일</Label>
-                    <Input
-                      type="file"
-                      multiple
-                      onChange={(event) => {
-                        void handleAttachmentChange(event.target.files)
-                        event.target.value = ""
-                      }}
-                    />
-                  </div>
-                  {attachments.length > 0 ? (
-                    <div className="space-y-2 rounded-md border p-3">
-                      {attachments.map((attachment) => (
-                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                          <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                            {attachment.name}
-                          </a>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                            삭제
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <Input readOnly value="등록된 첨부파일이 없습니다." />
-                  )}
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">

@@ -2,7 +2,9 @@
 
 import { getBackendApiBaseUrl } from "@/lib/api-base-url"
 import { buildAuthHeaders } from "@/lib/auth-session"
+import { getPresalesUsers } from "@/lib/admin-data"
 import type { ActivityRecord } from "@/lib/activity-data"
+import { currentUser } from "@/lib/current-user"
 import type {
   ApiResponseVoid,
   SalesActivityCreateRequest,
@@ -15,6 +17,7 @@ import type {
   SalesActivityUpdateRequestActivityType,
   SalesActivityUpdateRequestStatus,
 } from "@/lib/api/generated/model"
+import { loadBackendUsers } from "@/lib/workflow-backend"
 
 type ApiResponse<T> = {
   result?: string
@@ -36,6 +39,13 @@ type ProjectOpportunitySummaryResponse = {
   customerCompanyName?: string
 }
 
+type BackendUserSummary = {
+  id?: string
+  employeeNumber?: string
+  name?: string
+  email?: string
+}
+
 type SalesActivityBackendItem = {
   id?: number
   projectOpportunityId?: number
@@ -50,6 +60,7 @@ type SalesActivityBackendItem = {
   issue?: string
   nextActivity?: string
   customerInterest?: string
+  attendeeUserIds?: string[]
   status?: string
   salesActivityRequestId?: number
   salesActivityRequestTitle?: string
@@ -154,6 +165,64 @@ function mapActivityStatusToEnum(status: string) {
   return ACTIVITY_STATUS_TO_ENUM[status] ?? "COMPLETED"
 }
 
+function normalizeLookupText(value: string) {
+  return value.trim().toLowerCase()
+}
+
+async function resolveAttendeeUserIds(attendees?: string) {
+  const tokens = (attendees ?? "")
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  if (tokens.length === 0) {
+    return []
+  }
+
+  let backendUsers: BackendUserSummary[] = []
+  try {
+    backendUsers = await loadBackendUsers()
+  } catch {
+    backendUsers = []
+  }
+
+  const localUsers: BackendUserSummary[] = getPresalesUsers().map((user) => ({
+    id: user.id,
+    employeeNumber: user.employeeNumber,
+    name: user.name,
+    email: user.email,
+  }))
+
+  const allUsers: BackendUserSummary[] = [
+    ...backendUsers,
+    ...localUsers,
+    { id: currentUser.id, name: currentUser.name, email: currentUser.email },
+  ]
+
+  const resolved = tokens
+    .map((token) => {
+      const normalized = normalizeLookupText(token)
+      const matched = allUsers.find((user) => {
+        const userId = user.id?.trim()
+        const employeeNumber = user.employeeNumber?.trim()
+        const name = user.name?.trim()
+        const email = user.email?.trim()
+
+        return (
+          (userId && normalizeLookupText(userId) === normalized) ||
+          (employeeNumber && normalizeLookupText(employeeNumber) === normalized) ||
+          (name && normalizeLookupText(name) === normalized) ||
+          (email && normalizeLookupText(email) === normalized)
+        )
+      })
+
+      return matched?.id?.trim() ?? ""
+    })
+    .filter((value): value is string => Boolean(value))
+
+  return Array.from(new Set(resolved))
+}
+
 async function fetchSalesActivities() {
   const response = await fetch(`${getBackendApiBaseUrl()}/activity/sales-activities`, {
     headers: buildAuthHeaders(),
@@ -243,7 +312,7 @@ function mapBackendActivityRecord(
     customer: activity.companyName ?? company?.name ?? "-",
     opportunity: activity.projectOpportunityName ?? "-",
     location: activity.location ?? "-",
-    attendees: "-",
+    attendees: activity.attendeeUserIds?.length ? activity.attendeeUserIds.join(", ") : "-",
     content: activity.activityContent ?? "-",
     issues: activity.customerInterest ?? activity.issue ?? "-",
     nextAction: activity.nextActivity ?? "-",
@@ -307,7 +376,7 @@ async function mapSavedSalesActivityResponse(saved: SalesActivityResponse & Sale
   return mapBackendActivityRecord(saved, company, 0)
 }
 
-function buildSalesActivityPayload(params: {
+async function buildSalesActivityPayload(params: {
   customerName?: string
   opportunityName?: string
   opportunityCode?: string
@@ -320,9 +389,12 @@ function buildSalesActivityPayload(params: {
   issues?: string
   nextAction?: string
   status?: string
+  attendees?: string
   requestId?: string
   salesActivityRequestId?: number
 }) {
+  const attendeeUserIds = await resolveAttendeeUserIds(params.attendees)
+
   return {
     projectOpportunityId: params.projectOpportunityId,
     activityType: mapActivityTypeToEnum(params.activityMode),
@@ -332,7 +404,7 @@ function buildSalesActivityPayload(params: {
     activityDateTime: `${params.activityDate}T00:00:00`,
     issue: params.issues ?? "",
     nextActivity: params.nextAction ?? "",
-    attendeeUserIds: [],
+    attendeeUserIds,
     customerInterest: params.issues ?? "",
     status: mapActivityStatusToEnum(params.status ?? "완료"),
     salesActivityRequestId: params.salesActivityRequestId,
@@ -352,6 +424,7 @@ export async function createBackendActivityRecord(params: {
   issues?: string
   nextAction?: string
   status?: string
+  attendees?: string
   requestId?: string
   salesActivityRequestId?: number
 }) {
@@ -366,7 +439,7 @@ export async function createBackendActivityRecord(params: {
     throw new Error("선택한 고객사/사업기회를 백엔드에서 찾을 수 없습니다.")
   }
 
-  const payload = buildSalesActivityPayload({
+  const payload = await buildSalesActivityPayload({
     ...params,
     projectOpportunityId,
   })
@@ -390,6 +463,7 @@ export async function updateBackendActivityRecord(
     issues?: string
     nextAction?: string
     status?: string
+    attendees?: string
     salesActivityRequestId?: number
   },
 ) {
@@ -405,10 +479,10 @@ export async function updateBackendActivityRecord(
   }
 
   const payload = {
-    ...buildSalesActivityPayload({
+    ...(await buildSalesActivityPayload({
       ...params,
       projectOpportunityId,
-    }),
+    })),
     projectOpportunityId,
   } satisfies SalesActivityUpdateRequest & { projectOpportunityId: number }
 

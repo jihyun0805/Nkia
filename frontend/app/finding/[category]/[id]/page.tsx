@@ -106,7 +106,6 @@ export default function FindingDetailPage() {
   }, [category, customers, id, opportunities, partners])
   const partnerItem = category === "partners" ? (item as PartnerRecord | null) : null
   const opportunityItem = category === "opportunities" ? (item as OpportunityRecord | null) : null
-  const partnerAttachments = partnerItem?.attachments ?? []
   const opportunityAttachments = opportunityItem?.rfpAttachments ?? []
 
   const label = getFindingCategoryLabel(category)
@@ -297,25 +296,6 @@ export default function FindingDetailPage() {
                           </section>
                         ))}
                       </div>
-                    </section>
-                    <section className="space-y-2">
-                      <Label>첨부파일</Label>
-                      {partnerAttachments.length > 0 ? (
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          {partnerAttachments.map((attachment: any) => (
-                            <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                              <div className="min-w-0 flex-1">
-                                <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                                  {attachment.name}
-                                </a>
-                                <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Input readOnly value="등록된 첨부파일이 없습니다." />
-                      )}
                     </section>
                   </>
                 ) : (

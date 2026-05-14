@@ -23,7 +23,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { bidStatuses, getBidCreateActionLabel, getBidResults, getPrbResults, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbResultUpdates, subscribePrbUpdates, subscribeRfpAnalysesUpdates, type ProposalRecord } from "@/lib/bid-data"
+import { bidStatuses, getBidCreateActionLabel, getPrbResults, getPrbs, getRfpAnalyses, subscribePrbResultUpdates, subscribePrbUpdates, subscribeRfpAnalysesUpdates, type ProposalRecord } from "@/lib/bid-data"
+import { loadBackendBidResults } from "@/lib/bid-result-backend"
 import { loadBackendPrbs } from "@/lib/prb-backend"
 import { loadBackendPrbResults } from "@/lib/prb-result-backend"
 import { loadBackendRfpAnalyses } from "@/lib/rfp-analysis-backend"
@@ -31,6 +32,7 @@ import { loadBackendProposals } from "@/lib/proposal-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
+import { type BidResultRecord } from "@/lib/bid-data"
 import { Plus, FileText, ClipboardCheck, Presentation, Trophy, ClipboardList } from "lucide-react"
 
 type ProposalOverviewRow = {
@@ -91,7 +93,7 @@ function BidPageContent() {
   const [prbResultItems, setPrbResultItems] = useState<ReturnType<typeof getPrbResults>>([])
   const [proposalRequests, setProposalRequests] = useState<ActivityRequestRecord[]>([])
   const [proposals, setProposals] = useState<ProposalRecord[]>([])
-  const [results, setResults] = useState<ReturnType<typeof getBidResults>>([])
+  const [results, setResults] = useState<BidResultRecord[]>([])
   const [findingData, setFindingData] = useState<FindingBackendData>({ opportunities: [], customers: [], partners: [] })
   const [proposalConfirmTarget, setProposalConfirmTarget] = useState<ProposalOverviewRow | null>(null)
   const [resultConfirmTarget, setResultConfirmTarget] = useState<BidResultOverviewRow | null>(null)
@@ -205,10 +207,9 @@ function BidPageContent() {
   }, [])
 
   useEffect(() => {
-    const sync = () => setResults(getBidResults())
-
-    sync()
-    return subscribeBidResultUpdates(sync)
+    void loadBackendBidResults()
+      .then((records) => setResults(records))
+      .catch(() => setResults([]))
   }, [])
 
   const opportunityMap = new Map(findingData.opportunities.map((item) => [item.id, item]))

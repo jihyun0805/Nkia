@@ -23,6 +23,7 @@ type ApiResponse<T> = {
 
 type BackendQuotationListItem = {
   id?: number
+  workflowId?: number
   quotationCode?: string
   projectOpportunityId?: number
   companyName?: string
@@ -195,6 +196,7 @@ function createDefaultApprovalProcess(salesRep: string) {
 }
 
 type BackendQuotationResponse = QuotationResponse & {
+  workflowId?: number
   refNo?: string
   companyName?: string
   projectOpportunityName?: string
@@ -338,6 +340,7 @@ function mapBackendQuotationRecord(
 
   return {
     id: String(quotation.id ?? local?.id ?? `QT-${Date.now()}`),
+    workflowId: quotation.workflowId ?? local?.workflowId,
     requestId: local?.requestId,
     refNumber: quotation.refNo ?? quotation.quotationCode ?? local?.refNumber ?? "",
     date,
@@ -550,6 +553,7 @@ export async function createBackendQuotationRecord(input: QuotationCreateInput) 
   const merged = mergeAndSaveQuotation(
     {
       id: saved.id,
+      workflowId: saved.workflowId,
       quotationCode: saved.quotationCode,
       projectOpportunityId: saved.projectOpportunityId,
       quotationDate: saved.quotationDate,
@@ -599,6 +603,7 @@ export async function updateBackendQuotationRecord(id: string, input: QuotationC
   return mergeAndSaveQuotation(
     {
       id: saved.id,
+      workflowId: saved.workflowId,
       quotationCode: saved.quotationCode,
       projectOpportunityId: saved.projectOpportunityId,
       quotationDate: saved.quotationDate,

@@ -23,18 +23,15 @@ type ActivityFormFieldsProps = {
   registrantValue?: string
   onRegistrantChange?: (value: string) => void
   customerValue?: string
-  customerCodeValue?: string
   onCustomerSelect?: (customer: CustomerRecord | null) => void
   onCustomerValueChange?: (value: string) => void
   onUnregisteredCustomerAttempt?: () => void
   opportunityValue?: string
-  opportunityCodeValue?: string
   opportunityOptions?: OpportunityRecord[]
   onOpportunityChange?: (value: string) => void
   onOpportunitySuggestionSelect?: (suggestion: EntitySuggestion | null) => void
   requesterValue?: string
   onRequesterChange?: (value: string) => void
-  requestIdValue?: string
   values?: {
     date: string
     activityMode: string
@@ -73,18 +70,15 @@ export function ActivityFormFields({
   registrantValue,
   onRegistrantChange,
   customerValue,
-  customerCodeValue,
   onCustomerSelect,
   onCustomerValueChange,
   onUnregisteredCustomerAttempt,
   opportunityValue,
-  opportunityCodeValue,
   opportunityOptions,
   onOpportunityChange,
   onOpportunitySuggestionSelect,
   requesterValue,
   onRequesterChange,
-  requestIdValue,
   values,
   onValuesChange,
 }: ActivityFormFieldsProps) {
@@ -98,7 +92,7 @@ export function ActivityFormFields({
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
   const [registrant, setRegistrant] = useState(registrantValue ?? defaultValues?.registrant ?? "")
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
-  const linkedRequestId = typeof requestIdValue === "string" ? requestIdValue : defaultValues?.requestId ?? ""
+  const linkedRequestId = defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
   const resolvedDate = values?.date ?? date
   const resolvedActivityMode = values?.activityMode ?? activityMode
@@ -210,7 +204,7 @@ export function ActivityFormFields({
 
   return (
     <>
-      <div className="space-y-2">
+      <div className="space-y-2 md:w-1/2">
         <Label>등록자</Label>
         <Input
           value={registrant}
@@ -240,10 +234,6 @@ export function ActivityFormFields({
             </p>
           )}
         </div>
-        <div className="space-y-2">
-          <Label>활동요청ID</Label>
-          <Input value={linkedRequestId} readOnly placeholder="활동 요청 없이 등록하는 경우 비워집니다" />
-        </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -259,13 +249,6 @@ export function ActivityFormFields({
           ) : (
             <Input defaultValue={defaultValues?.customer} placeholder="고객사를 입력하세요" />
           )}
-          <p className="text-sm text-muted-foreground">
-            등록된 고객사만 선택할 수 있으며 고객코드가 함께 승계됩니다.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <Label>고객사 코드</Label>
-          <Input value={customerCodeValue || "-"} readOnly />
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -283,23 +266,19 @@ export function ActivityFormFields({
                 }
                 onOpportunitySuggestionSelect?.(null)
               }}
-              disabled={!customerCodeValue}
+              disabled={!customerValue}
               allowCustomValue
-              placeholder={customerCodeValue ? "사업기회를 입력하세요" : "고객사를 먼저 선택하세요"}
+              placeholder={customerValue ? "사업기회를 입력하세요" : "고객사를 먼저 선택하세요"}
               emptyMessage="등록된 사업기회가 없습니다."
               filterSuggestion={(suggestion) =>
-                !customerCodeValue ||
-                suggestion.metadata.customerCode === customerCodeValue ||
-                suggestion.metadata.customerId === customerCodeValue
+                !customerValue ||
+                suggestion.metadata.customerCode === customerValue ||
+                suggestion.metadata.customerId === customerValue
               }
             />
           ) : (
             <Input defaultValue={defaultValues?.opportunity} placeholder="사업기회를 입력하세요" />
           )}
-        </div>
-        <div className="space-y-2">
-          <Label>사업기회 코드</Label>
-          <Input value={opportunityCodeValue || "-"} readOnly />
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -358,7 +337,12 @@ export function ActivityFormFields({
         </div>
         <div className="space-y-2">
           <Label>참석자</Label>
-          <Input value={resolvedAttendees} onChange={(event) => updateValues((current) => ({ ...current, attendees: event.target.value }))} placeholder="참석자를 입력하세요" />
+          <Input
+            value={resolvedAttendees}
+            onChange={(event) => updateValues((current) => ({ ...current, attendees: event.target.value }))}
+            placeholder="참석자 이름 또는 사번을 쉼표로 구분해 입력하세요"
+          />
+          <p className="text-sm text-muted-foreground">저장 시 백엔드에는 사용자 ID 배열로 전달됩니다.</p>
         </div>
       </div>
       <div className="space-y-2">

@@ -44,7 +44,10 @@ public enum AlarmType {
     PAID_MAINTENANCE_CONTRACT_REJECTED("유상유지보수 계약 반려"),
     LICENSE_REJECTED("라이선스 발급 반려"),
     BILLING_REJECTED("세금계산서 발행 반려"),
-    CUSTOMER_SUPPORT_REJECTED("고객지원요청 반려");
+    CUSTOMER_SUPPORT_REJECTED("고객지원요청 반려"),
+
+    BILLING_ISSUE_REQUEST("세금계산서 등록 요청"),
+    BILLING_COLLECTION_REQUEST("수금 확인 요청");
 
     private final String description;
 }
