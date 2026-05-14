@@ -42,6 +42,15 @@ const customerGroupOptions = ["공공", "민간", "해외"]
 
 type ContactDraft = CustomerContact
 
+type AttachmentDraft = {
+  id: string
+  name: string
+  size: number
+  contentType: string
+  dataUrl: string
+  createdAt: string
+}
+
 function createEmptyContactDraft(): ContactDraft {
   return {
     name: "",
