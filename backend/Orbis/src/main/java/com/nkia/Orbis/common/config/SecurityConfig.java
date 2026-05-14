@@ -57,6 +57,7 @@ public class SecurityConfig {
                         .requestMatchers("/business-card-ocr/**").permitAll()
                         .requestMatchers("/rfp-summary").permitAll()
                         .requestMatchers("/rfp-summary/**").permitAll()
+                        .requestMatchers("/reports/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/search/suggestions").permitAll()
                         .anyRequest().authenticated() // 그 외 모든 API는 인증 필요

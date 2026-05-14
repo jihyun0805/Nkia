@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Bell } from "lucide-react"
 import { ChatbotModal } from "@/components/erp/chatbot-modal"
+import { ManagementReportModal } from "@/components/erp/management-report-modal"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -61,6 +62,7 @@ export function Header({ title, description }: HeaderProps) {
         
         <div className="flex items-center gap-4">
           <ChatbotModal />
+          <ManagementReportModal />
 
           {/* Notifications */}
           <Popover>
