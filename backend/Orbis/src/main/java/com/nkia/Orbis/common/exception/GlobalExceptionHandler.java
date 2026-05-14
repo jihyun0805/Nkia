@@ -3,6 +3,7 @@ package com.nkia.Orbis.common.exception;
 import com.nkia.Orbis.common.exception.errorcode.CommonErrorCode;
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.chatbot.proxy.exception.ChatbotProxyException;
+import com.nkia.Orbis.domain.report.management.exception.ReportProxyException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +25,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ChatbotProxyException.class)
     public ResponseEntity<ApiResponse<Void>> handleChatbotProxyException(ChatbotProxyException e) {
         log.warn("ChatbotProxyException: {}", e.getMessage());
+        return ResponseEntity
+                .status(e.getErrorCode().getHttpStatus())
+                .body(ApiResponse.fail(e.getErrorCode(), e.getMessage()));
+    }
+
+    @ExceptionHandler(ReportProxyException.class)
+    public ResponseEntity<ApiResponse<Void>> handleReportProxyException(ReportProxyException e) {
+        log.warn("ReportProxyException: {}", e.getMessage());
         return ResponseEntity
                 .status(e.getErrorCode().getHttpStatus())
                 .body(ApiResponse.fail(e.getErrorCode(), e.getMessage()));
