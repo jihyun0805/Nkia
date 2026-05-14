@@ -2,10 +2,18 @@ package com.nkia.Orbis.domain.admin.workflow.handler;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.alarm.entity.AlarmType;
+import com.nkia.Orbis.domain.alarm.event.AlarmEvent;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.billing.repository.BillingRepository;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -13,6 +21,8 @@ import org.springframework.stereotype.Component;
 public class BillingHandler implements WorkflowDomainHandler {
 
     private final BillingRepository billingRepository;
+    private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public WorkflowDomain getDomain() {
@@ -26,6 +36,20 @@ public class BillingHandler implements WorkflowDomainHandler {
 
         billing.approve();
         billing.approveBilling();
+
+        User sender = userRepository.findById(UUID.fromString(SecurityUtil.getCurrentUserId()))
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+        // 세금계산서 발행 담당자에게 알림 발송 (임시: admin 유저 이메일로 조회)
+        User receiver = userRepository.findByEmail("admin@admin.com")
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
+        eventPublisher.publishEvent(new AlarmEvent(
+                sender,
+                receiver,
+                AlarmType.BILLING_ISSUE_REQUEST,
+                "세금계산서 발행 요청이 승인되었습니다. 세금계산서를 발행하고 세금계산서를 등록하시겠습니까?",
+                targetId));
     }
 
     @Override
