@@ -16,10 +16,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { formatAttachmentSize } from "@/lib/attachments"
@@ -33,6 +35,8 @@ import {
   getFindingCategoryLabel,
   getFindingFields,
 } from "@/lib/finding-data"
+import { type ActivityRecord, getActivityDisplayType } from "@/lib/activity-data"
+import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { deleteBackendCompany, deleteBackendProjectOpportunity, loadBackendFindingData } from "@/lib/finding-backend"
 import { FileText } from "lucide-react"
 
@@ -75,6 +79,7 @@ export default function FindingDetailPage() {
   const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [partners, setPartners] = useState<PartnerRecord[]>([])
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
 
   useEffect(() => {
@@ -99,6 +104,28 @@ export default function FindingDetailPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (category !== "opportunities") return
+
+    let cancelled = false
+
+    loadBackendActivityRecords()
+      .then((records) => {
+        if (!cancelled) {
+          setActivityRecords(records)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityRecords([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category])
+
   const item = useMemo(() => {
     if (category === "opportunities") return opportunities.find((entry) => entry.id === id) ?? null
     if (category === "customers") return customers.find((entry) => entry.id === id) ?? null
@@ -107,6 +134,21 @@ export default function FindingDetailPage() {
   const partnerItem = category === "partners" ? (item as PartnerRecord | null) : null
   const opportunityItem = category === "opportunities" ? (item as OpportunityRecord | null) : null
   const opportunityAttachments = opportunityItem?.rfpAttachments ?? []
+  const relatedActivities = useMemo(() => {
+    if (!opportunityItem) return []
+
+    const backendId = opportunityItem.backendId
+    const backendIdText = backendId != null ? String(backendId) : ""
+
+    return activityRecords
+      .filter((activity) => {
+        if (backendId != null && activity.projectOpportunityId === backendId) return true
+        if (backendIdText && activity.businessCode === backendIdText) return true
+        if (activity.businessCode && activity.businessCode === opportunityItem.id) return true
+        return activity.customerCode === opportunityItem.customerCode && activity.opportunity === opportunityItem.name
+      })
+      .sort((a, b) => b.date.localeCompare(a.date))
+  }, [activityRecords, opportunityItem])
 
   const label = getFindingCategoryLabel(category)
   const tab = searchParams.get("tab") ?? category
@@ -311,6 +353,7 @@ export default function FindingDetailPage() {
                       </div>
                     </section>
                     {category === "opportunities" ? (
+                      <>
                       <section className="space-y-3">
                         <h2 className="text-base font-semibold">RFP 문서</h2>
                         {opportunityAttachments.length > 0 ? (
@@ -343,6 +386,47 @@ export default function FindingDetailPage() {
                           <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">등록된 RFP 문서가 없습니다.</div>
                         )}
                       </section>
+                      <section className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <h2 className="text-base font-semibold">관련 활동</h2>
+                          <Badge variant="secondary">{relatedActivities.length}건</Badge>
+                        </div>
+                        {relatedActivities.length > 0 ? (
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-[120px]">활동일</TableHead>
+                                  <TableHead>활동 구분</TableHead>
+                                  <TableHead>주요 내용</TableHead>
+                                  <TableHead className="w-[160px]">등록자</TableHead>
+                                  <TableHead className="w-[120px]">상태</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {relatedActivities.map((activity) => (
+                                  <TableRow
+                                    key={activity.id}
+                                    className="cursor-pointer hover:bg-muted/50"
+                                    onClick={() => router.push(`/activity/activities/${activity.id}`)}
+                                  >
+                                    <TableCell>{activity.date || "-"}</TableCell>
+                                    <TableCell>{getActivityDisplayType(activity)}</TableCell>
+                                    <TableCell className="max-w-[360px] truncate">{activity.content || "-"}</TableCell>
+                                    <TableCell>{activity.registrant ?? "-"}</TableCell>
+                                    <TableCell>{activity.status || "-"}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        ) : (
+                          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                            이 사업기회에 연결된 활동이 없습니다.
+                          </div>
+                        )}
+                      </section>
+                      </>
                     ) : null}
                   </>
                 )}
