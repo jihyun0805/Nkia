@@ -21,7 +21,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { deleteBidResult, getBidResultById, subscribeBidResultUpdates, type BidResultAttachment, type BidResultRecord } from "@/lib/bid-data"
+import { deleteBackendBidResult, loadBackendBidResultDetailById } from "@/lib/bid-result-backend"
+import { type BidResultRecord } from "@/lib/bid-data"
 import { toast } from "@/hooks/use-toast"
 
 function BidResultDetailField({ label, value }: { label: string; value: string }) {
@@ -29,38 +30,6 @@ function BidResultDetailField({ label, value }: { label: string; value: string }
     <div className="space-y-2">
       <Label>{label}</Label>
       <Input readOnly value={value || "-"} />
-    </div>
-  )
-}
-
-function BidResultAttachmentField({ bidResult }: { bidResult: BidResultRecord }) {
-  const attachments: BidResultAttachment[] = bidResult.attachments ?? bidResult.attachmentNames.map((name) => ({ name }))
-
-  return (
-    <div className="space-y-2 md:col-span-2">
-      <Label>첨부파일</Label>
-      {attachments.length > 0 ? (
-        <div className="space-y-2 rounded-md border px-4 py-3">
-          {attachments.map((attachment, index) =>
-            attachment.url ? (
-              <a
-                key={`${attachment.name}-${index}`}
-                href={attachment.url}
-                download={attachment.name}
-                className="block text-sm font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {attachment.name}
-              </a>
-            ) : (
-              <p key={`${attachment.name}-${index}`} className="text-sm text-muted-foreground">
-                {attachment.name}
-              </p>
-            ),
-          )}
-        </div>
-      ) : (
-        <Input readOnly value="등록된 첨부파일이 없습니다." />
-      )}
     </div>
   )
 }
@@ -73,20 +42,29 @@ export function BidResultDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   useEffect(() => {
-    const sync = () => setBidResult(getBidResultById(id))
-    sync()
-    const unsubscribe = subscribeBidResultUpdates(sync)
-    window.addEventListener("storage", sync)
+    let cancelled = false
+
+    void loadBackendBidResultDetailById(id)
+      .then((record) => {
+        if (!cancelled) {
+          setBidResult(record)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBidResult(null)
+        }
+      })
 
     return () => {
-      unsubscribe()
-      window.removeEventListener("storage", sync)
+      cancelled = true
     }
   }, [id])
 
-  const handleDelete = () => {
-    const result = deleteBidResult(id)
-    if (result.status === "not_found") {
+  const handleDelete = async () => {
+    try {
+      await deleteBackendBidResult(id)
+    } catch {
       toast({
         title: "입찰 결과 삭제 실패",
         description: "삭제할 입찰 결과를 찾지 못했습니다.",
@@ -97,7 +75,7 @@ export function BidResultDetailPage() {
 
     toast({
       title: "입찰 결과 삭제 완료",
-      description: `${result.bidResult.id} 입찰 결과가 삭제되었습니다.`,
+      description: `${id} 입찰 결과가 삭제되었습니다.`,
     })
     setIsDeleteOpen(false)
     router.push("/bid")
@@ -167,7 +145,6 @@ export function BidResultDetailPage() {
                   <BidResultDetailField label="금액" value={bidResult.amount} />
                   <BidResultDetailField label="경쟁사" value={bidResult.competitor} />
                   <BidResultDetailField label="결과 사유" value={bidResult.reason} />
-                  <BidResultAttachmentField bidResult={bidResult} />
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">
