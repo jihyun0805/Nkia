@@ -444,10 +444,10 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "고객사 등록 확인",
-        description: "고객사명, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -512,10 +512,10 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "협력사 등록 확인",
-        description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -622,7 +622,7 @@ export function FindingCategoryNewPageView({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>유형 *</Label>
+                        <Label>유형</Label>
                         <Select value={partnerType} onValueChange={setPartnerType}>
                           <SelectTrigger>
                             <SelectValue placeholder="선택하세요" />
@@ -732,7 +732,7 @@ export function FindingCategoryNewPageView({
                           ) : null}
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>담당자명</Label>
+                              <Label>담당자명 *</Label>
                               <Input
                                 value={contact.name}
                                 onChange={(event) =>
@@ -764,7 +764,7 @@ export function FindingCategoryNewPageView({
                           </div>
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>이메일</Label>
+                              <Label>이메일 *</Label>
                               <Input
                                 type="email"
                                 inputMode="email"
@@ -777,7 +777,7 @@ export function FindingCategoryNewPageView({
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호</Label>
+                              <Label>무선전화번호 *</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -1271,7 +1271,7 @@ export function FindingCategoryNewPageView({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>고객군 *</Label>
+                      <Label>고객군</Label>
                       <Select value={customerGroup} onValueChange={setCustomerGroup}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
@@ -1362,7 +1362,7 @@ export function FindingCategoryNewPageView({
                         ) : null}
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>담당자명</Label>
+                            <Label>담당자명 *</Label>
                             <Input
                               value={contact.name}
                               onChange={(event) =>
@@ -1394,7 +1394,7 @@ export function FindingCategoryNewPageView({
                         </div>
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>이메일</Label>
+                            <Label>이메일 *</Label>
                             <Input
                               type="email"
                               inputMode="email"
@@ -1407,7 +1407,7 @@ export function FindingCategoryNewPageView({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호</Label>
+                            <Label>무선전화번호 *</Label>
                             <Input
                               inputMode="tel"
                               autoComplete="tel"

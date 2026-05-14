@@ -329,10 +329,10 @@ function CustomerEditPageContent() {
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !primaryContact?.name?.trim() || !primaryContact?.mobilePhone?.trim()) {
+    if (!normalizedName || !primaryContact?.name?.trim() || !primaryContact?.email?.trim() || !primaryContact?.mobilePhone?.trim()) {
       toast({
         title: "고객사 수정 확인",
-        description: "고객사명, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -464,7 +464,7 @@ function CustomerEditPageContent() {
                       <CustomerAutocomplete value={customerName} onSelect={(nextCustomer) => setCustomerName(nextCustomer?.name ?? "")} onValueChange={setCustomerName} allowCustomValue placeholder="고객사명을 입력하세요" />
                     </div>
                     <div className="space-y-2">
-                      <Label>고객군 *</Label>
+                      <Label>고객군</Label>
                       <Select value={customerGroup} onValueChange={setCustomerGroup}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
@@ -555,7 +555,7 @@ function CustomerEditPageContent() {
                         ) : null}
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>담당자명</Label>
+                            <Label>담당자명 *</Label>
                             <Input
                               value={contact.name}
                               onChange={(event) =>
@@ -587,7 +587,7 @@ function CustomerEditPageContent() {
                         </div>
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>이메일</Label>
+                            <Label>이메일 *</Label>
                             <Input
                               type="email"
                               inputMode="email"
@@ -600,7 +600,7 @@ function CustomerEditPageContent() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호</Label>
+                            <Label>무선전화번호 *</Label>
                             <Input
                               inputMode="tel"
                               autoComplete="tel"
