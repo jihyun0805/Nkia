@@ -29,7 +29,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { formatAttachmentSize } from "@/lib/attachments"
 import { toast } from "@/hooks/use-toast"
 import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, resolveWorkflowApproverId } from "@/lib/workflow-backend"
 import {
@@ -272,12 +271,6 @@ export default function ActivityDetailPage() {
     Boolean(activeApprovalStep) &&
     (activeApprovalStep.assignee === currentUser.name || activeApprovalStep.assignee === currentUser.role)
   const fields = item ? getActivityItemFields(category, item) : []
-  const attachments: ActivityAttachment[] =
-    category === "activities"
-      ? (((item as ActivityRecord | null)?.attachments ?? []) as ActivityAttachment[])
-      : category === "requests"
-        ? (((item as ActivityRequestRecord | null)?.attachments ?? []) as ActivityAttachment[])
-        : []
   const listHref =
     item && category === "activities"
       ? `/activity/customers/${(item as { customerCode?: string }).customerCode ?? ""}`
@@ -637,25 +630,6 @@ export default function ActivityDetailPage() {
                         <Input readOnly value={requestItem.approvedAt} />
                       </div>
                     )}
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>첨부파일</Label>
-                      {attachments.length > 0 ? (
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          {attachments.map((attachment) => (
-                            <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                              <div className="min-w-0 flex-1">
-                                <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                                  {attachment.name}
-                                </a>
-                                <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Input readOnly value="등록된 첨부파일이 없습니다." />
-                      )}
-                    </div>
                   </div>
                 )}
 
