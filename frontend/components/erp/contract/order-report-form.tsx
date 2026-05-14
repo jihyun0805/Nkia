@@ -23,37 +23,110 @@ interface OrderReportFormProps {
     projectOpportunityId?: number; // 백엔드 ID
     [key: string]: any;
   } | null;
+  isEdit?: boolean;
+  orderReportId?: number;
+  initialData?: any;
 }
 
-export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderReportFormProps) {
+export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, orderReportId, initialData }: OrderReportFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedOppId, setSelectedOppId] = useState<number | null>(
-    inheritedData?.projectOpportunityId ?? (inheritedData?.opportunityId ? parseInt(inheritedData.opportunityId.replace(/\D/g, "")) : null),
+    isEdit ? initialData?.projectOpportunityId : (inheritedData?.projectOpportunityId ?? (inheritedData?.opportunityId ? parseInt(inheritedData.opportunityId.replace(/\D/g, "")) : null)),
   );
+
+  const formatNum = (num: any) => {
+    if (num === null || num === undefined) return "";
+    return Number(num).toLocaleString();
+  };
 
   const methods = useForm({
     defaultValues: {
-      projectName: inheritedData?.opportunityName || "",
+      projectName: isEdit ? initialData?.projectName : inheritedData?.opportunityName || "",
       finalCustomer: {
-        name: inheritedData?.customerName || "",
+        name: isEdit ? initialData?.finalCustomerCompanyName : inheritedData?.customerName || "",
+        companyId: isEdit ? initialData?.finalCustomerCompanyId : undefined,
+        managerId: isEdit ? initialData?.finalCustomerManagerId : undefined,
       },
       contractPartner: {
-        name: inheritedData?.customerName || "",
+        name: isEdit ? initialData?.contractCounterpartCompanyName : inheritedData?.customerName || "",
+        companyId: isEdit ? initialData?.contractCounterpartCompanyId : undefined,
+        managerId: isEdit ? initialData?.contractCounterpartManagerId : undefined,
       },
-      totalAmount: "",
+      pmId: isEdit ? initialData?.pmId : undefined,
+      type: isEdit ? initialData?.type : "SOLUTION",
+      codeType: isEdit ? initialData?.codeType : "GN",
+      hasChannel: isEdit ? (initialData?.channel ? "Y" : "N") : "",
+      contractDate: isEdit ? initialData?.contractDate : undefined,
+      startDate: isEdit ? initialData?.contractStartDate : undefined,
+      endDate: isEdit ? initialData?.contractEndDate : undefined,
+      contractPeriodMonths: isEdit ? initialData?.contractPeriodMonths : undefined,
+      freeMaintenancePeriod: isEdit ? initialData?.freeMaintenancePeriodMonths : undefined,
+      scopeOfWork: isEdit ? initialData?.scopeOfWork : undefined,
+      remarks: isEdit ? initialData?.remarks : undefined,
+      quotationProvided: isEdit ? initialData?.quotationProvided : false,
+      contractProvided: isEdit ? initialData?.contractProvided : false,
+      purchaseOrderProvided: isEdit ? initialData?.purchaseOrderProvided : false,
+      prbReportProvided: isEdit ? initialData?.prbReportProvided : false,
+      additionalDocuments: isEdit ? initialData?.additionalDocuments : undefined,
+      totalAmount: isEdit ? formatNum(initialData?.totalAmount) : "",
       vatType: "",
-      paymentTerms: "",
+      paymentTerms: isEdit ? initialData?.paymentCondition : "",
       salesClassification: {
-        ems: "",
-        itg: "",
-        dashboard: "",
-        aiotion: "",
-        emsMaintenance: "",
-        itgMaintenance: "",
-        ito: "",
-        others: "",
+        ems: isEdit ? formatNum(initialData?.emsSummary) : "",
+        itg: isEdit ? formatNum(initialData?.itgSummary) : "",
+        dashboard: isEdit ? formatNum(initialData?.dashboardSummary) : "",
+        aiotion: isEdit ? formatNum(initialData?.aiotionSummary) : "",
+        emsMaintenance: isEdit ? formatNum(initialData?.emsMaintenanceSummary) : "",
+        itgMaintenance: isEdit ? formatNum(initialData?.itgMaintenanceSummary) : "",
+        ito: isEdit ? formatNum(initialData?.itoSummary) : "",
+        others: isEdit ? formatNum(initialData?.otherSummary) : "",
         verification: "",
       },
+      licenseDetails: isEdit
+        ? initialData?.licenses?.map((l: any) => ({
+            productModuleId: l.productModuleId,
+            quantity: formatNum(l.quantity),
+            productClass: l.productClass,
+            productGroup: l.productGroup,
+            productName: l.productName,
+            price: formatNum(l.price),
+            totalPrice: formatNum(l.totalPrice),
+          }))
+        : [],
+      serviceDetails: isEdit
+        ? initialData?.services?.map((s: any) => ({
+            content: s.content,
+            manMonth: formatNum(s.manMonth),
+            price: formatNum(s.price),
+            totalPrice: formatNum(s.totalPrice),
+          }))
+        : [],
+      maintenanceDetails: isEdit
+        ? initialData?.maintenances?.map((m: any) => ({
+            content: m.content,
+            visitCycle: m.visitCycle,
+            month: formatNum(m.month),
+            price: formatNum(m.price),
+            totalPrice: formatNum(m.totalPrice),
+          }))
+        : [],
+      otherSalesDetails: isEdit
+        ? initialData?.others?.map((o: any) => ({
+            content: o.content,
+            quantity: formatNum(o.quantity),
+            price: formatNum(o.price),
+            totalPrice: formatNum(o.totalPrice),
+          }))
+        : [],
+      purchaseDetails: isEdit
+        ? initialData?.purchases?.map((p: any) => ({
+            content: p.content,
+            quantity: formatNum(p.quantity),
+            price: formatNum(p.price),
+            totalPrice: formatNum(p.totalPrice),
+          }))
+        : [],
+      maintenanceOnlyItems: isEdit ? initialData?.maintenanceOnlyItems : [],
     },
   });
 
@@ -62,8 +135,8 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderRep
     methods.reset({
       ...methods.getValues(),
       projectName: opp.name,
-      finalCustomer: { name: opp.customer },
-      contractPartner: { name: opp.customer },
+      finalCustomer: { name: opp.customer, companyId: opp.customerCompanyId },
+      contractPartner: { name: opp.customer, companyId: opp.customerCompanyId },
       // 기타 매핑 필요한 필드
     });
   };
@@ -83,19 +156,19 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderRep
     };
 
     const payload: OrderReportRequest = {
-      type: formData.type || "NEW",
+      type: formData.type || "SOLUTION",
       quotationProvided: formData.quotationProvided || false,
       contractProvided: formData.contractProvided || false,
       purchaseOrderProvided: formData.purchaseOrderProvided || false,
       prbReportProvided: formData.prbReportProvided || false,
       paymentCondition: formData.paymentTerms || "",
       additionalDocuments: formData.additionalDocuments,
-      channel: formData.channel || false,
-      codeType: formData.codeType || "DIRECT",
+      channel: formData.hasChannel === "Y",
+      codeType: (formData.codeClassification || formData.codeType || "GN").replace("-", ""),
       contractDate: formData.contractDate || new Date().toISOString().split("T")[0],
-      freeMaintenancePeriodMonths: formData.freeMaintenancePeriodMonths ? parseInt(formData.freeMaintenancePeriodMonths) : undefined,
-      contractStartDate: formData.contractStartDate,
-      contractEndDate: formData.contractEndDate,
+      freeMaintenancePeriodMonths: formData.freeMaintenancePeriod ? parseInt(formData.freeMaintenancePeriod) : undefined,
+      contractStartDate: formData.startDate || undefined,
+      contractEndDate: formData.endDate || undefined,
       contractPeriodMonths: formData.contractPeriodMonths ? parseInt(formData.contractPeriodMonths) : undefined,
       scopeOfWork: formData.scopeOfWork,
       remarks: formData.remarks,
@@ -107,49 +180,72 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderRep
       finalCustomerManagerId: formData.finalCustomer?.managerId ? parseInt(formData.finalCustomer.managerId) : undefined,
       emsMaintenanceSummary: parseNum(formData.salesClassification?.emsMaintenance),
       itgMaintenanceSummary: parseNum(formData.salesClassification?.itgMaintenance),
-      maintenances: (formData.maintenanceDetails || []).map((m: any) => ({
-        content: m.content || "",
-        visitCycle: m.visitCycle || "MONTHLY",
-        month: parseInt(m.month) || 0,
-        price: parseNum(m.price),
-      })),
-      licenses: (formData.licenseDetails || []).map((l: any) => ({
-        productModuleId: parseInt(l.productModuleId) || 0,
-        quantity: parseInt(l.quantity) || 1,
-      })),
-      services: (formData.serviceDetails || []).map((s: any) => ({
-        content: s.content || "",
-        manMonth: parseNum(s.manMonth),
-        price: parseNum(s.price),
-      })),
-      maintenanceOnlyItems: (formData.maintenanceOnlyItems || []).map((i: any) => ({
-        year: parseInt(i.year) || 0,
-        amount: parseNum(i.amount),
-        license: parseNum(i.license),
-        thirdParty: parseNum(i.thirdParty),
-        service: parseNum(i.service),
-        maintenance: parseNum(i.maintenance),
-        maintenanceRate: parseFloat(i.maintenanceRate) || 0,
-      })),
-      others: (formData.otherSalesDetails || []).map((o: any) => ({
-        content: o.content || "",
-        quantity: parseInt(o.quantity) || 0,
-        price: parseNum(o.price),
-      })),
-      purchases: (formData.purchaseDetails || []).map((p: any) => ({
-        content: p.content || "",
-        quantity: parseInt(p.quantity) || 0,
-        price: parseNum(p.price),
-      })),
+      maintenances: (formData.maintenanceDetails || [])
+        .filter((m: any) => m.content || m.monthlyAmount)
+        .map((m: any) => {
+          let vc = "MONTHLY";
+          if (m.cycle === "월") vc = "MONTHLY";
+          else if (m.cycle === "분기") vc = "QUARTERLY";
+          else if (m.cycle === "반기") vc = "BIANNUAL";
+          return {
+            content: m.content || "",
+            visitCycle: vc,
+            month: parseInt(m.months) || 0,
+            price: parseNum(m.monthlyAmount),
+          };
+        }),
+      licenses: (formData.licenseDetails || [])
+        .filter((l: any) => l.productModuleId)
+        .map((l: any) => ({
+          productModuleId: parseInt(l.productModuleId),
+          quantity: parseInt(l.quantity) || 1,
+        })),
+      services: (formData.serviceDetails || [])
+        .filter((s: any) => s.content || s.mm)
+        .map((s: any) => ({
+          content: s.content || "",
+          manMonth: parseNum(s.mm),
+          price: parseNum(s.unitPrice),
+        })),
+      maintenanceOnlyItems: (formData.maintenanceOnlyItems || [])
+        .filter((i: any) => i.year || i.amount)
+        .map((i: any) => ({
+          year: parseInt(i.year) || 0,
+          amount: parseNum(i.amount),
+          license: parseNum(i.license),
+          thirdParty: parseNum(i.thirdParty),
+          service: parseNum(i.service),
+          maintenance: parseNum(i.maintenance),
+          maintenanceRate: parseFloat(i.maintenanceRate) || 0,
+        })),
+      others: (formData.otherSalesDetails || [])
+        .filter((o: any) => o.content || o.quantity)
+        .map((o: any) => ({
+          content: o.content || "",
+          quantity: parseInt(o.quantity) || 0,
+          price: parseNum(o.unitPrice),
+        })),
+      purchases: (formData.purchaseDetails || [])
+        .filter((p: any) => p.content || p.quantity)
+        .map((p: any) => ({
+          content: p.content || "",
+          quantity: parseInt(p.quantity) || 0,
+          price: parseNum(p.unitPrice),
+        })),
     };
 
     setIsSubmitting(true);
     try {
-      await orderReportApi.createOrderReport(payload);
-      toast.success("수주보고서가 등록되었습니다.");
+      if (isEdit && orderReportId) {
+        await orderReportApi.updateOrderReport(orderReportId, payload);
+        toast.success("수주보고서가 수정되었습니다.");
+      } else {
+        await orderReportApi.createOrderReport(payload);
+        toast.success("수주보고서가 등록되었습니다.");
+      }
       onSuccess();
     } catch (error: any) {
-      const message = error?.response?.data?.message || "수주보고서 등록에 실패했습니다. 다시 시도해주세요.";
+      const message = error?.response?.data?.message || (isEdit ? "수주보고서 수정에 실패했습니다. 다시 시도해주세요." : "수주보고서 등록에 실패했습니다. 다시 시도해주세요.");
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -173,7 +269,7 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderRep
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            등록
+            {isEdit ? "수정" : "등록"}
           </Button>
         </div>
       </form>

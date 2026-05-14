@@ -1,7 +1,9 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
+import { adminApi } from "@/lib/api/admin-api";
+import { loadBackendFindingData, loadBackendCompanyManagers } from "@/lib/finding-backend";
 
 export function OrderContractSection() {
   const { register, control, setValue } = useFormContext();
@@ -28,6 +30,62 @@ export function OrderContractSection() {
       setValue("contractPeriod", "");
     }
   }, [startDate, endDate, setValue]);
+
+  const [users, setUsers] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [contractManagers, setContractManagers] = useState<any[]>([]);
+  const [finalManagers, setFinalManagers] = useState<any[]>([]);
+
+  const contractCompanyId = useWatch({ control, name: "contractPartner.companyId" });
+  const finalCompanyId = useWatch({ control, name: "finalCustomer.companyId" });
+  const contractManagerId = useWatch({ control, name: "contractPartner.managerId" });
+  const finalManagerId = useWatch({ control, name: "finalCustomer.managerId" });
+
+  useEffect(() => {
+    adminApi
+      .getUsers()
+      .then((res) => setUsers(res.data || []))
+      .catch(console.error);
+    loadBackendFindingData()
+      .then((data) => {
+        setCompanies([...data.customers, ...data.partners]);
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (contractCompanyId) {
+      loadBackendCompanyManagers(contractCompanyId).then(setContractManagers).catch(console.error);
+    } else {
+      setContractManagers([]);
+    }
+  }, [contractCompanyId]);
+
+  useEffect(() => {
+    if (finalCompanyId) {
+      loadBackendCompanyManagers(finalCompanyId).then(setFinalManagers).catch(console.error);
+    } else {
+      setFinalManagers([]);
+    }
+  }, [finalCompanyId]);
+
+  useEffect(() => {
+    const manager = contractManagers.find((m) => String(m.id) === String(contractManagerId));
+    if (manager) {
+      setValue("contractPartner.contact", manager.phone || manager.email || "");
+    } else {
+      setValue("contractPartner.contact", "");
+    }
+  }, [contractManagerId, contractManagers, setValue]);
+
+  useEffect(() => {
+    const manager = finalManagers.find((m) => String(m.id) === String(finalManagerId));
+    if (manager) {
+      setValue("finalCustomer.contact", manager.phone || manager.email || "");
+    } else {
+      setValue("finalCustomer.contact", "");
+    }
+  }, [finalManagerId, finalManagers, setValue]);
 
   return (
     <table className="w-full border-collapse border border-black text-sm table-fixed -mt-[1px] bg-white">
@@ -101,7 +159,16 @@ export function OrderContractSection() {
             수행PM
           </th>
           <td className="p-0" colSpan={9}>
-            <input className={`${cellInput} text-center`} {...register("pmName")} />
+            <select className={`${cellInput} text-center`} {...register("pmId")}>
+              <option value="" hidden>
+                선택
+              </option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.roles?.join(", ")})
+                </option>
+              ))}
+            </select>
           </td>
         </tr>
         <tr className="border-b border-black">
@@ -109,13 +176,31 @@ export function OrderContractSection() {
             계약상대
           </th>
           <td className="border-r border-black p-0" colSpan={4}>
-            <input className={`${cellInput} text-center`} {...register("contractPartner.name")} />
+            <select className={`${cellInput} text-center`} {...register("contractPartner.companyId")}>
+              <option value="" hidden>
+                선택
+              </option>
+              {companies.map((c) => (
+                <option key={c.backendId} value={c.backendId}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </td>
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
             최종고객사
           </th>
           <td className="p-0" colSpan={4}>
-            <input className={`${cellInput} text-center`} {...register("finalCustomer.name")} />
+            <select className={`${cellInput} text-center`} {...register("finalCustomer.companyId")}>
+              <option value="" hidden>
+                선택
+              </option>
+              {companies.map((c) => (
+                <option key={c.backendId} value={c.backendId}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </td>
         </tr>
         <tr className="border-b border-black">
@@ -123,27 +208,45 @@ export function OrderContractSection() {
             담당자
           </th>
           <td className="border-r border-black p-0" colSpan={4}>
-            <input className={`${cellInput} text-center`} {...register("contractPartner.manager")} />
+            <select className={`${cellInput} text-center ${!contractCompanyId ? "bg-slate-50" : ""}`} {...register("contractPartner.managerId")} disabled={!contractCompanyId}>
+              <option value="" hidden>
+                선택
+              </option>
+              {contractManagers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
           </td>
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
             담당자
           </th>
           <td className="p-0" colSpan={4}>
-            <input className={`${cellInput} text-center`} {...register("finalCustomer.manager")} />
+            <select className={`${cellInput} text-center ${!finalCompanyId ? "bg-slate-50" : ""}`} {...register("finalCustomer.managerId")} disabled={!finalCompanyId}>
+              <option value="" hidden>
+                선택
+              </option>
+              {finalManagers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
           </td>
         </tr>
         <tr className="border-b border-black">
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
             연락처
           </th>
-          <td className="border-r border-black p-0" colSpan={4}>
-            <input className={`${cellInput} text-center`} {...register("contractPartner.contact")} />
+          <td className="border-r border-black p-0 bg-slate-50" colSpan={4}>
+            <input className={`${cellInput} text-center font-semibold text-slate-600`} readOnly tabIndex={-1} {...register("contractPartner.contact")} />
           </td>
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
             연락처
           </th>
-          <td className="p-0" colSpan={4}>
-            <input className={`${cellInput} text-center`} {...register("finalCustomer.contact")} />
+          <td className="p-0 bg-slate-50" colSpan={4}>
+            <input className={`${cellInput} text-center font-semibold text-slate-600`} readOnly tabIndex={-1} {...register("finalCustomer.contact")} />
           </td>
         </tr>
         <tr className="border-b border-black">
