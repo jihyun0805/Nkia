@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { QuotationSheet } from "@/components/erp/quotation-sheet"
+import { ActivityFormFields } from "@/components/erp/searchable-activity-form-fields"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +40,6 @@ import {
   type ActivityRecord,
   type ActivityRequestRecord,
   type QuotationRecord,
-  getActivityItemFields,
   getCategoryLabel,
 } from "@/lib/activity-data"
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
@@ -46,6 +47,7 @@ import { currentUser } from "@/lib/current-user"
 import { deleteBackendActivityRecord, loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { deleteBackendQuotationRecord, loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
+import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import {
   approveQuotationStep,
   deleteQuotationVersion,
@@ -53,8 +55,6 @@ import {
   rejectQuotationStep,
   subscribeQuotationUpdates,
 } from "@/lib/quotation-workflow"
-
-const fullWidthFieldLabels = ["주요 내용", "고객 관심 사항 / 이슈", "다음 할 일", "견적 비고", "요청 내용"]
 
 function buildQuotationDetailForm(record: QuotationRecord) {
   return {
@@ -202,6 +202,7 @@ export default function ActivityDetailPage() {
   const isQuotation = category === "quotations"
   const requestItem = isRequest && item ? (item as ActivityRequestRecord) : null
   const quotationItem = isQuotation && item ? (item as QuotationRecord) : null
+  const requestMatchedCustomer = requestItem ? getCustomerByName(requestItem.customer) : null
   const isDeletedQuotation = Boolean(quotationItem?.deletedAt)
   const quotationApprovalProcess =
     quotationItem?.approvalProcess ?? {
@@ -271,7 +272,6 @@ export default function ActivityDetailPage() {
     quotationApprovalProcess.overallStatus === "진행중" &&
     Boolean(activeApprovalStep) &&
     (activeApprovalStep.assignee === currentUser.name || activeApprovalStep.assignee === currentUser.role)
-  const fields = item ? getActivityItemFields(category, item) : []
   const listHref =
     item && category === "activities"
       ? `/activity/customers/${(item as { customerCode?: string }).customerCode ?? ""}`
@@ -320,10 +320,10 @@ export default function ActivityDetailPage() {
           description: `${id} 영업활동이 삭제되었습니다.`,
         })
         router.push(listHref)
-      } catch {
+      } catch (error) {
         toast({
           title: "영업활동 삭제 실패",
-          description: "백엔드에서 영업활동을 삭제하지 못했습니다.",
+          description: error instanceof Error ? error.message : "백엔드에서 영업활동을 삭제하지 못했습니다.",
         })
       }
     })()
@@ -614,24 +614,74 @@ export default function ActivityDetailPage() {
                       </div>
                     </TabsContent>
                   </Tabs>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {fields.map((field) => (
-                      <div
-                        key={field.label}
-                        className={`space-y-2 ${fullWidthFieldLabels.includes(field.label) ? "md:col-span-2" : ""}`}
-                      >
-                        <Label>{field.label}</Label>
-                        <Input readOnly value={field.value || "-"} />
-                      </div>
-                    ))}
-                    {requestItem?.approvedAt && (
+                ) : isRequest && requestItem ? (
+                  <div className="space-y-6">
+                    <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
+                        <Label>요청일 *</Label>
+                        <Input type="date" value={requestItem.date} readOnly disabled />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>요청 유형 *</Label>
+                        <Select value={requestItem.type} disabled>
+                          <SelectTrigger>
+                            <SelectValue placeholder="요청 유형을 선택하세요" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {requestItem.type ? (
+                              <SelectItem value={requestItem.type}>{requestItem.type}</SelectItem>
+                            ) : null}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>요청자 *</Label>
+                        <Input value={requestItem.requester} readOnly disabled />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>담당자 *</Label>
+                        <Input value={requestItem.receiver} readOnly disabled />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>고객사 *</Label>
+                        <Input value={requestMatchedCustomer?.name ?? requestItem.customer} readOnly disabled />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>사업기회 *</Label>
+                        <Input
+                          value={requestItem.opportunity || "미확인"}
+                          readOnly
+                          disabled={!requestMatchedCustomer}
+                          placeholder="고객사를 먼저 선택하세요"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>활동일 *</Label>
+                        <Input type="date" value={requestItem.dueDate} readOnly disabled />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>요청 내용 *</Label>
+                      <Textarea rows={4} value={requestItem.content} readOnly disabled />
+                    </div>
+                    {requestItem.approvedAt && (
+                      <div className="space-y-2 md:w-1/2">
                         <Label>승인일</Label>
-                        <Input readOnly value={requestItem.approvedAt} />
+                        <Input readOnly value={requestItem.approvedAt} disabled />
                       </div>
                     )}
                   </div>
+                ) : (
+                  <ActivityFormFields
+                    defaultValues={item as ActivityRecord}
+                    readOnly
+                  />
                 )}
 
                 <div className="flex justify-end gap-2 border-t pt-6">

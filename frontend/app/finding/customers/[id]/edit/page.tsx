@@ -26,7 +26,6 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
 import {
-  buildFallbackManagerEmail,
   loadBackendCompanyManagers,
   loadBackendFindingData,
   mapCustomerSector,
@@ -233,7 +232,7 @@ function CustomerEditPageContent() {
         const contact = filledContacts[index]
         const payload = {
           name: contact.name.trim(),
-          email: contact.email?.trim() || buildFallbackManagerEmail(companyCode, contact.name, index),
+          email: contact.email?.trim() || "",
           mobilePhone: contact.mobilePhone?.trim() || undefined,
           officePhone: contact.landlinePhone?.trim() || undefined,
           department: contact.department?.trim() || undefined,

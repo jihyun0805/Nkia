@@ -152,6 +152,12 @@ export type StandardPriceRecord = {
 
 export type ActivityRequestRecord = {
   id: string
+  title?: string
+  salesActivityId?: string
+  requestUserId?: string
+  requestUserName?: string
+  targetUserId?: string
+  targetUserName?: string
   date: string
   requester: string
   receiver: string
@@ -213,44 +219,7 @@ export const activities: ActivityRecord[] = []
 
 export const quotations: QuotationRecord[] = []
 
-export const standardPriceRecords: StandardPriceRecord[] = [
-  {
-    id: "SPR-001",
-    productClass: "EMS",
-    productGroup: "Framework",
-    productNumber: "PSE0101",
-    productName: "POLESTAR Framework",
-    licenseBase: "개수",
-    licenseUnit: "1",
-    unitPrice: "50000",
-    discountRate: "70",
-    proposalPrice: "15000",
-  },
-  {
-    id: "SPR-002",
-    productClass: "",
-    productGroup: "Server Management",
-    productNumber: "PSE0201",
-    productName: "POLESTAR Server Management for Unix",
-    licenseBase: "Node 수 및 CPU",
-    licenseUnit: "1",
-    unitPrice: "8000",
-    discountRate: "70",
-    proposalPrice: "2400",
-  },
-  {
-    id: "SPR-003",
-    productClass: "",
-    productGroup: "",
-    productNumber: "PSE0202",
-    productName: "POLESTAR Server Management for Windows/Linux",
-    licenseBase: "Node 수 및 CPU",
-    licenseUnit: "1",
-    unitPrice: "4000",
-    discountRate: "70",
-    proposalPrice: "1200",
-  },
-]
+export const standardPriceRecords: StandardPriceRecord[] = []
 
 export const standardPriceNotes = [
   "주1) 12개월간 제품 하자에 대해 무상 유지 보수 합니다.",
@@ -498,6 +467,12 @@ export function getActivityItemFields(category: ActivityCategory, item: any) {
       ]
     case "requests":
       return [
+        { label: "제목", value: item.title ?? "-" },
+        { label: "연결 영업활동ID", value: item.salesActivityId ?? "-" },
+        { label: "요청자 ID", value: item.requestUserId ?? "-" },
+        { label: "요청자명", value: item.requestUserName ?? "-" },
+        { label: "담당자 ID", value: item.targetUserId ?? "-" },
+        { label: "담당자명", value: item.targetUserName ?? "-" },
         { label: "요청일", value: item.date },
         { label: "요청 유형", value: item.type },
         { label: "요청자", value: item.requester },

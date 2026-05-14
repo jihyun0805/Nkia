@@ -262,6 +262,8 @@ function ActivityCategoryNewPageContent() {
           customerName: activityCustomer,
           opportunityName,
           opportunityCode: activityOpportunityCode,
+          registrant: activityRegistrant,
+          requester: activityRequester,
           activityMode: activityForm.activityMode,
           activityContent: activityForm.activityContent,
           content: activityForm.content,
