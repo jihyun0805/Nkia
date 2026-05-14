@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -19,13 +20,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/hooks/use-toast"
 import { notifyPrbApprovalRequested } from "@/lib/activity-request-workflow"
 import {
   approvePrbStep,
   getPrbById,
   getPrbRevisionHistory,
   getRfpAnalyses,
-  savePrb,
   subscribePrbUpdates,
   type PrbApprovalStep,
   type PrbLineItem,
@@ -34,12 +35,14 @@ import {
 } from "@/lib/bid-data"
 import { currentUser } from "@/lib/current-user"
 import { getCustomers, getOpportunities } from "@/lib/finding-data"
+import { deleteBackendPrb, loadBackendPrbs, saveBackendPrb } from "@/lib/prb-backend"
 
 type PrbRegistrationFormProps = {
   prbId?: string
   cloneFromId?: string
   documentOnly?: boolean
   readOnly?: boolean
+  allowDelete?: boolean
 }
 
 type PrbFormState = {
@@ -111,9 +114,9 @@ function createEmptyForm(): PrbFormState {
       businessPeriod: "",
       maintenance: "",
       businessOverview: "",
-      salesLeader: currentUser.name,
-      salesDepartment: "영업 O팀",
-      ownerDepartment: "연구O팀",
+      salesLeader: "",
+      salesDepartment: "",
+      ownerDepartment: "",
       bidType: "",
       preliminaryNoticeDate: "",
       officialNoticeDate: "",
@@ -218,7 +221,7 @@ function SectionRow({ title }: { title: string }) {
   )
 }
 
-export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, readOnly = false }: PrbRegistrationFormProps) {
+export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, readOnly = false, allowDelete = false }: PrbRegistrationFormProps) {
   const router = useRouter()
   const [form, setForm] = useState<PrbFormState>(createEmptyForm())
   const [status, setStatus] = useState<PrbStatus>("작성 중")
@@ -226,6 +229,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   const [detailTab, setDetailTab] = useState("document")
   const [sourcePrb, setSourcePrb] = useState<PrbRecord | null>(null)
   const [revisionHistory, setRevisionHistory] = useState<PrbRecord[]>([])
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   const customers = useMemo(() => getCustomers(), [])
   const opportunities = useMemo(() => getOpportunities(), [])
@@ -254,6 +258,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     }
 
     sync()
+    void loadBackendPrbs().catch(() => undefined)
     return subscribePrbUpdates(sync)
   }, [cloneFromId, prbId])
 
@@ -325,7 +330,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     }))
   }
 
-  const persist = (nextStatus: PrbStatus) => {
+  const persist = async (nextStatus: PrbStatus) => {
     const firstApprovalPending = nextStatus === "검토 중"
     const approvalSteps: PrbApprovalStep[] = [
       { key: "author", label: "작성자", assignee: "영업대표", status: "completed", completedAt: today() },
@@ -334,7 +339,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       { key: "deploy", label: "배포", assignee: "권한 보유자", status: "waiting" },
       { key: "share", label: "공유", assignee: "권한 보유자", status: "waiting" },
     ]
-    const saved = savePrb({
+    const saved = await saveBackendPrb({
       id: cloneFromId ? undefined : prbId,
       customerCode: form.customerCode,
       customer: form.customer || form.formData.customerName,
@@ -372,22 +377,21 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       attendeeOpinions: [form.formData.salesOpinion],
       version: "v1.0",
     })
-
     setStatus(saved.status)
     return saved
   }
 
-  const handleDraft = () => {
+  const handleDraft = async () => {
     if (prbId && sourcePrb?.status === "승인") {
       router.push(`/bid/new/prb?cloneFrom=${prbId}`)
       return
     }
 
-    const saved = persist("작성 중")
+    const saved = await persist("작성 중")
     router.push(`/bid/prb/${saved.id}`)
   }
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     const requiredSelections: Array<{ key: keyof Pick<PrbFormState, "customerCode" | "opportunityCode" | "rfpAnalysisId">; label: string }> = [
       { key: "customerCode", label: "고객사명(코드)" },
       { key: "opportunityCode", label: "사업기회(코드)" },
@@ -400,7 +404,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       return
     }
 
-    const saved = persist("검토 중")
+    const saved = await persist("검토 중")
     notifyPrbApprovalRequested({
       requester: currentUser.name,
       nextApprover: "팀장",
@@ -408,6 +412,25 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       opportunity: form.opportunity || form.formData.projectName,
     })
     router.push(`/bid/prb/${saved.id}`)
+  }
+
+  const handleDelete = async () => {
+    if (!prbId) return
+
+    try {
+      await deleteBackendPrb(prbId)
+      toast({
+        title: "PRB 삭제 완료",
+        description: "PRB 보고서가 삭제되었습니다.",
+      })
+      setIsDeleteOpen(false)
+      router.push("/bid")
+    } catch {
+      toast({
+        title: "PRB 삭제 실패",
+        description: "PRB 보고서를 삭제하지 못했습니다.",
+      })
+    }
   }
 
   const pendingApprovalStep = sourcePrb?.approvalSteps.find((step) => step.status === "pending") ?? null
@@ -472,7 +495,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const reportTable = (
-    <div className={`overflow-x-auto rounded-md border border-r-0 ${readOnly ? "pointer-events-none" : ""}`}>
+    <div className="overflow-x-auto rounded-md border border-r-0">
       <table className="min-w-[1180px] border-collapse text-sm [&_td]:border [&_th]:border">
         <tbody>
           <tr>
@@ -993,6 +1016,11 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
               <Button variant="outline" asChild>
                 <Link href={prbId ? `/bid/prb/${prbId}` : "/bid"}>취소</Link>
               </Button>
+              {allowDelete && prbId && (
+                <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                  삭제
+                </Button>
+              )}
               <Button variant="outline" onClick={handleDraft}>수정</Button>
               <Button variant="secondary" onClick={handleDraft}>임시저장</Button>
               <Button onClick={handleComplete}>완료</Button>
@@ -1010,6 +1038,22 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogAction onClick={() => setPopupMessage("")}>확인</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {!documentOnly && (
+        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>PRB 보고서를 삭제하시겠습니까?</AlertDialogTitle>
+              <AlertDialogDescription>
+                삭제 후에는 PRB 상세 정보를 다시 확인할 수 없습니다.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

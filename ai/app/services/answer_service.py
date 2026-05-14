@@ -34,6 +34,12 @@ BUSINESS_CODE_PATTERN = re.compile(r"(?<![A-Z0-9-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){
 KST = timezone(timedelta(hours=9))
 
 
+def preserve_or_default_answer_status(response: AnswerResponse) -> None:
+    if response.answerStatus in {"clarification", "insufficient_evidence", "upstream_degraded"}:
+        return
+    response.answerStatus = response.answerStatus or "good_answer"
+
+
 def build_answer_graph_callbacks() -> OrbisGraphCallbacks:
     return OrbisGraphCallbacks(
         build_ambiguous_reference_response=build_ambiguous_reference_response,
@@ -152,7 +158,7 @@ def _answer_question_legacy(
     if graph_structured_response is not None:
         graph_structured_response.query = query
         graph_structured_response.route = route_to_response_value(graph_state.route)
-        graph_structured_response.answerStatus = "good_answer"
+        preserve_or_default_answer_status(graph_structured_response)
         return attach_graph_contract(graph_structured_response, graph_state=graph_state)
 
     structured_plan = build_structured_execution_plan(
@@ -174,7 +180,7 @@ def _answer_question_legacy(
     if structured_response is not None:
         structured_response.query = query
         structured_response.route = route_to_response_value(graph_state.route)
-        structured_response.answerStatus = "good_answer"
+        preserve_or_default_answer_status(structured_response)
         return attach_graph_contract(structured_response, graph_state=graph_state)
 
     discovery_plan = build_discovery_execution_plan(graph_state=graph_state)
@@ -236,7 +242,7 @@ def _answer_question_legacy(
         if structured_response is not None:
             structured_response.query = query
             structured_response.route = route_to_response_value(graph_state.route)
-            structured_response.answerStatus = "good_answer"
+            preserve_or_default_answer_status(structured_response)
             return attach_graph_contract(structured_response, graph_state=graph_state)
 
     retrieval_plan = build_retrieval_execution_plan(
@@ -593,17 +599,20 @@ def rewrite_followup_query(*, query: str, history: list[ConversationMessage]) ->
 
 def has_followup_reference(query: str) -> bool:
     normalized = " ".join(query.lower().split())
+    compact = normalized.replace(" ", "")
     keywords = [
-        "그 사업",
-        "그 건",
-        "그 프로젝트",
+        "그사업",
+        "그건",
+        "그사건",
+        "그프로젝트",
         "그거",
-        "해당 사업",
-        "해당 건",
-        "이 건",
-        "이 사업",
+        "저거",
+        "해당사업",
+        "해당건",
+        "이건",
+        "이사업",
     ]
-    return any(keyword in normalized for keyword in keywords)
+    return any(keyword in compact for keyword in keywords)
 
 
 def infer_followup_subject(history: list[ConversationMessage]) -> str | None:
@@ -644,9 +653,25 @@ def build_ambiguous_reference_response(
     history: list[ConversationMessage],
     embedder: EmbeddingModel,
 ) -> AnswerResponse | None:
-    if not has_ambiguous_reference(query):
-        return None
     if history:
+        return None
+
+    if has_followup_reference(query):
+        return AnswerResponse(
+            query=query,
+            answer=(
+                "이전 대화에서 가리킬 사업을 찾을 수 없습니다. "
+                "사업명이나 사업기회코드를 함께 알려주면 해당 사업의 다음 활동을 확인하겠습니다."
+            ),
+            answerStatus="clarification",
+            embeddingModel=embedder.config.model_name,
+            chatModel="guardrail",
+            excludedSourceTypes=[],
+            plan=None,
+            evidences=[],
+        )
+
+    if not has_ambiguous_reference(query):
         return None
 
     return AnswerResponse(
@@ -657,6 +682,7 @@ def build_ambiguous_reference_response(
             "예: '한국전력 통합관제 사업을 포기했어야 했는지 알려줘' 또는 "
             "'수주율과 리스크 기준으로 포기 후보를 알려줘'."
         ),
+        answerStatus="clarification",
         embeddingModel=embedder.config.model_name,
         chatModel="guardrail",
         excludedSourceTypes=[],
@@ -667,10 +693,11 @@ def build_ambiguous_reference_response(
 
 def has_ambiguous_reference(query: str) -> bool:
     normalized = " ".join(query.lower().split())
-    reference_keywords = ["이거", "그거", "저거", "이 사업", "그 사업", "아까", "방금", "위에"]
+    compact = normalized.replace(" ", "")
+    reference_keywords = ["이거", "그거", "저거", "이사업", "그사업", "아까", "방금", "위에"]
     decision_keywords = ["포기", "위험", "문제", "어려", "조심", "실수"]
-    return any(keyword in normalized for keyword in reference_keywords) and any(
-        keyword in normalized for keyword in decision_keywords
+    return any(keyword in compact for keyword in reference_keywords) and any(
+        keyword in compact for keyword in decision_keywords
     )
 
 
@@ -685,6 +712,7 @@ def build_vague_metric_response(*, query: str, embedder: EmbeddingModel) -> Answ
             "비교 기준이나 집계 기준을 함께 알려주면 그 기준으로 데이터를 조회해 답변하겠습니다. "
             "예: 횟수 기준, 금액 기준, 최근 기준, 상태 기준, 리스크 기준, 후속 조치 기준 등."
         ),
+        answerStatus="clarification",
         embeddingModel=embedder.config.model_name,
         chatModel="guardrail",
         excludedSourceTypes=[],

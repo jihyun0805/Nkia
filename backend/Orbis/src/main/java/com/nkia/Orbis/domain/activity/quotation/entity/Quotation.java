@@ -1,10 +1,13 @@
 package com.nkia.Orbis.domain.activity.quotation.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -29,6 +32,9 @@ public class Quotation extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     private String refNo;
 
@@ -78,6 +84,7 @@ public class Quotation extends BaseEntity {
         quotation.supplyTotalPrice = 0L;
         quotation.laborTotalPrice = 0L;
         quotation.totalPrice = 0L;
+        quotation.status = ApprovalStatus.DRAFT;
         return quotation;
     }
 
@@ -143,5 +150,25 @@ public class Quotation extends BaseEntity {
         this.supplyTotalPrice = 0L;
         this.laborTotalPrice = 0L;
         this.totalPrice = 0L;
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }

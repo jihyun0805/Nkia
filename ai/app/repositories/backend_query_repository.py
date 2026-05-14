@@ -96,6 +96,224 @@ def optional_column_expr(
     return f"NULL::{cast_type} AS {output_name}"
 
 
+def _first_existing_column_expr(
+    *,
+    table_name: str,
+    table_alias: str,
+    candidates: tuple[str, ...],
+    cast_type: str = "text",
+) -> str:
+    columns = fetch_public_table_columns(table_name)
+    for candidate in candidates:
+        if candidate in columns:
+            return f"{table_alias}.{candidate}"
+    return f"NULL::{cast_type}"
+
+
+def company_name_value_expr(*, table_alias: str = "c") -> str:
+    return _first_existing_column_expr(
+        table_name="company",
+        table_alias=table_alias,
+        candidates=("company_name", "name"),
+    )
+
+
+def company_name_select_expr(*, table_alias: str = "c", output_name: str = "customer_name") -> str:
+    return f"{company_name_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def customer_type_value_expr(*, table_alias: str = "c") -> str:
+    return _first_existing_column_expr(
+        table_name="company",
+        table_alias=table_alias,
+        candidates=("customer_type", "company_type"),
+    )
+
+
+def customer_type_select_expr(*, table_alias: str = "c", output_name: str = "customer_type") -> str:
+    return f"{customer_type_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def customer_group_value_expr(*, table_alias: str = "c") -> str:
+    columns = fetch_public_table_columns("company")
+    if "customer_group" in columns:
+        return f"{table_alias}.customer_group"
+    if "sector" in columns:
+        return (
+            f"CASE "
+            f"WHEN upper({table_alias}.sector) = 'PUBLIC' THEN '공공' "
+            f"WHEN upper({table_alias}.sector) = 'PRIVATE' THEN '민간' "
+            f"ELSE {table_alias}.sector END"
+        )
+    return "NULL::text"
+
+
+def customer_group_select_expr(*, table_alias: str = "c", output_name: str = "customer_group") -> str:
+    return f"{customer_group_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def order_report_code_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("won_report_code", "order_report_code"),
+    )
+
+
+def order_report_amount_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("contract_amount", "total_amount", "item_total_amount"),
+        cast_type="numeric",
+    )
+
+
+def order_report_revenue_category_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("revenue_category", "type", "code_type"),
+    )
+
+
+def order_report_payment_terms_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("payment_terms", "payment_condition"),
+    )
+
+
+def order_report_business_scope_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("business_scope", "scope_of_work"),
+    )
+
+
+def order_report_special_notes_value_expr(*, table_alias: str = "w") -> str:
+    return _first_existing_column_expr(
+        table_name="order_report",
+        table_alias=table_alias,
+        candidates=("special_notes", "remarks"),
+    )
+
+
+def opportunity_status_value_expr(*, table_alias: str = "o") -> str:
+    return _first_existing_column_expr(
+        table_name="project_opportunity",
+        table_alias=table_alias,
+        candidates=("current_status", "stage"),
+    )
+
+
+def opportunity_status_select_expr(*, table_alias: str = "o", output_name: str = "current_status") -> str:
+    return f"{opportunity_status_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def opportunity_business_type_value_expr(*, table_alias: str = "o") -> str:
+    return _first_existing_column_expr(
+        table_name="project_opportunity",
+        table_alias=table_alias,
+        candidates=("business_type", "project_type"),
+    )
+
+
+def opportunity_business_type_select_expr(*, table_alias: str = "o", output_name: str = "business_type") -> str:
+    return f"{opportunity_business_type_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def opportunity_expected_amount_value_expr(*, table_alias: str = "o") -> str:
+    return _first_existing_column_expr(
+        table_name="project_opportunity",
+        table_alias=table_alias,
+        candidates=("expected_amount", "expected_budget"),
+        cast_type="numeric",
+    )
+
+
+def opportunity_expected_amount_select_expr(*, table_alias: str = "o", output_name: str = "expected_amount") -> str:
+    return f"{opportunity_expected_amount_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def opportunity_bid_date_value_expr(*, table_alias: str = "o") -> str:
+    return _first_existing_column_expr(
+        table_name="project_opportunity",
+        table_alias=table_alias,
+        candidates=("expected_bid_date", "bid_date"),
+        cast_type="date",
+    )
+
+
+def opportunity_bid_date_select_expr(*, table_alias: str = "o", output_name: str = "bid_date") -> str:
+    return f"{opportunity_bid_date_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def opportunity_contract_date_select_expr(*, table_alias: str = "o", output_name: str = "contract_date") -> str:
+    return optional_column_expr(
+        table_name="project_opportunity",
+        table_alias=table_alias,
+        output_name=output_name,
+        candidates=("contract_date", "expected_date"),
+        cast_type="date",
+    )
+
+
+def opportunity_competition_status_value_expr(*, table_alias: str = "o") -> str:
+    return _first_existing_column_expr(
+        table_name="project_opportunity",
+        table_alias=table_alias,
+        candidates=("competitor_status", "competition_status"),
+    )
+
+
+def opportunity_competition_status_select_expr(
+    *,
+    table_alias: str = "o",
+    output_name: str = "competitor_status",
+) -> str:
+    return f"{opportunity_competition_status_value_expr(table_alias=table_alias)} AS {output_name}"
+
+
+def opportunity_competitors_select_expr(*, table_alias: str = "o", output_name: str = "competitors") -> str:
+    columns = fetch_public_table_columns("project_opportunity")
+    if "competitors" in columns:
+        return f"array_to_string({table_alias}.competitors, ', ') AS {output_name}"
+    return f"NULL::text AS {output_name}"
+
+
+def opportunity_main_content_select_expr(*, table_alias: str = "o", output_name: str = "main_content") -> str:
+    columns = fetch_public_table_columns("project_opportunity")
+    if "main_content" in columns:
+        return f"{table_alias}.main_content AS {output_name}"
+    if "description" in columns:
+        return (
+            f"CASE WHEN {table_alias}.description IS NULL THEN NULL::text "
+            f"ELSE convert_from(lo_get({table_alias}.description), 'UTF8') END AS {output_name}"
+        )
+    return f"NULL::text AS {output_name}"
+
+
+def project_opportunity_fk_value_expr(*, table_name: str, table_alias: str) -> str:
+    return _first_existing_column_expr(
+        table_name=table_name,
+        table_alias=table_alias,
+        candidates=("opportunity_id", "project_opportunity_id"),
+        cast_type="bigint",
+    )
+
+
+def order_report_fk_value_expr(*, table_name: str, table_alias: str) -> str:
+    return _first_existing_column_expr(
+        table_name=table_name,
+        table_alias=table_alias,
+        candidates=("won_report_id", "order_report_id"),
+        cast_type="bigint",
+    )
+
+
 def fetch_ranked_metric_rows(
     *,
     metric_key: str,
@@ -158,6 +376,11 @@ def fetch_metric_rows_for_opportunity_codes(
     if not opportunity_codes:
         return []
     metric_column = metric_key
+    customer_name_expr = company_name_select_expr()
+    customer_group_expr = customer_group_select_expr()
+    customer_type_expr = customer_type_select_expr()
+    opportunity_status_expr = opportunity_status_select_expr()
+    opportunity_expected_amount_expr = opportunity_expected_amount_select_expr()
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             if metric_key in {"estimated_profit", "estimated_profit_rate", "expected_win_rate", "estimated_revenue"}:
@@ -167,8 +390,8 @@ def fetch_metric_rows_for_opportunity_codes(
                         p.prb_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
-                        o.current_status,
+                        {customer_name_expr},
+                        {opportunity_status_expr},
                         p.estimated_profit,
                         p.estimated_profit_rate,
                         p.expected_win_rate,
@@ -192,37 +415,45 @@ def fetch_metric_rows_for_opportunity_codes(
                         o.opportunity_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
-                        o.current_status,
-                        o.expected_amount
+                        {customer_name_expr},
+                        {opportunity_status_expr},
+                        {opportunity_expected_amount_expr}
                     FROM {_OPP} o
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     WHERE o.opportunity_code = ANY(%(opportunity_codes)s::varchar[])
-                      AND o.expected_amount IS NOT NULL
-                    ORDER BY o.expected_amount DESC, o.id
+                      AND {opportunity_expected_amount_value_expr()} IS NOT NULL
+                    ORDER BY {opportunity_expected_amount_value_expr()} DESC, o.id
                     """,
                     {"opportunity_codes": opportunity_codes},
                 )
             elif metric_key == "contract_amount":
+                contract_amount_expr = _first_existing_column_expr(
+                    table_name="contract",
+                    table_alias="ct",
+                    candidates=("contract_amount", "total_amount"),
+                    cast_type="numeric",
+                )
                 cur.execute(
                     f"""
                     SELECT
-                        w.won_report_code AS reference_code,
+                        CONCAT('CTR-', ct.id)::text AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
-                        o.current_status,
-                        w.contract_amount,
-                        w.revenue_category,
-                        w.payment_terms,
-                        w.business_scope,
-                        w.special_notes
-                    FROM {_WR} w
-                    JOIN {_OPP} o ON o.id = w.opportunity_id
+                        {customer_name_expr},
+                        {opportunity_status_expr},
+                        {contract_amount_expr} AS contract_amount,
+                        {order_report_revenue_category_value_expr()} AS revenue_category,
+                        {order_report_payment_terms_value_expr()} AS payment_terms,
+                        {order_report_business_scope_value_expr()} AS business_scope,
+                        {order_report_special_notes_value_expr()} AS special_notes
+                    FROM {_CT} ct
+                    JOIN {_WR} w ON w.id = ct.order_report_id
+                    JOIN {_OPP} o ON o.id = w.project_opportunity_id
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     WHERE o.opportunity_code = ANY(%(opportunity_codes)s::varchar[])
-                      AND w.contract_amount IS NOT NULL
-                    ORDER BY w.contract_amount DESC, w.id
+                      AND {contract_amount_expr} IS NOT NULL
+                      AND ct.deleted = false
+                    ORDER BY {contract_amount_expr} DESC, ct.id
                     """,
                     {"opportunity_codes": opportunity_codes},
                 )
@@ -242,6 +473,10 @@ def fetch_status_rows(
 ) -> list[dict[str, Any]]:
     filters = filters or {}
     filter_sql = build_opportunity_filter_sql(filters)
+    customer_name_expr = company_name_select_expr()
+    opportunity_status_expr = opportunity_status_select_expr()
+    opportunity_expected_amount_expr = opportunity_expected_amount_select_expr()
+    opportunity_business_type_expr = opportunity_business_type_select_expr()
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -249,15 +484,15 @@ def fetch_status_rows(
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
-                    o.current_status,
-                    o.expected_amount,
-                    o.business_type
+                    {customer_name_expr},
+                    {opportunity_status_expr},
+                    {opportunity_expected_amount_expr},
+                    {opportunity_business_type_expr}
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
-                WHERE (%(status_filters)s::varchar[] IS NULL OR o.current_status = ANY(%(status_filters)s::varchar[]))
+                WHERE (%(status_filters)s::varchar[] IS NULL OR {opportunity_status_value_expr()} = ANY(%(status_filters)s::varchar[]))
                   {filter_sql}
-                ORDER BY o.expected_amount DESC NULLS LAST, o.id
+                ORDER BY {opportunity_expected_amount_value_expr()} DESC NULLS LAST, o.id
                 LIMIT %(limit)s
                 """,
                 build_query_params(status_filters=status_filters or None, filters=filters, limit=limit),
@@ -273,6 +508,16 @@ def fetch_difficult_win_candidates(
 ) -> list[dict[str, Any]]:
     filters = filters or {}
     filter_sql = build_opportunity_filter_sql(filters)
+    customer_name_expr = company_name_select_expr()
+    opportunity_status_expr = opportunity_status_select_expr()
+    competition_status_expr = opportunity_competition_status_select_expr()
+    competitors_expr = opportunity_competitors_select_expr()
+    issue_content_expr = optional_column_expr(
+        table_name="project_opportunity",
+        table_alias="o",
+        output_name="issue_content",
+        candidates=("issue_content",),
+    )
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -280,11 +525,11 @@ def fetch_difficult_win_candidates(
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
-                    o.current_status,
-                    o.issue_content,
-                    o.competitor_status,
-                    array_to_string(o.competitors, ', ') AS competitors,
+                    {customer_name_expr},
+                    {opportunity_status_expr},
+                    {issue_content_expr},
+                    {competition_status_expr},
+                    {competitors_expr},
                     p.prb_code AS reference_code,
                     p.expected_win_rate,
                     p.estimated_profit,
@@ -305,7 +550,7 @@ def fetch_difficult_win_candidates(
                 LEFT JOIN {_PRBR} pr ON pr.prb_id = p.id
                 LEFT JOIN {_BID} b ON b.opportunity_id = o.id
                 LEFT JOIN {_RFP} r ON r.opportunity_id = o.id
-                WHERE o.current_status = ANY(%(status_filters)s::varchar[])
+                WHERE {opportunity_status_value_expr()} = ANY(%(status_filters)s::varchar[])
                   {filter_sql}
                 ORDER BY p.expected_win_rate ASC NULLS LAST, p.id
                 LIMIT %(limit)s
@@ -322,6 +567,35 @@ def resolve_primary_opportunity(
 ) -> dict[str, Any] | None:
     exact_codes = [code.strip().upper() for code in (exact_codes or []) if code.strip()]
     terms = normalize_resolution_terms(query_terms)
+    company_name_expr = company_name_value_expr()
+    customer_name_select_expr = f"{company_name_expr} AS customer_name"
+    opportunity_status_expr = opportunity_status_select_expr()
+    opportunity_business_type_expr = opportunity_business_type_select_expr()
+    opportunity_expected_amount_expr = opportunity_expected_amount_select_expr()
+    maintenance_fk_expr = project_opportunity_fk_value_expr(table_name="maintenance", table_alias="mc")
+    order_report_fk_expr = project_opportunity_fk_value_expr(table_name="order_report", table_alias="wr")
+    contract_fk_expr = order_report_fk_value_expr(table_name="contract", table_alias="ct")
+    project_fk_expr = order_report_fk_value_expr(table_name="project", table_alias="p")
+    maintenance_code_expr = _first_existing_column_expr(
+        table_name="maintenance",
+        table_alias="mc",
+        candidates=("maintenance_code",),
+    )
+    order_report_code_expr = _first_existing_column_expr(
+        table_name="order_report",
+        table_alias="wr",
+        candidates=("won_report_code", "order_report_code"),
+    )
+    contract_code_expr = _first_existing_column_expr(
+        table_name="contract",
+        table_alias="ct",
+        candidates=("contract_code",),
+    )
+    project_code_expr = _first_existing_column_expr(
+        table_name="project",
+        table_alias="p",
+        candidates=("project_code", "code", "pjt_number"),
+    )
     try:
         with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
             with conn.cursor() as cur:
@@ -332,22 +606,22 @@ def resolve_primary_opportunity(
                             o.id,
                             o.opportunity_code,
                             o.opportunity_name,
-                            c.company_name AS customer_name,
-                            o.current_status,
-                            o.business_type,
-                            o.expected_amount
+                            {customer_name_select_expr},
+                            {opportunity_status_expr},
+                            {opportunity_business_type_expr},
+                            {opportunity_expected_amount_expr}
                         FROM {_OPP} o
                         JOIN {_CO} c ON c.id = o.customer_company_id
-                        LEFT JOIN {_MC} mc ON mc.opportunity_id = o.id
-                        LEFT JOIN {_WR} wr ON wr.opportunity_id = o.id
-                        LEFT JOIN {_CT} ct ON ct.won_report_id = wr.id
-                        LEFT JOIN {_PROJ} p ON p.won_report_id = wr.id
+                        LEFT JOIN {_MC} mc ON {maintenance_fk_expr} = o.id
+                        LEFT JOIN {_WR} wr ON {order_report_fk_expr} = o.id
+                        LEFT JOIN {_CT} ct ON {contract_fk_expr} = wr.id
+                        LEFT JOIN {_PROJ} p ON {project_fk_expr} = wr.id
                         WHERE upper(o.opportunity_code) = ANY(%(exact_codes)s::varchar[])
-                           OR upper(COALESCE(mc.maintenance_code, '')) = ANY(%(exact_codes)s::varchar[])
-                           OR upper(COALESCE(wr.won_report_code, '')) = ANY(%(exact_codes)s::varchar[])
-                           OR upper(COALESCE(ct.contract_code, '')) = ANY(%(exact_codes)s::varchar[])
-                           OR upper(COALESCE(p.project_code, '')) = ANY(%(exact_codes)s::varchar[])
-                        ORDER BY o.expected_amount DESC NULLS LAST, o.id
+                           OR upper(COALESCE({maintenance_code_expr}, '')) = ANY(%(exact_codes)s::varchar[])
+                           OR upper(COALESCE({order_report_code_expr}, '')) = ANY(%(exact_codes)s::varchar[])
+                           OR upper(COALESCE({contract_code_expr}, '')) = ANY(%(exact_codes)s::varchar[])
+                           OR upper(COALESCE({project_code_expr}, '')) = ANY(%(exact_codes)s::varchar[])
+                        ORDER BY {opportunity_expected_amount_value_expr()} DESC NULLS LAST, o.id
                         LIMIT 2
                         """,
                         {"exact_codes": exact_codes},
@@ -371,10 +645,10 @@ def resolve_primary_opportunity(
                             o.id,
                             o.opportunity_code,
                             o.opportunity_name,
-                            c.company_name AS customer_name,
-                            o.current_status,
-                            o.business_type,
-                            o.expected_amount,
+                            {customer_name_select_expr},
+                            {opportunity_status_expr},
+                            {opportunity_business_type_expr},
+                            {opportunity_expected_amount_expr},
                             COUNT(*) AS term_hits,
                             SUM(
                                 CASE
@@ -383,8 +657,8 @@ def resolve_primary_opportunity(
                                     ELSE 0
                                 END
                                 + CASE
-                                    WHEN upper(c.company_name) = upper(t.term) THEN 10
-                                    WHEN upper(c.company_name) LIKE '%%' || upper(t.term) || '%%' THEN 5
+                                    WHEN upper({company_name_expr}) = upper(t.term) THEN 10
+                                    WHEN upper({company_name_expr}) LIKE '%%' || upper(t.term) || '%%' THEN 5
                                     ELSE 0
                                 END
                             ) AS match_score
@@ -392,9 +666,9 @@ def resolve_primary_opportunity(
                         JOIN {_CO} c ON c.id = o.customer_company_id
                         JOIN terms t
                           ON upper(o.opportunity_name) LIKE '%%' || upper(t.term) || '%%'
-                          OR upper(c.company_name) LIKE '%%' || upper(t.term) || '%%'
-                        GROUP BY o.id, o.opportunity_code, o.opportunity_name, c.company_name, o.current_status, o.business_type, o.expected_amount
-                        ORDER BY term_hits DESC, match_score DESC, o.expected_amount DESC NULLS LAST, o.id
+                          OR upper({company_name_expr}) LIKE '%%' || upper(t.term) || '%%'
+                        GROUP BY o.id, o.opportunity_code, o.opportunity_name, {company_name_expr}, {opportunity_status_value_expr()}, {opportunity_business_type_value_expr()}, {opportunity_expected_amount_value_expr()}
+                        ORDER BY term_hits DESC, match_score DESC, {opportunity_expected_amount_value_expr()} DESC NULLS LAST, o.id
                         LIMIT 3
                     )
                     SELECT * FROM matched
@@ -420,6 +694,18 @@ def resolve_primary_opportunity(
 
 
 def fetch_opportunity_resolution_candidates(*, limit: int = 600) -> list[dict[str, Any]]:
+    customer_name_expr = company_name_select_expr()
+    opportunity_status_expr = opportunity_status_select_expr()
+    opportunity_business_type_expr = opportunity_business_type_select_expr()
+    opportunity_expected_amount_expr = opportunity_expected_amount_select_expr()
+    bid_date_expr = opportunity_bid_date_select_expr()
+    contract_date_expr = opportunity_contract_date_select_expr()
+    contact_line_expr = optional_column_expr(
+        table_name="project_opportunity",
+        table_alias="o",
+        output_name="contact_line",
+        candidates=("contact_line",),
+    )
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -428,13 +714,13 @@ def fetch_opportunity_resolution_candidates(*, limit: int = 600) -> list[dict[st
                     o.id,
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
-                    o.current_status,
-                    o.business_type,
-                    o.expected_amount,
-                    o.expected_bid_date AS bid_date,
-                    o.expected_date AS contract_date,
-                    o.contact_line
+                    {customer_name_expr},
+                    {opportunity_status_expr},
+                    {opportunity_business_type_expr},
+                    {opportunity_expected_amount_expr},
+                    {bid_date_expr},
+                    {contract_date_expr},
+                    {contact_line_expr}
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 ORDER BY o.id DESC
@@ -473,6 +759,68 @@ def fetch_session_attachment_rows(*, session_id: str, limit: int = 3) -> list[di
 
 
 def fetch_opportunity_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
+    customer_name_expr = company_name_select_expr()
+    customer_group_expr = customer_group_select_expr()
+    customer_type_expr = customer_type_select_expr()
+    opportunity_status_expr = opportunity_status_select_expr()
+    opportunity_business_type_expr = opportunity_business_type_select_expr()
+    opportunity_expected_amount_expr = opportunity_expected_amount_select_expr()
+    main_content_expr = opportunity_main_content_select_expr()
+    issue_content_expr = optional_column_expr(
+        table_name="project_opportunity",
+        table_alias="o",
+        output_name="issue_content",
+        candidates=("issue_content",),
+    )
+    competition_status_expr = opportunity_competition_status_select_expr()
+    decision_structure_expr = optional_column_expr(
+        table_name="project_opportunity",
+        table_alias="o",
+        output_name="decision_structure",
+        candidates=("decision_structure",),
+    )
+    contact_line_expr = optional_column_expr(
+        table_name="project_opportunity",
+        table_alias="o",
+        output_name="contact_line",
+        candidates=("contact_line",),
+    )
+    prb_fk_expr = project_opportunity_fk_value_expr(table_name="prb", table_alias="p")
+    rfp_fk_expr = project_opportunity_fk_value_expr(table_name="rfp_analyze_result", table_alias="r")
+    order_report_fk_expr = project_opportunity_fk_value_expr(table_name="order_report", table_alias="wr")
+    contract_fk_expr = order_report_fk_value_expr(table_name="contract", table_alias="ct")
+    project_fk_expr = order_report_fk_value_expr(table_name="project", table_alias="p")
+    rfp_analysis_code_expr = _first_existing_column_expr(
+        table_name="rfp_analyze_result",
+        table_alias="r",
+        candidates=("rfp_analysis_code", "rfp_code"),
+    )
+    rfp_sort_date_expr = _first_existing_column_expr(
+        table_name="rfp_analyze_result",
+        table_alias="r",
+        candidates=("received_date", "proposal_deadline"),
+        cast_type="timestamp",
+    )
+    order_report_code_expr = _first_existing_column_expr(
+        table_name="order_report",
+        table_alias="wr",
+        candidates=("won_report_code", "order_report_code"),
+    )
+    contract_code_expr = _first_existing_column_expr(
+        table_name="contract",
+        table_alias="ct",
+        candidates=("contract_code",),
+    )
+    project_code_expr = _first_existing_column_expr(
+        table_name="project",
+        table_alias="p",
+        candidates=("project_code", "code", "pjt_number"),
+    )
+    maintenance_code_expr = _first_existing_column_expr(
+        table_name="maintenance",
+        table_alias="mc",
+        candidates=("maintenance_code",),
+    )
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -480,59 +828,61 @@ def fetch_opportunity_snapshot(*, opportunity_code: str) -> dict[str, Any] | Non
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
-                    c.customer_group,
-                    c.customer_type,
-                    o.current_status,
-                    o.business_type,
-                    o.expected_amount,
-                    o.main_content,
-                    o.issue_content,
-                    o.competitor_status,
-                    o.decision_structure,
-                    o.contact_line,
+                    {customer_name_expr},
+                    {customer_group_expr},
+                    {customer_type_expr},
+                    {opportunity_status_expr},
+                    {opportunity_business_type_expr},
+                    {opportunity_expected_amount_expr},
+                    {main_content_expr},
+                    {issue_content_expr},
+                    {competition_status_expr},
+                    {decision_structure_expr},
+                    {contact_line_expr},
                     (
                         SELECT p.prb_code
                         FROM {_PRB} p
-                        WHERE p.opportunity_id = o.id
+                        WHERE {prb_fk_expr} = o.id
                         ORDER BY p.prb_date DESC NULLS LAST, p.id DESC
                         LIMIT 1
                     ) AS prb_code,
                     (
-                        SELECT r.rfp_analysis_code
+                        SELECT COALESCE(NULLIF({rfp_analysis_code_expr}, ''), 'RFP-ANALYSIS-' || r.id::text)
                         FROM {_RFP} r
-                        WHERE r.opportunity_id = o.id
-                        ORDER BY r.received_date DESC NULLS LAST, r.id DESC
+                        WHERE {rfp_fk_expr} = o.id
+                        ORDER BY COALESCE({rfp_sort_date_expr}, r.created_at) DESC NULLS LAST, r.id DESC
                         LIMIT 1
                     ) AS rfp_analysis_code,
                     (
-                        SELECT wr.won_report_code
+                        SELECT COALESCE(NULLIF({order_report_code_expr}, ''), 'ORDER-REPORT-' || wr.id::text)
                         FROM {_WR} wr
-                        WHERE wr.opportunity_id = o.id
+                        WHERE {order_report_fk_expr} = o.id
                         ORDER BY wr.contract_date DESC NULLS LAST, wr.id DESC
                         LIMIT 1
                     ) AS won_report_code,
                     (
-                        SELECT ct.contract_code
+                        SELECT COALESCE(NULLIF({contract_code_expr}, ''), 'CONTRACT-' || ct.id::text)
                         FROM {_CT} ct
-                        JOIN {_WR} wr ON wr.id = ct.won_report_id
-                        WHERE wr.opportunity_id = o.id
+                        JOIN {_WR} wr ON wr.id = {contract_fk_expr}
+                        WHERE {order_report_fk_expr} = o.id
                         ORDER BY ct.id DESC
                         LIMIT 1
                     ) AS contract_code,
                     (
-                        SELECT p.project_code
+                        SELECT COALESCE(NULLIF({project_code_expr}, ''), 'PROJECT-' || p.id::text)
                         FROM {_PROJ} p
-                        JOIN {_WR} wr ON wr.id = p.won_report_id
-                        WHERE wr.opportunity_id = o.id
+                        JOIN {_WR} wr ON wr.id = {project_fk_expr}
+                        WHERE {order_report_fk_expr} = o.id
                         ORDER BY p.id DESC
                         LIMIT 1
                     ) AS project_code,
                     (
-                        SELECT mc.maintenance_code
+                        SELECT COALESCE(NULLIF({maintenance_code_expr}, ''), 'MAINT-' || mc.id::text)
                         FROM {_MC} mc
-                        WHERE mc.opportunity_id = o.id
-                        ORDER BY mc.maintenance_start_date DESC NULLS LAST, mc.id DESC
+                        JOIN {_PROJ} p ON p.id = mc.project_id
+                        JOIN {_WR} wr ON wr.id = {project_fk_expr}
+                        WHERE {order_report_fk_expr} = o.id
+                        ORDER BY mc.start_date DESC NULLS LAST, mc.id DESC
                         LIMIT 1
                     ) AS maintenance_code
                 FROM {_OPP} o
@@ -545,6 +895,7 @@ def fetch_opportunity_snapshot(*, opportunity_code: str) -> dict[str, Any] | Non
 
 
 def fetch_prb_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
+    customer_name_expr = company_name_select_expr()
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -552,7 +903,7 @@ def fetch_prb_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    {customer_name_expr},
                     p.prb_code,
                     p.prb_date,
                     p.sales_owner,
@@ -589,6 +940,7 @@ def fetch_prb_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
 
 
 def fetch_rfp_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
+    customer_name_expr = company_name_value_expr()
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -596,10 +948,10 @@ def fetch_rfp_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    {customer_name_expr} AS customer_name,
                     COALESCE(NULLIF(r.rfp_analysis_code, ''), NULLIF(r.rfp_code, ''), 'RFP-ANALYSIS-' || r.id::text) AS rfp_analysis_code,
                     r.announcement_no,
-                    COALESCE(NULLIF(r.issuer, ''), c.company_name) AS issuer,
+                    COALESCE(NULLIF(r.issuer, ''), {customer_name_expr}) AS issuer,
                     COALESCE(r.received_date, r.created_at::date) AS received_date,
                     COALESCE(r.submission_deadline, r.proposal_deadline) AS submission_deadline,
                     COALESCE(NULLIF(r.project_period, ''), r.expected_duration) AS project_period,
@@ -719,7 +1071,7 @@ def fetch_recent_document_rows(
                         r.rfp_analysis_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         r.announcement_no,
                         r.issuer,
                         r.received_date,
@@ -752,7 +1104,7 @@ def fetch_recent_document_rows(
                         r.rfp_analysis_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         r.received_date,
                         r.submission_deadline,
                         r.analysis_status,
@@ -784,7 +1136,7 @@ def fetch_recent_document_rows(
                         o.opportunity_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         w.won_report_code,
                         w.contract_date,
                         w.contract_amount,
@@ -815,7 +1167,7 @@ def fetch_recent_document_rows(
                         o.opportunity_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         b.bid_result_code,
                         o.bid_date,
                         o.current_status,
@@ -861,7 +1213,7 @@ def fetch_recent_document_rows(
                         w.won_report_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         w.contract_date,
                         w.contract_amount,
                         w.approval_status,
@@ -892,7 +1244,7 @@ def fetch_recent_document_rows(
                         p.prb_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         p.prb_date,
                         p.sales_owner,
                         p.department_owner,
@@ -923,7 +1275,7 @@ def fetch_recent_document_rows(
                         pr.prb_result_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         pr.result_date,
                         pr.decision_status,
                         pr.final_opinion,
@@ -958,7 +1310,7 @@ def fetch_maintenance_history(
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     mc.maintenance_code,
                     ('CS-' || cs.id::text) AS support_code,
                     u1.name AS primary_owner,
@@ -1002,7 +1354,7 @@ def fetch_sales_activity_timeline(
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     a.activity_type,
                     a.activity_purpose,
                     a.activity_date_time AS activity_at,
@@ -1036,7 +1388,7 @@ def fetch_maintenance_quote_snapshot(*, opportunity_code: str) -> dict[str, Any]
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     mc.maintenance_code,
                     mq.ref_no AS maintenance_quote_code,
                     mq.quotation_date AS quote_date,
@@ -1070,7 +1422,7 @@ def fetch_maintenance_quote_snapshot(*, opportunity_code: str) -> dict[str, Any]
                  AND mar.product_module_id = mqi.product_module_id
                 WHERE o.opportunity_code = %(opportunity_code)s
                 GROUP BY
-                    o.opportunity_code, o.opportunity_name, c.company_name,
+                    o.opportunity_code, o.opportunity_name, c.name,
                     mc.maintenance_code, mq.ref_no, mq.quotation_date,
                     mq.total_amount, mq.start_date, mq.end_date,
                     mq.monthly_supply_price, mq.total_quotation_amount, mq.special_notes
@@ -1090,7 +1442,7 @@ def fetch_opportunity_delivery_snapshot(*, opportunity_code: str) -> dict[str, A
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.current_status,
                     wr.won_report_code,
                     wr.contract_date,
@@ -1183,7 +1535,7 @@ def fetch_bid_result_snapshot(*, opportunity_code: str) -> dict[str, Any] | None
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.current_status,
                     b.bid_result_code,
                     b.won,
@@ -1251,7 +1603,7 @@ def fetch_quotation_snapshot(*, quotation_code: str) -> dict[str, Any] | None:
                     q.note,
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     {document_series_expr},
                     {document_version_expr},
                     {latest_version_expr},
@@ -1347,7 +1699,7 @@ def fetch_quotation_snapshot_by_opportunity(*, opportunity_code: str) -> dict[st
                     q.note,
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     {document_series_expr},
                     {document_version_expr},
                     {latest_version_expr},
@@ -1410,7 +1762,7 @@ def fetch_project_result_highlight(*, limit: int = 1) -> list[dict[str, Any]]:
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
                     COALESCE(p.project_status, p.type::text) AS project_status,
                     ('PRR-' || pr.id::text) AS project_report_code,
@@ -1446,7 +1798,7 @@ def fetch_project_result_highlight_in_range(
                     SELECT
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
                         COALESCE(p.project_status, p.type::text) AS project_status,
                         ('PRR-' || pr.id::text) AS project_report_code,
@@ -1488,7 +1840,7 @@ def fetch_prb_risk_rows(
                     SELECT
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         p.prb_code,
                         p.prb_date,
                         p.risk_factors,
@@ -1532,7 +1884,7 @@ def fetch_project_progress_rows(
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
                     COALESCE(p.project_status, p.type::text) AS project_status,
                     p.project_owner,
@@ -1676,7 +2028,7 @@ def fetch_maintenance_quote_highlights(*, limit: int = 3) -> list[dict[str, Any]
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     mc.maintenance_code,
                     mq.ref_no AS maintenance_quote_code,
                     mq.quotation_date AS quote_date,
@@ -1704,7 +2056,7 @@ def fetch_maintenance_quote_highlights(*, limit: int = 3) -> list[dict[str, Any]
                   ON mar.quotation_id = mq.id
                  AND mar.product_module_id = mqi.product_module_id
                 GROUP BY
-                    o.opportunity_code, o.opportunity_name, c.company_name,
+                    o.opportunity_code, o.opportunity_name, c.name,
                     mc.maintenance_code, mq.ref_no, mq.quotation_date,
                     mq.monthly_supply_price, mq.total_quotation_amount, mq.total_amount, mq.special_notes
                 ORDER BY mq.quotation_date DESC NULLS LAST, mq.ref_no DESC
@@ -1723,7 +2075,7 @@ def fetch_maintenance_activity_rank_filtered(*, contract_type: str | None, limit
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     mc.maintenance_code,
                     COUNT(cs.id) AS activity_count,
                     COALESCE(SUM(cs.activity_hours), 0) AS activity_hours,
@@ -1733,7 +2085,7 @@ def fetch_maintenance_activity_rank_filtered(*, contract_type: str | None, limit
                 JOIN {_MC} mc ON mc.opportunity_id = o.id
                 LEFT JOIN {_CS} cs ON cs.maintenance_contract_id = mc.id
                 WHERE (%(contract_type)s::varchar IS NULL OR mc.contract_type = %(contract_type)s::varchar)
-                GROUP BY o.opportunity_code, o.opportunity_name, c.company_name, mc.maintenance_code
+                GROUP BY o.opportunity_code, o.opportunity_name, c.name, mc.maintenance_code
                 ORDER BY COUNT(cs.id) DESC, COALESCE(SUM(cs.activity_hours), 0) DESC, MAX(cs.activity_date) DESC NULLS LAST
                 LIMIT %(limit)s
                 """,
@@ -1766,7 +2118,7 @@ def fetch_won_summary(*, start_at: str | None, end_at: str | None, limit: int = 
                     w.contract_amount,
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.business_type
                 FROM {_WR} w
                 JOIN {_OPP} o ON o.id = w.opportunity_id
@@ -1818,7 +2170,7 @@ def fetch_total_metric_summary(
                         w.won_report_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         o.current_status,
                         w.contract_amount AS metric_value
                     FROM {_WR} w
@@ -1863,7 +2215,7 @@ def fetch_total_metric_summary(
                         o.opportunity_code AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
+                        c.name AS customer_name,
                         o.current_status,
                         o.expected_amount AS metric_value
                     FROM {_OPP} o
@@ -1895,7 +2247,7 @@ def fetch_contract_snapshot(*, contract_code: str) -> dict[str, Any] | None:
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     ct.contract_code,
                     ct.contract_status,
                     ct.memo,
@@ -1928,7 +2280,7 @@ def fetch_project_snapshot(*, project_code: str) -> dict[str, Any] | None:
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     COALESCE(p.project_code, p.pjt_number, p.code) AS project_code,
                     p.pjt_number AS pjt_no,
                     p.end_date AS delivery_date,
@@ -1971,7 +2323,7 @@ def fetch_workflow_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.current_status,
                     req.request_code,
                     req.request_type,
@@ -2068,7 +2420,7 @@ def fetch_maintenance_snapshot(*, maintenance_code: str) -> dict[str, Any] | Non
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     mc.maintenance_code,
                     mc.type AS contract_type,
                     mc.maintenance_start_date,
@@ -2129,7 +2481,7 @@ def fetch_maintenance_snapshot_by_opportunity(*, opportunity_code: str) -> dict[
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     mc.maintenance_code,
                     mc.type AS contract_type,
                     mc.maintenance_start_date,
@@ -2196,7 +2548,7 @@ def fetch_maintenance_status_rows(
                 SELECT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     mc.maintenance_code,
                     mc.contract_type,
                     mc.maintenance_start_date,
@@ -2228,7 +2580,7 @@ def fetch_paid_maintenance_transition_rows(*, limit: int = 5) -> list[dict[str, 
                 SELECT DISTINCT
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.updated_at,
                     o.id AS opportunity_id,
                     mc.maintenance_code,
@@ -2277,7 +2629,7 @@ def fetch_activity_recency_gap_rows(
                     o.opportunity_code AS reference_code,
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.current_status,
                     MAX(a.activity_at) AS latest_activity_at,
                     COUNT(a.id) AS activity_count,
@@ -2288,7 +2640,7 @@ def fetch_activity_recency_gap_rows(
                 WHERE 1=1
                   {status_filter_sql}
                   {opportunity_filter_sql}
-                GROUP BY o.id, o.opportunity_code, o.opportunity_name, c.company_name, o.current_status, o.updated_at
+                GROUP BY o.id, o.opportunity_code, o.opportunity_name, c.name, o.current_status, o.updated_at
                 ORDER BY activity_recency_gap_days {direction}, o.id
                 LIMIT %(limit)s
                 """,
@@ -2319,7 +2671,7 @@ def fetch_pipeline_completeness_rows(
                     o.opportunity_code AS reference_code,
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.current_status,
                     ROUND(
                         (
@@ -2394,7 +2746,7 @@ def fetch_proposal_lift_probability_rows(
                     o.opportunity_code AS reference_code,
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.current_status,
                     COALESCE(ra.recent_activity_count, 0) AS recent_activity_count,
                     ra.latest_activity_at,
@@ -2489,7 +2841,7 @@ def fetch_free_to_paid_conversion_rows(
                     COALESCE(qs.maintenance_quote_code, mc.maintenance_code, o.opportunity_code) AS reference_code,
                     o.opportunity_code,
                     o.opportunity_name,
-                    c.company_name AS customer_name,
+                    c.name AS customer_name,
                     o.current_status,
                     mc.maintenance_code,
                     mc.status AS maintenance_status,
@@ -2554,32 +2906,63 @@ def build_metric_query(
     filters: dict[str, list[str]],
 ) -> tuple[str, str]:
     direction = "DESC" if sort_direction == "desc" else "ASC"
-    status_filter_sql = "AND o.current_status = ANY(%(status_filters)s::varchar[])" if status_filters else ""
+    status_expr = opportunity_status_value_expr()
+    status_select = opportunity_status_select_expr()
+    expected_amount_expr = opportunity_expected_amount_value_expr()
+    expected_amount_select = opportunity_expected_amount_select_expr()
+    business_type_expr = opportunity_business_type_value_expr()
+    business_type_select = opportunity_business_type_select_expr()
+    status_filter_sql = f"AND {status_expr} = ANY(%(status_filters)s::varchar[])" if status_filters else ""
     opportunity_filter_sql = build_opportunity_filter_sql(filters)
 
     if metric_key in {"estimated_profit", "estimated_profit_rate", "expected_win_rate", "estimated_revenue"}:
+        prb_profit_expr = _first_existing_column_expr(
+            table_name="prb",
+            table_alias="p",
+            candidates=("estimated_profit", "estimated_operating_profit"),
+            cast_type="numeric",
+        )
+        prb_profit_rate_expr = _first_existing_column_expr(
+            table_name="prb",
+            table_alias="p",
+            candidates=("estimated_profit_rate", "estimated_profit_margin"),
+            cast_type="numeric",
+        )
+        prb_total_cost_expr = _first_existing_column_expr(
+            table_name="prb",
+            table_alias="p",
+            candidates=("total_cost", "prb_total_cost"),
+            cast_type="numeric",
+        )
+        metric_column_map = {
+            "estimated_profit": prb_profit_expr,
+            "estimated_profit_rate": prb_profit_rate_expr,
+            "expected_win_rate": "p.expected_win_rate",
+            "estimated_revenue": "p.estimated_revenue",
+        }
+        metric_column_sql = metric_column_map[metric_key]
         return (
             f"""
             SELECT
                 p.prb_code AS reference_code,
                 o.opportunity_code,
                 o.opportunity_name,
-                c.company_name AS customer_name,
-                o.current_status,
-                p.estimated_profit,
-                p.estimated_profit_rate,
+                c.name AS customer_name,
+                {status_select},
+                {prb_profit_expr} AS estimated_profit,
+                {prb_profit_rate_expr} AS estimated_profit_rate,
                 p.expected_win_rate,
                 p.estimated_revenue,
-                p.total_cost,
-                p.risk_factors,
-                p.sales_opinion
+                {prb_total_cost_expr} AS total_cost,
+                NULL::text AS risk_factors,
+                NULL::text AS sales_opinion
             FROM {_PRB} p
-            JOIN {_OPP} o ON o.id = p.opportunity_id
+            JOIN {_OPP} o ON o.id = p.project_opportunity_id
             JOIN {_CO} c ON c.id = o.customer_company_id
-            WHERE p.{metric_key} IS NOT NULL
+            WHERE {metric_column_sql} IS NOT NULL
               {status_filter_sql}
               {opportunity_filter_sql}
-            ORDER BY p.{metric_key} {direction}, p.id
+            ORDER BY {metric_column_sql} {direction}, p.id
             LIMIT %(limit)s
             """,
             metric_key,
@@ -2592,44 +2975,50 @@ def build_metric_query(
                 o.opportunity_code AS reference_code,
                 o.opportunity_code,
                 o.opportunity_name,
-                c.company_name AS customer_name,
-                o.current_status,
-                o.expected_amount,
-                o.business_type,
-                o.issue_content,
-                o.competitor_status
+                c.name AS customer_name,
+                {status_select},
+                {expected_amount_select},
+                {business_type_select}
             FROM {_OPP} o
             JOIN {_CO} c ON c.id = o.customer_company_id
-            WHERE o.expected_amount IS NOT NULL
+            WHERE {expected_amount_expr} IS NOT NULL
               {status_filter_sql}
               {opportunity_filter_sql}
-            ORDER BY o.expected_amount {direction}, o.id
+            ORDER BY {expected_amount_expr} {direction}, o.id
             LIMIT %(limit)s
             """,
-            metric_key,
+            "expected_amount",
         )
 
     if metric_key == "contract_amount":
+        contract_amount_expr = _first_existing_column_expr(
+            table_name="contract",
+            table_alias="ct",
+            candidates=("contract_amount", "total_amount"),
+            cast_type="numeric",
+        )
         return (
             f"""
             SELECT
-                w.won_report_code AS reference_code,
+                CONCAT('CTR-', ct.id)::text AS reference_code,
                 o.opportunity_code,
                 o.opportunity_name,
-                c.company_name AS customer_name,
-                o.current_status,
-                w.contract_amount,
-                w.revenue_category,
-                w.payment_terms,
-                w.business_scope,
-                w.special_notes
-            FROM {_WR} w
-            JOIN {_OPP} o ON o.id = w.opportunity_id
+                c.name AS customer_name,
+                {status_select},
+                {contract_amount_expr} AS contract_amount,
+                {order_report_revenue_category_value_expr()} AS revenue_category,
+                {order_report_payment_terms_value_expr()} AS payment_terms,
+                {order_report_business_scope_value_expr()} AS business_scope,
+                {order_report_special_notes_value_expr()} AS special_notes
+            FROM {_CT} ct
+            JOIN {_WR} w ON w.id = ct.order_report_id
+            JOIN {_OPP} o ON o.id = w.project_opportunity_id
             JOIN {_CO} c ON c.id = o.customer_company_id
-            WHERE w.contract_amount IS NOT NULL
+            WHERE {contract_amount_expr} IS NOT NULL
+              AND ct.deleted = false
               {status_filter_sql}
               {opportunity_filter_sql}
-            ORDER BY w.contract_amount {direction}, w.id
+            ORDER BY {contract_amount_expr} {direction}, ct.id
             LIMIT %(limit)s
             """,
             metric_key,
@@ -2690,11 +3079,15 @@ def normalize_resolution_terms(query_terms: list[str]) -> list[str]:
 def build_opportunity_filter_sql(filters: dict[str, list[str]]) -> str:
     clauses = []
     if filters.get("customer_group"):
-        clauses.append("AND c.customer_group = ANY(%(customer_group)s::varchar[])")
+        customer_group_expr = customer_group_value_expr()
+        if customer_group_expr != "NULL::text":
+            clauses.append(f"AND {customer_group_expr} = ANY(%(customer_group)s::varchar[])")
     if filters.get("customer_type"):
-        clauses.append("AND c.customer_type = ANY(%(customer_type)s::varchar[])")
+        customer_type_expr = customer_type_value_expr()
+        if customer_type_expr != "NULL::text":
+            clauses.append(f"AND {customer_type_expr} = ANY(%(customer_type)s::varchar[])")
     if filters.get("business_type"):
-        clauses.append("AND o.business_type = ANY(%(business_type)s::varchar[])")
+        clauses.append(f"AND {opportunity_business_type_value_expr()} = ANY(%(business_type)s::varchar[])")
     return "\n                  ".join(clauses)
 
 
@@ -2704,13 +3097,32 @@ def build_query_params(
     filters: dict[str, list[str]],
     limit: int,
 ) -> dict[str, Any]:
+    customer_group_filters = expand_customer_group_filters(filters.get("customer_group") or [])
     return {
         "status_filters": status_filters,
-        "customer_group": filters.get("customer_group") or [],
+        "customer_group": customer_group_filters,
         "customer_type": filters.get("customer_type") or [],
         "business_type": filters.get("business_type") or [],
         "limit": limit,
     }
+
+
+def expand_customer_group_filters(values: list[str]) -> list[str]:
+    expanded: list[str] = []
+    mapping = {
+        "PUBLIC": "공공",
+        "PRIVATE": "민간",
+        "공공": "공공",
+        "민간": "민간",
+    }
+    for value in values:
+        normalized = str(value or "").strip()
+        if not normalized:
+            continue
+        mapped = mapping.get(normalized.upper(), mapping.get(normalized, normalized))
+        if mapped not in expanded:
+            expanded.append(mapped)
+    return expanded
 
 
 _ENTITY_COUNT_TABLE_MAP: dict[str, str] = {
@@ -2747,6 +3159,12 @@ def fetch_entity_count(entity_type: str) -> int | None:
 
 def fetch_opportunity_list_rows(*, limit: int = 50) -> list[dict[str, Any]]:
     db_url = build_backend_database_url()
+    customer_name_expr = company_name_select_expr()
+    customer_group_expr = customer_group_select_expr()
+    customer_type_expr = customer_type_select_expr()
+    opportunity_status_expr = opportunity_status_select_expr()
+    opportunity_expected_amount_expr = opportunity_expected_amount_select_expr()
+    opportunity_business_type_expr = opportunity_business_type_select_expr()
     try:
         with psycopg.connect(db_url, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
@@ -2755,14 +3173,16 @@ def fetch_opportunity_list_rows(*, limit: int = 50) -> list[dict[str, Any]]:
                     SELECT
                         o.opportunity_code,
                         o.opportunity_name,
-                        c.company_name AS customer_name,
-                        o.current_status,
-                        o.expected_amount,
-                        o.business_type
+                        {customer_name_expr},
+                        {customer_group_expr},
+                        {customer_type_expr},
+                        {opportunity_status_expr},
+                        {opportunity_expected_amount_expr},
+                        {opportunity_business_type_expr}
                     FROM {_OPP} o
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     WHERE o.deleted = false
-                    ORDER BY o.expected_amount DESC NULLS LAST, o.id
+                    ORDER BY {opportunity_expected_amount_value_expr()} DESC NULLS LAST, o.id
                     LIMIT %(limit)s
                     """,
                     {"limit": limit},

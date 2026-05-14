@@ -20,18 +20,14 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { getCustomers, getOpportunities, type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
+import { loadBackendBidResults, loadBackendBidResultDetailById, saveBackendBidResult } from "@/lib/bid-result-backend"
+import { loadBackendProposals } from "@/lib/proposal-backend"
 import {
-  getBidResultById,
-  getBidResultByProposalId,
-  getProposals,
-  saveBidResult,
-  subscribeBidResultUpdates,
-  subscribeProposalUpdates,
   type BidOutcome,
   type BidResultAnalysisSheet,
-  type BidResultAttachment,
   type BidResultChecklistSection,
   type BidResultCompetitorScore,
+  type BidResultRecord,
   type ProposalRecord,
 } from "@/lib/bid-data"
 
@@ -50,8 +46,6 @@ type FormState = {
   competitor: string
   reason: string
   analysisSheet: BidResultAnalysisSheet
-  attachments: BidResultAttachment[]
-  attachmentNames: string[]
 }
 
 const outcomeOptions: BidOutcome[] = ["수주", "실주"]
@@ -162,8 +156,6 @@ const emptyForm: FormState = {
   competitor: "",
   reason: "",
   analysisSheet: createDefaultAnalysisSheet(),
-  attachments: [],
-  attachmentNames: [],
 }
 
 function cloneAnalysisSheet(sheet?: BidResultAnalysisSheet | null) {
@@ -195,27 +187,6 @@ function cloneAnalysisSheet(sheet?: BidResultAnalysisSheet | null) {
         }))
       : defaultSheet.checklistSections,
   }
-}
-
-async function readFilesAsAttachments(fileList: FileList | null) {
-  const files = Array.from(fileList ?? [])
-  return Promise.all(
-    files.map(
-      (file) =>
-        new Promise<BidResultAttachment>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => {
-            resolve({
-              name: file.name,
-              mimeType: file.type,
-              url: typeof reader.result === "string" ? reader.result : undefined,
-            })
-          }
-          reader.onerror = () => reject(reader.error)
-          reader.readAsDataURL(file)
-        }),
-    ),
-  )
 }
 
 function getSectionSubtotal(section: BidResultChecklistSection) {
@@ -293,47 +264,65 @@ function BidResultHeaderCell({
 export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResultRegistrationFormProps) {
   const router = useRouter()
   const [proposals, setProposals] = useState<ProposalRecord[]>([])
+  const [bidResults, setBidResults] = useState<BidResultRecord[]>([])
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
   const [form, setForm] = useState<FormState>(emptyForm)
   const [validationMessage, setValidationMessage] = useState("")
+  const [existingResult, setExistingResult] = useState<BidResultRecord | null>(null)
 
   useEffect(() => {
-    const sync = () => {
-      setProposals(getProposals())
-      setCustomers(getCustomers())
-      setOpportunities(getOpportunities())
-    }
+    setProposals([])
+    void loadBackendProposals()
+      .then((records) => setProposals(records))
+      .catch(() => setProposals([]))
 
-    sync()
-    const unsubscribeProposal = subscribeProposalUpdates(sync)
-    const unsubscribeBidResult = subscribeBidResultUpdates(sync)
-    window.addEventListener("storage", sync)
-
-    return () => {
-      unsubscribeProposal()
-      unsubscribeBidResult()
-      window.removeEventListener("storage", sync)
-    }
+    setCustomers(getCustomers())
+    setOpportunities(getOpportunities())
+    void loadBackendBidResults()
+      .then((records) => setBidResults(records))
+      .catch(() => setBidResults([]))
   }, [])
 
-  const existingResult = useMemo(() => (bidResultId ? getBidResultById(bidResultId) : null), [bidResultId])
+  useEffect(() => {
+    if (!bidResultId) {
+      setExistingResult(null)
+      return
+    }
+
+    let cancelled = false
+    void loadBackendBidResultDetailById(bidResultId)
+      .then((record) => {
+        if (!cancelled) {
+          setExistingResult(record)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setExistingResult(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [bidResultId])
+
+  const mergedExistingResult = existingResult
+
   const registeredProposalIds = useMemo(
     () =>
       new Set(
-        proposals
-          .map((proposal) => {
-            const matchedResult = getBidResultByProposalId(proposal.id)
-            return matchedResult?.proposalId
-          })
-          .filter((value): value is string => Boolean(value) && value !== existingResult?.proposalId),
+        bidResults
+          .map((result) => result.proposalId)
+          .filter((value): value is string => Boolean(value) && value !== mergedExistingResult?.proposalId),
       ),
-    [existingResult?.proposalId, proposals],
+    [bidResults, mergedExistingResult?.proposalId],
   )
 
   const availableProposals = useMemo(
-    () => proposals.filter((proposal) => !registeredProposalIds.has(proposal.id) || proposal.id === existingResult?.proposalId),
-    [existingResult?.proposalId, proposals, registeredProposalIds],
+    () => proposals.filter((proposal) => !registeredProposalIds.has(proposal.id) || proposal.id === mergedExistingResult?.proposalId),
+    [mergedExistingResult?.proposalId, proposals, registeredProposalIds],
   )
 
   const availableCustomers = useMemo(() => {
@@ -367,19 +356,17 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
   )
 
   useEffect(() => {
-    if (existingResult) {
+    if (mergedExistingResult) {
       setForm({
-        proposalId: existingResult.proposalId,
-        customerCode: existingResult.customerCode,
-        opportunityCode: existingResult.opportunityCode,
-        bidDate: existingResult.bidDate,
-        result: existingResult.result,
-        amount: existingResult.amount,
-        competitor: existingResult.competitor,
-        reason: existingResult.reason,
-        analysisSheet: cloneAnalysisSheet(existingResult.analysisSheet),
-        attachments: existingResult.attachments ?? [],
-        attachmentNames: existingResult.attachmentNames ?? [],
+        proposalId: mergedExistingResult.proposalId,
+        customerCode: mergedExistingResult.customerCode,
+        opportunityCode: mergedExistingResult.opportunityCode,
+        bidDate: mergedExistingResult.bidDate,
+        result: mergedExistingResult.result,
+        amount: mergedExistingResult.amount,
+        competitor: mergedExistingResult.competitor,
+        reason: mergedExistingResult.reason,
+        analysisSheet: cloneAnalysisSheet(mergedExistingResult.analysisSheet),
       })
       return
     }
@@ -404,7 +391,7 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
         },
       }))
     }
-  }, [availableProposals, existingResult, proposalId])
+  }, [availableProposals, mergedExistingResult, proposalId])
 
   const selectedCustomer = availableCustomers.find((item) => item.id === form.customerCode) ?? null
   const selectedOpportunity = availableOpportunities.find((item) => item.id === form.opportunityCode) ?? null
@@ -527,7 +514,7 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
     }))
   }
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (!form.proposalId) {
       setValidationMessage("제안서 등록(코드)이 선택되지 않았습니다. 선택 후 다시 시도해주십시오.")
       return
@@ -545,36 +532,38 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
       return
     }
 
-    const saved = saveBidResult({
-      id: bidResultId,
-      proposalId: matchingProposal.id,
-      requestId: matchingProposal.requestId,
-      customerCode: matchingProposal.customerCode,
-      customer: matchingProposal.customer,
-      opportunityCode: matchingProposal.opportunityCode,
-      opportunity: matchingProposal.opportunity,
-      proposalType: matchingProposal.proposalType,
-      productGroup: matchingProposal.productGroup,
-      proposalDeadline: matchingProposal.proposalDeadline,
-      salesRep: matchingProposal.salesRep,
-      bidDate: form.bidDate || matchingProposal.proposalDeadline,
-      result: form.result,
-      amount: form.amount,
-      competitor: form.competitor,
-      reason: form.reason,
-      analysisSheet: {
-        ...form.analysisSheet,
-        bidOverviewCustomerName: matchingProposal.customer,
-        bidOverviewProjectName: matchingProposal.opportunity,
-        proposalProductModule: form.analysisSheet.proposalProductModule || matchingProposal.productGroup,
-        proposalSubmissionDeadline: form.analysisSheet.proposalSubmissionDeadline || matchingProposal.proposalDeadline,
-        salesLeaderName: form.analysisSheet.salesLeaderName || matchingProposal.salesRep,
-      },
-      attachments: form.attachments,
-      attachmentNames: form.attachmentNames,
-    })
+    try {
+      const saved = await saveBackendBidResult({
+        id: bidResultId,
+        proposalId: matchingProposal.id,
+        requestId: matchingProposal.requestId,
+        customerCode: matchingProposal.customerCode,
+        customer: matchingProposal.customer,
+        opportunityCode: matchingProposal.opportunityCode,
+        opportunity: matchingProposal.opportunity,
+        proposalType: matchingProposal.proposalType,
+        productGroup: matchingProposal.productGroup,
+        proposalDeadline: matchingProposal.proposalDeadline,
+        salesRep: form.analysisSheet.salesLeaderName || matchingProposal.salesRep,
+        bidDate: form.bidDate || matchingProposal.proposalDeadline,
+        result: form.result,
+        amount: form.amount,
+        competitor: form.competitor,
+        reason: form.reason,
+        analysisSheet: {
+          ...form.analysisSheet,
+          bidOverviewCustomerName: matchingProposal.customer,
+          bidOverviewProjectName: matchingProposal.opportunity,
+          proposalProductModule: form.analysisSheet.proposalProductModule || matchingProposal.productGroup,
+          proposalSubmissionDeadline: form.analysisSheet.proposalSubmissionDeadline || matchingProposal.proposalDeadline,
+          salesLeaderName: form.analysisSheet.salesLeaderName || matchingProposal.salesRep,
+        },
+      })
 
-    router.push(`/bid/result/${saved.id}`)
+      router.push(`/bid/result/${saved.id}`)
+    } catch (error) {
+      setValidationMessage(error instanceof Error ? error.message : "입찰 결과를 저장하지 못했습니다.")
+    }
   }
 
   const totalScore = getOverallTotal(form.analysisSheet.checklistSections)
@@ -959,47 +948,6 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
                 </tr>
               </tbody>
             </table>
-          </div>
-
-          <div className="space-y-2">
-            <Label>첨부파일</Label>
-            <Input
-              type="file"
-              onChange={async (event) => {
-                const attachments = await readFilesAsAttachments(event.target.files)
-                setForm((current) => ({
-                  ...current,
-                  attachments,
-                  attachmentNames: attachments.map((file) => file.name),
-                }))
-                event.target.value = ""
-              }}
-            />
-            {form.attachments.length > 0 ? (
-              <div className="space-y-2 rounded-md border px-4 py-3">
-                {form.attachments.map((attachment, index) =>
-                  attachment.url ? (
-                    <a
-                      key={`${attachment.name}-${index}`}
-                      href={attachment.url}
-                      download={attachment.name}
-                      className="block text-sm font-medium text-primary underline-offset-4 hover:underline"
-                    >
-                      {attachment.name}
-                    </a>
-                  ) : (
-                    <p key={`${attachment.name}-${index}`} className="text-sm text-muted-foreground">
-                      {attachment.name}
-                    </p>
-                  ),
-                )}
-              </div>
-            ) : (
-              <Input
-                readOnly
-                value={form.attachmentNames.length > 0 ? form.attachmentNames.join(", ") : "등록된 첨부파일이 없습니다."}
-              />
-            )}
           </div>
 
           <div className="flex justify-end gap-2 border-t pt-6">

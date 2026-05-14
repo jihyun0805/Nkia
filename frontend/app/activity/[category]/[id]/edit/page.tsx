@@ -14,7 +14,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { ActivityFormFields } from "@/components/erp/activity-form-fields"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
 import { QuotationSheet, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
-import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,17 +37,15 @@ import {
   type ActivityRecord,
   type ActivityRequestRecord,
   type QuotationRecord,
-  getActivities,
   activityRequestTypeOptions,
   getCategoryLabel,
-  updateActivity,
 } from "@/lib/activity-data"
 import { toast } from "@/hooks/use-toast"
 import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } from "@/lib/activity-request-workflow"
 import { getPresalesUsers } from "@/lib/admin-data"
 import { currentUser } from "@/lib/current-user"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
-import { deleteQuotation, getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
+import { getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
 import { loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import {
@@ -58,7 +55,6 @@ import {
 } from "@/lib/sales-quotation-backend"
 
 const fullWidthFieldLabels = ["요청 내용"]
-type AttachmentDraft = StoredFileAttachment
 
 export default function ActivityEditPage() {
   const params = useParams<{ category: ActivityCategory; id: string }>()
@@ -66,11 +62,9 @@ export default function ActivityEditPage() {
   const category = params.category
   const id = params.id
   const presalesUsers = getPresalesUsers()
-  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>(() => getActivities())
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
-  const [activityAttachments, setActivityAttachments] = useState<AttachmentDraft[]>([])
-  const [requestAttachments, setRequestAttachments] = useState<AttachmentDraft[]>([])
   const [activityCustomer, setActivityCustomer] = useState("")
   const [activityCustomerCode, setActivityCustomerCode] = useState("")
   const [activityOpportunity, setActivityOpportunity] = useState("")
@@ -119,7 +113,7 @@ export default function ActivityEditPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords(getActivities())
+          setActivityRecords([])
         }
       })
 
@@ -202,7 +196,6 @@ export default function ActivityEditPage() {
       issues: activity.issues ?? "",
       nextAction: activity.nextAction ?? "",
     })
-    setActivityAttachments(activity.attachments ?? [])
   }, [category, item])
 
   useEffect(() => {
@@ -220,7 +213,7 @@ export default function ActivityEditPage() {
       productGroup: quotation.productGroup,
       salesRep: quotation.salesRep,
       paymentTerms: quotation.paymentTerms ?? "현금",
-      contactName: quotation.contactName ?? quotation.salesRep,
+      contactName: quotation.contactName ?? "",
       items: quotation.items.map((entry) => ({ ...entry })),
       solutionSectionTitle: quotation.solutionSectionTitle ?? quotation.items[0]?.name ?? "1) Solution Package",
       solutionRows: quotation.solutionRows?.map((entry) => ({ ...entry })) ?? [],
@@ -255,7 +248,6 @@ export default function ActivityEditPage() {
       dueDate: request.dueDate,
       content: request.content,
     })
-    setRequestAttachments(request.attachments ?? [])
   }, [category, item])
 
   if (!item) {
@@ -281,24 +273,6 @@ export default function ActivityEditPage() {
     const opportunity = activityOpportunityOptions.find((entry) => entry.name === value)
     setActivityOpportunity(value)
     setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
-  }
-
-  const handleAttachmentChange = async (
-    files: FileList | null | undefined,
-    onComplete: (updater: (prev: AttachmentDraft[]) => AttachmentDraft[]) => void,
-  ) => {
-    const selectedFiles = Array.from(files ?? [])
-    if (selectedFiles.length === 0) return
-
-    try {
-      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
-      onComplete((prev) => [...prev, ...nextAttachments])
-    } catch (error) {
-      toast({
-        title: "첨부파일 등록 실패",
-        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
-      })
-    }
   }
 
   const handleSubmit = async () => {
@@ -364,6 +338,7 @@ export default function ActivityEditPage() {
           activityDate: activityForm.date,
           issues: activityForm.issues,
           nextAction: activityForm.nextAction,
+          attendees: activityForm.attendees,
           status: (item as ActivityRecord).status,
           salesActivityRequestId,
         })
@@ -374,37 +349,12 @@ export default function ActivityEditPage() {
           description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
         })
         router.push(`/activity/${category}/${id}`)
-        return
       } catch {
-        const updated = updateActivity(id, {
-          date: activityForm.date,
-          requestId: (item as ActivityRecord).requestId,
-          registrant: (item as ActivityRecord).registrant ?? currentUser.name,
-          requester: (item as ActivityRecord).requester ?? "",
-          customerCode: activityCustomerCode,
-          businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
-          activityMode: activityForm.activityMode,
-          activityContent: activityForm.activityContent,
-          type: (item as ActivityRecord).type,
-          customer: activityCustomer,
-          opportunity: activityOpportunity || "미확인",
-          location: activityForm.location,
-          attendees: activityForm.attendees,
-          content: activityForm.content,
-          issues: activityForm.issues,
-          nextAction: activityForm.nextAction,
-          status: (item as ActivityRecord).status,
-          attachments: activityAttachments,
-        })
-        if (!updated) return
-        const updatedActivity = updated as ActivityRecord
-
         scrollToTop()
         toast({
-          title: "영업활동 수정 완료",
-          description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
+          title: "영업활동 수정 실패",
+          description: "백엔드에서 영업활동을 수정하지 못했습니다.",
         })
-        router.push(`/activity/${category}/${id}`)
       }
       return
     }
@@ -413,7 +363,6 @@ export default function ActivityEditPage() {
 
     const updated = updateActivityRequest(id, {
       ...requestForm,
-      attachments: requestAttachments,
     })
     if (!updated) return
 
@@ -439,17 +388,11 @@ export default function ActivityEditPage() {
           description: `${id} 견적서가 삭제되었습니다.`,
         })
         router.push("/activity")
-        return
-      } catch {
-        const deleted = deleteQuotation(id)
-        if (!deleted) return
-
-        scrollToTop()
+      } catch (error) {
         toast({
-          title: "견적 삭제 완료",
-          description: `${id} 견적서가 삭제되었습니다.`,
+          title: "견적 삭제 실패",
+          description: error instanceof Error ? error.message : "백엔드에서 견적서를 삭제하지 못했습니다.",
         })
-        router.push("/activity")
       }
     })()
   }
@@ -494,45 +437,13 @@ export default function ActivityEditPage() {
                     <ActivityFormFields
                       defaultValues={item as ActivityRecord}
                       customerValue={activityCustomer}
-                      customerCodeValue={activityCustomerCode}
                       onCustomerSelect={handleActivityCustomerSelect}
                       opportunityValue={activityOpportunity}
-                      opportunityCodeValue={activityOpportunity === "미확인" ? "-" : activityOpportunityCode || "-"}
                       opportunityOptions={activityOpportunityOptions}
                       onOpportunityChange={handleActivityOpportunityChange}
                       values={activityForm}
                       onValuesChange={setActivityForm}
                     />
-                    <div className="space-y-2">
-                      <Label>첨부파일</Label>
-                      <Input
-                        type="file"
-                        multiple
-                        onChange={(event) => {
-                          void handleAttachmentChange(event.target.files, setActivityAttachments)
-                          event.target.value = ""
-                        }}
-                      />
-                      {activityAttachments.length > 0 ? (
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          {activityAttachments.map((attachment) => (
-                            <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                              <div className="min-w-0 flex-1">
-                                <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                                  {attachment.name}
-                                </a>
-                                <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
-                              </div>
-                              <Button type="button" variant="outline" size="sm" onClick={() => setActivityAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                                삭제
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Input readOnly value="등록된 첨부파일이 없습니다." />
-                      )}
-                    </div>
                   </>
                 ) : category === "requests" ? (
                   <div className="grid gap-4 md:grid-cols-2">
@@ -542,9 +453,7 @@ export default function ActivityEditPage() {
                       { label: "요청자", key: "requester" },
                       { label: "담당자", key: "receiver" },
                       { label: "고객사", key: "customer" },
-                      { label: "고객사 코드", key: "customerCode" },
                       { label: "사업기회", key: "opportunity" },
-                      { label: "사업기회 코드", key: "opportunityCode" },
                       { label: "활동일", key: "dueDate", type: "date" },
                       { label: "요청 내용", key: "content" },
                     ].map((field) => (
@@ -587,8 +496,6 @@ export default function ActivityEditPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                        ) : field.key === "customerCode" ? (
-                          <Input value={matchedCustomer?.id ?? "-"} readOnly />
                         ) : field.key === "customer" ? (
                           <CustomerAutocomplete
                             value={requestForm.customer}
@@ -602,8 +509,6 @@ export default function ActivityEditPage() {
                               }))
                             }}
                           />
-                        ) : field.key === "opportunityCode" ? (
-                          <Input value={requestForm.opportunity === "미확인" ? "-" : requestForm.opportunityCode || "-"} readOnly />
                         ) : field.key === "opportunity" ? (
                           <Select
                             value={requestForm.opportunity}
@@ -638,36 +543,6 @@ export default function ActivityEditPage() {
                         )}
                       </div>
                     ))}
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>첨부파일</Label>
-                      <Input
-                        type="file"
-                        multiple
-                        onChange={(event) => {
-                          void handleAttachmentChange(event.target.files, setRequestAttachments)
-                          event.target.value = ""
-                        }}
-                      />
-                      {requestAttachments.length > 0 ? (
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          {requestAttachments.map((attachment) => (
-                            <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                              <div className="min-w-0 flex-1">
-                                <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                                  {attachment.name}
-                                </a>
-                                <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
-                              </div>
-                              <Button type="button" variant="outline" size="sm" onClick={() => setRequestAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                                삭제
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Input readOnly value="등록된 첨부파일이 없습니다." />
-                      )}
-                    </div>
                   </div>
                 ) : quotationForm ? (
                   <QuotationSheet

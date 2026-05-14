@@ -60,7 +60,12 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.SALES_ACTIVITY,
         id_fields=("activityCode", "activity_code", "id"),
         title_fields=("activityCode", "activity_code", "activity_content", "id"),
-        content_fields=("activity_type", "activity_purpose", "activity_content", "customer_interest", "issue", "next_activity"),
+        content_fields=(
+            "opportunity_name", "customer_name",
+            "activity_date_time",
+            "activity_type", "activity_purpose", "activity_content",
+            "customer_interest", "issue", "next_activity",
+        ),
         payload_aliases={
             "activityAt": ("activity_date_time",),
             "activityType": ("activity_type",),
@@ -70,6 +75,8 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "nextAction": ("next_activity",),
             "progressStatus": ("status",),
             "opportunityId": ("project_opportunity_id",),
+            "opportunityName": ("opportunity_name",),
+            "customerName": ("customer_name",),
         },
     ),
     DocumentConfig(
@@ -436,7 +443,7 @@ def build_documents(
             if config.table == "project_opportunity":
                 documents.extend(build_current_opportunity_documents(conn=conn, row=row))
             elif config.table == "sales_activity":
-                documents.extend(build_current_activity_documents(row))
+                documents.extend(build_current_activity_documents(conn=conn, row=row))
             elif config.table == "rfp_analyze_result":
                 documents.extend(build_current_rfp_documents(row))
             elif config.table in {"rfp_analyze_requirement", "rfp_requirement"}:
@@ -444,7 +451,13 @@ def build_documents(
             elif config.table == "bid_result":
                 documents.extend(build_current_bid_result_documents(row))
             elif config.table == "order_report":
-                documents.extend(build_current_order_report_documents(row))
+                documents.extend(build_current_order_report_documents(row, conn=conn))
+            elif config.table == "contract":
+                documents.extend(build_current_contract_documents(row, conn=conn))
+            elif config.table == "project":
+                documents.extend(build_current_project_documents(row, conn=conn))
+            elif config.table == "maintenance":
+                documents.extend(build_current_maintenance_documents(row, conn=conn))
             else:
                 document = build_document(config=config, row=row)
                 if document is not None:
@@ -466,6 +479,56 @@ def fetch_table_rows(
         return [dict(record["row"]) for record in cur.fetchall()]
 
 
+def _fetch_user_display(
+    conn: psycopg.Connection[Any],
+    user_id: Any,
+) -> dict[str, Any] | None:
+    if user_id is None:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT enrich_user")
+            try:
+                cur.execute(
+                    """
+                    SELECT u.name,
+                           u.email,
+                           u.phone,
+                           u.position,
+                           u.employee_number,
+                           d.headquarters AS dept_headquarters,
+                           d.team         AS dept_team
+                    FROM users u
+                    LEFT JOIN department d ON d.id = u.department_id
+                    WHERE u.id = %s
+                    """,
+                    (str(user_id),),
+                )
+                row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT enrich_user")
+                return row
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT enrich_user")
+                return None
+    except Exception:
+        return None
+
+
+def _format_user_label(user: dict[str, Any] | None) -> str | None:
+    if not user:
+        return None
+    name = user.get("name")
+    if not name:
+        return None
+    pieces = [str(name)]
+    if user.get("position"):
+        pieces.append(str(user.get("position")))
+    dept_parts = [p for p in (user.get("dept_headquarters"), user.get("dept_team")) if p]
+    if dept_parts:
+        pieces.append("/".join(str(p) for p in dept_parts))
+    return " · ".join(pieces)
+
+
 def build_current_opportunity_documents(
     *,
     conn: psycopg.Connection[Any],
@@ -478,43 +541,51 @@ def build_current_opportunity_documents(
     if opp_id is not None:
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        activity_content,
-                        customer_interest,
-                        issue,
-                        next_activity,
-                        activity_date_time
-                    FROM sales_activity
-                    WHERE project_opportunity_id = %s
-                      AND deleted = false
-                    ORDER BY activity_date_time DESC NULLS LAST
-                    LIMIT 3
-                    """,
-                    (opp_id,),
-                )
-                activities = cur.fetchall()
-                if activities:
-                    parts: list[str] = []
-                    for act in activities:
-                        act_parts: list[str] = []
-                        if act[0]:
-                            act_parts.append(f"활동내용: {act[0]}")
-                        if act[1]:
-                            act_parts.append(f"고객관심사: {act[1]}")
-                        if act[2]:
-                            act_parts.append(f"이슈: {act[2]}")
-                        if act[3]:
-                            act_parts.append(f"다음활동: {act[3]}")
-                        if act_parts:
-                            parts.append(" / ".join(act_parts))
-                    if parts:
-                        activity_summary = "\n".join(parts)
+                cur.execute("SAVEPOINT enrich_opp")
+                try:
+                    cur.execute(
+                        """
+                        SELECT
+                            activity_content,
+                            customer_interest,
+                            issue,
+                            next_activity,
+                            activity_date_time
+                        FROM sales_activity
+                        WHERE project_opportunity_id = %s
+                          AND deleted = false
+                        ORDER BY activity_date_time DESC NULLS LAST
+                        LIMIT 3
+                        """,
+                        (opp_id,),
+                    )
+                    activities = cur.fetchall()
+                    cur.execute("RELEASE SAVEPOINT enrich_opp")
+                    if activities:
+                        parts: list[str] = []
+                        for act in activities:
+                            act_parts: list[str] = []
+                            if act["activity_content"]:
+                                act_parts.append(f"활동내용: {act['activity_content']}")
+                            if act["customer_interest"]:
+                                act_parts.append(f"고객관심사: {act['customer_interest']}")
+                            if act["issue"]:
+                                act_parts.append(f"이슈: {act['issue']}")
+                            if act["next_activity"]:
+                                act_parts.append(f"다음활동: {act['next_activity']}")
+                            if act_parts:
+                                parts.append(" / ".join(act_parts))
+                        if parts:
+                            activity_summary = "\n".join(parts)
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_opp")
         except Exception:
             pass
 
     enriched_row = dict(row)
+    sales_rep_label = _format_user_label(_fetch_user_display(conn, row.get("sales_representative_id")))
+    if sales_rep_label:
+        enriched_row["sales_representative_name"] = sales_rep_label
     if activity_summary:
         enriched_row["recent_activity_summary"] = activity_summary
 
@@ -544,10 +615,39 @@ _ACTIVITY_PURPOSE_LABELS: dict[str, str] = {
 }
 
 
-def build_current_activity_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
+def build_current_activity_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
     source_type = SourceType.SALES_ACTIVITY if row.get("project_opportunity_id") else SourceType.POST_SALES
     config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "sales_activity")
     enriched_row = dict(row)
+
+    opp_id = enriched_row.get("project_opportunity_id")
+    if conn is not None and opp_id and not enriched_row.get("opportunity_name"):
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SAVEPOINT enrich_sa")
+                try:
+                    cur.execute(
+                        """
+                        SELECT o.opportunity_name, c.name
+                        FROM project_opportunity o
+                        LEFT JOIN company c ON c.id = o.customer_company_id
+                        WHERE o.id = %s
+                        """,
+                        (opp_id,),
+                    )
+                    result = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_sa")
+                    if result:
+                        enriched_row["opportunity_name"] = result["opportunity_name"]
+                        enriched_row["customer_name"] = result["name"]
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_sa")
+        except Exception:
+            pass
+
     if enriched_row.get("activity_type"):
         enriched_row["activity_type"] = _ACTIVITY_TYPE_LABELS.get(
             enriched_row["activity_type"], enriched_row["activity_type"]
@@ -556,6 +656,18 @@ def build_current_activity_documents(row: dict[str, Any]) -> list[dict[str, Any]
         enriched_row["activity_purpose"] = _ACTIVITY_PURPOSE_LABELS.get(
             enriched_row["activity_purpose"], enriched_row["activity_purpose"]
         )
+
+    if conn is not None:
+        actor_id = (
+            row.get("user_id")
+            or row.get("sales_representative_id")
+            or row.get("owner_id")
+            or row.get("created_by")
+        )
+        actor_label = _format_user_label(_fetch_user_display(conn, actor_id))
+        if actor_label:
+            enriched_row["actor_name"] = actor_label
+
     document = build_document(config=config, row=enriched_row, override_source_type=source_type)
     return [document] if document is not None else []
 
@@ -603,32 +715,37 @@ def build_current_rfp_requirement_documents(
     if rfp_result_id is not None:
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        r.id            AS rfp_id,
-                        r.rfp_code,
-                        r.rfp_analysis_code,
-                        r.project_opportunity_id,
-                        o.opportunity_code,
-                        o.opportunity_name,
-                        c.name          AS customer_name
-                    FROM rfp_analyze_result r
-                    LEFT JOIN project_opportunity o ON o.id = r.project_opportunity_id
-                    LEFT JOIN company c ON c.id = o.customer_company_id
-                    WHERE r.id = %s
-                    """,
-                    (rfp_result_id,),
-                )
-                parent = cur.fetchone()
-                if parent:
-                    enriched.update({
-                        "rfp_code":           parent[1],
-                        "rfp_analysis_code":  parent[2] or parent[1] or parent[0],
-                        "opportunity_code":   parent[4],
-                        "opportunity_name":   parent[5],
-                        "customer_name":      parent[6],
-                    })
+                cur.execute("SAVEPOINT enrich_rfp_req")
+                try:
+                    cur.execute(
+                        """
+                        SELECT
+                            r.id            AS rfp_id,
+                            r.rfp_code,
+                            r.rfp_analysis_code,
+                            r.project_opportunity_id,
+                            o.opportunity_code,
+                            o.opportunity_name,
+                            c.name          AS customer_name
+                        FROM rfp_analyze_result r
+                        LEFT JOIN project_opportunity o ON o.id = r.project_opportunity_id
+                        LEFT JOIN company c ON c.id = o.customer_company_id
+                        WHERE r.id = %s
+                        """,
+                        (rfp_result_id,),
+                    )
+                    parent = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_rfp_req")
+                    if parent:
+                        enriched.update({
+                            "rfp_code":           parent["rfp_code"],
+                            "rfp_analysis_code":  parent["rfp_analysis_code"] or parent["rfp_code"] or parent["rfp_id"],
+                            "opportunity_code":   parent["opportunity_code"],
+                            "opportunity_name":   parent["opportunity_name"],
+                            "customer_name":      parent["customer_name"],
+                        })
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_rfp_req")
         except Exception:
             pass
 
@@ -660,17 +777,256 @@ def build_current_bid_result_documents(row: dict[str, Any]) -> list[dict[str, An
     return documents
 
 
-def build_current_order_report_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
+def _fetch_opportunity_summary(
+    conn: psycopg.Connection[Any],
+    opp_id: Any,
+) -> dict[str, Any] | None:
+    """사업기회 id로 사업기회명/고객사명/코드 묶음을 조회한다."""
+    if opp_id is None:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT enrich_opp_summary")
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        c.name AS customer_name
+                    FROM project_opportunity o
+                    LEFT JOIN company c ON c.id = o.customer_company_id
+                    WHERE o.id = %s
+                    """,
+                    (opp_id,),
+                )
+                row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT enrich_opp_summary")
+                return row
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT enrich_opp_summary")
+                return None
+    except Exception:
+        return None
+
+
+def _fetch_order_report_opp(
+    conn: psycopg.Connection[Any],
+    order_report_id: Any,
+) -> dict[str, Any] | None:
+    if order_report_id is None:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT enrich_or_opp")
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        c.name AS customer_name,
+                        orr.contract_date,
+                        orr.contract_amount
+                    FROM order_report orr
+                    LEFT JOIN project_opportunity o ON o.id = orr.project_opportunity_id
+                    LEFT JOIN company c ON c.id = o.customer_company_id
+                    WHERE orr.id = %s
+                    """,
+                    (order_report_id,),
+                )
+                row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT enrich_or_opp")
+                return row
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT enrich_or_opp")
+                return None
+    except Exception:
+        return None
+
+
+def _build_descriptive_title(
+    *,
+    customer_name: str | None,
+    opportunity_name: str | None,
+    suffix: str,
+    fallback_code: str | None,
+    raw_id: Any,
+) -> str:
+    """`고객사 - 사업기회명 [suffix]` 형식의 가독성 좋은 제목을 만든다."""
+    parts: list[str] = []
+    if customer_name:
+        parts.append(str(customer_name))
+    if opportunity_name and opportunity_name != customer_name:
+        parts.append(str(opportunity_name))
+    if parts:
+        title = " - ".join(parts)
+        return f"{title} [{suffix}]" if suffix else title
+    if fallback_code:
+        return f"{fallback_code} [{suffix}]" if suffix else str(fallback_code)
+    if raw_id is not None:
+        return f"{suffix} #{raw_id}" if suffix else str(raw_id)
+    return suffix or "(제목 없음)"
+
+
+def build_current_order_report_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
     config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "order_report")
-    order_doc = build_document(config=config, row=row)
+    enriched = dict(row)
+    if conn is not None:
+        summary = _fetch_opportunity_summary(conn, row.get("project_opportunity_id"))
+        if summary:
+            enriched["opportunity_code"] = summary.get("opportunity_code")
+            enriched["opportunity_name"] = summary.get("opportunity_name")
+            enriched["customer_name"] = summary.get("customer_name")
+        pm_label = _format_user_label(_fetch_user_display(conn, row.get("pm_user_id")))
+        if pm_label:
+            enriched["pm_name"] = pm_label
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="수주보고서",
+        fallback_code=enriched.get("won_report_code") or enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+    enriched["display_title"] = nice_title
+    order_doc = build_document(
+        config=config,
+        row=enriched,
+        override_title_fields=("display_title", "wonReportCode", "won_report_code", "id"),
+    )
+    won_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="수주",
+        fallback_code=enriched.get("won_report_code") or enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+    enriched_won = dict(enriched)
+    enriched_won["display_title"] = won_title
     won_doc = build_document(
         config=config,
-        row=row,
+        row=enriched_won,
         override_source_type=SourceType.WON,
         override_id_fields=("wonCode", "wonReportCode", "won_report_code", "id"),
-        override_title_fields=("wonCode", "wonReportCode", "id"),
+        override_title_fields=("display_title", "wonCode", "wonReportCode", "id"),
     )
     return [doc for doc in (order_doc, won_doc) if doc is not None]
+
+
+def build_current_contract_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """계약 문서를 고객사/사업기회 정보로 enrich 해 인덱싱한다."""
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "contract")
+    enriched = dict(row)
+    if conn is not None:
+        summary = _fetch_order_report_opp(conn, row.get("order_report_id"))
+        if summary:
+            enriched["opportunity_code"] = summary.get("opportunity_code")
+            enriched["opportunity_name"] = summary.get("opportunity_name")
+            enriched["customer_name"] = summary.get("customer_name")
+            if summary.get("contract_amount") and not enriched.get("contract_amount"):
+                enriched["contract_amount"] = summary.get("contract_amount")
+        sales_rep_label = _format_user_label(_fetch_user_display(conn, row.get("sales_representative_id")))
+        if sales_rep_label:
+            enriched["sales_representative_name"] = sales_rep_label
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="계약",
+        fallback_code=enriched.get("contract_code") or enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+    enriched["display_title"] = nice_title
+    doc = build_document(
+        config=config,
+        row=enriched,
+        override_title_fields=("display_title", "contractCode", "contract_code", "id"),
+    )
+    return [doc] if doc is not None else []
+
+
+def build_current_project_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "project")
+    enriched = dict(row)
+    if conn is not None:
+        summary = _fetch_order_report_opp(conn, row.get("order_report_id"))
+        if summary:
+            enriched["opportunity_code"] = summary.get("opportunity_code")
+            enriched["opportunity_name"] = summary.get("opportunity_name")
+            enriched["customer_name"] = summary.get("customer_name")
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="프로젝트",
+        fallback_code=enriched.get("code") or enriched.get("pjt_number") or enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+    enriched["display_title"] = nice_title
+    doc = build_document(
+        config=config,
+        row=enriched,
+        override_title_fields=("display_title", "code", "pjt_number", "id"),
+    )
+    return [doc] if doc is not None else []
+
+
+def build_current_maintenance_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "maintenance")
+    enriched = dict(row)
+    if conn is not None and row.get("project_id") is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SAVEPOINT enrich_maint")
+                try:
+                    cur.execute(
+                        """
+                        SELECT
+                            o.opportunity_code,
+                            o.opportunity_name,
+                            c.name AS customer_name
+                        FROM project p
+                        LEFT JOIN order_report orr ON orr.id = p.order_report_id
+                        LEFT JOIN project_opportunity o ON o.id = orr.project_opportunity_id
+                        LEFT JOIN company c ON c.id = o.customer_company_id
+                        WHERE p.id = %s
+                        """,
+                        (row.get("project_id"),),
+                    )
+                    summary = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_maint")
+                    if summary:
+                        enriched["opportunity_code"] = summary.get("opportunity_code")
+                        enriched["opportunity_name"] = summary.get("opportunity_name")
+                        enriched["customer_name"] = summary.get("customer_name")
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_maint")
+        except Exception:
+            pass
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="유지보수",
+        fallback_code=enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+    enriched["display_title"] = nice_title
+    doc = build_document(
+        config=config,
+        row=enriched,
+        override_title_fields=("display_title", "id"),
+    )
+    return [doc] if doc is not None else []
 
 
 def build_document(

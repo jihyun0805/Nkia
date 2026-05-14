@@ -3,6 +3,14 @@ package com.nkia.Orbis.domain.maintenance.maintenancequotation.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.MaintenanceQuotationCreateResponse;
@@ -16,19 +24,21 @@ import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ServiceItem
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.repository.MaintenanceQuotationRepository;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
-import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MaintenanceQuotationService {
 
     private final MaintenanceQuotationRepository quotationRepository;
     private final ProjectRepository projectRepository;
     private final ProductModuleRepository productModuleRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     /**
      * 유지보수 견적서 등록
@@ -55,7 +65,7 @@ public class MaintenanceQuotationService {
         updateBasicInfo(quotation, dto);
         refreshChildEntities(quotation, dto);
 
-        return MaintenanceQuotationDetailResponse.from(quotation);
+        return MaintenanceQuotationDetailResponse.from(quotation, getWorkflowId(quotation.getId()));
     }
 
     /**
@@ -72,12 +82,11 @@ public class MaintenanceQuotationService {
     /**
      * 유지보수 견적서의 상세 내역 조회
      */
-    @Transactional(readOnly = true)
     public MaintenanceQuotationDetailResponse getDetail(Long id) {
         MaintenanceQuotation quotation = quotationRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
 
-        return MaintenanceQuotationDetailResponse.from(quotation);
+        return MaintenanceQuotationDetailResponse.from(quotation, getWorkflowId(quotation.getId()));
     }
 
     private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project) {
@@ -114,6 +123,7 @@ public class MaintenanceQuotationService {
     /**
      * 서비스 내역 하위 엔티티 생성
      */
+    @Transactional
     private MaintenanceServiceInfo createServiceInfo(MaintenanceQuotationCreateRequest.ServiceInfoRequest s) {
         return MaintenanceServiceInfo.builder()
                 .productModule(getProductModuleOrNull(s.getProductId()))
@@ -126,6 +136,7 @@ public class MaintenanceQuotationService {
     /**
      * 금액 산출 근거 하위 엔티티 생성
      */
+    @Transactional
     private MaintenanceAmountReason createAmountReason(MaintenanceQuotationCreateRequest.AmountReasonRequest c) {
         return MaintenanceAmountReason.builder()
                 .productModule(getProductModuleOrNull(c.getProductId()))
@@ -147,6 +158,7 @@ public class MaintenanceQuotationService {
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MODULE_NOT_FOUND));
     }
 
+    @Transactional
     private void updateBasicInfo(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {
         q.updateInfo(dto.getPaymentTerms(), dto.getTotalAmount(),
                 dto.getStartDate(), dto.getEndDate(),
@@ -156,12 +168,49 @@ public class MaintenanceQuotationService {
 
     private void refreshChildEntities(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {
         q.getPackageCosts().clear();
-        dto.getPackageCosts().forEach(p -> q.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
+        dto.getPackageCosts()
+                .forEach(p -> q.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
 
         q.getServiceInfos().clear();
         dto.getServiceInfos().forEach(s -> q.addServiceDetail(createServiceInfo(s)));
 
         q.getAmountReasons().clear();
         dto.getAmountReasons().forEach(a -> q.addCostBasis(createAmountReason(a)));
+    }
+
+    @Transactional
+    public void submitMaintenanceQuotation(
+            Long quotationId,
+            UUID firstApproverId
+    ) {
+        MaintenanceQuotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
+
+        if (!quotation.isDraft()) {
+            throw new ApiException(MaintenanceErrorCode.INVALID_MAINTENANCE_QUOTATION_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.MAINTENANCE_QUOTATION,
+                quotation.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        quotation.submit();
+    }
+
+    private Long getWorkflowId(Long quotationId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.MAINTENANCE_QUOTATION,
+                        quotationId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }

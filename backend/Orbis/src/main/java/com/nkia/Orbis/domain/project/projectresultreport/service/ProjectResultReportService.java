@@ -15,15 +15,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ProjectResultReportService {
     private final ProjectRepository projectRepository;
     private final ProjectResultReportRepository reportRepository;
     private final UploadFileRepository uploadFileRepository;
 
     /**
-     * 사업 결과보고 정보를 등록합니다.
+     * 사업 결과보고 정보 등록
      */
     @Transactional
     public Long registerResultReport(ProjectResultReportCreateRequest dto) {
@@ -37,7 +37,7 @@ public class ProjectResultReportService {
     }
 
     /**
-     * 사업 엔티티를 기반으로 결과보고서의 첨부파일을 수정합니다.
+     * 결과보고서의 첨부파일 수정
      */
     @Transactional
     public void updateReportFileByProject(Project project, Long fileId) {
@@ -63,20 +63,7 @@ public class ProjectResultReportService {
     }
 
     /**
-     * 사업에 속한 결과보고서를 삭제합니다.
-     */
-    @Transactional
-    public void deleteReportByProject(Project project) {
-        reportRepository.findByProject(project).ifPresent(report -> {
-            if (report.getResultReportFile() != null) {
-                report.getResultReportFile().delete();
-            }
-            report.delete();
-        });
-    }
-
-    /**
-     * 사업 결과보고를 삭제합니다.
+     * 사업 결과보고 삭제
      */
     @Transactional
     public void deleteReport(Long reportId) {
@@ -98,7 +85,7 @@ public class ProjectResultReportService {
     }
 
     /**
-     * 파일 ID를 통해 UploadFile 엔티티를 조회합니다.
+     * 파일 ID를 통해 UploadFile 엔티티 조회
      */
     private UploadFile getUploadFile(Long fileId) {
         if (fileId == null) {

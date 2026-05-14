@@ -7,9 +7,10 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum PrbErrorCode implements ErrorCode {
-  PRB_NOT_FOUND(HttpStatus.NOT_FOUND, "PRB_0001", "존재하지 않는 PRB ID입니다.");
+    PRB_NOT_FOUND(HttpStatus.NOT_FOUND, "PRB_0001", "존재하지 않는 PRB ID입니다."),
+    PRB_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "PRB_0002", "사업 기회에 이미 PRB가 존재합니다.");
 
-  private final HttpStatus httpStatus;
-  private final String code;
-  private final String message;
+    private final HttpStatus httpStatus;
+    private final String code;
+    private final String message;
 }

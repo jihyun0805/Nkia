@@ -749,7 +749,7 @@ public class ChatbotUserContextService {
             case PRB_RESULT -> Set.of(SOURCE_TYPE_PRB_RESULT);
             case BID_RESULT -> Set.of(SOURCE_TYPE_BID_RESULT, SOURCE_TYPE_LOST);
             case ORDER_REPORT -> Set.of(SOURCE_TYPE_ORDER_REPORT, SOURCE_TYPE_WON);
-            case CONTRACT -> Set.of(SOURCE_TYPE_CONTRACT);
+            case CONTRACT, PURCHASE_CONTRACT -> Set.of(SOURCE_TYPE_CONTRACT);
             case LICENSE -> Set.of(SOURCE_TYPE_LICENSE);
             case PROJECT, PROJECT_RESULT, PROJECT_RESULT_REPORT -> Set.of(
                     SOURCE_TYPE_PROJECT,

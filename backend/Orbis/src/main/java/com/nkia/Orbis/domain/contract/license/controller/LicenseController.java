@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.contract.license.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseRequest;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseUpdateRequest;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseListResponse;
@@ -85,5 +86,20 @@ public class LicenseController {
         LicenseResponse response = licenseService.update(licenseId, request);
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "라이선스 결재 상신")
+    @PostMapping("/submit/{licenseId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'LICENSE', 'CREATE')")
+    public ResponseEntity<ApiResponse<String>> submitLicense(
+            @PathVariable("licenseId") Long licenseId,
+            @RequestBody SubmitRequest request
+    ) {
+        licenseService.submitLicense(
+                licenseId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("라이선스 결재 상신 완료"));
     }
 }

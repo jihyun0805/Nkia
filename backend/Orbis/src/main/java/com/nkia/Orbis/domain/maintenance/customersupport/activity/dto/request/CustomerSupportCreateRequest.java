@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request;
 
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.ActivityType;
-import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;

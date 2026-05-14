@@ -11,9 +11,12 @@ import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityR
 import com.nkia.Orbis.domain.activity.salesactivityrequest.repository.SalesActivityRequestRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.alarm.entity.AlarmType;
+import com.nkia.Orbis.domain.alarm.event.AlarmEvent;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +26,7 @@ public class SalesActivityRequestService {
 
     private final SalesActivityRequestRepository salesActivityRequestRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public SalesActivityRequestResponse create(SalesActivityRequestCreateRequest request) {
@@ -44,6 +48,14 @@ public class SalesActivityRequestService {
         );
 
         SalesActivityRequest saved = salesActivityRequestRepository.save(salesActivityRequest);
+
+        eventPublisher.publishEvent(new AlarmEvent(
+                requestUser,
+                targetUser,
+                AlarmType.ACTIVITY_REQUEST,
+                "새로운 활동 요청이 등록되었습니다.",
+                saved.getId()
+        ));
 
         return SalesActivityRequestResponse.from(saved);
     }

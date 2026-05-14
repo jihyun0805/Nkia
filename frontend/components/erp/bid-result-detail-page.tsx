@@ -3,14 +3,27 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/erp/header"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getBidResultById, subscribeBidResultUpdates, type BidResultAttachment, type BidResultRecord } from "@/lib/bid-data"
+import { deleteBackendBidResult, loadBackendBidResultDetailById } from "@/lib/bid-result-backend"
+import { type BidResultRecord } from "@/lib/bid-data"
+import { toast } from "@/hooks/use-toast"
 
 function BidResultDetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -21,54 +34,52 @@ function BidResultDetailField({ label, value }: { label: string; value: string }
   )
 }
 
-function BidResultAttachmentField({ bidResult }: { bidResult: BidResultRecord }) {
-  const attachments: BidResultAttachment[] = bidResult.attachments ?? bidResult.attachmentNames.map((name) => ({ name }))
-
-  return (
-    <div className="space-y-2 md:col-span-2">
-      <Label>첨부파일</Label>
-      {attachments.length > 0 ? (
-        <div className="space-y-2 rounded-md border px-4 py-3">
-          {attachments.map((attachment, index) =>
-            attachment.url ? (
-              <a
-                key={`${attachment.name}-${index}`}
-                href={attachment.url}
-                download={attachment.name}
-                className="block text-sm font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {attachment.name}
-              </a>
-            ) : (
-              <p key={`${attachment.name}-${index}`} className="text-sm text-muted-foreground">
-                {attachment.name}
-              </p>
-            ),
-          )}
-        </div>
-      ) : (
-        <Input readOnly value="등록된 첨부파일이 없습니다." />
-      )}
-    </div>
-  )
-}
-
 export function BidResultDetailPage() {
   const params = useParams<{ id?: string | string[] }>()
+  const router = useRouter()
   const id = Array.isArray(params.id) ? params.id[0] : params.id ?? ""
   const [bidResult, setBidResult] = useState<BidResultRecord | null>(null)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   useEffect(() => {
-    const sync = () => setBidResult(getBidResultById(id))
-    sync()
-    const unsubscribe = subscribeBidResultUpdates(sync)
-    window.addEventListener("storage", sync)
+    let cancelled = false
+
+    void loadBackendBidResultDetailById(id)
+      .then((record) => {
+        if (!cancelled) {
+          setBidResult(record)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBidResult(null)
+        }
+      })
 
     return () => {
-      unsubscribe()
-      window.removeEventListener("storage", sync)
+      cancelled = true
     }
   }, [id])
+
+  const handleDelete = async () => {
+    try {
+      await deleteBackendBidResult(id)
+    } catch {
+      toast({
+        title: "입찰 결과 삭제 실패",
+        description: "삭제할 입찰 결과를 찾지 못했습니다.",
+      })
+      setIsDeleteOpen(false)
+      return
+    }
+
+    toast({
+      title: "입찰 결과 삭제 완료",
+      description: `${id} 입찰 결과가 삭제되었습니다.`,
+    })
+    setIsDeleteOpen(false)
+    router.push("/bid")
+  }
 
   if (!bidResult) {
     return (
@@ -134,7 +145,6 @@ export function BidResultDetailPage() {
                   <BidResultDetailField label="금액" value={bidResult.amount} />
                   <BidResultDetailField label="경쟁사" value={bidResult.competitor} />
                   <BidResultDetailField label="결과 사유" value={bidResult.reason} />
-                  <BidResultAttachmentField bidResult={bidResult} />
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">
@@ -144,12 +154,29 @@ export function BidResultDetailPage() {
                   <Button asChild>
                     <Link href={`/bid/result/${bidResult.id}/edit`}>수정</Link>
                   </Button>
+                  <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                    삭제
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
         </main>
       </div>
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>입찰 결과를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 입찰 결과 상세 정보를 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

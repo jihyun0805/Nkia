@@ -26,7 +26,7 @@ public enum ProjectCode {
     
     SERVICE("용역", ProjectType.SERVICE),;
 
-    private final String value;       // 실제 사업 코드
+    private final String value;
     private final ProjectType type;
 
     public static ProjectCode fromValue(String value) {

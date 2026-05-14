@@ -1,30 +1,117 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide-react";
+import { Shield, ShieldCheck, HeadphonesIcon, AlertTriangle, Plus } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
+import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
-import { supportHistories, freeMaintenances, paidMaintenances } from "@/lib/maintenance-data";
+import { getFreeMaintenanceList, getPaidMaintenanceList, getSupportHistoryList, MaintenanceListResponse, IntegratedSupportListResponse } from "@/lib/api/maintenance";
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
 
 export default function MaintenancePage() {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"free" | "paid" | "support">("free");
   const [creationMode, setCreationMode] = useState<"none" | "request" | "result">("none");
+  const [freeMaintenances, setFreeMaintenances] = useState<any[]>([]);
+  const [paidMaintenances, setPaidMaintenances] = useState<any[]>([]);
+  const [supportHistories, setSupportHistories] = useState<any[]>([]);
 
-  const q = searchTerm.toLowerCase();
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await getFreeMaintenanceList();
+        if (response.success && response.data) {
+          const mappedData = response.data.map((item, index) => {
+            const today = new Date();
+            const endDate = item.endDate ? new Date(item.endDate) : null;
+            let status = "진행중";
+            if (endDate) {
+              if (endDate < today) status = "종료";
+              else if (endDate.getTime() - today.getTime() < 30 * 24 * 60 * 60 * 1000) status = "종료예정";
+            }
+            return {
+              id: `api-free-${index}`, // 백엔드에서 id를 제공하지 않으므로 임시 id 생성
+              customer: item.customerName || "-",
+              opportunity: item.projectName || "-",
+              product: item.productFamilyName || "-",
+              amount: (item.contractAmount || 0).toString(),
+              startDate: item.startDate || "-",
+              endDate: item.endDate || "-",
+              salesRep: item.salesRepName || "-",
+              manager: item.managerPrimaryName || "-",
+              status: status,
+              registeredAt: item.startDate || new Date().toISOString(),
+            };
+          });
+          setFreeMaintenances(mappedData);
+        }
+
+        const paidResponse = await getPaidMaintenanceList();
+        if (paidResponse.success && paidResponse.data) {
+          const mappedPaidData = paidResponse.data.map((item, index) => {
+            const today = new Date();
+            const endDate = item.endDate ? new Date(item.endDate) : null;
+            let status = "진행중";
+            if (endDate) {
+              if (endDate < today) status = "종료";
+              else if (endDate.getTime() - today.getTime() < 30 * 24 * 60 * 60 * 1000) status = "종료예정";
+            }
+            return {
+              id: `api-paid-${index}`, // 백엔드에서 id를 제공하지 않으므로 임시 id 생성
+              customer: item.customerName || "-",
+              opportunity: item.projectName || "-",
+              product: item.productFamilyName || "-",
+              amount: (item.contractAmount || 0).toString(),
+              startDate: item.startDate || "-",
+              endDate: item.endDate || "-",
+              inspectionMethod: item.inspectionMethod || "-",
+              salesRep: item.salesRepName || "-",
+              manager: item.managerPrimaryName || "-",
+              status: status,
+              registeredAt: item.startDate || new Date().toISOString(),
+            };
+          });
+          setPaidMaintenances(mappedPaidData);
+        }
+
+        const supportResponse = await getSupportHistoryList();
+        if (supportResponse.success && supportResponse.data) {
+          const mappedSupportData = supportResponse.data.map((item) => {
+            return {
+              id: item.id?.toString() || "N/A",
+              customer: item.customerName || "-",
+              recordType: item.dataType === "REQUEST" ? "request" : "result",
+              requestType: item.activityCategory || "-",
+              startDate: item.startAt ? item.startAt.replace("T", " ").substring(0, 16) : "-",
+              endDate: item.endAt ? item.endAt.replace("T", " ").substring(0, 16) : "-",
+              requester: item.dataType === "REQUEST" ? item.ownerName || "-" : "-",
+              registrant: item.dataType === "ACTIVITY" ? item.ownerName || "-" : "-",
+              salesRep: item.salesRepName || "-",
+              supportRep: item.supportManagerName || "-",
+              registeredAt: item.startAt || new Date().toISOString(),
+            };
+          });
+          setSupportHistories(mappedSupportData);
+        }
+      } catch (error) {
+        console.error("Failed to fetch maintenance lists:", error);
+      }
+    };
+    fetchData();
+  }, []);
+
   const maintenanceFieldOptions =
     activeTab === "free"
       ? [
@@ -38,15 +125,31 @@ export default function MaintenancePage() {
           ]
         : [
             { key: "customer", label: "고객사", options: uniqueOptions(supportHistories, (item) => item.customer) },
-            { key: "type", label: "구분", options: [{ label: "지원 요청", value: "request" }, { label: "활동 결과", value: "result" }] },
+            {
+              key: "type",
+              label: "구분",
+              options: [
+                { label: "지원 요청", value: "request" },
+                { label: "활동 결과", value: "result" },
+              ],
+            },
           ];
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase();
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true;
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm);
+  };
   const filteredFreeMaintenances = filterRecords(freeMaintenances, filters, {
     status: (item) => item.status,
     owner: (item) => item.manager,
     date: (item) => item.startDate,
     fields: { customer: (item) => item.customer, product: (item) => item.product },
   })
-    .filter((item) => [item.customer, item.opportunity, item.product, item.salesRep, item.manager].join(" ").toLowerCase().includes(q))
+    .filter((item) => matchesSearch([item.id, item.customer, item.opportunity, item.product, item.amount, item.startDate, item.endDate, item.salesRep, item.manager, item.status]))
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const filteredPaidMaintenances = filterRecords(paidMaintenances, filters, {
     status: (item) => item.status,
@@ -54,13 +157,15 @@ export default function MaintenancePage() {
     date: (item) => item.startDate,
     fields: { customer: (item) => item.customer, product: (item) => item.product },
   })
-    .filter((item) => [item.customer, item.opportunity, item.product, item.salesRep, item.manager, item.inspectionMethod].join(" ").toLowerCase().includes(q))
+    .filter((item) =>
+      matchesSearch([item.id, item.customer, item.opportunity, item.product, item.amount, item.startDate, item.endDate, item.inspectionMethod, item.salesRep, item.manager, item.status]),
+    )
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const filteredSupportHistories = filterRecords(supportHistories, filters, {
     date: (item) => item.registeredAt,
     fields: { customer: (item) => item.customer, type: (item) => item.recordType },
   })
-    .filter((item) => [item.id, item.customer, item.requestType, item.requester, item.registrant, item.salesRep, item.supportRep].join(" ").toLowerCase().includes(q))
+    .filter((item) => matchesSearch([item.id, item.customer, item.recordType, item.requestType, item.startDate, item.endDate, item.requester, item.registrant, item.salesRep, item.supportRep]))
     .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
   const maintenanceStatuses = ["진행중", "종료", "종료예정", "미체결", "완료", "예정"];
 
@@ -96,10 +201,7 @@ export default function MaintenancePage() {
               <div className="flex items-center gap-2">
                 {creationMode === "none" ? (
                   <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input placeholder="검색..." className="pl-9 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={creationMode !== "none"} />
-                    </div>
+                    <PageSearchForm value={searchTerm} onChange={setSearchTerm} onSearch={() => setAppliedSearchTerm(searchTerm)} />
                     <FilterPopover title="유지보수" statusOptions={maintenanceStatuses} value={filters} onApply={setFilters} fieldOptions={maintenanceFieldOptions} />
                     {activeTab === "support" && (
                       <div className="flex gap-2">
@@ -129,7 +231,10 @@ export default function MaintenancePage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Table>
+                  {filteredFreeMaintenances.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 무상유지보수 내역이 없습니다.</div>
+                  ) : (
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>고객사</TableHead>
@@ -157,6 +262,7 @@ export default function MaintenancePage() {
                       ))}
                     </TableBody>
                   </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -170,7 +276,10 @@ export default function MaintenancePage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Table>
+                  {filteredPaidMaintenances.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 유상유지보수 내역이 없습니다.</div>
+                  ) : (
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>고객사</TableHead>
@@ -204,6 +313,7 @@ export default function MaintenancePage() {
                       ))}
                     </TableBody>
                   </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -218,7 +328,10 @@ export default function MaintenancePage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <Table>
+                    {filteredSupportHistories.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 고객지원 현황이 없습니다.</div>
+                    ) : (
+                      <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-[100px]">구분</TableHead>
@@ -244,7 +357,9 @@ export default function MaintenancePage() {
                             </TableCell>
                             <TableCell className="font-medium">{item.customer}</TableCell>
                             <TableCell>
-                              {item.recordType === "request" ? "-" : (
+                              {item.recordType === "request" ? (
+                                "-"
+                              ) : (
                                 <Badge variant="secondary" className="font-normal text-xs">
                                   {item.requestType}
                                 </Badge>
@@ -259,6 +374,7 @@ export default function MaintenancePage() {
                         ))}
                       </TableBody>
                     </Table>
+                    )}
                   </CardContent>
                 </Card>
               )}

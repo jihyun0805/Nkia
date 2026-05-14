@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import {
@@ -21,10 +21,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
+import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { formatAttachmentSize } from "@/lib/attachments"
 import { toast } from "@/hooks/use-toast"
-import { deletePartner, getFindingCategoryLabel, getFindingFields, getFindingItem, type FindingCategory, type FindingFormField } from "@/lib/finding-data"
+import {
+  type CustomerRecord,
+  type FindingCategory,
+  type FindingFormField,
+  type OpportunityRecord,
+  type PartnerRecord,
+  getFindingCategoryLabel,
+  getFindingFields,
+} from "@/lib/finding-data"
+import { deleteBackendCompany, deleteBackendProjectOpportunity, loadBackendFindingData } from "@/lib/finding-backend"
 import { FileText } from "lucide-react"
+
+function formatRfpSummaryTitle(fileName: string) {
+  const title = fileName.replace(/\.[^.]+$/, "").trim()
+  return title || "RFP 문서"
+}
 
 function FindingDetailControl({ field, value }: { field: FindingFormField; value: string }) {
   if (field.type === "file") return <Input readOnly value="등록된 첨부파일이 없습니다." />
@@ -57,15 +72,41 @@ export default function FindingDetailPage() {
   const category = (categoryParam === "opportunities" || categoryParam === "customers" || categoryParam === "partners"
     ? categoryParam
     : "opportunities") as FindingCategory
-  const [item, setItem] = useState<any>(null)
+  const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
+  const [customers, setCustomers] = useState<CustomerRecord[]>([])
+  const [partners, setPartners] = useState<PartnerRecord[]>([])
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
 
   useEffect(() => {
-    const sync = () => setItem(getFindingItem(category, id))
-    sync()
-    window.addEventListener("storage", sync)
-    return () => window.removeEventListener("storage", sync)
-  }, [category, id])
+    let cancelled = false
+
+    loadBackendFindingData()
+      .then((data) => {
+        if (cancelled) return
+        setOpportunities(data.opportunities)
+        setCustomers(data.customers)
+        setPartners(data.partners)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setOpportunities([])
+        setCustomers([])
+        setPartners([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const item = useMemo(() => {
+    if (category === "opportunities") return opportunities.find((entry) => entry.id === id) ?? null
+    if (category === "customers") return customers.find((entry) => entry.id === id) ?? null
+    return partners.find((entry) => entry.id === id) ?? null
+  }, [category, customers, id, opportunities, partners])
+  const partnerItem = category === "partners" ? (item as PartnerRecord | null) : null
+  const opportunityItem = category === "opportunities" ? (item as OpportunityRecord | null) : null
+  const opportunityAttachments = opportunityItem?.rfpAttachments ?? []
 
   const label = getFindingCategoryLabel(category)
   const tab = searchParams.get("tab") ?? category
@@ -73,24 +114,69 @@ export default function FindingDetailPage() {
   const editHref = `/finding/${category}/${id}/edit?tab=${tab}`
 
   const handleDelete = () => {
-    if (category !== "partners") return
+    if (category === "partners") {
+      const backendId = (item as PartnerRecord | null)?.backendId
+      if (!backendId) {
+        toast({
+          title: "협력사 삭제 실패",
+          description: "삭제할 협력사를 찾지 못했습니다.",
+        })
+        setIsDeleteAlertOpen(false)
+        return
+      }
 
-    const result = deletePartner(id)
-    if (result.status === "not_found") {
-      toast({
-        title: "협력사 삭제 실패",
-        description: "삭제할 협력사를 찾지 못했습니다.",
-      })
-      setIsDeleteAlertOpen(false)
+      void (async () => {
+        try {
+          await deleteBackendCompany(backendId)
+          toast({
+            title: "협력사 삭제 완료",
+            description: `${(item as PartnerRecord).name} 협력사가 삭제되었습니다.`,
+          })
+          setIsDeleteAlertOpen(false)
+          router.push(backHref)
+        } catch {
+          toast({
+            title: "협력사 삭제 실패",
+            description: "백엔드에서 협력사를 삭제하지 못했습니다.",
+          })
+          setIsDeleteAlertOpen(false)
+        }
+      })()
       return
     }
 
-    toast({
-      title: "협력사 삭제 완료",
-      description: `${result.partner.name} 협력사가 삭제되었습니다.`,
-    })
-    setIsDeleteAlertOpen(false)
-    router.push(backHref)
+    if (category === "opportunities") {
+      const backendId = (item as OpportunityRecord | null)?.backendId
+      if (!backendId) {
+        toast({
+          title: "사업기회 삭제 실패",
+          description: "삭제할 사업기회를 찾지 못했습니다.",
+        })
+        setIsDeleteAlertOpen(false)
+        return
+      }
+
+      void (async () => {
+        try {
+          await deleteBackendProjectOpportunity(backendId)
+          toast({
+            title: "사업기회 삭제 완료",
+            description: `${(item as OpportunityRecord).name} 사업기회가 삭제되었습니다.`,
+          })
+          setIsDeleteAlertOpen(false)
+          router.push(backHref)
+        } catch {
+          toast({
+            title: "사업기회 삭제 실패",
+            description: "백엔드에서 사업기회를 삭제하지 못했습니다.",
+          })
+          setIsDeleteAlertOpen(false)
+        }
+      })()
+      return
+    }
+
+    return
   }
 
   if (!item) {
@@ -139,8 +225,8 @@ export default function FindingDetailPage() {
               <CardHeader className="border-b pb-6">
                 {category === "partners" ? (
                   <div className="space-y-1">
-                    <CardTitle className="text-2xl font-semibold tracking-tight">{item.name ?? "-"}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{item.id}</p>
+                    <CardTitle className="text-2xl font-semibold tracking-tight">{partnerItem?.name ?? "-"}</CardTitle>
+                    <p className="text-sm text-muted-foreground">{partnerItem?.id ?? "-"}</p>
                   </div>
                 ) : (
                   <CardTitle>{label} 상세</CardTitle>
@@ -153,15 +239,15 @@ export default function FindingDetailPage() {
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label>유형</Label>
-                          <Input readOnly value={item.type ?? "-"} />
+                          <Input readOnly value={partnerItem?.type ?? "-"} />
                         </div>
                         <div className="space-y-2 md:col-span-2">
                           <Label>주소</Label>
-                          <Input readOnly value={item.address ?? "-"} />
+                          <Input readOnly value={partnerItem?.address ?? "-"} />
                         </div>
                         <div className="space-y-2 md:col-span-2">
                           <Label>메모</Label>
-                          <Textarea readOnly rows={4} value={item.memo ?? `진행중 사업기회 ${item.opportunities ?? 0}건 / 진행중 프로젝트 ${item.projects ?? 0}건`} />
+                          <Textarea readOnly rows={4} value={partnerItem?.memo ?? `진행중 사업기회 ${partnerItem?.opportunities ?? 0}건 / 진행중 프로젝트 ${partnerItem?.projects ?? 0}건`} />
                         </div>
                       </div>
                     </section>
@@ -211,25 +297,6 @@ export default function FindingDetailPage() {
                         ))}
                       </div>
                     </section>
-                    <section className="space-y-2">
-                      <Label>첨부파일</Label>
-                      {Array.isArray(item.attachments) && item.attachments.length > 0 ? (
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          {item.attachments.map((attachment: any) => (
-                            <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                              <div className="min-w-0 flex-1">
-                                <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                                  {attachment.name}
-                                </a>
-                                <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Input readOnly value="등록된 첨부파일이 없습니다." />
-                      )}
-                    </section>
                   </>
                 ) : (
                   <>
@@ -246,20 +313,32 @@ export default function FindingDetailPage() {
                     {category === "opportunities" ? (
                       <section className="space-y-3">
                         <h2 className="text-base font-semibold">RFP 문서</h2>
-                        {Array.isArray(item.rfpAttachments) && item.rfpAttachments.length > 0 ? (
-                          <div className="space-y-2">
-                            {item.rfpAttachments.map((attachment: any) => (
-                              <div key={attachment.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
-                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                <div className="min-w-0 flex-1">
-                                  <a href={attachment.dataUrl} download={attachment.name} className="truncate font-medium text-primary hover:underline">
-                                    {attachment.name}
-                                  </a>
-                                  <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                        {opportunityAttachments.length > 0 ? (
+                          <>
+                            <div className="space-y-2">
+                              {opportunityAttachments.map((attachment: any) => (
+                                <div key={attachment.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
+                                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  <div className="min-w-0 flex-1">
+                                    <a href={attachment.dataUrl} download={attachment.name} className="truncate font-medium text-primary hover:underline">
+                                      {attachment.name}
+                                    </a>
+                                    <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                                  </div>
                                 </div>
+                              ))}
+                            </div>
+                            {opportunityAttachments.some((attachment: any) => attachment.summary) ? (
+                              <div className="space-y-3">
+                                {opportunityAttachments.filter((attachment: any) => attachment.summary).map((attachment: any) => (
+                                  <div key={attachment.id} className="space-y-3 rounded-md border border-border p-4">
+                                    <h3 className="text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+                                    <RfpSummaryMarkdown markdown={attachment.summary} />
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            ) : null}
+                          </>
                         ) : (
                           <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">등록된 RFP 문서가 없습니다.</div>
                         )}
@@ -272,7 +351,7 @@ export default function FindingDetailPage() {
                   <Button variant="outline" asChild>
                     <Link href={backHref}>목록</Link>
                   </Button>
-                  {category === "partners" ? (
+                  {category === "partners" || category === "opportunities" ? (
                     <Button variant="destructive" onClick={() => setIsDeleteAlertOpen(true)}>
                       삭제
                     </Button>
@@ -290,9 +369,11 @@ export default function FindingDetailPage() {
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>협력사를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogTitle>{category === "opportunities" ? "사업기회를 삭제하시겠습니까?" : "협력사를 삭제하시겠습니까?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              삭제 후에는 협력사 상세 정보와 담당자 정보를 이 화면에서 다시 복구할 수 없습니다.
+              {category === "opportunities"
+                ? "삭제 후에는 사업기회 상세 정보와 첨부파일을 이 화면에서 다시 복구할 수 없습니다."
+                : "삭제 후에는 협력사 상세 정보와 담당자 정보를 이 화면에서 다시 복구할 수 없습니다."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

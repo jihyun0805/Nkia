@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.maintenance.maintenance.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Importance;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.InspectionCycle;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.Maintenance;
@@ -10,11 +11,17 @@ import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
+/**
+ * 유지보수 상세 정보 응답 DTO
+ */
 @Getter
 @Builder
 public class MaintenanceDetailResponse {
 
     private Long id;
+
+    private Long workflowId;
+    private ApprovalStatus status;
 
     private Long projectId;
     private String projectName;
@@ -50,19 +57,27 @@ public class MaintenanceDetailResponse {
     private boolean dbHaStatus;
     private String dbVersion;
     private String remarks;
+    private Long contractFileId;
 
 
     private String createdBy;
     private LocalDateTime createdAt;
 
-    public static MaintenanceDetailResponse from(Maintenance m) {
+    /**
+     * 엔티티를 DTO로 변환 (NPE 방지 처리 포함)
+     */
+    public static MaintenanceDetailResponse from(Maintenance m, Long workflowId) {
+        String customerName = m.getProject() != null && m.getProject().getOrderReport() != null &&
+                m.getProject().getOrderReport().getFinalCustomerCompany() != null ?
+                m.getProject().getOrderReport().getFinalCustomerCompany().getName() : "-";
+
         return MaintenanceDetailResponse.builder()
                 .id(m.getId())
-                .projectId(m.getProject().getId())
-                .projectName(m.getProject().getPjtName())
-                .customerName(m.getProject().getOrderReport().getFinalCustomerCompany().getName())
-                .salesRepName(m.getSalesRep().getName())
-                .regularPm(m.getRegularPm().getName())
+                .projectId(m.getProject() != null ? m.getProject().getId() : null)
+                .projectName(m.getProject() != null ? m.getProject().getPjtName() : "-")
+                .customerName(customerName)
+                .salesRepName(m.getSalesRep() != null ? m.getSalesRep().getName() : null)
+                .regularPm(m.getRegularPm() != null ? m.getRegularPm().getName() : null)
                 .managerPrimaryName(m.getManagerPrimary() != null ? m.getManagerPrimary().getName() : null)
                 .managerSecondaryName(m.getManagerSecondary() != null ? m.getManagerSecondary().getName() : null)
                 .type(m.getType()).category(m.getCategory())
@@ -75,11 +90,15 @@ public class MaintenanceDetailResponse {
                 .contractDate(m.getContractDate())
                 .inspectionCycle(m.getInspectionCycle()).location(m.getLocation())
                 .productFamily(m.getProductFamily()).apVersion(m.getApVersion())
-                .aclPatchStatus(m.isAclPatchStatus()).vulnPatchStatus(m.isVulnPatchStatus()).upgradePlan(m.getUpgradePlan())
+                .aclPatchStatus(m.isAclPatchStatus()).vulnPatchStatus(m.isVulnPatchStatus())
+                .upgradePlan(m.getUpgradePlan())
                 .apCount(m.getApCount()).esCount(m.getEsCount())
                 .esVersion(m.getEsVersion()).dbHaStatus(m.isDbHaStatus())
                 .dbVersion(m.getDbVersion())
                 .remarks(m.getRemarks()).createdBy(m.getCreatedBy()).createdAt(m.getCreatedAt())
+                .contractFileId(m.getContractFile() != null ? m.getContractFile().getId() : null)
+                .status(m.getStatus())
+                .workflowId(workflowId)
                 .build();
     }
 }

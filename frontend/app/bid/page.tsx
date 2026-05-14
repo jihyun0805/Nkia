@@ -18,16 +18,22 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
+import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { bidStatuses, getBidCreateActionLabel, getBidResults, getPrbResults, getProposals, getPrbs, getRfpAnalyses, subscribeBidResultUpdates, subscribePrbResultUpdates, subscribePrbUpdates, subscribeProposalUpdates, subscribeRfpAnalysesUpdates } from "@/lib/bid-data"
-import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
+import { bidStatuses, getBidCreateActionLabel, getPrbResults, getPrbs, getRfpAnalyses, subscribePrbResultUpdates, subscribePrbUpdates, subscribeRfpAnalysesUpdates, type ProposalRecord } from "@/lib/bid-data"
+import { loadBackendBidResults } from "@/lib/bid-result-backend"
+import { loadBackendPrbs } from "@/lib/prb-backend"
+import { loadBackendPrbResults } from "@/lib/prb-result-backend"
+import { loadBackendRfpAnalyses } from "@/lib/rfp-analysis-backend"
+import { loadBackendProposals } from "@/lib/proposal-backend"
+import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
-import { getOpportunities } from "@/lib/finding-data"
-import { Plus, Search, FileText, ClipboardCheck, Presentation, Trophy, ClipboardList } from "lucide-react"
+import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
+import { type BidResultRecord } from "@/lib/bid-data"
+import { Plus, FileText, ClipboardCheck, Presentation, Trophy, ClipboardList } from "lucide-react"
 
 type ProposalOverviewRow = {
   key: string
@@ -71,21 +77,26 @@ type PrbResultOverviewRow = {
 
 const BID_ACTIVE_TAB_STORAGE_KEY = "orbis.bid.active-tab"
 
+function isBackendRequestId(value: string) {
+  return /^\d+$/.test(value)
+}
+
 function BidPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "prb-result" | "proposal" | "result">("rfp")
   const [rfpItems, setRfpItems] = useState<ReturnType<typeof getRfpAnalyses>>([])
   const [prbItems, setPrbItems] = useState<ReturnType<typeof getPrbs>>([])
   const [prbResultItems, setPrbResultItems] = useState<ReturnType<typeof getPrbResults>>([])
   const [proposalRequests, setProposalRequests] = useState<ActivityRequestRecord[]>([])
-  const [proposals, setProposals] = useState<ReturnType<typeof getProposals>>([])
-  const [results, setResults] = useState<ReturnType<typeof getBidResults>>([])
+  const [proposals, setProposals] = useState<ProposalRecord[]>([])
+  const [results, setResults] = useState<BidResultRecord[]>([])
+  const [findingData, setFindingData] = useState<FindingBackendData>({ opportunities: [], customers: [], partners: [] })
   const [proposalConfirmTarget, setProposalConfirmTarget] = useState<ProposalOverviewRow | null>(null)
   const [resultConfirmTarget, setResultConfirmTarget] = useState<BidResultOverviewRow | null>(null)
-  const q = searchTerm.toLowerCase()
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -108,64 +119,111 @@ function BidPageContent() {
     window.sessionStorage.setItem(BID_ACTIVE_TAB_STORAGE_KEY, activeTab)
   }, [activeTab])
 
+  useEffect(() => {
+    let cancelled = false
+
+    void loadBackendFindingData()
+      .then((data) => {
+        if (!cancelled) {
+          setFindingData(data)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFindingData({ opportunities: [], customers: [], partners: [] })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const buildBidHref = (pathname: string) => `${pathname}?tab=${activeTab}`
 
   useEffect(() => {
     const sync = () => setRfpItems(getRfpAnalyses())
-    sync()
-    return subscribeRfpAnalysesUpdates(sync)
+    const unsubscribe = subscribeRfpAnalysesUpdates(sync)
+
+    void loadBackendRfpAnalyses()
+      .then((records) => setRfpItems(records))
+      .catch(() => setRfpItems([]))
+
+    return () => unsubscribe()
   }, [])
 
   useEffect(() => {
     const sync = () => setPrbItems(getPrbs())
     sync()
+    void loadBackendPrbs()
+      .then((records) => setPrbItems(records))
+      .catch(() => setPrbItems(getPrbs()))
     return subscribePrbUpdates(sync)
   }, [])
 
   useEffect(() => {
     const sync = () => setPrbResultItems(getPrbResults())
     sync()
+    void loadBackendPrbResults()
+      .then((records) => setPrbResultItems(records))
+      .catch(() => setPrbResultItems([]))
     return subscribePrbResultUpdates(sync)
   }, [])
 
   useEffect(() => {
-    const sync = () =>
-      setProposalRequests(
-        getActivityRequests().filter((item) => item.type === "제안서 작성" || item.type === "SI 제안서 작성"),
-      )
+    let cancelled = false
 
-    sync()
-    return subscribeWorkflowUpdates(sync)
+    void loadBackendActivityRequests()
+      .then((records) => {
+        if (cancelled) return
+        setProposalRequests(
+          records.filter(
+            (item) =>
+              isBackendRequestId(item.id) &&
+              (item.type === "제안서 작성" || item.type === "SI 제안서 작성"),
+          ),
+        )
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProposalRequests([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
-    const sync = () => setProposals(getProposals())
-
-    sync()
-    return subscribeProposalUpdates(sync)
+    setProposals([])
+    void loadBackendProposals()
+      .then((records) => {
+        setProposals(records)
+      })
+      .catch(() => {
+        setProposals([])
+      })
   }, [])
 
   useEffect(() => {
-    const sync = () => setResults(getBidResults())
-
-    sync()
-    return subscribeBidResultUpdates(sync)
+    void loadBackendBidResults()
+      .then((records) => setResults(records))
+      .catch(() => setResults([]))
   }, [])
 
-  const opportunityMap = new Map(getOpportunities().map((item) => [item.id, item]))
+  const opportunityMap = new Map(findingData.opportunities.map((item) => [item.id, item]))
   const getMatchedProposalRequest = (proposal: (typeof proposals)[number]) =>
-    proposal.requestId
-      ? proposalRequests.find((request) => request.id === proposal.requestId) ?? null
-      : proposalRequests.find(
-          (request) =>
-            request.customerCode === proposal.customerCode &&
-            request.opportunityCode === proposal.opportunityCode &&
-            (request.type === "SI 제안서 작성" ? "SI 제안" : "자체 제안") === proposal.proposalType,
-        ) ?? null
+    proposalRequests.find(
+      (request) =>
+        request.customerCode === proposal.customerCode &&
+        request.opportunityCode === proposal.opportunityCode &&
+        (request.type === "SI 제안서 작성" ? "SI 제안" : "자체 제안") === proposal.proposalType,
+    ) ?? null
 
   const completedRequestIds = new Set(
     proposals
-      .map((item) => getMatchedProposalRequest(item)?.id ?? item.requestId)
+      .map((item) => getMatchedProposalRequest(item)?.id)
       .filter((value): value is string => Boolean(value)),
   )
   const pendingProposalRows: ProposalOverviewRow[] = proposalRequests
@@ -273,28 +331,51 @@ function BidPageContent() {
         { key: "proposalType", label: "제안형태", options: uniqueOptions(bidResultOverviewRows, (i) => i.proposalType) },
         { key: "productGroup", label: "제품군", options: uniqueOptions(bidResultOverviewRows, (i) => i.productGroup) },
       ]
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm)
+  }
   const filteredRfpList = filterRecords(rfpItems, filters, { status: (i) => i.status, owner: (i) => i.analyst, date: (i) => i.receiveDate, fields: { customer: (i) => i.customer } })
-    .filter((i) => [i.id, i.customer, i.opportunity, i.requester, i.analyst].join(" ").toLowerCase().includes(q))
+    .filter((i) => matchesSearch([i.id, i.customer, i.opportunity, i.requester, i.analyst, i.receiveDate, i.dueDate, i.status]))
     .sort((a, b) => new Date(b.receiveDate).getTime() - new Date(a.receiveDate).getTime())
   const filteredPrbList = filterRecords(prbItems, filters, {
     status: (i) => i.status,
     owner: (i) => i.author,
     date: (i) => i.createdDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.id, i.opportunity, i.customer, i.author, i.status, i.customerCode, i.opportunityCode, i.rfpAnalysisId].join(" ").toLowerCase().includes(q))
+  })
+    .filter((i) => matchesSearch([i.id, i.customer, i.opportunity, i.proposalDeadline, i.createdDate, i.author, i.status]))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   const filteredPrbResults = filterRecords(prbResultOverviewRows, filters, {
     owner: (i) => i.author,
     date: (i) => i.createdDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.prbResultId, i.customer, i.opportunity, i.proposalDeadline, i.createdDate, i.author].join(" ").toLowerCase().includes(q))
+  })
+    .filter((i) => matchesSearch([i.prbResultId, i.customer, i.opportunity, i.proposalDeadline, i.createdDate, i.author]))
     .sort((a, b) => b.sortDate.localeCompare(a.sortDate))
   const filteredProposalList = filterRecords(proposalOverviewRows, filters, {
     status: (i) => i.status,
     owner: () => "",
     date: (i) => i.sortDate,
     fields: { customer: (i) => i.customer },
-  }).filter((i) => [i.customer, i.opportunity, i.proposalType, i.productGroup, i.requestDate, i.proposalDeadline, i.status].join(" ").toLowerCase().includes(q))
+  }).filter((i) =>
+    matchesSearch([
+      i.requestId,
+      i.proposalId,
+      i.customer,
+      i.opportunity,
+      i.proposalType,
+      i.productGroup,
+      i.requestDate,
+      i.proposalDeadline,
+      i.status,
+    ]),
+  )
   const filteredBidResults = filterRecords(bidResultOverviewRows, filters, {
     status: (i) => i.status,
     owner: (i) => i.salesRep,
@@ -304,7 +385,20 @@ function BidPageContent() {
       proposalType: (i) => i.proposalType,
       productGroup: (i) => i.productGroup,
     },
-  }).filter((i) => [i.customer, i.opportunity, i.proposalType, i.productGroup, i.proposalDeadline, i.bidResult, i.salesRep, i.status].join(" ").toLowerCase().includes(q))
+  }).filter((i) =>
+    matchesSearch([
+      i.proposalId,
+      i.bidResultId,
+      i.customer,
+      i.opportunity,
+      i.proposalType,
+      i.productGroup,
+      i.proposalDeadline,
+      i.bidResult,
+      i.salesRep,
+      i.status,
+    ]),
+  )
 
   const handleProposalRowClick = (proposal: ProposalOverviewRow) => {
     if (proposal.status === "완료" && proposal.proposalId) {
@@ -345,10 +439,11 @@ function BidPageContent() {
                   <TabsTrigger value="result" className="gap-2"><Trophy className="w-4 h-4" />입찰결과현황</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input placeholder="검색..." className="w-64 pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                  </div>
+                  <PageSearchForm
+                    value={searchTerm}
+                    onChange={setSearchTerm}
+                    onSearch={() => setAppliedSearchTerm(searchTerm)}
+                  />
                   <FilterPopover
                     title="입찰"
                     statusOptions={statusOptions}

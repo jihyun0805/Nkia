@@ -147,7 +147,21 @@ async def _fetch_row(*, table: str, row_id: int, db_url: str) -> dict[str, Any] 
     try:
         async with await psycopg.AsyncConnection.connect(db_url, row_factory=dict_row) as conn:
             async with conn.cursor() as cur:
-                await cur.execute(f"SELECT * FROM public.{table} WHERE id = %s", (row_id,))
+                if table == "sales_activity":
+                    await cur.execute(
+                        """
+                        SELECT a.*,
+                               o.opportunity_name,
+                               c.name AS customer_name
+                        FROM public.sales_activity a
+                        LEFT JOIN public.project_opportunity o ON o.id = a.project_opportunity_id
+                        LEFT JOIN public.company c ON c.id = o.customer_company_id
+                        WHERE a.id = %s
+                        """,
+                        (row_id,),
+                    )
+                else:
+                    await cur.execute(f"SELECT * FROM public.{table} WHERE id = %s", (row_id,))
                 return await cur.fetchone()
     except Exception as exc:
         logger.warning("[index_listener] row 조회 실패 table=%s id=%d: %s", table, row_id, exc)

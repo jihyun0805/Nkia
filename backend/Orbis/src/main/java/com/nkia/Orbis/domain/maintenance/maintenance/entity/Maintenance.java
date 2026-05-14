@@ -1,10 +1,12 @@
 package com.nkia.Orbis.domain.maintenance.maintenance.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
+import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupport;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
 import com.nkia.Orbis.domain.project.project.entity.Project;
-import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -33,6 +35,9 @@ public class Maintenance extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id")
@@ -94,6 +99,10 @@ public class Maintenance extends BaseEntity {
     @OneToOne(mappedBy = "maintenance", cascade = CascadeType.ALL, orphanRemoval = true)
     private CustomerSupport customerSupport;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contract_file_id")
+    private UploadFile contractFile;         // 유지보수 계약서 첨부파일
+
     @Builder
     public Maintenance(
             Project project,
@@ -124,7 +133,8 @@ public class Maintenance extends BaseEntity {
             String esVersion,
             boolean dbHaStatus,
             String dbVersion,
-            String remarks
+            String remarks,
+            UploadFile contractFile
     ) {
         this.project = project;
         this.salesRep = salesRep;
@@ -155,9 +165,12 @@ public class Maintenance extends BaseEntity {
         this.dbHaStatus = dbHaStatus;
         this.dbVersion = dbVersion;
         this.remarks = remarks;
+        this.contractFile = contractFile;
+        this.status = ApprovalStatus.DRAFT;
     }
 
-    public void updateMaintenance(MaintenanceUpdateRequest request, User salesRep, User primary, User secondary, User regularPm){
+    public void updateMaintenance(MaintenanceUpdateRequest request, User salesRep, User primary, User secondary,
+                                  User regularPm, UploadFile contractFile) {
         this.salesRep = salesRep;
         this.managerPrimary = primary;
         this.managerSecondary = secondary;
@@ -186,9 +199,30 @@ public class Maintenance extends BaseEntity {
         this.dbHaStatus = request.isDbHaStatus();
         this.dbVersion = request.getDbVersion();
         this.remarks = request.getRemarks();
+        this.contractFile = contractFile;
     }
 
     public void delete() {
         super.delete();
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }

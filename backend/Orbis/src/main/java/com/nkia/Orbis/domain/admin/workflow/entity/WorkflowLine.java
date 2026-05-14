@@ -77,6 +77,7 @@ public class WorkflowLine extends BaseEntity {
         this.comment = comment;
         this.actedAt = LocalDateTime.now();
     }
+    
 
     public void pending() {
         this.status = WorkflowLineStatus.PENDING;

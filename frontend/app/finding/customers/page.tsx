@@ -8,25 +8,63 @@ import { Header } from "@/components/erp/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getCustomers } from "@/lib/finding-data"
+import { type CustomerRecord } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
+import { Search } from "lucide-react"
 
 export default function FindingCustomersPage() {
   const router = useRouter()
   const [isMounted, setIsMounted] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
+  const [customerRows, setCustomerRows] = useState<CustomerRecord[]>([])
 
   useEffect(() => {
     setIsMounted(true)
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    loadBackendFindingData()
+      .then((data) => {
+        if (!cancelled) {
+          setCustomerRows(data.customers)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCustomerRows([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const customerCards = useMemo(
-    () =>
-      [...getCustomers()].sort((a, b) => {
-        const nameCompare = a.name.localeCompare(b.name, "ko")
-        if (nameCompare !== 0) return nameCompare
-        return a.id.localeCompare(b.id)
-      }),
-    [],
+    () => {
+      const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+
+      return [...customerRows]
+        .filter((customer) => {
+          if (!normalizedSearchTerm) return true
+          return [customer.id, customer.name, customer.contact, customer.phone, customer.category]
+            .filter((value) => value !== null && value !== undefined)
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedSearchTerm)
+        })
+        .sort((a, b) => {
+          const nameCompare = a.name.localeCompare(b.name, "ko")
+          if (nameCompare !== 0) return nameCompare
+          return a.id.localeCompare(b.id)
+        })
+    },
+    [appliedSearchTerm, customerRows],
   )
 
   if (!isMounted) {
@@ -59,6 +97,24 @@ export default function FindingCustomersPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">고객사 카드 전체 보기</CardTitle>
                   <div className="flex items-center gap-2">
+                    <form
+                      className="flex items-center gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        setAppliedSearchTerm(searchTerm)
+                      }}
+                    >
+                      <Input
+                        placeholder="검색어 입력"
+                        className="w-64"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                      />
+                      <Button type="submit" variant="outline" size="sm" className="gap-2">
+                        <Search className="h-4 w-4" />
+                        검색
+                      </Button>
+                    </form>
                     <Badge variant="secondary">{customerCards.length}개 고객사</Badge>
                     <Button variant="outline" size="sm" asChild>
                       <Link href="/finding?tab=customers">메인으로</Link>

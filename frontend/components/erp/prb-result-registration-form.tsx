@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -19,21 +20,26 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
+import { toast } from "@/hooks/use-toast"
 import { currentUser } from "@/lib/current-user"
 import {
   getPrbById,
-  getPrbResultById,
   getPrbResults,
   getPrbs,
-  savePrbResult,
   subscribePrbResultUpdates,
   subscribePrbUpdates,
   type PrbRecord,
   type PrbResultRecord,
 } from "@/lib/bid-data"
+import {
+  deleteBackendPrbResult,
+  loadBackendPrbResults,
+  saveBackendPrbResult,
+} from "@/lib/prb-result-backend"
 
 type PrbResultRegistrationFormProps = {
   prbResultId?: string
+  allowDelete?: boolean
 }
 
 type AttendeeOpinionForm = {
@@ -55,21 +61,39 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function createDefaultAttendees() {
-  return Array.from({ length: 7 }, (_, index) => ({
-    participant: `참석자 ${index + 1}`,
-    opinion: "",
-    decision: "",
+function normalizeAttendeeOpinions(
+  attendeeOpinions: AttendeeOpinionForm[] = [],
+  prb?: PrbRecord | null,
+) {
+  const next = attendeeOpinions.slice(0, 7).map((item) => ({
+    participant: item.participant || "",
+    opinion: item.opinion || "",
+    decision: item.decision || "",
   }))
+
+  while (next.length < 7) {
+    const index = next.length
+    next.push({
+      participant: prb?.approvalLines?.[index]?.name ?? `참석자 ${index + 1}`,
+      opinion: "",
+      decision: "",
+    })
+  }
+
+  return next
 }
 
-function createEmptyForm(): FormState {
+function createDefaultAttendees(prb?: PrbRecord | null) {
+  return normalizeAttendeeOpinions([], prb)
+}
+
+function createEmptyForm(prb?: PrbRecord | null): FormState {
   return {
     prbId: "",
     meetingDate: today(),
     location: "",
     riskFactors: "",
-    attendeeOpinions: createDefaultAttendees(),
+    attendeeOpinions: createDefaultAttendees(prb),
     overallOpinion: "",
   }
 }
@@ -119,18 +143,21 @@ function TableTextarea({
   )
 }
 
-function createFormFromResult(result: PrbResultRecord): FormState {
+function createFormFromResult(result: PrbResultRecord, prb?: PrbRecord | null): FormState {
   return {
     prbId: result.prbId,
     meetingDate: result.meetingDate || result.createdDate,
     location: result.location || "",
     riskFactors: result.riskFactors || "",
-    attendeeOpinions: result.attendeeOpinions.length > 0 ? result.attendeeOpinions : createDefaultAttendees(),
+    attendeeOpinions:
+      result.attendeeOpinions.length > 0
+        ? normalizeAttendeeOpinions(result.attendeeOpinions, prb)
+        : createDefaultAttendees(prb),
     overallOpinion: result.overallOpinion || "",
   }
 }
 
-export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistrationFormProps) {
+export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: PrbResultRegistrationFormProps) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>(createEmptyForm())
   const [selectedPrb, setSelectedPrb] = useState<PrbRecord | null>(null)
@@ -138,21 +165,26 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
   const [selectionOpen, setSelectionOpen] = useState(false)
   const [selectionValue, setSelectionValue] = useState("")
   const [validationMessage, setValidationMessage] = useState("")
-
-  const existingResult = useMemo(() => (prbResultId ? getPrbResultById(prbResultId) : null), [prbResultId])
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [existingResult, setExistingResult] = useState<PrbResultRecord | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+
     const sync = () => {
+      if (cancelled) return
       const allPrbs = getPrbs()
       const allResults = getPrbResults()
+      const loadedResult = prbResultId ? getPrbResults().find((item) => item.id === prbResultId) ?? null : null
+      setExistingResult(loadedResult)
 
-      if (existingResult) {
-        const matchedPrb = getPrbById(existingResult.prbId)
-        setForm(createFormFromResult(existingResult))
+      if (loadedResult) {
+        const matchedPrb = getPrbById(loadedResult.prbId)
+        setForm(createFormFromResult(loadedResult, matchedPrb))
         setSelectedPrb(matchedPrb)
         setSelectionPrbs([])
         setSelectionOpen(false)
-        setSelectionValue(existingResult.prbId)
+        setSelectionValue(loadedResult.prbId)
         return
       }
 
@@ -167,7 +199,11 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
         const candidate = candidates[0]
         setSelectedPrb(candidate)
         setSelectionValue(candidate.id)
-        setForm((current) => ({ ...current, prbId: candidate.id }))
+        setForm((current) => ({
+          ...current,
+          prbId: candidate.id,
+          attendeeOpinions: normalizeAttendeeOpinions(current.attendeeOpinions, candidate),
+        }))
         setSelectionOpen(false)
         return
       }
@@ -181,16 +217,19 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
 
       setSelectedPrb(null)
       setSelectionValue("")
+      setForm(createEmptyForm())
     }
 
     sync()
+    void loadBackendPrbResults().catch(() => undefined)
     const unsubscribePrb = subscribePrbUpdates(sync)
     const unsubscribeResult = subscribePrbResultUpdates(sync)
     return () => {
+      cancelled = true
       unsubscribePrb()
       unsubscribeResult()
     }
-  }, [existingResult])
+  }, [prbResultId])
 
   const appliedPrb = useMemo(
     () => selectedPrb ?? (form.prbId ? getPrbById(form.prbId) : null),
@@ -204,6 +243,7 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
       ...current,
       prbId: prb.id,
       meetingDate: current.meetingDate || prb.createdDate,
+      attendeeOpinions: normalizeAttendeeOpinions(current.attendeeOpinions, prb),
     }))
   }
 
@@ -216,30 +256,62 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
     }))
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!appliedPrb) {
       setValidationMessage("결과보고 대상 PRB 보고서를 먼저 선택해주십시오.")
       return
     }
 
-    const saved = savePrbResult({
-      id: prbResultId,
-      prbId: appliedPrb.id,
-      customerCode: appliedPrb.customerCode,
-      customer: appliedPrb.customer,
-      opportunityCode: appliedPrb.opportunityCode,
-      opportunity: appliedPrb.opportunity,
-      proposalDeadline: appliedPrb.proposalDeadline,
-      createdDate: existingResult?.createdDate ?? today(),
-      author: currentUser.name,
-      meetingDate: form.meetingDate,
-      location: form.location,
-      riskFactors: form.riskFactors,
-      attendeeOpinions: form.attendeeOpinions,
-      overallOpinion: form.overallOpinion,
-    })
+    try {
+      const saved = await saveBackendPrbResult({
+        id: prbResultId,
+        prbId: appliedPrb.id,
+        customerCode: appliedPrb.customerCode,
+        customer: appliedPrb.customer,
+        opportunityCode: appliedPrb.opportunityCode,
+        opportunity: appliedPrb.opportunity,
+        proposalDeadline: appliedPrb.proposalDeadline,
+        createdDate: existingResult?.createdDate ?? today(),
+        author: currentUser.name,
+        meetingDate: form.meetingDate,
+        location: form.location,
+        riskFactors: form.riskFactors,
+        attendeeOpinions: form.attendeeOpinions,
+        overallOpinion: form.overallOpinion,
+      })
 
-    router.push(`/bid/prb-result/${saved.id}`)
+      toast({
+        title: "PRB 결과보고 저장 완료",
+        description: "PRB 결과보고가 저장되었습니다.",
+      })
+
+      router.push(`/bid/prb-result/${saved.id}`)
+    } catch (error) {
+      toast({
+        title: "PRB 결과보고 저장 실패",
+        description: error instanceof Error ? error.message : "PRB 결과보고를 저장하지 못했습니다.",
+      })
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!prbResultId) return
+
+    try {
+      await deleteBackendPrbResult(prbResultId)
+      toast({
+        title: "PRB 결과보고 삭제 완료",
+        description: "PRB 결과보고가 삭제되었습니다.",
+      })
+      setIsDeleteOpen(false)
+      router.push("/bid")
+    } catch (error) {
+      toast({
+        title: "PRB 결과보고 삭제 실패",
+        description: error instanceof Error ? error.message : "PRB 결과보고를 삭제하지 못했습니다.",
+      })
+      setIsDeleteOpen(false)
+    }
   }
 
   return (
@@ -354,6 +426,11 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
             <Button variant="outline" asChild>
               <Link href={prbResultId ? `/bid/prb-result/${prbResultId}` : "/bid"}>취소</Link>
             </Button>
+            {allowDelete && prbResultId && (
+              <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                삭제
+              </Button>
+            )}
             <Button onClick={handleSave}>저장</Button>
           </div>
         </CardContent>
@@ -406,6 +483,20 @@ export function PrbResultRegistrationForm({ prbResultId }: PrbResultRegistration
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setValidationMessage("")}>확인</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>PRB 결과보고를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 PRB 결과보고 상세 정보를 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -179,13 +179,12 @@ def answer_targeted_domain_query(
                 )
 
     if is_opportunity_list_query(normalized_query):
-        rows = fetch_status_rows(status_filters=[], limit=50)
-        rows = _filter_structured_rows(
-            user_context=user_context,
-            rows=rows,
-            source_type=SourceType.PROJECT_OPPORTUNITY,
-            direct_keys=("opportunity_code",),
-        )
+        rows = fetch_opportunity_list_rows(limit=50)
+        rows = filter_opportunity_list_rows_for_query(query=query, rows=rows)
+        rows = [
+            row for row in rows
+            if _can_access_opportunity_code(user_context, row.get("opportunity_code"))
+        ]
         if rows:
             return build_opportunity_list_response(
                 query=query, rows=rows, limit=limit, embedder=embedder
@@ -534,6 +533,15 @@ def answer_targeted_domain_query(
                 embedder=embedder,
             )
 
+    snapshot = fetch_opportunity_snapshot(opportunity_code=opportunity_code)
+    if snapshot is not None:
+        return build_opportunity_status_response(
+            query=query,
+            snapshot=snapshot,
+            limit=limit,
+            embedder=embedder,
+        )
+
     return None
 
 
@@ -588,6 +596,14 @@ def answer_exact_code_snapshot_query(
                 related_keys=("maintenance_quote_code", "support_code", "opportunity_code"),
             ):
                 return build_maintenance_snapshot_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
+        snapshot = fetch_opportunity_snapshot(opportunity_code=code)
+        if snapshot is not None and _can_access_exact_snapshot(
+            user_context=user_context,
+            source_type=SourceType.PROJECT_OPPORTUNITY,
+            snapshot=snapshot,
+            direct_keys=("opportunity_code",),
+        ):
+            return build_opportunity_status_response(query=query, snapshot=snapshot, limit=limit, embedder=embedder)
         snapshot = fetch_contract_snapshot(contract_code=code)
         if snapshot is not None and _can_access_exact_snapshot(
             user_context=user_context,
@@ -873,6 +889,7 @@ def answer_graph_structured_extension(
 
     if is_opportunity_list_query(normalized_q):
         rows = fetch_opportunity_list_rows(limit=50)
+        rows = filter_opportunity_list_rows_for_query(query=query, rows=rows)
         rows = [row for row in rows if _can_access_opportunity_code(user_context, row.get("opportunity_code"))]
         if rows:
             return build_opportunity_list_response(
@@ -1586,6 +1603,7 @@ def build_metric_rank_response(
     status_phrase = f"{intent.status_label} 상태 기준 " if intent.status_label else ""
     if result_count > 1:
         sort_phrase = metric_rank_descriptor(intent.metric_key, intent.sort_direction)
+        metric_subject = attach_subject_particle(intent.metric_label or "지표")
         answer_lines = [
             f"핵심 결론: {status_phrase}{intent.metric_label} 기준 상위 {result_count}개 사업은 다음과 같습니다.",
             "",
@@ -1601,7 +1619,7 @@ def build_metric_rank_response(
         answer_lines.extend(
             [
                 "",
-                f"근거: 위 순위는 {selected_rows[0]['reference_code']} 등 관련 정형 근거 기준으로 {intent.metric_label}이 {sort_phrase} 순으로 정렬한 결과입니다.",
+                f"근거: 위 순위는 {selected_rows[0]['reference_code']} 등 관련 정형 근거 기준으로 {metric_subject} {sort_phrase} 순으로 정렬한 결과입니다.",
             ]
         )
     else:
@@ -1913,6 +1931,8 @@ def build_empty_structured_response(*, query: str, embedder: EmbeddingModel) -> 
         answer="조건에 맞는 정형 데이터가 없어 답변을 구성하지 못했습니다.",
         embeddingModel=embedder.config.model_name,
         chatModel="structured-rule-engine",
+        answerStatus="insufficient_evidence",
+        confidenceBand="low",
         excludedSourceTypes=[],
         evidences=[],
     )
@@ -3109,6 +3129,54 @@ def build_module_revenue_response(
     )
 
 
+def filter_opportunity_list_rows_for_query(*, query: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized_query = " ".join(query.lower().split())
+    if any(keyword in normalized_query for keyword in ("카드사", "카드회사", "신용카드")):
+        return [row for row in rows if "카드" in str(row.get("customer_name") or "")]
+
+    if is_public_customer_query(normalized_query):
+        return [row for row in rows if is_public_customer_row(row)]
+
+    if is_private_customer_query(normalized_query):
+        return [row for row in rows if is_private_customer_row(row)]
+
+    return rows
+
+
+def is_public_customer_query(normalized_query: str) -> bool:
+    return any(keyword in normalized_query for keyword in ("공공 고객", "공공기관", "공기업", "공공"))
+
+
+def is_private_customer_query(normalized_query: str) -> bool:
+    return any(keyword in normalized_query for keyword in ("민간 고객", "민간기업", "민간"))
+
+
+def is_public_customer_row(row: dict[str, Any]) -> bool:
+    group = str(row.get("customer_group") or "").upper()
+    if group in {"공공", "PUBLIC"}:
+        return True
+    customer_name = str(row.get("customer_name") or "")
+    return any(keyword in customer_name for keyword in ("공사", "공단", "발전", "공단", "공공", "공기업"))
+
+
+def is_private_customer_row(row: dict[str, Any]) -> bool:
+    group = str(row.get("customer_group") or "").upper()
+    if group in {"민간", "PRIVATE"}:
+        return True
+    return not is_public_customer_row(row)
+
+
+def opportunity_list_scope_label(query: str) -> str:
+    normalized_query = " ".join(query.lower().split())
+    if any(keyword in normalized_query for keyword in ("카드사", "카드회사", "신용카드")):
+        return "카드사 사업기회"
+    if is_public_customer_query(normalized_query):
+        return "공공 고객 사업기회"
+    if is_private_customer_query(normalized_query):
+        return "민간 고객 사업기회"
+    return "전체 사업기회"
+
+
 def build_opportunity_list_response(
     *,
     query: str,
@@ -3116,7 +3184,8 @@ def build_opportunity_list_response(
     limit: int,
     embedder: EmbeddingModel,
 ) -> AnswerResponse:
-    lines = [f"핵심 결론: 전체 사업기회는 총 {len(rows)}건입니다.", ""]
+    scope_label = opportunity_list_scope_label(query)
+    lines = [f"핵심 결론: {scope_label}는 총 {len(rows)}건입니다.", ""]
     for i, row in enumerate(rows, 1):
         amount = format_number(row.get("expected_amount")) if row.get("expected_amount") else "금액 미기재"
         lines.append(
@@ -4358,7 +4427,27 @@ _PRODUCT_CLASS_KEYWORDS = {
 
 def is_opportunity_list_query(normalized_query: str) -> bool:
     has_opp = any(kw in normalized_query for kw in ["사업기회", "사업 기회"])
-    has_list = any(kw in normalized_query for kw in ["전체", "모든", "모두", "전부", "목록", "리스트", "다 보여", "다 알려", "다 조회"])
+    has_list = any(
+        kw in normalized_query
+        for kw in [
+            "전체",
+            "모든",
+            "모두",
+            "전부",
+            "목록",
+            "리스트",
+            "다 보여",
+            "다 알려",
+            "다 조회",
+            "뭐 있어",
+            "뭐있",
+            "어떤",
+            "있는지",
+            "있어",
+            "보여줘",
+            "알려줘",
+        ]
+    )
     return has_opp and has_list
 
 

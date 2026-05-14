@@ -12,6 +12,7 @@ spring:
         highlight_sql: true    # 예약어들에 하이라이트 되어 출력
         dialect: org.hibernate.dialect.PostgreSQLDialect # PostgreSQL 방언
         # dialect: org.hibernate.dialect.MySQL8Dialect # MySQL 방언
+        default_batch_fetch_size: 1000
 
     # OSIV 설정 (성능 최적화를 위해 false 권장)
     open-in-view: false

@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +37,7 @@ public class ProjectController {
      */
     @Operation(summary = "사업 등록")
     @PostMapping("/register")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT', 'CREATE')")
     public ResponseEntity<ApiResponse<Long>> registerProject(@Valid @RequestBody ProjectCreateRequest request) {
         Long projectId = projectService.registerProject(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -47,6 +49,7 @@ public class ProjectController {
      */
     @Operation(summary = "사업 목록 전체 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT', 'READ')")
     public ResponseEntity<ApiResponse<List<ProjectListResponse>>> getProjects() {
         List<ProjectListResponse> response = projectService.getProjects();
 
@@ -58,16 +61,18 @@ public class ProjectController {
      */
     @Operation(summary = "사업 상세 조회")
     @GetMapping("/{projectId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT', 'READ')")
     public ResponseEntity<ApiResponse<ProjectDetailResponse>> getProjectDetail(@PathVariable Long projectId) {
         ProjectDetailResponse response = projectService.getProjectDetail(projectId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     /**
-     * 사업 및 결과보고 첨부파일 통합 수정 API
+     * 사업 및 결과보고 수정
      */
     @PutMapping("/{projectId}/with-report")
     @Operation(summary = "사업 통합 수정")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT', 'UPDATE')")
     public ResponseEntity<ApiResponse<ProjectDetailResponse>> updateProjectWithReport(
             @PathVariable Long projectId,
             @RequestBody ProjectCombinedUpdateRequest request) {
@@ -82,8 +87,9 @@ public class ProjectController {
      */
     @Operation(summary = "사업 삭제")
     @DeleteMapping("/{projectId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteProject(@PathVariable Long projectId) {
-        projectFacadeService.deleteProjectWithReport(projectId);
+        projectService.deleteProject(projectId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

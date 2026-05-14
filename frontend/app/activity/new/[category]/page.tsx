@@ -22,13 +22,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { ActivityFormFields } from "@/components/erp/activity-form-fields"
-import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { ActivityFormFields } from "@/components/erp/searchable-activity-form-fields"
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
-import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
-import { activityRequestTypeOptions, createActivity, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
-import { createActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
-import { currentUser } from "@/lib/current-user"
+import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
+import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { getPresalesUsers } from "@/lib/admin-data"
 import {
   type CustomerRecord,
@@ -38,14 +37,13 @@ import {
   hasRegisteredCustomer,
 } from "@/lib/finding-data"
 import { toast } from "@/hooks/use-toast"
-import { createQuotation } from "@/lib/quotation-workflow"
 import { X } from "lucide-react"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { createBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
+import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { createBackendQuotationRecord } from "@/lib/sales-quotation-backend"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
-type AttachmentDraft = StoredFileAttachment
 
 function ActivityCategoryNewPageContent() {
   const params = useParams<{ category: ActivityCategory }>()
@@ -59,9 +57,8 @@ function ActivityCategoryNewPageContent() {
   const [activityOpportunity, setActivityOpportunity] = useState("")
   const [activityOpportunityCode, setActivityOpportunityCode] = useState("")
   const [activityRequester, setActivityRequester] = useState("")
+  const [activityRegistrant, setActivityRegistrant] = useState("")
   const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
-  const [activityAttachments, setActivityAttachments] = useState<AttachmentDraft[]>([])
-  const [requestAttachments, setRequestAttachments] = useState<AttachmentDraft[]>([])
   const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
   const [activityForm, setActivityForm] = useState({
@@ -77,7 +74,7 @@ function ActivityCategoryNewPageContent() {
   const [form, setForm] = useState({
     date: "",
     type: "",
-    requester: currentUser.name,
+    requester: "",
     receiver: presalesUsers[0]?.name ?? "",
     customerCode: "",
     customer: "",
@@ -191,31 +188,12 @@ function ActivityCategoryNewPageContent() {
   const matchedCustomer = category === "requests" ? getCustomerByName(form.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(form.customer) : []
   const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
-  const currentAttachments = category === "activities" ? activityAttachments : requestAttachments
 
   const ensureRegisteredCustomer = () => {
     if (hasRegisteredCustomer(targetCustomer)) return true
 
     setIsCustomerAlertOpen(true)
     return false
-  }
-
-  const handleAttachmentChange = async (
-    files: FileList | null | undefined,
-    onComplete: (updater: (prev: AttachmentDraft[]) => AttachmentDraft[]) => void,
-  ) => {
-    const selectedFiles = Array.from(files ?? [])
-    if (selectedFiles.length === 0) return
-
-    try {
-      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
-      onComplete((prev) => [...prev, ...nextAttachments])
-    } catch (error) {
-      toast({
-        title: "첨부파일 등록 실패",
-        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
-      })
-    }
   }
 
   const handleSubmit = async () => {
@@ -240,14 +218,12 @@ function ActivityCategoryNewPageContent() {
           description: `${created.customer} ${registrationTitle}가 등록되었습니다.`,
         })
         router.push(`/activity/quotations/${created.id}`)
-        return
       } catch {
-        const created = createQuotation(normalized)
         toast({
-          title: `${registrationTitle} 등록 완료`,
-          description: `${created.customer} ${registrationTitle}가 등록되었습니다.`,
+          title: `${registrationTitle} 등록 실패`,
+          description: "백엔드에 견적서를 저장하지 못했습니다.",
         })
-        router.push(`/activity/quotations/${created.id}`)
+        return
       }
       return
     }
@@ -277,6 +253,7 @@ function ActivityCategoryNewPageContent() {
           activityDate: activityForm.date,
           issues: activityForm.issues,
           nextAction: activityForm.nextAction,
+          attendees: activityForm.attendees,
           status: "완료",
           requestId: (linkedRequest?.id ?? linkedRequestId) || undefined,
           salesActivityRequestId,
@@ -286,32 +263,12 @@ function ActivityCategoryNewPageContent() {
           description: `${created.customer} 영업활동이 등록되었습니다.`,
         })
         router.push(`/activity/activities/${created.id}`)
-        return
       } catch {
-        const created = createActivity({
-          date: activityForm.date,
-          requestId: (linkedRequest?.id ?? linkedRequestId) || undefined,
-          registrant: currentUser.name,
-          requester: activityRequester.trim(),
-          customerCode: activityCustomerCode,
-          businessCode: activityOpportunity === "미확인" ? "" : activityOpportunityCode,
-          activityMode: activityForm.activityMode,
-          activityContent: activityForm.activityContent,
-          customer: activityCustomer,
-          opportunity: activityOpportunity || "미확인",
-          location: activityForm.location,
-          attendees: activityForm.attendees,
-          content: activityForm.content,
-          issues: activityForm.issues,
-          nextAction: activityForm.nextAction,
-          status: "완료",
-          attachments: activityAttachments,
-        })
         toast({
-          title: "영업활동 등록 완료",
-          description: `${created.customer} 영업활동이 등록되었습니다.`,
+          title: "영업활동 등록 실패",
+          description: "백엔드에 영업활동을 저장하지 못했습니다.",
         })
-        router.push(`/activity/activities/${created.id}`)
+        return
       }
       return
     }
@@ -321,28 +278,22 @@ function ActivityCategoryNewPageContent() {
       return
     }
 
-    try {
-      const created = await createBackendActivityRequest({
-        ...form,
-        attachments: requestAttachments,
-      })
-      toast({
-        title: "활동 요청 등록 완료",
-        description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
-      })
-      router.push(`/activity/requests/${created.id}`)
-      return
-    } catch {
-      const created = createActivityRequest({
-        ...form,
-        attachments: requestAttachments,
-      })
-      toast({
-        title: "활동 요청 등록 완료",
-        description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
-      })
-      router.push(`/activity/requests/${created.id}`)
-    }
+      try {
+        const created = await createBackendActivityRequest({
+          ...form,
+        })
+        toast({
+          title: "활동 요청 등록 완료",
+          description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
+        })
+        router.push(`/activity/requests/${created.id}`)
+      } catch {
+        toast({
+          title: "활동 요청 등록 실패",
+          description: "백엔드에 활동 요청을 저장하지 못했습니다.",
+        })
+        return
+      }
   }
 
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
@@ -353,10 +304,29 @@ function ActivityCategoryNewPageContent() {
     setActivityOpportunityCode(firstOpportunity?.id ?? "")
   }
 
+  const handleActivityCustomerValueChange = (value: string) => {
+    setActivityCustomer(value)
+    const matchedCustomer = getCustomerByName(value)
+    setActivityCustomerCode(matchedCustomer?.id ?? "")
+    const firstOpportunity = matchedCustomer ? getOpportunitiesByCustomerName(matchedCustomer.name)[0] : null
+    setActivityOpportunity(firstOpportunity?.name ?? (matchedCustomer ? "미확인" : value ? activityOpportunity : ""))
+    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+  }
+
   const handleActivityOpportunityChange = (value: string) => {
     const opportunity = activityOpportunityOptions.find((item) => item.name === value)
     setActivityOpportunity(value)
     setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
+  }
+
+  const handleActivityOpportunitySuggestionSelect = (suggestion: EntitySuggestion | null) => {
+    if (!suggestion) {
+      setActivityOpportunityCode("")
+      return
+    }
+
+    setActivityOpportunity(suggestion.label)
+    setActivityOpportunityCode(suggestion.code || suggestion.id)
   }
 
   return (
@@ -386,25 +356,25 @@ function ActivityCategoryNewPageContent() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {category === "activities" && (
-                  <ActivityFormFields
-                    defaultValues={{
-                      registrant: currentUser.name,
+                    <ActivityFormFields
+                      defaultValues={{
                       requester: linkedRequest?.requester ?? "",
                       requestId: linkedRequest?.id ?? linkedRequestId,
                       activityContent: linkedRequest?.type ?? "",
                       opportunity: linkedRequest?.opportunity ?? "",
-                    }}
-                    customerValue={activityCustomer}
-                    customerCodeValue={activityCustomerCode}
-                    onCustomerSelect={handleActivityCustomerSelect}
-                    onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
-                    opportunityValue={activityOpportunity}
-                    opportunityCodeValue={activityOpportunity === "미확인" ? "-" : activityOpportunityCode || "-"}
+                      }}
+                      registrantValue={activityRegistrant}
+                      onRegistrantChange={setActivityRegistrant}
+                      customerValue={activityCustomer}
+                      onCustomerSelect={handleActivityCustomerSelect}
+                      onCustomerValueChange={handleActivityCustomerValueChange}
+                      onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
+                      opportunityValue={activityOpportunity}
                     opportunityOptions={activityOpportunityOptions}
                     onOpportunityChange={handleActivityOpportunityChange}
+                    onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
                     requesterValue={activityRequester}
                     onRequesterChange={setActivityRequester}
-                    requestIdValue={linkedRequest?.id ?? linkedRequestId}
                     values={activityForm}
                     onValuesChange={setActivityForm}
                   />
@@ -440,7 +410,11 @@ function ActivityCategoryNewPageContent() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>요청자 *</Label>
-                        <Input value={form.requester} readOnly />
+                        <Input
+                          value={form.requester}
+                          onChange={(event) => setForm((prev) => ({ ...prev, requester: event.target.value }))}
+                          placeholder="요청자 이름을 입력하세요"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>담당자 *</Label>
@@ -463,6 +437,16 @@ function ActivityCategoryNewPageContent() {
                         <Label>고객사 *</Label>
                         <CustomerAutocomplete
                           value={form.customer}
+                          onValueChange={(value) => {
+                            const matched = getCustomerByName(value)
+                            setForm((prev) => ({
+                              ...prev,
+                              customer: value,
+                              customerCode: matched?.id ?? prev.customerCode,
+                              opportunity: matched ? "미확인" : prev.opportunity,
+                              opportunityCode: matched ? "" : prev.opportunityCode,
+                            }))
+                          }}
                           onSelect={(customer) => {
                             setForm((prev) => ({
                               ...prev,
@@ -476,42 +460,41 @@ function ActivityCategoryNewPageContent() {
                           onUnregisteredAttempt={() => setIsCustomerAlertOpen(true)}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>고객사 코드</Label>
-                        <Input value={matchedCustomer?.id ?? "-"} readOnly />
-                      </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>사업기회 *</Label>
-                        <Select
+                        <EntityAutocomplete
                           value={form.opportunity}
+                          target="opportunities"
                           onValueChange={(value) => {
-                            const opportunity = opportunityOptions.find((item) => item.name === value)
                             setForm((prev) => ({
                               ...prev,
                               opportunity: value,
-                              opportunityCode: opportunity?.id ?? "",
+                              opportunityCode: "",
+                            }))
+                          }}
+                          onSelect={(suggestion) => {
+                            if (!suggestion) {
+                              setForm((prev) => ({ ...prev, opportunityCode: "" }))
+                              return
+                            }
+                            setForm((prev) => ({
+                              ...prev,
+                              opportunity: suggestion.label,
+                              opportunityCode: suggestion.code || suggestion.id,
                             }))
                           }}
                           disabled={!matchedCustomer}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={matchedCustomer ? "사업기회를 선택하세요" : "고객사를 먼저 입력하세요"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {opportunityOptions.map((option) => (
-                              <SelectItem key={option.id} value={option.name}>
-                                {option.name}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="미확인">미확인</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>사업기회 코드</Label>
-                        <Input value={form.opportunity === "미확인" ? "-" : form.opportunityCode || "-"} readOnly />
+                          allowCustomValue
+                          placeholder={matchedCustomer ? "사업기회를 입력하세요" : "고객사를 먼저 입력하세요"}
+                          emptyMessage="등록된 사업기회가 없습니다."
+                          filterSuggestion={(suggestion) =>
+                            !matchedCustomer ||
+                            suggestion.metadata.customerCode === matchedCustomer.id ||
+                            suggestion.metadata.customerId === matchedCustomer.id
+                          }
+                        />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
@@ -525,54 +508,6 @@ function ActivityCategoryNewPageContent() {
                       <Textarea rows={4} value={form.content} onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))} />
                     </div>
                   </>
-                )}
-
-                {category !== "quotations" && (
-                  <div className="space-y-2">
-                    <Label>첨부파일</Label>
-                    <Input
-                      type="file"
-                      multiple
-                      onChange={(event) => {
-                        void handleAttachmentChange(
-                          event.target.files,
-                          category === "activities" ? setActivityAttachments : setRequestAttachments,
-                        )
-                        event.target.value = ""
-                      }}
-                    />
-                    {currentAttachments.length > 0 ? (
-                      <div className="space-y-2 rounded-md border border-border p-3">
-                        {currentAttachments.map((attachment) => (
-                          <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                            <div className="min-w-0 flex-1">
-                              <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                                {attachment.name}
-                              </a>
-                              <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (category === "activities") {
-                                  setActivityAttachments((prev) => prev.filter((item) => item.id !== attachment.id))
-                                  return
-                                }
-
-                                setRequestAttachments((prev) => prev.filter((item) => item.id !== attachment.id))
-                              }}
-                            >
-                              삭제
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <Input readOnly value="등록된 첨부파일이 없습니다." />
-                    )}
-                  </div>
                 )}
 
                 <div className="flex justify-end gap-2 border-t pt-6">

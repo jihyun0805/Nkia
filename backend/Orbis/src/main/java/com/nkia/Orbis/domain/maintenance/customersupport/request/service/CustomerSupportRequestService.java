@@ -1,6 +1,19 @@
 package com.nkia.Orbis.domain.maintenance.customersupport.request.service;
 
-import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
+import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
+import com.nkia.Orbis.domain.company.entity.Company;
+import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestCreateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestDetailResponse;
@@ -9,13 +22,6 @@ import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.Customer
 import com.nkia.Orbis.domain.maintenance.customersupport.request.repository.CustomerSupportRequestRepository;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
-import com.nkia.Orbis.domain.admin.user.entity.User;
-import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
-import com.nkia.Orbis.domain.company.entity.Company;
-import com.nkia.Orbis.domain.company.repository.CompanyRepository;
-import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
-import com.nkia.Orbis.common.exception.ApiException;
-import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +39,8 @@ public class CustomerSupportRequestService {
     private final UserRepository userRepository;
     private final UploadFileService uploadFileService;
     private final CompanyRepository companyRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     /**
      * 고객지원 요청 등록
@@ -45,7 +53,8 @@ public class CustomerSupportRequestService {
         User supportManager = getUserOrNull(requestDto.getSupportManagerId());
         Company customerCompany = getCompanyOrNull(requestDto.getCustomerCompanyCode());
 
-        CustomerSupportRequest request = createRequestEntity(requestDto, requester, registrant, salesRep, supportManager, customerCompany);
+        CustomerSupportRequest request = createRequestEntity(requestDto, requester, registrant, salesRep,
+                supportManager, customerCompany);
 
         mapAttachedFiles(request, requestDto.getAttachedFileIds());
 
@@ -62,7 +71,7 @@ public class CustomerSupportRequestService {
     @Transactional
     public CustomerSupportRequestDetailResponse updateRequest(Long id, CustomerSupportRequestUpdateRequest dto) {
         CustomerSupportRequest request = requestRepository.findById(id)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
 
         User requester = userRepository.findById(dto.getRequesterId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
@@ -72,7 +81,7 @@ public class CustomerSupportRequestService {
         request.update(dto, requester, supportManager, customerCompany);
         updateAttachedFiles(request, dto.getAttachedFileIds());
 
-        return CustomerSupportRequestDetailResponse.from(request);
+        return CustomerSupportRequestDetailResponse.from(request, getWorkflowId(request.getId()));
     }
 
     /**
@@ -81,7 +90,7 @@ public class CustomerSupportRequestService {
     @Transactional
     public void deleteRequest(Long id) {
         CustomerSupportRequest request = requestRepository.findById(id)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
 
         request.getAttachedFiles().forEach(file -> uploadFileService.removeFile(file.getId()));
 
@@ -91,7 +100,6 @@ public class CustomerSupportRequestService {
     /**
      * 고객지원 요청 목록을 조회
      */
-    @Transactional(readOnly = true)
     public List<CustomerSupportRequestListResponse> getRequests() {
         List<CustomerSupportRequest> requests = requestRepository.findAllByOrderByIdDesc();
 
@@ -103,12 +111,11 @@ public class CustomerSupportRequestService {
     /**
      * 특정 고객지원 요청의 상세 정보 조회
      */
-    @Transactional(readOnly = true)
     public CustomerSupportRequestDetailResponse getRequestDetail(Long id) {
         CustomerSupportRequest request = requestRepository.findById(id)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
 
-        return CustomerSupportRequestDetailResponse.from(request);
+        return CustomerSupportRequestDetailResponse.from(request, getWorkflowId(request.getId()));
     }
 
     private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto,
@@ -158,5 +165,40 @@ public class CustomerSupportRequestService {
         }
         return companyRepository.findById(companyId)
                 .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
+    }
+
+    @Transactional
+    public void submitCustomerSupportRequest(
+            Long customerSupportRequestId,
+            UUID firstApproverId
+    ) {
+        CustomerSupportRequest customerSupportRequest = requestRepository.findById(customerSupportRequestId)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
+        if (!customerSupportRequest.isDraft()) {
+            throw new ApiException(MaintenanceErrorCode.INVALID_CS_REQUEST_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.CUSTOMER_SUPPORT,
+                customerSupportRequest.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        customerSupportRequest.submit();
+    }
+
+    private Long getWorkflowId(Long customerSupportRequestId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.CUSTOMER_SUPPORT,
+                        customerSupportRequestId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }

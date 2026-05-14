@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.admin.workflow.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.StartWorkflowRequest;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowApproveRequest;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.WorkflowRejectRequest;
@@ -38,11 +39,12 @@ public class WorkflowController {
         Workflow workflow = workflowService.startWorkflow(
                 request.getWorkflowDomain(),
                 request.getTargetId(),
+                request.getRequesterId(),
                 request.getFirstApproverId()
         );
 
         return ResponseEntity.ok(
-                ApiResponse.success(WorkflowResponse.from(workflow))
+                ApiResponse.success(workflowService.toWorkflowResponse(workflow))
         );
     }
 
@@ -51,11 +53,11 @@ public class WorkflowController {
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'APPROVE')")
     public ResponseEntity<ApiResponse<String>> approve(
             @PathVariable("workflowId") Long workflowId,
-            @RequestBody WorkflowApproveRequest request
-    ) {
+            @RequestBody WorkflowApproveRequest request) {
+        UUID userId = UUID.fromString(SecurityUtil.getCurrentUserId());
         workflowService.approve(
                 workflowId,
-                request.getApproverId(),
+                userId,
                 request.getNextApproverId(),
                 request.getComment()
         );
@@ -68,11 +70,11 @@ public class WorkflowController {
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'APPROVE')")
     public ResponseEntity<ApiResponse<String>> reject(
             @PathVariable("workflowId") Long workflowId,
-            @RequestBody WorkflowRejectRequest request
-    ) {
+            @RequestBody WorkflowRejectRequest request) {
+        UUID userId = UUID.fromString(SecurityUtil.getCurrentUserId());
         workflowService.reject(
                 workflowId,
-                request.getApproverId(),
+                userId,
                 request.getComment()
         );
 

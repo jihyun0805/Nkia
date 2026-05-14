@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
-import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -25,11 +25,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
-import { formatAttachmentSize, readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
-import { findingStatuses, getCustomers, getFindingCategoryLabel, getFindingItem, updateOpportunity, updatePartner, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
+import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
+import { findingStatuses, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import {
+  buildFallbackManagerEmail,
+  createBackendCompanyManager,
+  deleteBackendCompanyManager,
+  loadBackendCompanyManagers,
+  loadBackendFindingData,
+  mapPartnerCategory,
+  resolveSalesRepresentativeId,
+  updateBackendCompany,
+  updateBackendCompanyManager,
+  updateBackendProjectOpportunity,
+} from "@/lib/finding-backend"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
+import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 const customerGroupOptions = ["공공", "민간", "해외"]
@@ -48,8 +61,9 @@ type ContactDraft = {
   businessCardImage: string
 }
 
-type AttachmentDraft = StoredFileAttachment
-type RfpAttachmentDraft = OpportunityAttachment
+type RfpAttachmentDraft = OpportunityAttachment & {
+  file?: File
+}
 
 function createEmptyContactDraft(): ContactDraft {
   return {
@@ -107,6 +121,59 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   const trimmedNext = String(nextValue ?? "").trim()
   if (trimmedNext) return trimmedNext
   return currentValue ?? ""
+}
+
+function mapOpportunityProductClass(value: string) {
+  const normalized = value.trim().toUpperCase()
+  if (normalized === "EMS" || normalized === "ITSM") return normalized
+  return "ETC"
+}
+
+function mapOpportunityStageFromStatus(value: string) {
+  if (value === "진행중") return "ACTIVITY"
+  if (value === "유망") return "BID"
+  return "FINDING"
+}
+
+function parseExpectedBudget(value?: string) {
+  const normalized = String(value ?? "").trim()
+  if (!normalized) return undefined
+
+  const compact = normalized.replace(/[,원\s]/g, "")
+  const match = compact.match(/^(\d+(?:\.\d+)?)(억|만)?$/)
+  if (match) {
+    const amount = Number.parseFloat(match[1])
+    if (Number.isNaN(amount)) return undefined
+    if (match[2] === "억") return Math.round(amount * 100000000)
+    if (match[2] === "만") return Math.round(amount * 10000)
+    return amount
+  }
+
+  const numeric = Number.parseFloat(compact)
+  return Number.isNaN(numeric) ? undefined : numeric
+}
+
+function buildOpportunityDescription(params: {
+  moduleName: string
+  issue: string
+  competition: string
+  decisionInfo: string
+}) {
+  return [params.moduleName, params.issue, params.competition, params.decisionInfo]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join("\n\n")
+}
+
+function getFindingCategoryLabel(category: FindingCategory) {
+  if (category === "opportunities") return "사업기회"
+  if (category === "customers") return "고객사"
+  return "협력사"
+}
+
+function formatRfpSummaryTitle(fileName: string) {
+  const title = fileName.replace(/\.[^.]+$/, "").trim()
+  return title || "RFP 문서"
 }
 
 function getCustomerDecisionContacts(customer: CustomerRecord | null): CustomerContact[] {
@@ -189,15 +256,16 @@ function readFileAsDataUrl(file: File) {
   })
 }
 
-function createRfpAttachment(file: File, dataUrl: string): RfpAttachmentDraft {
+function createRfpAttachment(file: File, dataUrl: string, summary = ""): RfpAttachmentDraft {
   return {
     id: `${Date.now()}-${file.name}-${file.size}`,
     name: file.name,
     size: file.size,
     contentType: file.type || "application/octet-stream",
     dataUrl,
-    summary: "",
+    summary,
     createdAt: new Date().toISOString(),
+    file,
   }
 }
 
@@ -211,6 +279,8 @@ export default function FindingEditPage() {
     ? categoryParam
     : "opportunities") as FindingCategory
   const [item, setItem] = useState<OpportunityRecord | PartnerRecord | null>(null)
+  const [customers, setCustomers] = useState<CustomerRecord[]>([])
+  const [partners, setPartners] = useState<PartnerRecord[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null)
   const [customerName, setCustomerName] = useState("")
   const [opportunityName, setOpportunityName] = useState("")
@@ -231,55 +301,84 @@ export default function FindingEditPage() {
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
-  const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
+  const [rfpSummaryLoadingId, setRfpSummaryLoadingId] = useState<string | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
+  const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
-    const sync = () => {
-      const current = getFindingItem(category, id) as OpportunityRecord | PartnerRecord | null
-      setItem(current)
-      if (current && category === "opportunities") {
-        const opportunity = current as OpportunityRecord
-        const matchedCustomer = getCustomers().find((customer) => customer.id === opportunity.customerCode) ?? null
-        setSelectedCustomer(matchedCustomer ?? { id: opportunity.customerCode, name: opportunity.customer, category: opportunity.category, opportunities: 0, contracts: 0, contact: "", phone: "" })
-        setCustomerName(opportunity.customer)
-        setOpportunityName(opportunity.name)
-        setRegistrant(opportunity.registrant)
-        setPartnerNames(
-          Array.isArray(opportunity.partners) && opportunity.partners.length > 0
-            ? opportunity.partners
-            : opportunity.partner === "-" ? [""] : opportunity.partner.split(",").map((partner) => partner.trim()),
-        )
-        setExpectedDate(opportunity.expectedDate === "-" ? "" : opportunity.expectedDate)
-        setExpectedAmount(opportunity.expectedAmount === "-" ? "" : opportunity.expectedAmount)
-        setCustomerGroup(opportunity.category)
-        setSalesRep(opportunity.salesRep)
-        setBusinessType(opportunity.product)
-        setModuleName(opportunity.module === "-" ? "" : opportunity.module)
-        setIssue(opportunity.issue === "-" ? "" : opportunity.issue)
-        setCompetition(opportunity.competition === "-" ? "" : opportunity.competition)
-        setDecisionInfo(opportunity.decisionInfo === "-" ? "" : opportunity.decisionInfo)
-        setStatus(opportunity.status)
-        setRfpAttachments(opportunity.rfpAttachments ?? [])
-      }
-      if (current && category === "partners") {
-        const partner = current as PartnerRecord
-        setPartnerName(partner.name)
-        setPartnerType(partner.type || "SI")
-        setAddress(partner.address ?? "")
-        setMemo(partner.memo ?? "")
-        setContacts(toContactDrafts(partner))
-        setAttachments(partner.attachments ?? [])
+    let cancelled = false
+
+    const sync = async () => {
+      setLoading(true)
+      try {
+        const data = await loadBackendFindingData()
+        if (cancelled) return
+
+        setCustomers(data.customers)
+        setPartners(data.partners)
+
+        if (category === "opportunities") {
+          const opportunity = data.opportunities.find((current) => current.id === id) ?? null
+          setItem(opportunity)
+          if (opportunity) {
+            const matchedCustomer = data.customers.find((customer) => customer.id === opportunity.customerCode) ?? null
+            setSelectedCustomer(matchedCustomer)
+            setCustomerName(opportunity.customer)
+            setOpportunityName(opportunity.name)
+            setRegistrant(opportunity.registrant)
+            setPartnerNames(
+              Array.isArray(opportunity.partners) && opportunity.partners.length > 0
+                ? opportunity.partners
+                : opportunity.partner === "-"
+                  ? [""]
+                  : opportunity.partner.split(",").map((partner) => partner.trim()),
+            )
+            setExpectedDate(opportunity.expectedDate === "-" ? "" : opportunity.expectedDate)
+            setExpectedAmount(opportunity.expectedAmount === "-" ? "" : opportunity.expectedAmount)
+            setCustomerGroup(opportunity.category)
+            setSalesRep(opportunity.salesRep)
+            setBusinessType(opportunity.product)
+            setModuleName(opportunity.module === "-" ? "" : opportunity.module)
+            setIssue(opportunity.issue === "-" ? "" : opportunity.issue)
+            setCompetition(opportunity.competition === "-" ? "" : opportunity.competition)
+            setDecisionInfo(opportunity.decisionInfo === "-" ? "" : opportunity.decisionInfo)
+            setStatus(opportunity.status)
+            setRfpAttachments(opportunity.rfpAttachments ?? [])
+          }
+        }
+
+        if (category === "partners") {
+          const partner = data.partners.find((current) => current.id === id) ?? null
+          setItem(partner)
+          if (partner) {
+            setPartnerName(partner.name)
+            setPartnerType(partner.type || "SI")
+            setAddress(partner.address ?? "")
+            setMemo(partner.memo ?? "")
+            setContacts(toContactDrafts(partner))
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setItem(null)
+          setCustomers([])
+          setPartners([])
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
-    sync()
-    window.addEventListener("storage", sync)
-    return () => window.removeEventListener("storage", sync)
+    void sync()
+    return () => {
+      cancelled = true
+    }
   }, [category, id])
 
   const label = getFindingCategoryLabel(category)
@@ -291,13 +390,17 @@ export default function FindingEditPage() {
     businessCardInputRef.current?.click()
   }
 
-  const handleAttachmentChange = async (files: FileList | null | undefined) => {
+  const handleRfpFileChange = async (files: FileList | null | undefined) => {
     const selectedFiles = Array.from(files ?? [])
     if (selectedFiles.length === 0) return
 
     try {
-      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
-      setAttachments((prev) => [...prev, ...nextAttachments])
+      selectedFiles.forEach(assertRfpDocumentFile)
+      const nextAttachments = await Promise.all(
+        selectedFiles.map(async (file) => createRfpAttachment(file, await readFileAsDataUrl(file))),
+      )
+      setRfpAttachments((prev) => [...prev, ...nextAttachments])
+      if (rfpInputRef.current) rfpInputRef.current.value = ""
     } catch (error) {
       toast({
         title: "첨부파일 등록 실패",
@@ -306,21 +409,35 @@ export default function FindingEditPage() {
     }
   }
 
-  const handleRfpAttachmentChange = async (files: FileList | null | undefined) => {
-    const selectedFiles = Array.from(files ?? [])
-    if (selectedFiles.length === 0) return
+  const handleGenerateRfpSummary = async (attachment: RfpAttachmentDraft) => {
+    if (!attachment.file) {
+      toast({
+        title: "RFP 문서 확인",
+        description: "기존 문서는 브라우저에 원본 파일이 없어 다시 첨부한 뒤 요약할 수 있습니다.",
+      })
+      return
+    }
 
+    setRfpSummaryLoadingId(attachment.id)
     try {
-      const nextAttachments = await Promise.all(
-        selectedFiles.map(async (file) => createRfpAttachment(file, await readFileAsDataUrl(file))),
-      )
-      setRfpAttachments((prev) => [...prev, ...nextAttachments])
+      const result = await summarizeRfpDocument(attachment.file)
+      setRfpAttachments((prev) => prev.map((item) => (item.id === attachment.id ? { ...item, summary: result.summary } : item)))
+      toast({
+        title: "RFP AI 요약 생성 완료",
+        description: `${attachment.name} 문서를 요약했습니다.`,
+      })
     } catch (error) {
       toast({
-        title: "첨부파일 등록 실패",
-        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
+        title: "RFP AI 요약 생성 실패",
+        description: error instanceof Error ? error.message : "잠시 후 다시 시도하세요.",
       })
+    } finally {
+      setRfpSummaryLoadingId(null)
     }
+  }
+
+  const handleDeleteRfpAttachment = (attachmentId: string) => {
+    setRfpAttachments((prev) => prev.filter((attachment) => attachment.id !== attachmentId))
   }
 
   const handleBusinessCardFileChange = async (file: File | undefined) => {
@@ -398,28 +515,75 @@ export default function FindingEditPage() {
         return
       }
 
-      const result = updatePartner(id, {
-        name: normalizedName,
-        type: partnerType,
-        contacts: filledContacts as CustomerContact[],
-        address,
-        memo,
-        attachments,
-      })
-
-      if (result.status === "not_found") {
+      const duplicatePartner = partners.find((partner) => partner.id !== id && partner.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
+      if (duplicatePartner) {
         toast({
-          title: "협력사 수정 실패",
-          description: "수정할 협력사를 찾지 못했습니다.",
+          title: "협력사 수정 확인",
+          description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
         })
         return
       }
 
-      toast({
-        title: "협력사 수정 완료",
-        description: `${result.partner.name} 정보가 수정되었습니다.`,
-      })
-      router.push(`/finding/partners/${result.partner.id}?tab=${tab}`)
+      const currentPartner = item as PartnerRecord | null
+      if (!currentPartner?.backendId) {
+        toast({
+          title: "협력사 수정 실패",
+          description: "백엔드 협력사 정보를 찾지 못했습니다.",
+        })
+        return
+      }
+
+      setSubmitting(true)
+      ;(async () => {
+        try {
+          await updateBackendCompany(currentPartner.backendId!, {
+            name: normalizedName,
+            category: mapPartnerCategory(partnerType),
+            address,
+          })
+
+          const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
+          const sortedManagers = [...existingManagers].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+          for (let index = 0; index < filledContacts.length; index += 1) {
+            const contact = filledContacts[index]
+            const payload = {
+              name: contact.name.trim(),
+              email: contact.email?.trim() || buildFallbackManagerEmail(currentPartner.id, contact.name, index),
+              mobilePhone: contact.mobilePhone?.trim() || undefined,
+              officePhone: contact.landlinePhone?.trim() || undefined,
+              department: contact.department?.trim() || undefined,
+              position: contact.position?.trim() || undefined,
+              role: contact.duty?.trim() || undefined,
+            }
+
+            const managerId = sortedManagers[index]?.id
+            if (managerId != null) {
+              await updateBackendCompanyManager(managerId, payload)
+            } else {
+              await createBackendCompanyManager(currentPartner.backendId!, payload)
+            }
+          }
+
+          for (const manager of sortedManagers.slice(filledContacts.length)) {
+            if (manager.id != null) {
+              await deleteBackendCompanyManager(manager.id)
+            }
+          }
+
+          toast({
+            title: "협력사 수정 완료",
+            description: `${normalizedName} 정보가 수정되었습니다.`,
+          })
+          router.push(`/finding/partners/${currentPartner.id}?tab=${tab}`)
+        } catch (error) {
+          toast({
+            title: "협력사 수정 실패",
+            description: error instanceof Error ? error.message : "수정에 실패했습니다.",
+          })
+        } finally {
+          setSubmitting(false)
+        }
+      })()
       return
     }
 
@@ -444,45 +608,76 @@ export default function FindingEditPage() {
       return
     }
 
-      const result = updateOpportunity(id, {
-        customerCode: selectedCustomer.id,
-        category: customerGroup,
-        name: opportunityName,
-        registrant,
-        partners: partnerNames,
-        expectedDate,
-        expectedAmount,
-        product: businessType,
-        module: moduleName,
-        issue,
-        competition,
-        decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
-        status,
-        salesRep,
-        rfpAttachments,
-      })
-
-    if (result.status === "not_found") {
+    const currentOpportunity = item as OpportunityRecord | null
+    if (!currentOpportunity?.backendId) {
       toast({
         title: "사업기회 수정 실패",
-        description: "수정할 사업기회를 찾지 못했습니다.",
+        description: "백엔드 사업기회 정보를 찾지 못했습니다.",
       })
       return
     }
 
-    if (result.status === "customer_not_found") {
-      toast({
-        title: "사업기회 수정 실패",
-        description: "선택한 고객사를 찾지 못했습니다. 다시 선택해주십시오.",
-      })
-      return
-    }
+    setSubmitting(true)
+    ;(async () => {
+      try {
+        const salesRepresentativeId = await resolveSalesRepresentativeId(salesRep)
+        if (!salesRepresentativeId) {
+          toast({
+            title: "사업기회 수정 확인",
+            description: "영업대표를 사용자 목록에서 찾지 못했습니다.",
+          })
+          setSubmitting(false)
+          return
+        }
 
-    toast({
-      title: "사업기회 수정 완료",
-      description: `${result.opportunity.name} 정보가 수정되었습니다.`,
-    })
-    router.push(`/finding/opportunities/${result.opportunity.id}?tab=${tab}`)
+        const updated = await updateBackendProjectOpportunity(currentOpportunity.backendId!, {
+          opportunityName: opportunityName.trim(),
+          stage: mapOpportunityStageFromStatus(status),
+          projectType: mapOpportunityProductClass(businessType),
+          salesRepresentativeId,
+          expectedBidDate: expectedDate,
+          expectedBudget: expectedAmount,
+          description: buildOpportunityDescription({
+            moduleName,
+            issue,
+            competition,
+            decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
+          }),
+          competitionStatus: competition,
+        })
+
+        toast({
+          title: "사업기회 수정 완료",
+          description: `${updated.opportunityName ?? opportunityName} 정보가 수정되었습니다.`,
+        })
+        router.push(`/finding/opportunities/${updated.opportunityCode ?? currentOpportunity.id}?tab=${tab}`)
+      } catch (error) {
+        toast({
+          title: "사업기회 수정 실패",
+          description: error instanceof Error ? error.message : "수정에 실패했습니다.",
+        })
+      } finally {
+        setSubmitting(false)
+      }
+    })()
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title={`${label} 수정`} description={`${label} 정보를 조회합니다`} />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl">
+              <Card>
+                <CardContent className="py-10 text-center text-muted-foreground">불러오는 중...</CardContent>
+              </Card>
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   if (!item) {
@@ -729,34 +924,6 @@ export default function FindingEditPage() {
                     </div>
                   </section>
 
-                  <section className="space-y-2">
-                    <Label>첨부파일</Label>
-                    <Input
-                      type="file"
-                      multiple
-                      onChange={(event) => {
-                        void handleAttachmentChange(event.target.files)
-                        event.target.value = ""
-                      }}
-                    />
-                    {attachments.length > 0 ? (
-                      <div className="space-y-2 rounded-md border border-border p-3">
-                        {attachments.map((attachment) => (
-                          <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                            <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                              {attachment.name}
-                            </a>
-                            <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                              삭제
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <Input readOnly value="등록된 첨부파일이 없습니다." />
-                    )}
-                  </section>
-
                   <div className="flex justify-end gap-2 border-t pt-6">
                     <Button variant="outline" asChild>
                       <Link href={backHref}>취소</Link>
@@ -833,9 +1000,10 @@ export default function FindingEditPage() {
                         <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => {
-                          setSelectedCustomer(customer)
-                          setCustomerName(customer?.name ?? "")
-                          setCustomerGroup(customer?.category ?? "민간")
+                          const resolvedCustomer = customers.find((item) => item.id === customer?.id || item.name === customer?.name) ?? customer
+                          setSelectedCustomer(resolvedCustomer ?? null)
+                          setCustomerName(resolvedCustomer?.name ?? "")
+                          setCustomerGroup(resolvedCustomer?.category ?? "민간")
                         }}
                         onValueChange={setCustomerName}
                         onUnregisteredAttempt={() =>
@@ -999,41 +1167,100 @@ export default function FindingEditPage() {
                 </section>
 
                 <section className="space-y-2">
-                  <Label>첨부파일</Label>
-                  <Input
+                  <Label>RFP 문서</Label>
+                  <div className="flex flex-col gap-2 md:flex-row">
+                    <Input
+                      ref={rfpInputRef}
+                      className="hidden"
                     type="file"
+                    accept={RFP_DOCUMENT_ACCEPT}
                     multiple
+                    disabled={rfpSummaryLoadingId !== null}
                     onChange={(event) => {
-                      void handleRfpAttachmentChange(event.target.files)
-                      event.target.value = ""
+                      void handleRfpFileChange(event.target.files)
                     }}
                   />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-fit"
+                      disabled={rfpSummaryLoadingId !== null}
+                      onClick={() => rfpInputRef.current?.click()}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      파일 추가
+                    </Button>
+                  </div>
                   {rfpAttachments.length > 0 ? (
-                    <div className="space-y-2 rounded-md border border-border p-3">
+                    <div className="space-y-2 rounded-md border border-border bg-muted/30 px-3 py-2">
                       {rfpAttachments.map((attachment) => (
-                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                          <div className="min-w-0 flex-1">
+                        <div key={attachment.id} className="flex items-center gap-2 text-sm">
+                          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate font-medium">{attachment.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{Math.ceil(attachment.size / 1024).toLocaleString()}KB</span>
+                          <div className="hidden">
                             <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
                               {attachment.name}
                             </a>
-                            <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
+                            <p className="text-xs text-muted-foreground">{`${Math.ceil(attachment.size / 1024).toLocaleString()}KB`}</p>
+                            {attachment.summary ? (
+                              <div className="mt-3 rounded-md border border-border p-4">
+                                <h3 className="mb-3 text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+                                <RfpSummaryMarkdown markdown={attachment.summary} />
+                              </div>
+                            ) : null}
                           </div>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setRfpAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                            삭제
-                          </Button>
+                          <div className="ml-auto flex shrink-0 items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8"
+                              disabled={rfpSummaryLoadingId !== null}
+                              onClick={() => {
+                                void handleGenerateRfpSummary(attachment)
+                              }}
+                            >
+                              {rfpSummaryLoadingId === attachment.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                              AI 요약
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-[0px] text-destructive hover:text-destructive"
+                              disabled={rfpSummaryLoadingId === attachment.id}
+                              onClick={() => handleDeleteRfpAttachment(attachment.id)}
+                              title="삭제"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              삭제
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <Input readOnly value="등록된 첨부파일이 없습니다." />
-                  )}
+                  ) : null}
+                  {rfpAttachments.some((attachment) => attachment.summary) ? (
+                    <div className="space-y-3">
+                      {rfpAttachments.filter((attachment) => attachment.summary).map((attachment) => (
+                        <div key={attachment.id} className="space-y-3 rounded-md border border-border p-4">
+                          <h3 className="text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+                          <RfpSummaryMarkdown markdown={attachment.summary} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">사업기회와 함께 검토할 RFP 문서를 추가합니다.</p>
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">
-                  <Button variant="outline" asChild>
+                  <Button variant="outline" asChild disabled={submitting}>
                     <Link href={backHref}>취소</Link>
                   </Button>
-                  <Button onClick={handleSave}>수정</Button>
+                  <Button onClick={handleSave} disabled={submitting}>
+                    {submitting ? "저장 중..." : "수정"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

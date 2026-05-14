@@ -4,6 +4,7 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProductModuleErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.LaborItemCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.QuotationCreateRequest;
 import com.nkia.Orbis.domain.activity.quotation.dto.request.SolutionItemCreateRequest;
@@ -21,12 +22,18 @@ import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationSolutionI
 import com.nkia.Orbis.domain.activity.quotationhistory.repository.QuotationHistoryRepository;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +45,8 @@ public class QuotationService {
     private final ProductModuleRepository productModuleRepository;
     private final ProjectOpportunityRepository projectOpportunityRepository;
     private final QuotationHistoryRepository quotationHistoryRepository;
+    private final WorkflowService workflowService;
+    private final WorkflowRepository workflowRepository;
 
     @Transactional
     public QuotationResponse create(QuotationCreateRequest request) {
@@ -61,7 +70,7 @@ public class QuotationService {
 
         Quotation saved = quotationRepository.save(quotation);
 
-        return QuotationResponse.from(saved);
+        return QuotationResponse.from(saved, getWorkflowId(saved.getId()));
     }
 
     private void addSolutionItems(
@@ -148,7 +157,7 @@ public class QuotationService {
         Quotation quotation = quotationRepository.findById(quotationId)
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
 
-        return QuotationResponse.from(quotation);
+        return QuotationResponse.from(quotation, getWorkflowId(quotation.getId()));
     }
 
     @Transactional
@@ -180,7 +189,7 @@ public class QuotationService {
 
         quotation.calculateTotalAmount();
 
-        return QuotationResponse.from(quotation);
+        return QuotationResponse.from(quotation, getWorkflowId(quotation.getId()));
     }
 
     private Integer calculateNextHistoryVersion(String quotationCode) {
@@ -232,6 +241,42 @@ public class QuotationService {
         }
 
         quotationHistoryRepository.save(history);
+    }
+
+    @Transactional
+    public void submitQuotation(
+            Long quotationId,
+            UUID firstApproverId
+    ) {
+        Quotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
+
+        if (!quotation.isDraft()) {
+            throw new ApiException(ActivityErrorCode.INVALID_QUOTATION_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.QUOTATION,
+                quotation.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        quotation.submit();
+    }
+
+    private Long getWorkflowId(Long quotationId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.QUOTATION,
+                        quotationId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }
 

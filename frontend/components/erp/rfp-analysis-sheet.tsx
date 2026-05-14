@@ -2,18 +2,35 @@
 
 import type { ComponentProps, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
-import { currentUser } from "@/lib/current-user"
-import { getBidItem, getRfpAnalysisByRequestId, saveRfpAnalysis, type RfpAnalysisRecord, type RfpAnalysisStatus } from "@/lib/bid-data"
+import {
+  getBidItem,
+  getRfpAnalysisByRequestId,
+  subscribeRfpAnalysesUpdates,
+  type RfpAnalysisRecord,
+  type RfpAnalysisStatus,
+} from "@/lib/bid-data"
 import type { ActivityRequestRecord } from "@/lib/activity-data"
 import { getActivityRequests, notifyRfpAnalysisCompleted } from "@/lib/activity-request-workflow"
-import { getCustomerByCode, getOpportunitiesByCustomerName, type CustomerRecord } from "@/lib/finding-data"
+import { getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName, type CustomerRecord } from "@/lib/finding-data"
+import { createBackendRfpAnalysis, deleteBackendRfpAnalysis, loadBackendRfpAnalyses, updateBackendRfpAnalysis } from "@/lib/rfp-analysis-backend"
 import { toast } from "@/hooks/use-toast"
 
 type RfpAnalysisSheetProps = {
@@ -50,8 +67,24 @@ type ImportedBasicInfo = Partial<{
   majorContent: string
 }>
 
-const businessTypes = ["EMS", "ITSM", "Automation", "WSS"] as const
+const businessTypes = [
+  "EMS",
+  "ITSM",
+  "Automation",
+  "WSS",
+  "DASHBOARD",
+  "DATACENTER",
+  "RCA",
+  "DCA",
+  "ITAM",
+  "SUPPORTING_TOOLS",
+  "CLOUD",
+  "BSM",
+  "E2E",
+  "ETC",
+] as const
 const proposalTypes = ["자체 제안", "SI 제안"] as const
+const analysisStatusOptions: RfpAnalysisStatus[] = ["접수", "분석중", "완료"]
 
 const blankRequirementRow = (): RequirementRow => ({
   category: "",
@@ -62,6 +95,44 @@ const blankRequirementRow = (): RequirementRow => ({
   reviewNote: "",
   effort: "",
 })
+
+function buildDefaultRequirementRows() {
+  return [
+    {
+      category: "시스템 기능 요구사항",
+      requirementCode: "REQ-001",
+      requirementTitle: "통합 모니터링",
+      requirementContent: "서버, 네트워크, 데이터베이스 및 애플리케이션을 통합 모니터링할 수 있어야 한다.",
+      supportStatus: "O" as const,
+      reviewNote: "기본 기능으로 제공",
+      effort: "0",
+    },
+    {
+      category: "시스템 기능 요구사항",
+      requirementCode: "REQ-002",
+      requirementTitle: "분산 수집",
+      requirementContent: "대규모 환경 확장을 고려한 분산 수집 구조를 지원할 수 있어야 한다.",
+      supportStatus: "∆" as const,
+      reviewNote: "구성 변경 필요, Proxy 대신 클러스터 분산 수집 구조로 대응",
+      effort: "5",
+    },
+    blankRequirementRow(),
+  ]
+}
+
+function requirementRowsSignature(rows: RequirementRow[]) {
+  return rows
+    .map((row) => [
+      row.category,
+      row.requirementCode,
+      row.requirementTitle,
+      row.requirementContent,
+      row.supportStatus,
+      row.reviewNote,
+      row.effort,
+    ].join("\u0001"))
+    .join("\u0002")
+}
 
 const requirementHeaderAliases: Record<keyof RequirementRow, string[]> = {
   category: ["구분", "카테고리"],
@@ -305,10 +376,15 @@ function BasicInfoRow({
   )
 }
 
-type SheetSource = Partial<RfpAnalysisRecord> & Partial<ActivityRequestRecord>
+type SheetSource = Partial<Omit<RfpAnalysisRecord, "status">> &
+  Partial<Omit<ActivityRequestRecord, "status">> & {
+    status?: string
+  }
 
 export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAnalysisSheetProps) {
+  const router = useRouter()
   const importInputRef = useRef<HTMLInputElement | null>(null)
+  const [, setRefreshTick] = useState(0)
   const activityRequestItem = requestId?.startsWith("REQ-")
     ? (getActivityRequests().find((item) => item.id === requestId) as ActivityRequestRecord | null)
     : null
@@ -341,33 +417,116 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   const [projectPeriod, setProjectPeriod] = useState(shouldStartBlank ? "" : requestItem?.projectPeriod ?? "")
   const [businessPlace, setBusinessPlace] = useState(shouldStartBlank ? "" : requestItem?.businessPlace ?? "")
   const [proposalDeadline, setProposalDeadline] = useState(shouldStartBlank ? "" : requestItem?.proposalDeadline ?? requestItem?.dueDate ?? "")
+  const [requesterName, setRequesterName] = useState(shouldStartBlank ? "" : requestItem?.requester ?? "")
+  const [analystName, setAnalystName] = useState(shouldStartBlank ? "" : requestItem?.analyst ?? "")
+  const [requestDate, setRequestDate] = useState(shouldStartBlank ? "" : requestItem?.requestDate ?? requestItem?.receiveDate ?? "")
+  const [analysisStatus, setAnalysisStatus] = useState<RfpAnalysisStatus>(
+    (persistedAnalysis?.status ?? (activityRequestItem ? "접수" : (requestItem?.status ?? "분석중"))) as RfpAnalysisStatus,
+  )
   const [requirements, setRequirements] = useState<RequirementRow[]>(
     requestItem?.requirements?.length
       ? requestItem.requirements
       : shouldStartBlank
       ? [blankRequirementRow()]
-      : [
-          {
-            category: "시스템 기능 요구사항",
-            requirementCode: "REQ-001",
-            requirementTitle: "통합 모니터링",
-            requirementContent: "서버, 네트워크, 데이터베이스 및 애플리케이션을 통합 모니터링할 수 있어야 한다.",
-            supportStatus: "O",
-            reviewNote: "기본 기능으로 제공",
-            effort: "0",
-          },
-          {
-            category: "시스템 기능 요구사항",
-            requirementCode: "REQ-002",
-            requirementTitle: "분산 수집",
-            requirementContent: "대규모 환경 확장을 고려한 분산 수집 구조를 지원할 수 있어야 한다.",
-            supportStatus: "∆",
-            reviewNote: "구성 변경 필요, Proxy 대신 클러스터 분산 수집 구조로 대응",
-            effort: "5",
-          },
-          blankRequirementRow(),
-        ],
+      : buildDefaultRequirementRows(),
   )
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const requestSyncSignature = requestItem
+    ? [
+        requestItem.id ?? "",
+        requestItem.customerCode ?? "",
+        requestItem.customer ?? "",
+        requestItem.opportunityCode ?? "",
+        requestItem.opportunity ?? "",
+        requestItem.businessType ?? "",
+        requestItem.proposalType ?? "",
+        requestItem.deliveryModule ?? "",
+        requestItem.hardwareOwner ?? "",
+        requestItem.majorContent ?? "",
+        requestItem.amountScale ?? "",
+        requestItem.projectPeriod ?? "",
+        requestItem.businessPlace ?? "",
+        requestItem.proposalDeadline ?? "",
+        requestItem.dueDate ?? "",
+        requestItem.status ?? "",
+        requestItem.requester ?? "",
+        requestItem.analyst ?? "",
+        requestItem.requestDate ?? "",
+        requestItem.receiveDate ?? "",
+        JSON.stringify(requestItem.requirements ?? []),
+      ].join("|")
+    : "none"
+
+  useEffect(() => {
+    const sync = () => setRefreshTick((value) => value + 1)
+    sync()
+
+    void loadBackendRfpAnalyses().catch(() => undefined)
+
+    const unsubscribe = subscribeRfpAnalysesUpdates(sync)
+    return () => unsubscribe()
+  }, [requestId])
+
+  useEffect(() => {
+    if (!requestItem) return
+
+    const matchedCustomer = requestItem.customerCode
+      ? getCustomerByCode(requestItem.customerCode)
+      : requestItem.customer
+        ? getCustomerByName(requestItem.customer)
+        : null
+    const linkedOpportunity =
+      requestItem.customer && requestItem.opportunity
+        ? getOpportunitiesByCustomerName(requestItem.customer).find((item) => item.name === requestItem.opportunity) ?? null
+        : null
+
+    const nextCustomerName = matchedCustomer?.name ?? requestItem.customer ?? ""
+    const nextOpportunityCode = requestItem.opportunityCode ?? linkedOpportunity?.id ?? ""
+    const nextBusinessType = linkedOpportunity?.product ?? requestItem.businessType ?? "EMS"
+    const nextProposalType = linkedOpportunity
+      ? (linkedOpportunity.partnerCode && linkedOpportunity.partnerCode !== "-" ? "SI 제안" : "자체 제안")
+      : (requestItem.proposalType ?? "SI 제안")
+    const nextDeliveryModule = requestItem.deliveryModule ?? ""
+    const nextHardwareOwner = requestItem.hardwareOwner ?? ""
+    const nextMajorContent = requestItem.majorContent ?? ""
+    const nextAmountScale = requestItem.amountScale ?? ""
+    const nextProjectPeriod = requestItem.projectPeriod ?? ""
+    const nextBusinessPlace = requestItem.businessPlace ?? ""
+    const nextProposalDeadline = requestItem.proposalDeadline ?? requestItem.dueDate ?? ""
+    const nextRequesterName = requestItem.requester ?? ""
+    const nextAnalystName = requestItem.analyst ?? ""
+    const nextRequestDate = requestItem.requestDate ?? requestItem.receiveDate ?? ""
+    const nextAnalysisStatus = (requestItem.status ?? "분석중") as RfpAnalysisStatus
+    const nextRequirements = requestItem.requirements?.length
+      ? requestItem.requirements
+      : shouldStartBlank
+        ? [blankRequirementRow()]
+        : buildDefaultRequirementRows()
+
+    setSelectedCustomer((current) => (current?.id === matchedCustomer?.id ? current : matchedCustomer))
+    setSelectedCustomerName((current) => (current === nextCustomerName ? current : nextCustomerName))
+    setSelectedOpportunityCode((current) => (current === nextOpportunityCode ? current : nextOpportunityCode))
+    setBusinessType((current) => (current === nextBusinessType ? current : nextBusinessType))
+    setProposalType((current) => (current === nextProposalType ? current : nextProposalType))
+    setDeliveryModule((current) => (current === nextDeliveryModule ? current : nextDeliveryModule))
+    setHardwareOwner((current) => (current === nextHardwareOwner ? current : nextHardwareOwner))
+    setMajorContent((current) => (current === nextMajorContent ? current : nextMajorContent))
+    setAmountScale((current) => (current === nextAmountScale ? current : nextAmountScale))
+    setProjectPeriod((current) => (current === nextProjectPeriod ? current : nextProjectPeriod))
+    setBusinessPlace((current) => (current === nextBusinessPlace ? current : nextBusinessPlace))
+    setProposalDeadline((current) => (current === nextProposalDeadline ? current : nextProposalDeadline))
+    setRequesterName((current) => (current === nextRequesterName ? current : nextRequesterName))
+    setAnalystName((current) => (current === nextAnalystName ? current : nextAnalystName))
+    setRequestDate((current) => (current === nextRequestDate ? current : nextRequestDate))
+    setAnalysisStatus((current) => (current === nextAnalysisStatus ? current : nextAnalysisStatus))
+    setRequirements((current) => {
+      if (requirementRowsSignature(current) === requirementRowsSignature(nextRequirements)) {
+        return current
+      }
+
+      return nextRequirements
+    })
+  }, [requestSyncSignature, shouldStartBlank])
 
   const totalEffort = useMemo(
     () => requirements.reduce((sum, row) => sum + (Number(row.effort) || 0), 0),
@@ -394,23 +553,31 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   }, [isStandalone, selectedOpportunity])
   const customerDisplay = isStandalone
     ? selectedCustomer ? `${selectedCustomer.name} (${selectedCustomer.id})` : selectedCustomerName
-    : requestItem ? `${requestItem.customer} (${requestItem.customerCode})` : ""
+    : requestItem
+      ? requestItem.customerCode
+        ? `${requestItem.customer} (${requestItem.customerCode})`
+        : requestItem.customer
+      : ""
   const opportunityDisplay = isStandalone
     ? selectedOpportunity ? `${selectedOpportunity.name} (${selectedOpportunity.id})` : ""
-    : requestItem ? `${requestItem.opportunity} (${requestItem.opportunityCode})` : ""
-  const analysisStatus = persistedAnalysis?.status ?? (activityRequestItem ? "접수" : (requestItem?.status ?? "분석중"))
-  const salesRep = requestItem?.requester ?? ""
-  const analyst = currentUser.name
-  const requestDate = requestItem?.requestDate ?? requestItem?.receiveDate ?? ""
+    : requestItem
+      ? requestItem.opportunityCode
+        ? `${requestItem.opportunity} (${requestItem.opportunityCode})`
+        : requestItem.opportunity
+      : ""
 
-  const persistAnalysis = (status: RfpAnalysisStatus) => {
-    const customerCode = isStandalone ? (selectedCustomer?.id ?? "") : (requestItem?.customerCode ?? "")
+  const persistAnalysis = async (status: RfpAnalysisStatus = analysisStatus) => {
     const customerName = isStandalone ? (selectedCustomer?.name ?? selectedCustomerName) : (requestItem?.customer ?? "")
-    const opportunityCode = isStandalone ? (selectedOpportunity?.id ?? "") : (requestItem?.opportunityCode ?? "")
     const opportunityName = isStandalone ? (selectedOpportunity?.name ?? "") : (requestItem?.opportunity ?? "")
+    const customerCode = isStandalone
+      ? (selectedCustomer?.id ?? getCustomerByName(selectedCustomerName)?.id ?? "")
+      : (requestItem?.customerCode ?? getCustomerByName(requestItem?.customer ?? "")?.id ?? "")
+    const opportunityCode = isStandalone
+      ? (selectedOpportunity?.id ?? "")
+      : (requestItem?.opportunityCode ?? getOpportunitiesByCustomerName(requestItem?.customer ?? "").find((item) => item.name === (requestItem?.opportunity ?? ""))?.id ?? "")
     const linkedRequestId = activityRequestItem?.id ?? linkedSavedAnalysis?.requestId
 
-    if (!customerCode || !opportunityCode || !customerName || !opportunityName) {
+    if (!customerName || !opportunityName) {
       toast({
         title: "기본정보 확인",
         description: "고객사와 사업기회를 먼저 선택해주십시오.",
@@ -419,15 +586,17 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     }
 
     const wasCompleted = persistedAnalysis?.status === "완료"
-    const saved = saveRfpAnalysis({
+    const nextRecord = {
       id: bidRequestItem?.id ?? linkedSavedAnalysis?.id,
       requestId: linkedRequestId,
+      projectOpportunityId: requestItem?.projectOpportunityId,
+      assigneeId: requestItem?.assigneeId,
       customer: customerName,
       customerCode,
       opportunity: opportunityName,
       opportunityCode,
-      requester: salesRep,
-      analyst,
+      requester: requesterName,
+      analyst: analystName,
       receiveDate: requestDate || new Date().toISOString().slice(0, 10),
       requestDate: requestDate || new Date().toISOString().slice(0, 10),
       dueDate: requestItem?.dueDate ?? proposalDeadline ?? new Date().toISOString().slice(0, 10),
@@ -442,39 +611,73 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
       businessPlace,
       proposalDeadline,
       requirements,
-    })
-
-    if (status === "완료" && !wasCompleted && linkedRequestId && salesRep) {
-      notifyRfpAnalysisCompleted({
-        requester: salesRep,
-        customer: customerName,
-        opportunity: opportunityName,
-        requestId: linkedRequestId,
-      })
     }
 
-    toast({
-      title: status === "완료" ? "RFP 분석 완료" : "RFP 분석 저장",
-      description: status === "완료" ? "RFP 분석 상태가 완료로 반영되었습니다." : "RFP 분석 상태가 분석중으로 저장되었습니다.",
-    })
+    try {
+      const saved = persistedAnalysis?.id
+        ? await updateBackendRfpAnalysis(persistedAnalysis.id, nextRecord)
+        : await createBackendRfpAnalysis(nextRecord)
 
-    return saved
+      if (status === "완료" && !wasCompleted && linkedRequestId && requesterName) {
+        notifyRfpAnalysisCompleted({
+          requester: requesterName,
+          customer: customerName,
+          opportunity: opportunityName,
+          requestId: linkedRequestId,
+        })
+      }
+
+      toast({
+        title: status === "완료" ? "RFP 분석 완료" : "RFP 분석 저장",
+        description: status === "완료" ? "RFP 분석 상태가 완료로 반영되었습니다." : "RFP 분석 상태가 분석중으로 저장되었습니다.",
+      })
+
+      return saved
+    } catch (error) {
+      toast({
+        title: "RFP 분석 저장 실패",
+        description: error instanceof Error ? error.message : "RFP 분석을 저장하지 못했습니다.",
+      })
+      return null
+    }
   }
 
   const handleModify = () => {
-    persistAnalysis("분석중")
+    void persistAnalysis("분석중")
   }
 
   const handleDraftSave = () => {
-    persistAnalysis("분석중")
+    void persistAnalysis("분석중")
   }
 
   const handleComplete = () => {
-    persistAnalysis("완료")
+    void persistAnalysis("완료")
   }
 
-  const handleExcelExport = () => {
-    const exportTarget = persistedAnalysis ?? persistAnalysis(analysisStatus === "완료" ? "완료" : "분석중")
+  const handleDelete = async () => {
+    if (!persistedAnalysis) return
+
+    try {
+      await deleteBackendRfpAnalysis(persistedAnalysis.id)
+    } catch (error) {
+      toast({
+        title: "RFP 분석 삭제 실패",
+        description: error instanceof Error ? error.message : "RFP 분석을 삭제하지 못했습니다.",
+      })
+      setIsDeleteOpen(false)
+      return
+    }
+
+    toast({
+      title: "RFP 분석 삭제 완료",
+      description: `${persistedAnalysis.id} RFP 분석이 삭제되었습니다.`,
+    })
+    setIsDeleteOpen(false)
+    router.push("/bid")
+  }
+
+  const handleExcelExport = async () => {
+    const exportTarget = persistedAnalysis ?? (await persistAnalysis(analysisStatus === "완료" ? "완료" : "분석중"))
     if (!exportTarget) return
 
     const exportRequirements = requirements.filter((row) =>
@@ -495,10 +698,10 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
       ["예상사업기간", projectPeriod],
       ["사업장소", businessPlace],
       ["제안서 접수마감일", proposalDeadline],
-      ["영업대표", salesRep],
-      ["담당자", analyst],
+      ["요청자", requesterName],
+      ["담당자", analystName],
       ["요청일", requestDate],
-      ["상태", exportTarget.status],
+      ["상태", analysisStatus],
       ["주요사업내용(특이점)", majorContent],
     ]
 
@@ -522,7 +725,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
               .map(
                 ([label, value]) => `
                   <tr>
-                    <td class="label">${escapeHtml(label)}</td>
+                    <td class="label">${escapeHtml(String(label))}</td>
                     <td class="value">${escapeHtml(value || "")}</td>
                   </tr>
                 `,
@@ -654,6 +857,12 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
       if (importedBasicInfo.projectPeriod !== undefined) setProjectPeriod(importedBasicInfo.projectPeriod)
       if (importedBasicInfo.businessPlace !== undefined) setBusinessPlace(importedBasicInfo.businessPlace)
       if (importedBasicInfo.proposalDeadline !== undefined) setProposalDeadline(importedBasicInfo.proposalDeadline)
+      if (importedBasicInfo.salesRep !== undefined) setRequesterName(importedBasicInfo.salesRep)
+      if (importedBasicInfo.analyst !== undefined) setAnalystName(importedBasicInfo.analyst)
+      if (importedBasicInfo.requestDate !== undefined) setRequestDate(importedBasicInfo.requestDate)
+      if (importedBasicInfo.status !== undefined && analysisStatusOptions.includes(importedBasicInfo.status as RfpAnalysisStatus)) {
+        setAnalysisStatus(importedBasicInfo.status as RfpAnalysisStatus)
+      }
 
       if (importedRequirements.length > 0) {
         setRequirements(importedRequirements)
@@ -679,6 +888,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   }
 
   return (
+    <>
     <Card className="overflow-hidden">
       <CardHeader className="border-b bg-white">
         <div className="flex items-center justify-between gap-4">
@@ -777,16 +987,41 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
                 </BasicInfoRow>
               </tr>
               <tr>
-                <BasicInfoRow label="영업대표" value={salesRep} />
-                <BasicInfoRow label="담당자" value={analyst} />
+                <BasicInfoRow label="요청자">
+                  <ExcelInput value={requesterName} onChange={(event) => setRequesterName(event.target.value)} placeholder="요청자를 입력하세요" />
+                </BasicInfoRow>
+                <BasicInfoRow label="담당자">
+                  <ExcelInput value={analystName} onChange={(event) => setAnalystName(event.target.value)} placeholder="담당자를 입력하세요" />
+                </BasicInfoRow>
               </tr>
               <tr>
-                <BasicInfoRow label={requestItem?.id?.startsWith("REQ-") ? "활동요청 코드" : "요청일"} value={requestItem?.id?.startsWith("REQ-") ? requestItem.id : requestDate} />
-                <BasicInfoRow label="상태" value={analysisStatus} />
+                {requestItem?.id?.startsWith("REQ-") ? (
+                  <BasicInfoRow label="활동요청 코드" value={requestItem.id} />
+                ) : (
+                  <BasicInfoRow label="요청일">
+                    <ExcelInput type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
+                  </BasicInfoRow>
+                )}
+                <BasicInfoRow label="상태">
+                  <Select value={analysisStatus} onValueChange={(value) => setAnalysisStatus(value as RfpAnalysisStatus)}>
+                    <SelectTrigger className="h-10 rounded-none border-0 shadow-none focus:ring-0">
+                      <SelectValue placeholder="상태를 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {analysisStatusOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </BasicInfoRow>
               </tr>
               {requestItem?.id?.startsWith("REQ-") && (
                 <tr>
-                  <BasicInfoRow label="요청일" value={requestDate} />
+                  <BasicInfoRow label="요청일">
+                    <ExcelInput type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
+                  </BasicInfoRow>
                   <BasicInfoRow label="연결 사업기회 코드" value={requestItem?.opportunityCode ?? "-"} />
                 </tr>
               )}
@@ -875,11 +1110,31 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
         </div>
 
         <div className="flex justify-end gap-2 border-t pt-6">
+          {!blankMode && persistedAnalysis && (
+            <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+              삭제
+            </Button>
+          )}
           <Button variant="outline" onClick={handleModify}>수정</Button>
           <Button variant="outline" onClick={handleDraftSave}>임시저장</Button>
           <Button onClick={handleComplete}>완료</Button>
         </div>
       </CardContent>
     </Card>
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>RFP 분석을 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 RFP 분석 상세 정보를 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

@@ -82,6 +82,12 @@ class OrbisGraphCallbacks:
     should_use_fast_answer: Callable[[object], bool]
 
 
+def preserve_or_default_answer_status(response: AnswerResponse) -> None:
+    if response.answerStatus in {"clarification", "insufficient_evidence", "upstream_degraded"}:
+        return
+    response.answerStatus = response.answerStatus or "good_answer"
+
+
 def create_orbis_agent_graph(
     *,
     embedder: EmbeddingModel,
@@ -237,7 +243,7 @@ def _build_graph_structured_node(*, embedder: EmbeddingModel, callbacks: OrbisGr
         response.query = state["query"]
         response.threadId = state.get("thread_id")
         response.route = route_to_response_value(graph_state.route)
-        response.answerStatus = "good_answer"
+        preserve_or_default_answer_status(response)
         response = callbacks.attach_graph_contract(response, graph_state=graph_state)
         return {"response": response.model_dump(mode="json")}
 
@@ -272,7 +278,7 @@ def _build_structured_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCal
         response.query = state["query"]
         response.threadId = state.get("thread_id")
         response.route = route_to_response_value(graph_state.route)
-        response.answerStatus = "good_answer"
+        preserve_or_default_answer_status(response)
         response = callbacks.attach_graph_contract(response, graph_state=graph_state)
         return {"response": response.model_dump(mode="json")}
 
@@ -361,7 +367,7 @@ def _build_planner_fallback_node(*, embedder: EmbeddingModel, callbacks: OrbisGr
                 structured_response.query = state["query"]
                 structured_response.threadId = state.get("thread_id")
                 structured_response.route = route_to_response_value(graph_state.route)
-                structured_response.answerStatus = "good_answer"
+                preserve_or_default_answer_status(structured_response)
                 structured_response = callbacks.attach_graph_contract(structured_response, graph_state=graph_state)
                 return {"response": structured_response.model_dump(mode="json")}
 

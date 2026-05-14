@@ -29,26 +29,24 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { formatAttachmentSize } from "@/lib/attachments"
 import { toast } from "@/hooks/use-toast"
+import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, resolveWorkflowApproverId } from "@/lib/workflow-backend"
 import {
   type ActivityAttachment,
   type ActivityCategory,
   type ActivityRecord,
   type ActivityRequestRecord,
   type QuotationRecord,
-  getActivities,
   getActivityItemFields,
   getCategoryLabel,
 } from "@/lib/activity-data"
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
-import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
+import { deleteBackendActivityRecord, loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { deleteBackendQuotationRecord, loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
 import {
   approveQuotationStep,
-  deleteQuotation,
   deleteQuotationVersion,
   getQuotations,
   rejectQuotationStep,
@@ -69,7 +67,7 @@ function buildQuotationDetailForm(record: QuotationRecord) {
     productGroup: record.productGroup,
     salesRep: record.salesRep,
     paymentTerms: record.paymentTerms ?? "현금",
-    contactName: record.contactName ?? record.salesRep,
+    contactName: record.contactName ?? "",
     items: record.items.map((entry) => ({ ...entry })),
     solutionSectionTitle: record.solutionSectionTitle,
     solutionRows: record.solutionRows?.map((entry) => ({ ...entry })) ?? [],
@@ -107,10 +105,11 @@ export default function ActivityDetailPage() {
   const router = useRouter()
   const category = params.category
   const id = params.id
-  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>(() => getActivities())
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isActivityDeleteDialogOpen, setIsActivityDeleteDialogOpen] = useState(false)
   const [isVersionDeleteDialogOpen, setIsVersionDeleteDialogOpen] = useState(false)
   const [versionDeleteTarget, setVersionDeleteTarget] = useState<string>("")
   const [quotationDetailTab, setQuotationDetailTab] = useState("document")
@@ -137,7 +136,7 @@ export default function ActivityDetailPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setActivityRecords(getActivities())
+          setActivityRecords([])
         }
       })
 
@@ -272,13 +271,6 @@ export default function ActivityDetailPage() {
     Boolean(activeApprovalStep) &&
     (activeApprovalStep.assignee === currentUser.name || activeApprovalStep.assignee === currentUser.role)
   const fields = item ? getActivityItemFields(category, item) : []
-  const attachments: ActivityAttachment[] =
-    category === "activities"
-      ? (((item as ActivityRecord | null)?.attachments ?? []) as ActivityAttachment[])
-      : category === "requests"
-        ? (((item as ActivityRequestRecord | null)?.attachments ?? []) as ActivityAttachment[])
-        : []
-  const canEditRequest = !requestItem || requestItem.requester === currentUser.name
   const listHref =
     item && category === "activities"
       ? `/activity/customers/${(item as { customerCode?: string }).customerCode ?? ""}`
@@ -306,16 +298,32 @@ export default function ActivityDetailPage() {
           description: `${id} 견적서가 삭제되었습니다.`,
         })
         router.push("/activity")
-        return
-      } catch {
-        const deleted = deleteQuotation(id)
-        if (!deleted) return
-
+      } catch (error) {
         toast({
-          title: "견적 삭제 완료",
-          description: `${id} 견적서가 삭제되었습니다.`,
+          title: "견적 삭제 실패",
+          description: error instanceof Error ? error.message : "백엔드에서 견적서를 삭제하지 못했습니다.",
         })
-        router.push("/activity")
+      }
+    })()
+  }
+
+  const handleDeleteActivity = () => {
+    if (!item || category !== "activities") return
+
+    scrollToTop()
+    void (async () => {
+      try {
+        await deleteBackendActivityRecord(id)
+        toast({
+          title: "영업활동 삭제 완료",
+          description: `${id} 영업활동이 삭제되었습니다.`,
+        })
+        router.push(listHref)
+      } catch {
+        toast({
+          title: "영업활동 삭제 실패",
+          description: "백엔드에서 영업활동을 삭제하지 못했습니다.",
+        })
       }
     })()
   }
@@ -339,27 +347,59 @@ export default function ActivityDetailPage() {
   const handleApproveQuotation = () => {
     if (!quotationItem || !canActOnApprovalStep) return
 
-    const updated = approveQuotationStep(quotationItem.id)
-    if (!updated) return
-
     scrollToTop()
-    toast({
-      title: "견적 승인 완료",
-      description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되었습니다.`,
-    })
+    void (async () => {
+      try {
+        if (quotationItem.workflowId) {
+          const users = await loadBackendUsers()
+          const nextStep = quotationApprovalProcess.steps[quotationApprovalProcess.currentStepIndex + 1] ?? null
+          const nextApproverId = nextStep ? resolveWorkflowApproverId(nextStep.assignee, users) : null
+
+          await approveBackendWorkflow(quotationItem.workflowId, {
+            nextApproverId,
+          })
+        }
+
+        const updated = approveQuotationStep(quotationItem.id)
+        if (!updated) return
+
+        toast({
+          title: "견적 승인 완료",
+          description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되었습니다.`,
+        })
+      } catch (error) {
+        toast({
+          title: "견적 승인 실패",
+          description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
+        })
+      }
+    })()
   }
 
   const handleRejectQuotation = () => {
     if (!quotationItem || !canActOnApprovalStep) return
 
-    const updated = rejectQuotationStep(quotationItem.id)
-    if (!updated) return
-
     scrollToTop()
-    toast({
-      title: "견적 반려 완료",
-      description: `${activeApprovalStep?.label ?? "현재 단계"} 반려가 처리되었습니다.`,
-    })
+    void (async () => {
+      try {
+        if (quotationItem.workflowId) {
+          await rejectBackendWorkflow(quotationItem.workflowId)
+        }
+
+        const updated = rejectQuotationStep(quotationItem.id)
+        if (!updated) return
+
+        toast({
+          title: "견적 반려 완료",
+          description: `${activeApprovalStep?.label ?? "현재 단계"} 반려가 처리되었습니다.`,
+        })
+      } catch (error) {
+        toast({
+          title: "견적 반려 실패",
+          description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
+        })
+      }
+    })()
   }
 
   const handleOpenQuotationDelete = () => {
@@ -590,25 +630,6 @@ export default function ActivityDetailPage() {
                         <Input readOnly value={requestItem.approvedAt} />
                       </div>
                     )}
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>첨부파일</Label>
-                      {attachments.length > 0 ? (
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          {attachments.map((attachment) => (
-                            <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                              <div className="min-w-0 flex-1">
-                                <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                                  {attachment.name}
-                                </a>
-                                <p className="text-xs text-muted-foreground">{formatAttachmentSize(attachment.size)}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Input readOnly value="등록된 첨부파일이 없습니다." />
-                      )}
-                    </div>
                   </div>
                 )}
 
@@ -636,12 +657,17 @@ export default function ActivityDetailPage() {
                       삭제
                     </Button>
                   )}
-                  {canEditRequest &&
+                  {!isRequest &&
                     (!isQuotation || (quotationDetailTab === "document" && !selectedQuotationVersionDeleted && !isDeletedQuotation)) && (
                     <Button asChild className="bg-primary hover:bg-primary/90">
                       <Link href={`/activity/${category}/${id}/edit`} onClick={scrollToTop}>
                         수정
                       </Link>
+                    </Button>
+                  )}
+                  {category === "activities" && (
+                    <Button variant="destructive" onClick={() => setIsActivityDeleteDialogOpen(true)}>
+                      삭제
                     </Button>
                   )}
                 </div>
@@ -662,6 +688,20 @@ export default function ActivityDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteQuotation}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={isActivityDeleteDialogOpen} onOpenChange={setIsActivityDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>영업활동을 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 목록과 상세 화면에서 해당 영업활동을 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteActivity}>삭제</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

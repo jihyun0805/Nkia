@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
-import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -27,9 +28,19 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
-import { readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
-import { findingStatuses, getCustomerByName, getFindingCategoryLabel, getPartnerByName, registerCustomer, registerOpportunity, registerPartner, type CustomerContact, type CustomerRecord, type OpportunityAttachment } from "@/lib/finding-data"
-import { currentUser, isSalesUser } from "@/lib/current-user"
+import { type StoredFileAttachment } from "@/lib/attachments"
+import { findingStatuses, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
+import {
+  buildCompanyCode,
+  buildFallbackManagerEmail,
+  createBackendCompany,
+  createBackendCompanyManager,
+  createBackendProjectOpportunity,
+  loadBackendFindingData,
+  mapCustomerSector,
+  mapPartnerCategory,
+  resolveSalesRepresentativeId,
+} from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
@@ -53,8 +64,6 @@ type ContactDraft = {
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
 }
-type AttachmentDraft = StoredFileAttachment
-
 function createEmptyContactDraft(): ContactDraft {
   return {
     name: "",
@@ -85,6 +94,68 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   const trimmedNext = String(nextValue ?? "").trim()
   if (trimmedNext) return trimmedNext
   return currentValue ?? ""
+}
+
+function getFindingCategoryLabel(category: "opportunities" | "customers" | "partners") {
+  if (category === "opportunities") return "사업기회"
+  if (category === "customers") return "고객사"
+  return "협력사"
+}
+
+function parseExpectedBudget(value?: string) {
+  const normalized = String(value ?? "").trim()
+  if (!normalized) return undefined
+
+  const compact = normalized.replace(/[,원\s]/g, "")
+  const match = compact.match(/^(\d+(?:\.\d+)?)(억|만)?$/)
+  if (match) {
+    const amount = Number.parseFloat(match[1])
+    if (Number.isNaN(amount)) return undefined
+    if (match[2] === "억") return Math.round(amount * 100000000)
+    if (match[2] === "만") return Math.round(amount * 10000)
+    return amount
+  }
+
+  const numeric = Number.parseFloat(compact)
+  return Number.isNaN(numeric) ? undefined : numeric
+}
+
+function createAutoBusinessRegistrationNumber(prefix: "CUS" | "PTN", code: string) {
+  return `${prefix}-${code.trim()}`
+}
+
+function buildOpportunityDescription(params: {
+  moduleName: string
+  issue: string
+  competition: string
+  decisionInfo: string
+}) {
+  return [params.moduleName, params.issue, params.competition, params.decisionInfo]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join("\n\n")
+}
+
+function mapOpportunityProductClass(value: string) {
+  const normalized = value.trim().toUpperCase()
+  if (normalized === "EMS" || normalized === "ITSM") return normalized
+  return "ETC"
+}
+
+function createCompanyManagerPayload(params: {
+  companyCode: string
+  contact: ContactDraft
+  index: number
+}) {
+  return {
+    name: params.contact.name.trim(),
+    email: params.contact.email.trim() || buildFallbackManagerEmail(params.companyCode, params.contact.name, params.index),
+    mobilePhone: params.contact.mobilePhone.trim() || undefined,
+    officePhone: params.contact.landlinePhone.trim() || undefined,
+    department: params.contact.department.trim() || undefined,
+    position: params.contact.position.trim() || undefined,
+    role: params.contact.duty.trim() || undefined,
+  }
 }
 
 function getCustomerDecisionContacts(customer: CustomerRecord | null): CustomerContact[] {
@@ -187,6 +258,10 @@ export function FindingCategoryNewPageView({
 }) {
   const router = useRouter()
   const label = getFindingCategoryLabel(category)
+  const [backendCustomers, setBackendCustomers] = useState<CustomerRecord[]>([])
+  const [backendPartners, setBackendPartners] = useState<PartnerRecord[]>([])
+  const [loadingBackend, setLoadingBackend] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [customerName, setCustomerName] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
   const [partnerName, setPartnerName] = useState("")
@@ -201,8 +276,8 @@ export function FindingCategoryNewPageView({
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
-  const [opportunityRegistrant] = useState(currentUser.name)
-  const [opportunitySalesRep, setOpportunitySalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
+  const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
+  const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -213,11 +288,38 @@ export function FindingCategoryNewPageView({
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
-  const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [rfpSummaryLoadingId, setRfpSummaryLoadingId] = useState<string | null>(null)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const sync = async () => {
+      setLoadingBackend(true)
+      try {
+        const data = await loadBackendFindingData()
+        if (cancelled) return
+        setBackendCustomers(data.customers)
+        setBackendPartners(data.partners)
+      } catch {
+        if (!cancelled) {
+          setBackendCustomers([])
+          setBackendPartners([])
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingBackend(false)
+        }
+      }
+    }
+
+    void sync()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const openBusinessCardInput = (contactIndex: number) => {
     pendingOcrIndexRef.current = contactIndex
@@ -337,21 +439,6 @@ export function FindingCategoryNewPageView({
     setRfpAttachments((prev) => prev.filter((attachment) => attachment.id !== attachmentId))
   }
 
-  const handleAttachmentChange = async (files: FileList | null | undefined) => {
-    const selectedFiles = Array.from(files ?? [])
-    if (selectedFiles.length === 0) return
-
-    try {
-      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
-      setAttachments((prev) => [...prev, ...nextAttachments])
-    } catch (error) {
-      toast({
-        title: "첨부파일 등록 실패",
-        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
-      })
-    }
-  }
-
   const handleSubmit = () => {
     const normalizedName = customerName.trim()
     const filledContacts = contacts.filter(hasContactValue)
@@ -365,32 +452,50 @@ export function FindingCategoryNewPageView({
       return
     }
 
-    const duplicate = getCustomerByName(normalizedName)
+    const duplicate = backendCustomers.find((item) => item.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
     if (duplicate) {
       setDuplicateOpen(true)
       return
     }
 
-    const result = registerCustomer({
-      name: normalizedName,
-      category: customerGroup,
-      contacts: filledContacts,
-      address,
-      memo,
-      aliases: [],
-      attachments,
-    })
+    setSubmitting(true)
+    void (async () => {
+      try {
+        const code = buildCompanyCode("CUS")
+        const companyId = await createBackendCompany({
+          companyType: "CUSTOMER",
+          code,
+          name: normalizedName,
+          businessRegistrationNumber: createAutoBusinessRegistrationNumber("CUS", code),
+          sector: mapCustomerSector(customerGroup),
+          address,
+        })
 
-    if (result.status === "duplicate") {
-      setDuplicateOpen(true)
-      return
-    }
+        for (let index = 0; index < filledContacts.length; index += 1) {
+          await createBackendCompanyManager(
+            companyId,
+            createCompanyManagerPayload({
+              companyCode: code,
+              contact: filledContacts[index],
+              index,
+            }),
+          )
+        }
 
-    toast({
-      title: "고객사 등록 완료",
-      description: `${result.customer.name} 고객사가 등록되었습니다.`,
-    })
-    router.push("/finding?tab=customers")
+        toast({
+          title: "고객사 등록 완료",
+          description: `${normalizedName} 고객사가 등록되었습니다.`,
+        })
+        router.push(`/finding/customers/${code}?tab=customers`)
+      } catch (error) {
+        toast({
+          title: "고객사 등록 실패",
+          description: error instanceof Error ? error.message : "등록에 실패했습니다.",
+        })
+      } finally {
+        setSubmitting(false)
+      }
+    })()
   }
 
   const handlePartnerSubmit = () => {
@@ -406,7 +511,7 @@ export function FindingCategoryNewPageView({
       return
     }
 
-    const duplicate = getPartnerByName(normalizedName)
+    const duplicate = backendPartners.find((item) => item.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
     if (duplicate) {
       toast({
         title: "협력사 등록 확인",
@@ -415,28 +520,44 @@ export function FindingCategoryNewPageView({
       return
     }
 
-    const result = registerPartner({
-      name: normalizedName,
-      type: partnerType,
-      contacts: filledContacts,
-      address,
-      memo,
-      attachments,
-    })
+    setSubmitting(true)
+    void (async () => {
+      try {
+        const code = buildCompanyCode("PTN")
+        const companyId = await createBackendCompany({
+          companyType: "PARTNER",
+          code,
+          name: normalizedName,
+          businessRegistrationNumber: createAutoBusinessRegistrationNumber("PTN", code),
+          category: mapPartnerCategory(partnerType),
+          address,
+        })
 
-    if (result.status === "duplicate") {
-      toast({
-        title: "협력사 등록 확인",
-        description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
-      })
-      return
-    }
+        for (let index = 0; index < filledContacts.length; index += 1) {
+          await createBackendCompanyManager(
+            companyId,
+            createCompanyManagerPayload({
+              companyCode: code,
+              contact: filledContacts[index],
+              index,
+            }),
+          )
+        }
 
-    toast({
-      title: "협력사 등록 완료",
-      description: `${result.partner.name} 협력사가 등록되었습니다.`,
-    })
-    router.push("/finding?tab=partners")
+        toast({
+          title: "협력사 등록 완료",
+          description: `${normalizedName} 협력사가 등록되었습니다.`,
+        })
+        router.push("/finding?tab=partners")
+      } catch (error) {
+        toast({
+          title: "협력사 등록 실패",
+          description: error instanceof Error ? error.message : "등록에 실패했습니다.",
+        })
+      } finally {
+        setSubmitting(false)
+      }
+    })()
   }
 
   if (category === "partners") {
@@ -470,7 +591,17 @@ export function FindingCategoryNewPageView({
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>협력사명 *</Label>
-                        <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                        <EntityAutocomplete
+                          value={partnerName}
+                          target="partners"
+                          onValueChange={setPartnerName}
+                          onSelect={(suggestion) => {
+                            if (suggestion) setPartnerName(suggestion.label)
+                          }}
+                          allowCustomValue
+                          placeholder="협력사명을 입력하세요"
+                          emptyMessage="등록된 협력사가 없습니다."
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>유형 *</Label>
@@ -671,39 +802,13 @@ export function FindingCategoryNewPageView({
                     </div>
                   </section>
 
-                  <section className="space-y-2">
-                    <Label>첨부파일</Label>
-                    <Input
-                      type="file"
-                      multiple
-                      onChange={(event) => {
-                        void handleAttachmentChange(event.target.files)
-                        event.target.value = ""
-                      }}
-                    />
-                    {attachments.length > 0 ? (
-                      <div className="space-y-2 rounded-md border border-border p-3">
-                        {attachments.map((attachment) => (
-                          <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                            <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                              {attachment.name}
-                            </a>
-                            <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                              삭제
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <Input readOnly value="등록된 첨부파일이 없습니다." />
-                    )}
-                  </section>
-
                   <div className="flex justify-end gap-2 border-t pt-6">
-                    <Button variant="outline" asChild>
+                    <Button variant="outline" asChild disabled={submitting}>
                       <Link href="/finding?tab=partners">취소</Link>
                     </Button>
-                    <Button onClick={handlePartnerSubmit}>등록</Button>
+                    <Button onClick={handlePartnerSubmit} disabled={submitting || loadingBackend}>
+                      {submitting ? "등록 중..." : "등록"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -719,7 +824,11 @@ export function FindingCategoryNewPageView({
     const pageDescription = "신규 사업기회 등록정보를 입력합니다"
 
     const handleOpportunitySubmit = () => {
-      if (!selectedOpportunityCustomer) {
+      const resolvedCustomer = selectedOpportunityCustomer
+        ? backendCustomers.find((item) => item.id === selectedOpportunityCustomer.id || item.name === selectedOpportunityCustomer.name) ?? selectedOpportunityCustomer
+        : null
+
+      if (!resolvedCustomer) {
         setCustomerRegistrationGuideOpen(true)
         return
       }
@@ -732,37 +841,55 @@ export function FindingCategoryNewPageView({
         return
       }
 
-      const result = registerOpportunity({
-        customerCode: selectedOpportunityCustomer.id,
-        category: opportunityCustomerGroup,
-        name: opportunityName,
-        registrant: opportunityRegistrant,
-        partners: opportunityPartnerNames,
-        expectedDate,
-        expectedAmount,
-        product: businessType,
-        module: moduleName,
-        issue,
-        competition,
-        decisionInfo: buildDecisionInfoFromCustomer(selectedOpportunityCustomer),
-        status: opportunityStatus,
-        salesRep: opportunitySalesRep,
-        rfpAttachments: rfpAttachments.map(({ file, ...attachment }) => attachment),
-      })
+      void (async () => {
+        try {
+          const salesRepresentativeId = await resolveSalesRepresentativeId(opportunitySalesRep)
+          if (!salesRepresentativeId) {
+            toast({
+              title: "사업기회 등록 확인",
+              description: "영업대표를 사용자 목록에서 찾지 못했습니다.",
+            })
+            return
+          }
 
-      if (result.status === "customer_not_found") {
-        toast({
-          title: "사업기회 등록 실패",
-          description: "선택한 고객사를 찾지 못했습니다. 다시 선택해주십시오.",
-        })
-        return
-      }
+          const customerCompanyId = resolvedCustomer.backendId
+          if (!customerCompanyId) {
+            toast({
+              title: "사업기회 등록 확인",
+              description: "선택한 고객사의 백엔드 식별자를 찾지 못했습니다.",
+            })
+            return
+          }
+          const customerRouteId = resolvedCustomer.id
 
-      toast({
-        title: "사업기회 등록 완료",
-        description: `${result.opportunity.customer} 고객사의 사업기회가 등록되었습니다.`,
-      })
-      router.push(`/finding/opportunities/${result.opportunity.id}?tab=opportunities`)
+          const result = await createBackendProjectOpportunity({
+            opportunityName: opportunityName.trim(),
+            customerCompanyId,
+            salesRepresentativeId,
+            projectType: businessType,
+            expectedBidDate: expectedDate || undefined,
+            expectedBudget: expectedAmount || undefined,
+            description: buildOpportunityDescription({
+              moduleName,
+              issue,
+              competition,
+              decisionInfo: buildDecisionInfoFromCustomer(resolvedCustomer),
+            }),
+            competitionStatus: competition,
+          })
+
+          toast({
+            title: "사업기회 등록 완료",
+            description: `${result.opportunityName ?? opportunityName} 사업기회가 등록되었습니다.`,
+          })
+          router.push(`/finding/opportunities/${result.opportunityCode ?? customerRouteId}?tab=opportunities`)
+        } catch (error) {
+          toast({
+            title: "사업기회 등록 실패",
+            description: error instanceof Error ? error.message : "등록에 실패했습니다.",
+          })
+        }
+      })()
     }
 
     return (
@@ -799,9 +926,10 @@ export function FindingCategoryNewPageView({
                         <CustomerAutocomplete
                           value={opportunityCustomerName}
                           onSelect={(customer) => {
-                            setSelectedOpportunityCustomer(customer)
-                            setOpportunityCustomerName(customer?.name ?? "")
-                            setOpportunityCustomerGroup(customer?.category ?? "민간")
+                            const resolvedCustomer = backendCustomers.find((item) => item.id === customer?.id || item.name === customer?.name) ?? customer
+                            setSelectedOpportunityCustomer(resolvedCustomer ?? null)
+                            setOpportunityCustomerName(resolvedCustomer?.name ?? "")
+                            setOpportunityCustomerGroup(resolvedCustomer?.category ?? "민간")
                           }}
                           onValueChange={setOpportunityCustomerName}
                           onUnregisteredAttempt={() => setCustomerRegistrationGuideOpen(true)}
@@ -818,12 +946,19 @@ export function FindingCategoryNewPageView({
                         <div className="space-y-2">
                           {opportunityPartnerNames.map((partnerName, index) => (
                             <div key={`opportunity-partner-${index}`} className="flex items-center gap-2">
-                              <Input
+                              <EntityAutocomplete
                                 value={partnerName}
-                                onChange={(event) =>
-                                  setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                                target="partners"
+                                onValueChange={(value) =>
+                                  setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)))
                                 }
+                                onSelect={(suggestion) => {
+                                  if (!suggestion) return
+                                  setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? suggestion.label : item)))
+                                }}
+                                allowCustomValue
                                 placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
+                                emptyMessage="등록된 협력사가 없습니다."
                               />
                               <Button
                                 type="button"
@@ -865,7 +1000,7 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>등록자</Label>
-                        <Input value={opportunityRegistrant} readOnly />
+                        <Input value={opportunityRegistrant} onChange={(event) => setOpportunityRegistrant(event.target.value)} placeholder="등록자명을 입력하세요" />
                       </div>
                       <div className="space-y-2">
                         <Label>영업대표</Label>
@@ -1039,10 +1174,12 @@ export function FindingCategoryNewPageView({
                   </section>
 
                   <div className="flex justify-end gap-2 border-t pt-6">
-                    <Button variant="outline" asChild>
+                    <Button variant="outline" asChild disabled={submitting}>
                       <Link href={backHref}>취소</Link>
                     </Button>
-                    <Button onClick={handleOpportunitySubmit}>등록</Button>
+                    <Button onClick={handleOpportunitySubmit} disabled={submitting || loadingBackend}>
+                      {submitting ? "등록 중..." : "등록"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1288,39 +1425,13 @@ export function FindingCategoryNewPageView({
                   </div>
                 </section>
 
-                <section className="space-y-2">
-                  <Label>첨부파일</Label>
-                  <Input
-                    type="file"
-                    multiple
-                    onChange={(event) => {
-                      void handleAttachmentChange(event.target.files)
-                      event.target.value = ""
-                    }}
-                  />
-                  {attachments.length > 0 ? (
-                    <div className="space-y-2 rounded-md border border-border p-3">
-                      {attachments.map((attachment) => (
-                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                          <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                            {attachment.name}
-                          </a>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                            삭제
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <Input readOnly value="등록된 첨부파일이 없습니다." />
-                  )}
-                </section>
-
                 <div className="flex justify-end gap-2 border-t pt-6">
-                  <Button variant="outline" asChild>
+                  <Button variant="outline" asChild disabled={submitting}>
                     <Link href="/finding">취소</Link>
                   </Button>
-                  <Button onClick={handleSubmit}>등록</Button>
+                  <Button onClick={handleSubmit} disabled={submitting || loadingBackend}>
+                    {submitting ? "등록 중..." : "등록"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

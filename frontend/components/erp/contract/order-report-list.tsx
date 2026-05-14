@@ -4,13 +4,29 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { type OrderReport } from "@/lib/contract-data";
+import { type OrderReportListResponse, type ApprovalStatus } from "@/lib/api/contract-api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface OrderReportListProps {
-  reports: OrderReport[];
+  reports: OrderReportListResponse[];
+  isLoading?: boolean;
 }
 
-export function OrderReportList({ reports }: OrderReportListProps) {
+const statusLabel: Record<ApprovalStatus, string> = {
+  PENDING: "대기중",
+  IN_PROGRESS: "결재중",
+  APPROVED: "승인완료",
+  REJECTED: "반려",
+};
+
+const statusStyle: Record<ApprovalStatus, string> = {
+  PENDING: "bg-gray-100 text-gray-700 hover:bg-gray-100",
+  IN_PROGRESS: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+  APPROVED: "bg-green-100 text-green-700 hover:bg-green-100",
+  REJECTED: "bg-red-100 text-red-700 hover:bg-red-100",
+};
+
+export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
   const router = useRouter();
 
   return (
@@ -18,47 +34,50 @@ export function OrderReportList({ reports }: OrderReportListProps) {
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">수주보고 목록</CardTitle>
-          <Badge variant="secondary">{reports.length}건</Badge>
+          <Badge variant="secondary">{isLoading ? "..." : `${reports.length}건`}</Badge>
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[120px]">수주번호</TableHead>
-              <TableHead>사업명</TableHead>
-              <TableHead>고객사</TableHead>
-              <TableHead>수주일</TableHead>
-              <TableHead className="text-right">계약금액</TableHead>
-              <TableHead>제품</TableHead>
-              <TableHead>영업담당</TableHead>
-              <TableHead>결재상태</TableHead>
-              <TableHead>최종결재자</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {reports.map((order) => (
-              <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/orders/${order.id}`)}>
-                <TableCell className="font-mono text-sm">{order.id}</TableCell>
-                <TableCell className="max-w-[180px] truncate font-medium">{order.name}</TableCell>
-                <TableCell>{order.customer}</TableCell>
-                <TableCell>{order.orderDate}</TableCell>
-                <TableCell className="text-right font-medium">₩{parseInt(order.amount).toLocaleString()}</TableCell>
-                <TableCell>{order.product}</TableCell>
-                <TableCell>{order.salesRep}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={order.approvalStatus === "승인완료" ? "default" : "secondary"}
-                    className={order.approvalStatus === "승인완료" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"}
-                  >
-                    {order.approvalStatus}
-                  </Badge>
-                </TableCell>
-                <TableCell>{order.approver}</TableCell>
-              </TableRow>
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
             ))}
-          </TableBody>
-        </Table>
+          </div>
+        ) : reports.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 수주보고서가 없습니다.</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>수주코드</TableHead>
+                <TableHead>사업명</TableHead>
+                <TableHead>최종고객사</TableHead>
+                <TableHead>PM</TableHead>
+                <TableHead className="text-right">수주금액</TableHead>
+                <TableHead>계약일</TableHead>
+                <TableHead>결재상태</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {reports.map((order) => (
+                <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/orders/${order.id}`)}>
+                  <TableCell className="font-mono text-xs">{order.orderReportCode}</TableCell>
+                  <TableCell className="max-w-[180px] truncate font-medium">{order.projectName}</TableCell>
+                  <TableCell>{order.finalCustomerCompanyName ?? "-"}</TableCell>
+                  <TableCell>{order.pmName ?? "-"}</TableCell>
+                  <TableCell className="text-right font-medium">₩{(order.totalAmount ?? 0).toLocaleString()}</TableCell>
+                  <TableCell>{order.contractDate ?? "-"}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className={statusStyle[order.status] ?? "bg-gray-100 text-gray-700"}>
+                      {statusLabel[order.status] ?? order.status}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );

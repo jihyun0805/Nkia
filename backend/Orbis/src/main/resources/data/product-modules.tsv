@@ -1,0 +1,131 @@
+productClass	productGroup	productName	licenseStandard	licenseUnit	unitPrice
+EMS	Framework	POLESTAR Framework	개수	1	50000
+EMS	Server Management	POLESTAR Server Management for Unix	Node 수 및 CPU	1	8000
+EMS	Server Management	POLESTAR Server Management for Windows/Linux	Node 수 및 CPU	1	4000
+EMS	Server Management	POLESTAR Server Management for Windows/Linux for Guest O/S	VM 수	1	3000
+EMS	Server Management	POLESTAR Guest O/S for Linux	VM 수	1	3000
+EMS	VMM	POLESTAR Host O/S for VMware	Core수	1	800
+EMS	VMM	POLESTAR Host O/S for Hyper-V	Core수	1	800
+EMS	VMM	POLESTAR Host O/S for OpenStack	Core수	1	600
+EMS	Network Management	POLESTAR Network Management	Node 수	1	1500
+EMS	Network Management	POLESTAR Network Alive Management	IP	1	100
+EMS	Network Management	POLESTAR Network Management	Port 수	1	150
+EMS	무선 Network Management(WNM)	POLESTAR Wireless Network Management(WNM) Per Controler	Controler 수	1	3000
+EMS	무선 Network Management(WNM)	POLESTAR Wireless Network Management(WNM) Per AP	AP 수	1	500
+EMS	Traffic Management	POLESTAR Traffic Management 	Node(백본)	1	50000
+EMS	Database Performance Management(DPM)	POLESTAR DPM for Oracle	Node 수	1	20000
+EMS	Database Performance Management(DPM)	POLESTAR DPM for MS-SQL	Node 수	1	10000
+EMS	Database Performance Management(DPM)	POLESTAR DPM for Sybase	Node 수	1	20000
+EMS	Database Performance Management(DPM)	POLESTAR DPM for Tibero	Node 수	1	10000
+EMS	Database Performance Management(DPM)	POLESTAR DPM for Uni/SQL	Node 수	1	5000
+EMS	Database Performance Management(DPM)	POLESTAR DPM for Informix	Node 수	1	20000
+EMS	Database Performance Management(DPM)	POLESTAR DPM for DB2	Node 수	1	20000
+EMS	Database Performance Management(DPM)	POLESTAR DPM	Core수	1	8000
+EMS	WAS Performance Management(WPM)	POLESTAR WPM for Websphere	Node 수	1	20000
+EMS	WAS Performance Management(WPM)	POLESTAR WPM for Weblogic	Node 수	1	20000
+EMS	WAS Performance Management(WPM)	POLESTAR WPM for JEUS	Node 수	1	20000
+EMS	WAS Performance Management(WPM)	POLESTAR WPM 	Core수	1	8000
+EMS	Application Performance Management	POLESTAR Web Performance Probe	PC 개수	1	20000
+EMS	Application Performance Management	Web Application Performance Manager	AP 개수	1	100000
+EMS	Application Performance Management	POLESTAR Active Agent ( URL )	URL 개수	1	1000
+EMS	SAP	POLESTAR SAP Management Manager	AP 수	1	200000
+EMS	SAP	POLESTAR SAP Management 	SAP AP 서버 수	1	80000
+EMS	FMS	POLESTAR FMS Manager	AP 수	1	100000
+EMS	FMS	항온항습기(HAVC) Agent	항온항습기 수	1	3000
+EMS	FMS	UPS Agent	UPS 수	1	3000
+EMS	FMS	누수 Agent	누수 센서 수	1	3000
+EMS	FMS	MM Agent	분전반 수	1	3000
+EMS	FMS	소방 Agent	하론 수	1	2000
+EMS	FMS	영상 Agent	화면 수	1	4000
+EMS	FMS	데이터수집장치	RTU 수	1	12000
+EMS	FMS	온습도센서	센서 수량	1	1200
+EMS	FMS	누수센서 1식	센서 수량	1	1200
+EMS	FMS	"구축 공사, 시운전 교육"	공사 1식	1	5000
+EMS	Dashboard	POLESTAR Standard Dashboard	페이지수	1	50000
+EMS	Dashboard	POLESTAR Advanced Dashboard	페이지수	1	100000
+DASHBOARD	POLESTAR Dashboard	POLESTAR Dashboard Manager	개수	1	300000
+DASHBOARD	POLESTAR Dashboard	POLESTAR Dashboard View	페이지수	1	100000
+DASHBOARD	POLESTAR Dashboard	POLESTAR Dashboard Adapter	개수(연동대상)	1	30000
+DATACENTER	F/W	POLESTAR Datacenter Operation Management Manager	서버	1	200000
+DATACENTER	2D	"POLESTAR 2D View Rack Management (상면관리, 2D)"	층당 ( 상면 200개)	1	150000
+DATACENTER	3D	POLESTAR 3D View Rack Management 	층당 ( 상면 100개)	1	100000
+DATACENTER	3D	POLESTAR 3D View Rack Management 	층당 ( 상면 200개)	1	200000
+DATACENTER	Adapter	POLESTAR Loader Adapter	개수(연동대상)	1	30000
+RCA	POLESTAR RCA	POLESTAR RCA Manager	개수	1	300000
+RCA	POLESTAR RCA	POLESTAR RCA Adapter	개수	1	50000
+DCA	Automation Suite	POLESTAR Automation Manager	개수	1	300000
+DCA	Automation Suite	POLESTAR Automation Server Agent	OS 수	1	3000
+DCA	Automation Suite	POLESTAR Automation Network Agent	Node 수	1	1500
+ITSM	Portal	POLESTAR IT Service Portal	User 수(10기본)	1	200000
+ITSM	CMDB	POLESTAR CMDB(Configuration management DB)	서버	1	200000
+ITSM	CMDB	Configuration UI Generator (원장 화면 자동생성기)	서버	1	100000
+ITSM	BPM	POLESTAR Process Designer	서버	1	200000
+ITSM	BPM	POLESTAR Form Designer	서버	1	200000
+ITSM	wDesk(Service Support)	POLESTAR Service Desk Management	서버	1	200000
+ITSM	wDesk(Service Support)	POLESTAR wDesk Request Management	User 수(10기본)	1	50000
+ITSM	wDesk(Service Support)	POLESTAR wDesk Incident Management	User 수(10기본)	1	50000
+ITSM	wDesk(Service Support)	POLESTAR wDesk Problem Management	User 수(10기본)	1	50000
+ITSM	wDesk(Service Support)	POLESTAR wDesk Change Management	User 수(10기본)	1	50000
+ITSM	wDesk(Service Support)	POLESTAR wDesk Configuration Management	User 수(10기본)	1	50000
+ITSM	wDesk(Service Support)	POLESTAR wDesk Release Management	User 수(10기본)	1	50000
+ITSM	wDesk(Service Delivery)	POLESTAR wDesk Capacity Management	서버	1	100000
+ITSM	wDesk(Service Delivery)	POLESTAR wDesk Availability Management	서버	1	100000
+ITSM	wDesk(Service Delivery)	"POLESTAR Business Continuity Management(BCM, 서비스연속성관리)"	서버	1	200000
+ITSM	wDesk(Service Delivery)	POLESTAR Service Level Management	서버	1	300000
+ITSM	Application Management	Version Control Management(형상관리)	User 수(10기본)	1	50000
+ITSM	Application Management	Deploy Management (배포관리)	User 수(10기본)	1	50000
+ITSM	Application Management	Code Inspect Management	User 수(11기본)	1	50000
+ITSM	Application Management	Test Scenario Manaement(테스트 시나리오관리)	User 수(10기본)	1	50000
+ITSM	PMS	POLESTAR Project Planning Management (프로젝트 계획관리) 	User 수(10기본)	1	50000
+ITSM	PMS	POLESTAR Project Progress Management (프로젝트 수행관리)	User 수(10기본)	1	50000
+ITSM	PMS	POLESTAR Resource Management (프로젝트 자원관리)	User 수(11기본)	1	50000
+ITSM	Billing	POLESTAR Billing Enterprise  Framework	서버	1	500000
+ITSM	Billing	POLESTAR Contract Administration & Management  	서버	1	200000
+ITSM	Billing	POLESTAR Unit Price Management  	서버	1	100000
+ITSM	Billing	Cost Distribution Manaement	서버	1	100000
+ITAM	AMDB	POLESTAR AMDB(Asset management DB)	서버	1	300000
+ITAM	도입	Implementation project management (도입사업관리)	서버	1	200000
+ITAM	도입	Purchase Contract Manaement (구매계약관리)	서버	1	200000
+ITAM	도입	Installation inspection management (검수관리)	서버	1	200000
+ITAM	운영관리	Asset Operation management (운영관리)	User 수(10기본)	1	100000
+ITAM	운영관리	Asset Investigation Management (실사관리)	User 수(10기본)	1	100000
+ITAM	운영관리	Idle Assets Management (유휴관리)	User 수(10기본)	1	100000
+ITAM	운영관리	Reuse Asset Management (재사용관리)	User 수(10기본)	1	100000
+ITAM	운영관리	Asset Rental Management (대여관리)	User 수(10기본)	1	100000
+ITAM	운영관리	Asset Carry-in/out Management (반출입관리)	User 수(10기본)	1	100000
+ITAM	폐기관리	Unavailable Assets Management (불용관리)	User 수(10기본)	1	100000
+ITAM	폐기관리	Selling/Disposal Assets Management (매각/폐기관리)	User 수(10기본)	1	100000
+ITAM	재무관리	Asset Depreciation Management (감가상각관리)	User 수(10기본)	1	100000
+ITAM	소프트웨어 관리	SW Group Management (Server) 그룹관리(서버용)	개수	1	200000
+ITAM	소프트웨어 관리	SW Group Management (End User Computing) 그룹관리(PC용)	Node 수	1	3000
+ITAM	소프트웨어 관리	SW license Management (라이선스 할당/회수관리)	Node 수	1	3000
+ITAM	소프트웨어 관리	SW Discovery Management (수집관리)	Node 수	1	3000
+ITAM	유지보수관리	Maintenance Contract Management (유지보수 계약관리)	서버	1	10000
+ITAM	유지보수관리	Maintenance Performance Management (유지보수 실적관리)	서버	1	10000
+ITAM	바코드/QR/RFID				
+ITAM	Auto Discovery(optional)	POLESTAR ITAM Manager	개수	1	30000
+ITAM	Auto Discovery(optional)	POLESTAR Auto Discovery Agent	OS 수	1	3000
+ITAM	Auto Discovery(optional)	POLESTAR Auto Discovery Node	Node  수	1	1500
+SUPPORTING_TOOLS	Reporting Tool(비정형보고서)	POLESTAR Report Manager (form 4개 기본 제공)	Site License	1	30000
+SUPPORTING_TOOLS	Reporting Tool(비정형보고서)	for Additional Form	개수	1	1000
+CLOUD	PCM	POLESTAR Public Cloud Management	서비스 계정수	1	100000
+CLOUD	PCM	"POLESTAR Public Cloud for EC2(EFS, VPC 포함)"			10000
+CLOUD	PCM	POLESTAR Public Cloud for Lambda			5000
+CLOUD	PCM	POLESTAR Public Cloud for S3			5000
+CLOUD	PCM	POLESTAR Public Cloud for RDS			10000
+CLOUD	PCM	POLESTAR Public Cloud for DynamoDB			10000
+CLOUD	PCM	POLESTAR Public Cloud for Direct Connect			
+CLOUD	PCM	POLESTAR Public Cloud for Route 53			5000
+CLOUD	PCM	POLESTAR Public Cloud for CloudFront			5000
+CLOUD	PCM	POLESTAR Public Cloud for Amazon API Gateway			5000
+CLOUD	PCM	POLESTAR Public Cloud for AWS Config			5000
+CLOUD	PCM	POLESTAR Public Cloud for AWS CloudTrail			5000
+CLOUD	PCM	POLESTAR Public Cloud for Auto Scailing Group			5000
+CLOUD	PCM	POLESTAR Public Cloud for Billing			50000
+CLOUD	KCM	POLESTAR WorkNode for Kubernates Management	클러스터 수	1	100000
+CLOUD	KCM	POLESTAR WorkNode for Kubernates			1000
+CLOUD	KCM	POLESTAR WorkNode for Pivotal			1000
+CLOUD	KCM	POLESTAR WorkNode for OpenShift			1000
+BSM	BSM	POLESTAR Business Service Management	AP수량	1	500000
+E2E	E2E	POLESTAR E2E for Service	서비스 수량	1	300000
+E2E	Data Interface(Optional)	POLESTAR Data Adapter	수량	1	30000

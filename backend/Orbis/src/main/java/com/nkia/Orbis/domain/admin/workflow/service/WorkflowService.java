@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.admin.workflow.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
+import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.WorkflowErrorCode;
 import com.nkia.Orbis.domain.admin.user.entity.Position;
 import com.nkia.Orbis.domain.admin.user.entity.User;
@@ -13,19 +14,23 @@ import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLineStatus;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStep;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowTemplate;
+import com.nkia.Orbis.domain.admin.workflow.handler.WorkflowDomainHandler;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowLineRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowStepRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowTemplateRepository;
+import com.nkia.Orbis.domain.alarm.entity.AlarmType;
+import com.nkia.Orbis.domain.alarm.event.AlarmEvent;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import java.util.stream.Collectors;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class WorkflowService {
 
     private final WorkflowRepository workflowRepository;
@@ -33,13 +38,20 @@ public class WorkflowService {
     private final WorkflowStepRepository workflowStepRepository;
     private final WorkflowLineRepository workflowLineRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    private final Map<WorkflowDomain, WorkflowDomainHandler> handlerMap;
 
     @Transactional
     public Workflow startWorkflow(
             WorkflowDomain workflowDomain,
             Long targetId,
+            UUID requesterId,
             UUID firstApproverId
     ) {
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+
         // 1. 이미 진행중인 결재 존재하는지 검사
         validateDuplicateWorkflow(workflowDomain, targetId);
 
@@ -52,7 +64,8 @@ public class WorkflowService {
         Workflow workflow = Workflow.create(
                 workflowDomain,
                 targetId,
-                template
+                template,
+                requester
         );
 
         workflowRepository.save(workflow);
@@ -77,6 +90,14 @@ public class WorkflowService {
         workflow.addLine(firstLine);
 
         workflowLineRepository.save(firstLine);
+
+        eventPublisher.publishEvent(new AlarmEvent(
+                requester,
+                firstApprover,
+                resolveApprovalRequestAlarmType(workflow.getWorkflowDomain()),
+                "새로운 결재 요청이 등록되었습니다.",
+                targetId
+        ));
 
         return workflow;
     }
@@ -114,6 +135,16 @@ public class WorkflowService {
         // 다음 단계가 없다면 최종 승인
         if (nextStep.isEmpty()) {
             workflow.approveComplete();
+            handleApproved(workflow);
+
+            eventPublisher.publishEvent(new AlarmEvent(
+                    currentLine.getApprover(),
+                    workflow.getRequester(),
+                    resolveApprovedAlarmType(workflow.getWorkflowDomain()),
+                    "결재 요청이 최종 승인되었습니다.",
+                    workflow.getTargetId()
+            ));
+
             return;
         }
 
@@ -139,6 +170,14 @@ public class WorkflowService {
         workflowLineRepository.save(nextLine);
 
         workflow.approveNext(nextStepOrder);
+
+        eventPublisher.publishEvent(new AlarmEvent(
+                currentLine.getApprover(),
+                nextApprover,
+                resolveApprovalRequestAlarmType(workflow.getWorkflowDomain()),
+                "새로운 결재 요청이 등록되었습니다.",
+                workflow.getTargetId()
+        ));
     }
 
     // 반려
@@ -158,6 +197,15 @@ public class WorkflowService {
 
         currentLine.reject(comment);
         workflow.reject();
+        handleRejected(workflow);
+
+        eventPublisher.publishEvent(new AlarmEvent(
+                currentLine.getApprover(),
+                workflow.getRequester(),
+                resolveRejectedAlarmType(workflow.getWorkflowDomain()),
+                "결재 요청이 반려되었습니다.",
+                workflow.getTargetId()
+        ));
     }
 
     // 취소
@@ -167,6 +215,7 @@ public class WorkflowService {
 
         validateWorkflowProgress(workflow);
         workflow.cancel();
+        handleCancelled(workflow);
     }
 
 
@@ -195,8 +244,9 @@ public class WorkflowService {
     // 현재 결재 라인 조회
     private WorkflowLine getCurrentLine(Workflow workflow) {
         return workflowLineRepository
-                .findByWorkflowAndStatus(
+                .findByWorkflowAndStepOrderAndStatus(
                         workflow,
+                        workflow.getCurrentStepOrder(),
                         WorkflowLineStatus.PENDING
                 )
                 .orElseThrow(() -> new ApiException(WorkflowErrorCode.WORKFLOW_LINE_NOT_FOUND));
@@ -249,10 +299,10 @@ public class WorkflowService {
             Integer stepOrder
     ) {
         return workflowStepRepository
-                .findByWorkflowTemplateAndActiveTrueOrderByStepOrderAsc(template)
-                .stream()
-                .filter(step -> step.getStepOrder().equals(stepOrder))
-                .findFirst();
+                .findByWorkflowTemplateAndStepOrderAndActiveTrue(
+                        template,
+                        stepOrder
+                );
     }
 
     // 진행 상태 검사
@@ -281,7 +331,89 @@ public class WorkflowService {
                         userId
                 )
                 .stream()
-                .map(WorkflowResponse::from)
+                .map(workflow -> {
+                    long totalStepCount = workflowStepRepository
+                            .countByWorkflowTemplateAndActiveTrue(
+                                    workflow.getWorkflowTemplate()
+                            );
+
+                    boolean needNextApprover =
+                            workflow.getStatus() == WorkflowStatus.IN_PROGRESS
+                                    && workflow.getCurrentStepOrder() < totalStepCount;
+
+                    return WorkflowResponse.from(workflow, needNextApprover);
+                })
                 .toList();
+    }
+
+    public WorkflowResponse toWorkflowResponse(Workflow workflow) {
+        long totalStepCount = workflowStepRepository
+                .countByWorkflowTemplateAndActiveTrue(
+                        workflow.getWorkflowTemplate()
+                );
+
+        boolean needNextApprover =
+                workflow.getStatus() == WorkflowStatus.IN_PROGRESS
+                        && workflow.getCurrentStepOrder() < totalStepCount;
+
+        return WorkflowResponse.from(workflow, needNextApprover);
+    }
+
+    private void handleApproved(Workflow workflow) {
+        WorkflowDomainHandler handler = handlerMap.get(workflow.getWorkflowDomain());
+
+        if (handler != null) {
+            handler.onApproved(workflow.getTargetId());
+        }
+    }
+
+    private void handleRejected(Workflow workflow) {
+        WorkflowDomainHandler handler = handlerMap.get(workflow.getWorkflowDomain());
+
+        if (handler != null) {
+            handler.onRejected(workflow.getTargetId());
+        }
+    }
+
+    private void handleCancelled(Workflow workflow) {
+        WorkflowDomainHandler handler = handlerMap.get(workflow.getWorkflowDomain());
+
+        if (handler != null) {
+            handler.onCancelled(workflow.getTargetId());
+        }
+    }
+
+    public WorkflowService(
+            WorkflowRepository workflowRepository,
+            WorkflowTemplateRepository workflowTemplateRepository,
+            WorkflowStepRepository workflowStepRepository,
+            WorkflowLineRepository workflowLineRepository,
+            UserRepository userRepository,
+            ApplicationEventPublisher eventPublisher,
+            List<WorkflowDomainHandler> handlers
+    ) {
+        this.workflowRepository = workflowRepository;
+        this.workflowTemplateRepository = workflowTemplateRepository;
+        this.workflowStepRepository = workflowStepRepository;
+        this.workflowLineRepository = workflowLineRepository;
+        this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
+        this.handlerMap = handlers.stream()
+                .collect(Collectors.toMap(
+                        WorkflowDomainHandler::getDomain,
+                        handler -> handler
+                ));
+    }
+
+    private AlarmType resolveApprovalRequestAlarmType(WorkflowDomain workflowDomain) {
+        return AlarmType.valueOf(workflowDomain.name() + "_APPROVAL_REQUEST");
+    }
+
+    private AlarmType resolveApprovedAlarmType(WorkflowDomain workflowDomain) {
+        return AlarmType.valueOf(workflowDomain.name() + "_APPROVED");
+    }
+
+    private AlarmType resolveRejectedAlarmType(WorkflowDomain workflowDomain) {
+        return AlarmType.valueOf(workflowDomain.name() + "_REJECTED");
     }
 }

@@ -1,5 +1,46 @@
 export type ContractCategory = "orders" | "contracts" | "purchases" | "licenses";
 
+export type OrderReportLicenseDetail = {
+  category: string;
+  group: string;
+  product: string;
+  quantity: string;
+  unitPrice: string;
+  subtotal: string;
+};
+
+export type OrderReportServiceDetail = {
+  content: string;
+  mm: string;
+  unitPrice: string;
+  subtotal: string;
+};
+
+export type OrderReportMaintenanceDetail = {
+  content: string;
+  cycle: string;
+  months: string;
+  monthlyAmount: string;
+  subtotal: string;
+};
+
+export type OrderReportOtherDetail = {
+  content: string;
+  quantity: string;
+  unitPrice: string;
+  subtotal: string;
+};
+
+export type OrderReportMaintenanceSummary = {
+  year: string;
+  projectAmount: string;
+  license: string;
+  thirdParty: string;
+  service: string;
+  maintenance: string;
+  rate: string;
+};
+
 export type OrderReport = {
   id: string;
   name: string;
@@ -10,43 +51,56 @@ export type OrderReport = {
   salesRep: string;
   approvalStatus: string;
   approver: string;
+  // 기본 정보
+  vatType?: string;
+  paymentTerms?: string;
+  // 매출분류
+  salesClassification?: {
+    ems: string;
+    emsMaintenance: string;
+    itg: string;
+    itgMaintenance: string;
+    dashboard: string;
+    ito: string;
+    aiotion: string;
+    others: string;
+    verification: string;
+  };
+  // 계약 정보
+  type?: string;
+  hasChannel?: string;
+  codeClassification?: string;
+  pmName?: string;
+  contractPartner?: { name: string; manager: string; contact: string };
+  finalCustomer?: { name: string; manager: string; contact: string };
+  contractDate?: string;
+  startDate?: string;
+  endDate?: string;
+  contractPeriod?: string;
+  freeMaintenancePeriod?: string;
+  // 사업 범위
+  businessScope?: string;
+  attachments?: {
+    quotation: string;
+    contract: string;
+    purchaseOrder: string;
+    prbReport: string;
+    others: string;
+  };
+  // 유지보수 수주보고 요약
+  maintenanceSummary?: OrderReportMaintenanceSummary[];
+  // 세부 내역
+  licenseDetails?: OrderReportLicenseDetail[];
+  licenseDiscount?: string;
+  serviceDetails?: OrderReportServiceDetail[];
+  serviceDiscount?: string;
+  maintenanceDetails?: OrderReportMaintenanceDetail[];
+  maintenanceDiscount?: string;
+  otherSalesDetails?: OrderReportOtherDetail[];
+  purchaseDetails?: OrderReportOtherDetail[];
 };
 
-export const orderReports: OrderReport[] = [
-  {
-    id: "ORD-2026-001",
-    name: "농협은행 통합 모니터링 시스템",
-    customer: "농협은행",
-    orderDate: "2026-03-05",
-    amount: "300,000,000",
-    product: "EMS Enterprise",
-    salesRep: "김영업",
-    approvalStatus: "승인완료",
-    approver: "대표이사",
-  },
-  {
-    id: "ORD-2026-002",
-    name: "우리은행 자동화 시스템",
-    customer: "우리은행",
-    orderDate: "2026-02-20",
-    amount: "250,000,000",
-    product: "Automation Suite",
-    salesRep: "박과장",
-    approvalStatus: "승인완료",
-    approver: "대표이사",
-  },
-  {
-    id: "ORD-2026-003",
-    name: "현대해상 ITSM 구축",
-    customer: "현대해상",
-    orderDate: "2026-03-15",
-    amount: "450,000,000",
-    product: "ITSM Pro",
-    salesRep: "이대리",
-    approvalStatus: "검토중",
-    approver: "사업본부장",
-  },
-];
+export const orderReports: OrderReport[] = [];;
 
 export type Contract = {
   id: string;
@@ -61,32 +115,7 @@ export type Contract = {
   status: string;
 };
 
-export const contracts: Contract[] = [
-  {
-    id: "CON-2026-001",
-    orderId: "ORD-2026-001",
-    name: "농협은행 통합 모니터링 시스템",
-    customer: "농협은행",
-    contractDate: "2026-03-10",
-    startDate: "2026-03-15",
-    endDate: "2026-06-30",
-    amount: "300,000,000",
-    maintenanceEnd: "2027-06-30",
-    status: "진행중",
-  },
-  {
-    id: "CON-2026-002",
-    orderId: "ORD-2026-002",
-    name: "우리은행 자동화 시스템",
-    customer: "우리은행",
-    contractDate: "2026-02-25",
-    startDate: "2026-03-01",
-    endDate: "2026-05-31",
-    amount: "250,000,000",
-    maintenanceEnd: "2027-05-31",
-    status: "진행중",
-  },
-];
+export const contracts: Contract[] = [];;
 
 export type License = {
   id: string;
@@ -101,44 +130,7 @@ export type License = {
   status: string;
 };
 
-export const licenses: License[] = [
-  {
-    id: "LIC-2026-001",
-    contractId: "CON-2026-001",
-    customer: "농협은행",
-    product: "EMS Enterprise",
-    module: "SMS/NMS/APM",
-    quantity: 100,
-    type: "영구",
-    issueDate: "2026-03-15",
-    expiryDate: "-",
-    status: "발급완료",
-  },
-  {
-    id: "LIC-2026-002",
-    contractId: "CON-2026-002",
-    customer: "우리은행",
-    product: "Automation Suite",
-    module: "WFA/RPA",
-    quantity: 50,
-    type: "영구",
-    issueDate: "2026-03-01",
-    expiryDate: "-",
-    status: "발급완료",
-  },
-  {
-    id: "LIC-2026-003",
-    contractId: "-",
-    customer: "삼성전자",
-    product: "EMS Trial",
-    module: "SMS/NMS",
-    quantity: 10,
-    type: "트라이얼",
-    issueDate: "2026-03-10",
-    expiryDate: "2026-04-10",
-    status: "사용중",
-  },
-];
+export const licenses: License[] = [];;
 
 export type PurchaseContract = {
   id: string;
@@ -150,26 +142,7 @@ export type PurchaseContract = {
   status: string;
 };
 
-export const purchaseContracts: PurchaseContract[] = [
-  {
-    id: "PUR-2026-001",
-    name: "AI 서버용 GPU 매입",
-    supplier: "NVIDIA",
-    contractDate: "2026-03-20",
-    amount: "500000000",
-    manager: "박매입",
-    status: "계약완료",
-  },
-  {
-    id: "PUR-2026-002",
-    name: "업무용 소프트웨어 라이선스 매입",
-    supplier: "Microsoft",
-    contractDate: "2026-03-22",
-    amount: "120000000",
-    manager: "김구매",
-    status: "진행중",
-  },
-];
+export const purchaseContracts: PurchaseContract[] = [];;
 
 export const contractStatuses = ["승인완료", "검토중", "진행중", "발급완료", "사용중"];
 

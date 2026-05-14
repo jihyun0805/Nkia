@@ -7,23 +7,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, FileText, ArrowRight } from "lucide-react";
+import { AlertCircle, FileText, ArrowRight, Loader2 } from "lucide-react";
+import { contractApi, type ContractRequest, type ProposalType } from "@/lib/api/contract-api";
+import { toast } from "sonner";
 
 export interface ContractFormProps {
   onSuccess: () => void;
   onCancel: () => void;
-  // 앞 단계의 데이터 (선택적)
   inheritedData?: {
-    customerId: string;
-    customerName: string;
-    opportunityId: string;
-    opportunityName: string;
-    orderReportId?: string; // 수주보고서 ID
+    customerId?: string;
+    customerName?: string;
+    opportunityId?: string;
+    opportunityName?: string;
+    orderReportId?: string | number;
+    orderReportNumericId?: number;
   } | null;
 }
 
 export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFormProps) {
   const [amount, setAmount] = useState<string>("");
+  const [contractDate, setContractDate] = useState<string>("");
+  const [maintenanceCondition, setMaintenanceCondition] = useState<string>("");
+  const [salesRepId, setSalesRepId] = useState<string>("");
+  const [proposalType, setProposalType] = useState<ProposalType | "">("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const numericValue = e.target.value.replace(/[^0-9]/g, "");
@@ -31,7 +38,7 @@ export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFor
     setAmount(formattedValue);
   };
 
-  // 고객사나 사업기회 코드가 등록되지 않았을 경우 진행 차단 및 등록 유도
+  // 필수 데이터 없으면 안내
   if (!inheritedData || !inheritedData.customerId || !inheritedData.opportunityId) {
     return (
       <Card className="max-w-2xl mx-auto mt-8 border-amber-200 bg-amber-50/50">
@@ -58,6 +65,47 @@ export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFor
 
   const data = inheritedData;
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const orderReportNumericId = data.orderReportNumericId ?? (data.orderReportId ? parseInt(String(data.orderReportId).replace(/\D/g, "")) || undefined : undefined);
+
+    if (!orderReportNumericId) {
+      toast.error("연결된 수주보고서 ID가 없습니다. 수주보고서를 먼저 등록해주세요.");
+      return;
+    }
+    if (!proposalType) {
+      toast.error("제안 유형을 선택해주세요.");
+      return;
+    }
+    if (!salesRepId) {
+      toast.error("영업대표 ID를 입력해주세요.");
+      return;
+    }
+
+    const payload: ContractRequest = {
+      orderReportId: orderReportNumericId,
+      proposalType: proposalType as ProposalType,
+      contractAmount: parseInt(amount.replace(/,/g, "")) || 0,
+      contractDate,
+      maintenanceCondition,
+      salesRepresentativeId: salesRepId,
+      contractModuleItems: [],
+    };
+
+    setIsSubmitting(true);
+    try {
+      await contractApi.createContract(payload);
+      toast.success("계약이 등록되었습니다.");
+      onSuccess();
+    } catch (error: any) {
+      const message = error?.response?.data?.message || "계약 등록에 실패했습니다.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Card className="max-w-4xl mx-auto shadow-sm">
       <CardHeader className="border-b bg-muted/20">
@@ -68,7 +116,7 @@ export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFor
           </div>
           {data.orderReportId && (
             <Button variant="outline" size="sm" asChild className="gap-2 text-primary">
-              <Link href={`/contract/order/${data.orderReportId}`}>
+              <Link href={`/contract/orders/${data.orderReportNumericId ?? data.orderReportId}`}>
                 <FileText className="w-4 h-4" />
                 수주보고서 조회 <ArrowRight className="w-3 h-3" />
               </Link>
@@ -77,14 +125,8 @@ export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFor
         </div>
       </CardHeader>
       <CardContent className="pt-6">
-        <form
-          className="space-y-6"
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSuccess();
-          }}
-        >
-          {/* 고객사, 사업명(사업기회) - 앞 단계 승계 정보 (수정 불가) */}
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          {/* 승계 정보 (수정 불가) */}
           <div className="grid grid-cols-2 gap-6 p-4 rounded-lg bg-muted/30 border">
             <div className="space-y-2">
               <Label className="text-muted-foreground">고객사</Label>
@@ -106,32 +148,22 @@ export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFor
               <Label htmlFor="proposalType">
                 제안 유형 <span className="text-red-500">*</span>
               </Label>
-              <Select required>
+              <Select required value={proposalType} onValueChange={(v) => setProposalType(v as ProposalType)}>
                 <SelectTrigger id="proposalType">
                   <SelectValue placeholder="선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="self">자체 제안</SelectItem>
-                  <SelectItem value="si">SI 제안</SelectItem>
+                  <SelectItem value="SELF">자체 제안</SelectItem>
+                  <SelectItem value="SI">SI 제안</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {/* 제품군 */}
+            {/* 영업대표 */}
             <div className="space-y-2">
-              <Label htmlFor="product">
-                제품군 <span className="text-red-500">*</span>
+              <Label htmlFor="salesRep">
+                영업대표 ID (UUID) <span className="text-red-500">*</span>
               </Label>
-              <Select required>
-                <SelectTrigger id="product">
-                  <SelectValue placeholder="선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ems">EMS</SelectItem>
-                  <SelectItem value="itsm">ITSM</SelectItem>
-                  <SelectItem value="automation">Automation</SelectItem>
-                  <SelectItem value="wss">WSS</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input id="salesRep" required placeholder="영업대표 UUID를 입력하세요" value={salesRepId} onChange={(e) => setSalesRepId(e.target.value)} />
             </div>
           </div>
 
@@ -151,41 +183,29 @@ export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFor
               <Label htmlFor="contractDate">
                 계약일 <span className="text-red-500">*</span>
               </Label>
-              <Input id="contractDate" type="date" required />
+              <Input id="contractDate" type="date" required value={contractDate} onChange={(e) => setContractDate(e.target.value)} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            {/* 무상유지보수 조건 */}
-            <div className="space-y-2">
-              <Label htmlFor="maintenance">
-                무상유지보수 조건 <span className="text-red-500">*</span>
-              </Label>
-              <Input id="maintenance" required />
-            </div>
-            {/* 영업대표 */}
-            <div className="space-y-2">
-              <Label htmlFor="salesRep">
-                영업대표 <span className="text-red-500">*</span>
-              </Label>
-              <Input id="salesRep" required />
-            </div>
+          {/* 무상유지보수 조건 */}
+          <div className="space-y-2">
+            <Label htmlFor="maintenance">무상유지보수 조건</Label>
+            <Input id="maintenance" placeholder="예: 납품 후 1년" value={maintenanceCondition} onChange={(e) => setMaintenanceCondition(e.target.value)} />
           </div>
 
-          {/* 첨부파일 (계약서) */}
+          {/* 첨부파일 (계약서) - 파일 업로드는 별도 구현 필요 */}
           <div className="space-y-2 pt-2 border-t">
-            <Label htmlFor="contractFile">
-              계약서 첨부파일 <span className="text-red-500">*</span>
-            </Label>
-            <Input id="contractFile" type="file" required className="cursor-pointer" />
+            <Label htmlFor="contractFile">계약서 첨부파일</Label>
+            <Input id="contractFile" type="file" className="cursor-pointer" />
             <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, JPG 등 원본 스캔본 또는 전자계약 문서를 첨부하세요.</p>
           </div>
 
           <div className="flex justify-end gap-3 pt-6 mt-8">
-            <Button type="button" variant="outline" onClick={onCancel} className="w-24">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="w-24">
               취소
             </Button>
-            <Button type="submit" className="w-24">
+            <Button type="submit" disabled={isSubmitting} className="w-24">
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               계약 등록
             </Button>
           </div>

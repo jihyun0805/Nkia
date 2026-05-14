@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { findingStatuses, getCustomers, getOpportunities, getPartners } from "@/lib/finding-data"
+import { findingStatuses, type CustomerRecord, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
 import { Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
@@ -23,15 +24,41 @@ function FindingPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isMounted, setIsMounted] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const initialTab = searchParams.get("tab")
   const [activeTab, setActiveTab] = useState<FindingTab>(
     initialTab === "customers" || initialTab === "partners" ? initialTab : "opportunities",
   )
+  const [customerRows, setCustomerRows] = useState<CustomerRecord[]>([])
+  const [opportunityRows, setOpportunityRows] = useState<OpportunityRecord[]>([])
+  const [partnerRows, setPartnerRows] = useState<PartnerRecord[]>([])
 
   useEffect(() => {
     setIsMounted(true)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadBackendFindingData()
+      .then((data) => {
+        if (cancelled) return
+        setCustomerRows(data.customers)
+        setOpportunityRows(data.opportunities)
+        setPartnerRows(data.partners)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCustomerRows([])
+        setOpportunityRows([])
+        setPartnerRows([])
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -60,10 +87,20 @@ function FindingPageContent() {
     router.replace(`/finding?tab=${value}`, { scroll: false })
   }
 
-  const q = searchTerm.toLowerCase()
-  const customerRows = getCustomers()
-  const opportunityRows = getOpportunities()
-  const partnerRows = getPartners()
+  const normalizedSearchTerm = appliedSearchTerm.trim().toLowerCase()
+
+  const matchesSearch = (values: Array<string | number | null | undefined>) => {
+    if (!normalizedSearchTerm) return true
+    return values
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearchTerm)
+  }
+
+  const handleSearch = () => {
+    setAppliedSearchTerm(searchTerm)
+  }
 
   const findingFieldOptions =
     activeTab === "opportunities"
@@ -87,40 +124,34 @@ function FindingPageContent() {
       customer: (item) => item.customer,
     },
   }).filter((item) =>
-    [item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]
-      .join(" ")
-      .toLowerCase()
-      .includes(q),
+    matchesSearch([item.id, item.customerCode, item.name, item.customer, item.partner, item.product, item.salesRep]),
   )
 
-  const recentOpportunityCards = useMemo(() => {
-    const threshold = new Date()
-    threshold.setMonth(threshold.getMonth() - 1)
-
-    return filteredOpportunities
-      .filter((item) => {
-        const createdAt = item.createdAt ? new Date(`${item.createdAt}T00:00:00`) : null
-        return createdAt ? createdAt >= threshold : false
-      })
-      .sort((a, b) => {
-        if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt)
-        return a.customer.localeCompare(b.customer, "ko")
-      })
-  }, [filteredOpportunities])
+  const opportunityCards = useMemo(
+    () =>
+      [...filteredOpportunities].sort((a, b) => {
+        const customerCompare = a.customer.localeCompare(b.customer, "ko")
+        if (customerCompare !== 0) return customerCompare
+        const nameCompare = a.name.localeCompare(b.name, "ko")
+        if (nameCompare !== 0) return nameCompare
+        return a.id.localeCompare(b.id)
+      }),
+    [filteredOpportunities],
+  )
 
   const filteredCustomers = filterRecords(customerRows, filters, {
     owner: (item) => item.contact,
     fields: {
       category: (item) => item.category,
     },
-  }).filter((item) => [item.id, item.name, item.contact, item.phone].join(" ").toLowerCase().includes(q))
+  }).filter((item) => matchesSearch([item.id, item.name, item.contact, item.phone, item.category]))
 
   const filteredPartners = filterRecords(partnerRows, filters, {
     owner: (item) => item.contact,
     fields: {
       type: (item) => item.type,
     },
-  }).filter((item) => [item.id, item.name, item.type, item.contact, item.phone].join(" ").toLowerCase().includes(q))
+  }).filter((item) => matchesSearch([item.id, item.name, item.contact, item.phone, item.type]))
 
   const customerCards = useMemo(
     () =>
@@ -141,7 +172,7 @@ function FindingPageContent() {
       }),
     [filteredPartners],
   )
-  const previewOpportunityCards = useMemo(() => recentOpportunityCards.slice(0, PREVIEW_CARD_COUNT), [recentOpportunityCards])
+  const previewOpportunityCards = useMemo(() => opportunityCards.slice(0, PREVIEW_CARD_COUNT), [opportunityCards])
   const previewCustomerCards = useMemo(() => customerCards.slice(0, PREVIEW_CARD_COUNT), [customerCards])
   const previewPartnerCards = useMemo(() => partnerCards.slice(0, PREVIEW_CARD_COUNT), [partnerCards])
 
@@ -188,15 +219,24 @@ function FindingPageContent() {
               </TabsList>
 
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleSearch()
+                  }}
+                >
                   <Input
-                    placeholder="검색..."
-                    className="w-64 pl-9"
+                    placeholder="검색어 입력"
+                    className="w-64"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                   />
-                </div>
+                  <Button type="submit" variant="outline" className="gap-2">
+                    <Search className="h-4 w-4" />
+                    검색
+                  </Button>
+                </form>
 
                 <FilterPopover
                   title="발굴"
@@ -220,9 +260,9 @@ function FindingPageContent() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">최근 1개월 신규 사업기회</CardTitle>
+                    <CardTitle className="text-lg">사업기회 카드 전체 보기</CardTitle>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{recentOpportunityCards.length}건</Badge>
+                      <Badge variant="secondary">{opportunityCards.length}건</Badge>
                       <Button variant="outline" size="sm" asChild>
                         <Link href="/finding/opportunities">전체 보기</Link>
                       </Button>
@@ -237,7 +277,11 @@ function FindingPageContent() {
                           key={opp.id}
                           type="button"
                           className="min-h-[168px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
-                          onClick={() => router.push(`/activity/customers/${opp.customerCode}?opportunityId=${opp.id}`)}
+                          onClick={() =>
+                            router.push(
+                              `/activity/customers/${encodeURIComponent(opp.customerCode)}?opportunityId=${encodeURIComponent(opp.id)}`,
+                            )
+                          }
                         >
                           <div className="flex h-full flex-col justify-between">
                             <div>
@@ -256,7 +300,7 @@ function FindingPageContent() {
                     </div>
                   ) : (
                     <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                      최근 1개월 내 등록된 사업기회가 없습니다.
+                      등록된 사업기회가 없습니다.
                     </div>
                   )}
                 </CardContent>

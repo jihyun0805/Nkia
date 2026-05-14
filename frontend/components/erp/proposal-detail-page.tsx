@@ -3,14 +3,26 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/erp/header"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { getProposalById, subscribeProposalUpdates, type ProposalAttachment, type ProposalRecord } from "@/lib/bid-data"
+import { type ProposalBackendDetail, deleteBackendProposal, loadBackendProposalDetailById } from "@/lib/proposal-backend"
+import { toast } from "@/hooks/use-toast"
 
 function ProposalDetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -21,8 +33,8 @@ function ProposalDetailField({ label, value }: { label: string; value: string })
   )
 }
 
-function ProposalAttachmentField({ proposal }: { proposal: ProposalRecord }) {
-  const attachments: ProposalAttachment[] = proposal.attachments ?? proposal.attachmentNames.map((name) => ({ name }))
+function ProposalAttachmentField({ proposal }: { proposal: ProposalBackendDetail }) {
+  const attachments = proposal.files ?? []
 
   return (
     <div className="space-y-2 md:col-span-2">
@@ -32,7 +44,7 @@ function ProposalAttachmentField({ proposal }: { proposal: ProposalRecord }) {
           {attachments.map((attachment, index) =>
             attachment.url ? (
               <a
-                key={`${attachment.name}-${index}`}
+                key={`${attachment.fileId}-${index}`}
                 href={attachment.url}
                 target="_blank"
                 rel="noreferrer"
@@ -41,7 +53,7 @@ function ProposalAttachmentField({ proposal }: { proposal: ProposalRecord }) {
                 {attachment.name}
               </a>
             ) : (
-              <p key={`${attachment.name}-${index}`} className="text-sm text-muted-foreground">
+              <p key={`${attachment.fileId}-${index}`} className="text-sm text-muted-foreground">
                 {attachment.name}
               </p>
             ),
@@ -56,20 +68,73 @@ function ProposalAttachmentField({ proposal }: { proposal: ProposalRecord }) {
 
 export function ProposalDetailPage() {
   const params = useParams<{ id?: string | string[] }>()
+  const router = useRouter()
   const id = Array.isArray(params.id) ? params.id[0] : params.id ?? ""
-  const [proposal, setProposal] = useState<ProposalRecord | null>(null)
+  const [proposal, setProposal] = useState<ProposalBackendDetail | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   useEffect(() => {
-    const sync = () => setProposal(getProposalById(id))
-    sync()
-    const unsubscribe = subscribeProposalUpdates(sync)
-    window.addEventListener("storage", sync)
+    let cancelled = false
+    setIsLoading(true)
+    void loadBackendProposalDetailById(id)
+      .then((detail) => {
+        if (!cancelled) {
+          setProposal(detail)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProposal(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      })
 
     return () => {
-      unsubscribe()
-      window.removeEventListener("storage", sync)
+      cancelled = true
     }
   }, [id])
+
+  const handleDelete = () => {
+    void deleteBackendProposal(id)
+      .then(() => {
+        toast({
+          title: "제안서 삭제 완료",
+          description: `${id} 제안서가 삭제되었습니다.`,
+        })
+        setIsDeleteOpen(false)
+        router.push("/bid")
+      })
+      .catch((error) => {
+        toast({
+          title: "제안서 삭제 실패",
+          description: error instanceof Error ? error.message : "제안서를 삭제하지 못했습니다.",
+        })
+        setIsDeleteOpen(false)
+      })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title="제안서 상세" description="제안서 정보를 조회합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl">
+              <Card>
+                <CardContent className="py-10 text-center text-muted-foreground">제안서 정보를 불러오는 중입니다.</CardContent>
+              </Card>
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
 
   if (!proposal) {
     return (
@@ -95,7 +160,7 @@ export function ProposalDetailPage() {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header title="제안서 상세" description="최종 완료된 제안서 정보를 조회합니다" />
+        <Header title="제안서 상세" description="제안서 정보를 조회합니다" />
         <main className="flex-1 overflow-auto p-6">
           <div className="mx-auto max-w-5xl space-y-6">
             <Breadcrumb>
@@ -133,7 +198,7 @@ export function ProposalDetailPage() {
                   <ProposalDetailField label="영업대표" value={proposal.salesRep} />
                   <ProposalDetailField label="담당자" value={proposal.contactName} />
                   <ProposalAttachmentField proposal={proposal} />
-                  <ProposalDetailField label="상태" value="완료" />
+                  <ProposalDetailField label="상태" value={proposal.status} />
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">
@@ -143,12 +208,29 @@ export function ProposalDetailPage() {
                   <Button asChild>
                     <Link href={`/bid/proposal/${proposal.id}/edit`}>수정</Link>
                   </Button>
+                  <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                    삭제
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
         </main>
       </div>
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>제안서를 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              삭제 후에는 제안서 상세 정보를 다시 확인할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

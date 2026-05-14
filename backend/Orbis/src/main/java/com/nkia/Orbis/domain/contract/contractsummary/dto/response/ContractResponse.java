@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.contract.contractsummary.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.ProposalType;
 import java.time.LocalDate;
@@ -13,6 +14,10 @@ import lombok.Getter;
 public class ContractResponse {
 
     private Long id;
+
+    private Long workflowId;
+
+    private ApprovalStatus status;
 
     private Long orderReportId;
 
@@ -32,8 +37,7 @@ public class ContractResponse {
 
     private String salesRepresentativeName;
 
-    // Todo: 수주보고서, 첨부파일 구현후 연동 예정
-    public static ContractResponse from(Contract contract) {
+    public static ContractResponse from(Contract contract, Long workflowId) {
         return ContractResponse.builder()
                 .id(contract.getId())
                 .orderReportId(contract.getOrderReport() != null ? contract.getOrderReport().getId() : null)
@@ -50,6 +54,8 @@ public class ContractResponse {
                                 .toList()
                 )
                 .salesRepresentativeName(contract.getSalesRepresentative().getName())
+                .status(contract.getStatus())
+                .workflowId(workflowId)
                 .build();
     }
 }
