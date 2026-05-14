@@ -393,7 +393,12 @@ function mapBackendActivityRecord(
 
 export async function loadBackendActivityRecords() {
   const activities = await fetchSalesActivities()
-  const opportunities = (await fetchProjectOpportunities()).content ?? []
+  let opportunities: ProjectOpportunitySummaryResponse[] = []
+  try {
+    opportunities = (await fetchProjectOpportunities()).content ?? []
+  } catch {
+    opportunities = []
+  }
   const opportunityLookup = new Map(
     opportunities
       .filter((opportunity) => typeof opportunity.id === "number")
