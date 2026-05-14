@@ -28,20 +28,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class MaintenanceExpiryScheduler {
 
     private final MaintenanceRepository maintenanceRepository;
-    private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Scheduled(cron = "0 0 9 * * *")
     @Transactional
     public void checkMaintenanceExpiry() {
         LocalDate today = LocalDate.now();
-        LocalDate threeMonthsLater = today.plusMonths(3);
-        LocalDate oneMonthLater = today.plusMonths(1);
 
         log.info("[유지보수 만료 알림] 스케줄러 실행 - 기준일: {}", today);
 
-        processExpiryAlarm(threeMonthsLater, 3);
-        processExpiryAlarm(oneMonthLater, 1);
+        processExpiryAlarm(today.plusMonths(3), 3);
+        processExpiryAlarm(today.plusMonths(1), 1);
     }
 
     private void processExpiryAlarm(LocalDate targetDate, int monthsRemaining) {
