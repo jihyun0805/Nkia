@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -47,7 +47,7 @@ import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
 const customerGroupOptions = ["공공", "민간", "해외"]
-const partnerTypeOptions = ["SI", "파트너", "기타"]
+const partnerTypeOptions = ["SI", "솔루션", "기타"]
 const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 
 type ContactDraft = {
@@ -89,7 +89,7 @@ function hasContactValue(contact: ContactDraft) {
 
 function formatRfpSummaryTitle(fileName: string) {
   const title = fileName.replace(/\.[^.]+$/, "").trim()
-  return title || "RFP 문서"
+  return title || "RFP 臾몄꽌"
 }
 
 function keepExistingValue(currentValue: string | undefined, nextValue: string | null | undefined) {
@@ -108,7 +108,7 @@ function parseExpectedBudget(value?: string) {
   const normalized = String(value ?? "").trim()
   if (!normalized) return undefined
 
-  const compact = normalized.replace(/[,원\s]/g, "")
+  const compact = normalized.replace(/[,\s원]/g, "")
   const match = compact.match(/^(\d+(?:\.\d+)?)(억|만)?$/)
   if (match) {
     const amount = Number.parseFloat(match[1])
@@ -166,10 +166,10 @@ function validateCompanyManagers(contacts: ContactDraft[]) {
     const email = contact.email.trim()
     const mobilePhone = contact.mobilePhone.trim()
 
-    if (!contact.name.trim()) return `${index + 1}번째 담당자명을 입력해주세요.`
-    if (!mobilePhone) return `${index + 1}번째 담당자 휴대전화를 입력해주세요.`
+    if (!contact.name.trim()) return `${index + 1}踰덉㎏ ?대떦?먮챸???낅젰?댁＜?몄슂.`
+    if (!mobilePhone) return `${index + 1}踰덉㎏ ?대떦???대??꾪솕瑜??낅젰?댁＜?몄슂.`
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return `${index + 1}번째 담당자 이메일 형식이 올바르지 않습니다.`
+      return `${index + 1}踰덉㎏ ?대떦???대찓???뺤떇???щ컮瑜댁? ?딆뒿?덈떎.`
     }
   }
 
@@ -206,7 +206,7 @@ function buildDecisionInfoFromCustomer(customer: CustomerRecord | null) {
   return contacts
     .map((contact, index) =>
       [
-        `${index + 1}순위`,
+        `${index + 1}?쒖쐞`,
         contact.name || "-",
         contact.position || "-",
         contact.department || "-",
@@ -281,7 +281,7 @@ export function FindingCategoryNewPageView({
   const [loadingBackend, setLoadingBackend] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [customerName, setCustomerName] = useState("")
-  const [customerGroup, setCustomerGroup] = useState("민간")
+  const [customerGroup, setCustomerGroup] = useState("誘쇨컙")
   const [partnerName, setPartnerName] = useState("")
   const [partnerType, setPartnerType] = useState("SI")
   const [address, setAddress] = useState("")
@@ -293,14 +293,14 @@ export function FindingCategoryNewPageView({
   const [opportunityPartnerNames, setOpportunityPartnerNames] = useState<string[]>([""])
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
-  const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
+  const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("誘쇨컙")
   const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
   const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
-  const [opportunityStatus, setOpportunityStatus] = useState("발굴")
+  const [opportunityStatus, setOpportunityStatus] = useState("諛쒓뎬")
   const [customerRegistrationGuideOpen, setCustomerRegistrationGuideOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
@@ -354,8 +354,8 @@ export function FindingCategoryNewPageView({
       assertBusinessCardImageSize(file)
     } catch (error) {
       toast({
-        title: "명함 OCR 실패",
-        description: error instanceof Error ? error.message : `명함 이미지는 ${BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} 이하만 업로드할 수 있습니다.`,
+        title: "紐낇븿 OCR ?ㅽ뙣",
+        description: error instanceof Error ? error.message : `紐낇븿 ?대?吏??${BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} ?댄븯留??낅줈?쒗븷 ???덉뒿?덈떎.`,
       })
       pendingOcrIndexRef.current = null
       return
@@ -383,21 +383,21 @@ export function FindingCategoryNewPageView({
 
       if (!hasContactValue(nextContact)) {
         toast({
-          title: "명함 OCR 결과 없음",
-          description: "담당자 정보로 입력할 값을 찾지 못했습니다.",
+          title: "紐낇븿 OCR 寃곌낵 ?놁쓬",
+          description: "?대떦???뺣낫濡??낅젰??媛믪쓣 李얠? 紐삵뻽?듬땲??",
         })
         return
       }
 
       setContacts((prev) => prev.map((contact, index) => (index === targetIndex ? nextContact : contact)))
       toast({
-        title: "명함 OCR 완료",
+        title: "紐낇븿 OCR ?꾨즺",
         description: `${nextContact.name || "담당자"} 정보를 해당 담당자 칸에 채웠습니다.`,
       })
     } catch (error) {
       toast({
-        title: "명함 OCR 실패",
-        description: error instanceof Error ? error.message : "이미지를 다시 확인해주십시오.",
+        title: "紐낇븿 OCR ?ㅽ뙣",
+        description: error instanceof Error ? error.message : "?대?吏瑜??ㅼ떆 ?뺤씤?댁＜??떆??",
       })
     } finally {
       setOcrLoadingIndex(null)
@@ -464,25 +464,17 @@ export function FindingCategoryNewPageView({
 
     if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
-        title: "고객사 등록 확인",
-        description: "고객사명, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        title: "怨좉컼???깅줉 ?뺤씤",
+        description: "怨좉컼?щ챸, ?대떦??1???깅챸, 臾댁꽑?꾪솕踰덊샇瑜?紐⑤몢 ?낅젰?댁＜??떆??",
       })
       return
     }
 
-<<<<<<< Updated upstream
     const contactValidationMessage = validateManagerContacts(filledContacts)
     if (contactValidationMessage) {
       toast({
-        title: "담당자 입력 확인",
+        title: "?대떦???낅젰 ?뺤씤",
         description: contactValidationMessage,
-=======
-    const managerValidationMessage = validateCompanyManagers(filledContacts)
-    if (managerValidationMessage) {
-      toast({
-        title: "고객사 등록 확인",
-        description: managerValidationMessage,
->>>>>>> Stashed changes
       })
       return
     }
@@ -520,8 +512,8 @@ export function FindingCategoryNewPageView({
         }
 
         toast({
-          title: "고객사 등록 완료",
-          description: `${normalizedName} 고객사가 등록되었습니다.`,
+          title: "怨좉컼???깅줉 ?꾨즺",
+          description: `${normalizedName} 怨좉컼?ш? ?깅줉?섏뿀?듬땲??`,
         })
         router.push(`/finding/customers/${code}?tab=customers`)
       } catch (error) {
@@ -533,8 +525,8 @@ export function FindingCategoryNewPageView({
           }
         }
         toast({
-          title: "고객사 등록 실패",
-          description: error instanceof Error ? error.message : "등록에 실패했습니다.",
+          title: "怨좉컼???깅줉 ?ㅽ뙣",
+          description: error instanceof Error ? error.message : "?깅줉???ㅽ뙣?덉뒿?덈떎.",
         })
       } finally {
         setSubmitting(false)
@@ -549,25 +541,17 @@ export function FindingCategoryNewPageView({
 
     if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
-        title: "협력사 등록 확인",
-        description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        title: "?묐젰???깅줉 ?뺤씤",
+        description: "?묐젰?щ챸, ?좏삎, ?대떦??1???깅챸, 臾댁꽑?꾪솕踰덊샇瑜?紐⑤몢 ?낅젰?댁＜??떆??",
       })
       return
     }
 
-<<<<<<< Updated upstream
     const contactValidationMessage = validateManagerContacts(filledContacts)
     if (contactValidationMessage) {
       toast({
-        title: "담당자 입력 확인",
+        title: "?대떦???낅젰 ?뺤씤",
         description: contactValidationMessage,
-=======
-    const managerValidationMessage = validateCompanyManagers(filledContacts)
-    if (managerValidationMessage) {
-      toast({
-        title: "협력사 등록 확인",
-        description: managerValidationMessage,
->>>>>>> Stashed changes
       })
       return
     }
@@ -575,8 +559,8 @@ export function FindingCategoryNewPageView({
     const duplicate = backendPartners.find((item) => item.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
     if (duplicate) {
       toast({
-        title: "협력사 등록 확인",
-        description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
+        title: "?묐젰???깅줉 ?뺤씤",
+        description: "媛숈? ?대쫫???묐젰?ш? ?대? ?깅줉?섏뼱 ?덉뒿?덈떎.",
       })
       return
     }
@@ -608,8 +592,8 @@ export function FindingCategoryNewPageView({
         }
 
         toast({
-          title: "협력사 등록 완료",
-          description: `${normalizedName} 협력사가 등록되었습니다.`,
+          title: "?묐젰???깅줉 ?꾨즺",
+          description: `${normalizedName} ?묐젰?ш? ?깅줉?섏뿀?듬땲??`,
         })
         router.push("/finding?tab=partners")
       } catch (error) {
@@ -621,8 +605,8 @@ export function FindingCategoryNewPageView({
           }
         }
         toast({
-          title: "협력사 등록 실패",
-          description: error instanceof Error ? error.message : "등록에 실패했습니다.",
+          title: "?묐젰???깅줉 ?ㅽ뙣",
+          description: error instanceof Error ? error.message : "?깅줉???ㅽ뙣?덉뒿?덈떎.",
         })
       } finally {
         setSubmitting(false)
@@ -635,32 +619,32 @@ export function FindingCategoryNewPageView({
       <div className="min-h-screen bg-background">
         <Sidebar />
         <div className="flex-1 flex flex-col">
-          <Header title={`${label} 등록`} description="협력사 기본정보와 담당자 정보를 등록합니다" />
+          <Header title={`${label} ?깅줉`} description="?묐젰??湲곕낯?뺣낫? ?대떦???뺣낫瑜??깅줉?⑸땲?? />
           <main className="flex-1 overflow-auto p-6">
             <div className="mx-auto max-w-5xl space-y-6">
               <Breadcrumb>
                 <BreadcrumbList>
                   <BreadcrumbItem>
                     <BreadcrumbLink asChild>
-                      <Link href="/finding?tab=partners">발굴</Link>
+                      <Link href="/finding?tab=partners">諛쒓뎬</Link>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
-                    <BreadcrumbPage>{label} 등록</BreadcrumbPage>
+                    <BreadcrumbPage>{label} ?깅줉</BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>{label} 등록</CardTitle>
+                  <CardTitle>{label} ?깅줉</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-8">
                   <section className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>협력사명 *</Label>
+                        <Label>?묐젰?щ챸 *</Label>
                         <EntityAutocomplete
                           value={partnerName}
                           target="partners"
@@ -669,15 +653,15 @@ export function FindingCategoryNewPageView({
                             if (suggestion) setPartnerName(suggestion.label)
                           }}
                           allowCustomValue
-                          placeholder="협력사명을 입력하세요"
-                          emptyMessage="등록된 협력사가 없습니다."
+                          placeholder="?묐젰?щ챸???낅젰?섏꽭??
+                          emptyMessage="?깅줉???묐젰?ш? ?놁뒿?덈떎."
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>유형 *</Label>
+                        <Label>?좏삎 *</Label>
                         <Select value={partnerType} onValueChange={setPartnerType}>
                           <SelectTrigger>
-                            <SelectValue placeholder="선택하세요" />
+                            <SelectValue placeholder="?좏깮?섏꽭?? />
                           </SelectTrigger>
                           <SelectContent>
                             {partnerTypeOptions.map((option) => (
@@ -689,12 +673,12 @@ export function FindingCategoryNewPageView({
                         </Select>
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label>주소</Label>
-                        <Input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="주소를 입력하세요" />
+                        <Label>二쇱냼</Label>
+                        <Input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="二쇱냼瑜??낅젰?섏꽭?? />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label>메모</Label>
-                        <Textarea value={memo} onChange={(event) => setMemo(event.target.value)} rows={4} placeholder="메모를 입력하세요" />
+                        <Label>硫붾え</Label>
+                        <Textarea value={memo} onChange={(event) => setMemo(event.target.value)} rows={4} placeholder="硫붾え瑜??낅젰?섏꽭?? />
                       </div>
                     </div>
                   </section>
@@ -702,8 +686,8 @@ export function FindingCategoryNewPageView({
                   <section className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-base font-semibold">협력사 담당자 정보</h2>
-                        <p className="text-xs text-muted-foreground">명함 이미지는 {BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} 이하만 업로드할 수 있습니다.</p>
+                        <h2 className="text-base font-semibold">?묐젰???대떦???뺣낫</h2>
+                        <p className="text-xs text-muted-foreground">紐낇븿 ?대?吏??{BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} ?댄븯留??낅줈?쒗븷 ???덉뒿?덈떎.</p>
                       </div>
                       <Button
                         type="button"
@@ -712,7 +696,7 @@ export function FindingCategoryNewPageView({
                         onClick={() => setContacts((prev) => [...prev, createEmptyContactDraft()])}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        담당자 추가
+                        ?대떦??異붽?
                       </Button>
                       <Input
                         ref={businessCardInputRef}
@@ -731,17 +715,17 @@ export function FindingCategoryNewPageView({
                       {contacts.map((contact, index) => (
                         <section key={index} className="space-y-4 border border-border p-4">
                           <div className="flex flex-wrap items-center justify-between gap-3">
-                            <h3 className="text-sm font-semibold">{`담당자 ${index + 1}`}</h3>
+                            <h3 className="text-sm font-semibold">{`?대떦??${index + 1}`}</h3>
                             <div className="flex flex-wrap gap-2">
                               <Button type="button" variant="outline" size="sm" disabled={ocrLoadingIndex !== null} onClick={() => openBusinessCardInput(index)}>
                                 {ocrLoadingIndex === index ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
-                                명함 등록
+                                紐낇븿 ?깅줉
                               </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button type="button" variant="outline" size="sm">
                                     <Trash2 className="mr-2 h-4 w-4" />
-                                    담당자 삭제
+                                    ?대떦????젣
                                   </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -749,13 +733,13 @@ export function FindingCategoryNewPageView({
                                     <X className="h-4 w-4" />
                                   </AlertDialogCancel>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>담당자 삭제</AlertDialogTitle>
-                                    <AlertDialogDescription>담당자 정보 전체를 삭제합니다. 진행하시겠습니까?</AlertDialogDescription>
+                                    <AlertDialogTitle>?대떦????젣</AlertDialogTitle>
+                                    <AlertDialogDescription>?대떦???뺣낫 ?꾩껜瑜???젣?⑸땲?? 吏꾪뻾?섏떆寃좎뒿?덇퉴?</AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                    <AlertDialogCancel>痍⑥냼</AlertDialogCancel>
                                     <AlertDialogAction onClick={() => setContacts((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}>
-                                      삭제
+                                      ??젣
                                     </AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -778,45 +762,45 @@ export function FindingCategoryNewPageView({
                                 }
                               >
                                 <X className="mr-2 h-4 w-4" />
-                                미리보기 제거
+                                誘몃━蹂닿린 ?쒓굅
                               </Button>
                             </div>
                           ) : null}
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>담당자명</Label>
+                              <Label>?대떦?먮챸</Label>
                               <Input
                                 value={contact.name}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item)))
                                 }
-                                placeholder="담당자 이름을 입력하세요."
+                                placeholder="?대떦???대쫫???낅젰?섏꽭??"
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>직급/직책</Label>
+                              <Label>吏곴툒/吏곸콉</Label>
                               <Input
                                 value={contact.position}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, position: event.target.value } : item)))
                                 }
-                                placeholder="직급/직책을 입력하세요."
+                                placeholder="吏곴툒/吏곸콉???낅젰?섏꽭??"
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>소속부서</Label>
+                              <Label>?뚯냽遺??/Label>
                               <Input
                                 value={contact.department}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, department: event.target.value } : item)))
                                 }
-                                placeholder="소속부서명을 입력하세요."
+                                placeholder="?뚯냽遺?쒕챸???낅젰?섏꽭??"
                               />
                             </div>
                           </div>
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>이메일</Label>
+                              <Label>?대찓??/Label>
                               <Input
                                 type="email"
                                 inputMode="email"
@@ -829,7 +813,7 @@ export function FindingCategoryNewPageView({
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호</Label>
+                              <Label>臾댁꽑?꾪솕踰덊샇</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -841,7 +825,7 @@ export function FindingCategoryNewPageView({
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>유선전화번호</Label>
+                              <Label>?좎꽑?꾪솕踰덊샇</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -854,24 +838,24 @@ export function FindingCategoryNewPageView({
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>담당 직무</Label>
+                            <Label>?대떦 吏곷Т</Label>
                             <Input
                               value={contact.duty}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                               }
-                              placeholder="담당 직무를 입력하세요."
+                              placeholder="?대떦 吏곷Т瑜??낅젰?섏꽭??"
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>비고</Label>
+                            <Label>鍮꾧퀬</Label>
                             <Textarea
                               value={contact.memo}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
                               }
                               rows={3}
-                              placeholder="담당자 관련 특기사항을 입력하세요."
+                              placeholder="?대떦??愿???밴린?ы빆???낅젰?섏꽭??"
                             />
                           </div>
                         </section>
@@ -881,10 +865,10 @@ export function FindingCategoryNewPageView({
 
                   <div className="flex justify-end gap-2 border-t pt-6">
                     <Button variant="outline" asChild disabled={submitting}>
-                      <Link href="/finding?tab=partners">취소</Link>
+                      <Link href="/finding?tab=partners">痍⑥냼</Link>
                     </Button>
                     <Button onClick={handlePartnerSubmit} disabled={submitting || loadingBackend}>
-                      {submitting ? "등록 중..." : "등록"}
+                      {submitting ? "?깅줉 以?.." : "?깅줉"}
                     </Button>
                   </div>
                 </CardContent>
@@ -898,7 +882,7 @@ export function FindingCategoryNewPageView({
 
   if (category !== "customers") {
     const backHref = `/finding?tab=${category}`
-    const pageDescription = "신규 사업기회 등록정보를 입력합니다"
+    const pageDescription = "?좉퇋 ?ъ뾽湲고쉶 ?깅줉?뺣낫瑜??낅젰?⑸땲??
 
     const handleOpportunitySubmit = () => {
       const resolvedCustomer = selectedOpportunityCustomer
@@ -912,8 +896,8 @@ export function FindingCategoryNewPageView({
 
       if (!opportunityName.trim() || !businessType) {
         toast({
-          title: "사업기회 등록 확인",
-          description: "사업명과 사업 구분을 입력해주십시오.",
+          title: "?ъ뾽湲고쉶 ?깅줉 ?뺤씤",
+          description: "?ъ뾽紐낃낵 ?ъ뾽 援щ텇???낅젰?댁＜??떆??",
         })
         return
       }
@@ -923,8 +907,8 @@ export function FindingCategoryNewPageView({
           const salesRepresentativeId = await resolveSalesRepresentativeId(opportunitySalesRep)
           if (!salesRepresentativeId) {
             toast({
-              title: "사업기회 등록 확인",
-              description: "영업대표를 사용자 목록에서 찾지 못했습니다.",
+              title: "?ъ뾽湲고쉶 ?깅줉 ?뺤씤",
+              description: "?곸뾽??쒕? ?ъ슜??紐⑸줉?먯꽌 李얠? 紐삵뻽?듬땲??",
             })
             return
           }
@@ -932,8 +916,8 @@ export function FindingCategoryNewPageView({
           const customerCompanyId = resolvedCustomer.backendId
           if (!customerCompanyId) {
             toast({
-              title: "사업기회 등록 확인",
-              description: "선택한 고객사의 백엔드 식별자를 찾지 못했습니다.",
+              title: "?ъ뾽湲고쉶 ?깅줉 ?뺤씤",
+              description: "?좏깮??怨좉컼?ъ쓽 諛깆뿏???앸퀎?먮? 李얠? 紐삵뻽?듬땲??",
             })
             return
           }
@@ -956,14 +940,14 @@ export function FindingCategoryNewPageView({
           })
 
           toast({
-            title: "사업기회 등록 완료",
-            description: `${result.opportunityName ?? opportunityName} 사업기회가 등록되었습니다.`,
+            title: "?ъ뾽湲고쉶 ?깅줉 ?꾨즺",
+            description: `${result.opportunityName ?? opportunityName} ?ъ뾽湲고쉶媛 ?깅줉?섏뿀?듬땲??`,
           })
           router.push(`/finding/opportunities/${result.opportunityCode ?? customerRouteId}?tab=opportunities`)
         } catch (error) {
           toast({
-            title: "사업기회 등록 실패",
-            description: error instanceof Error ? error.message : "등록에 실패했습니다.",
+            title: "?ъ뾽湲고쉶 ?깅줉 ?ㅽ뙣",
+            description: error instanceof Error ? error.message : "?깅줉???ㅽ뙣?덉뒿?덈떎.",
           })
         }
       })()
@@ -973,53 +957,53 @@ export function FindingCategoryNewPageView({
       <div className="min-h-screen bg-background">
         <Sidebar />
         <div className="flex-1 flex flex-col">
-          <Header title={`${label} 등록`} description={pageDescription} />
+          <Header title={`${label} ?깅줉`} description={pageDescription} />
           <main className="flex-1 overflow-auto p-6">
             <div className="mx-auto max-w-5xl space-y-6">
               <Breadcrumb>
                 <BreadcrumbList>
                   <BreadcrumbItem>
                     <BreadcrumbLink asChild>
-                      <Link href={backHref}>발굴</Link>
+                      <Link href={backHref}>諛쒓뎬</Link>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
-                    <BreadcrumbPage>{label} 등록</BreadcrumbPage>
+                    <BreadcrumbPage>{label} ?깅줉</BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>{label} 등록</CardTitle>
+                  <CardTitle>{label} ?깅줉</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-8">
                   <section className="space-y-4">
-                    <h2 className="text-base font-semibold">등록정보</h2>
+                    <h2 className="text-base font-semibold">?깅줉?뺣낫</h2>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>고객사명 *</Label>
+                        <Label>怨좉컼?щ챸 *</Label>
                         <CustomerAutocomplete
                           value={opportunityCustomerName}
                           onSelect={(customer) => {
                             const resolvedCustomer = backendCustomers.find((item) => item.id === customer?.id || item.name === customer?.name) ?? customer
                             setSelectedOpportunityCustomer(resolvedCustomer ?? null)
                             setOpportunityCustomerName(resolvedCustomer?.name ?? "")
-                            setOpportunityCustomerGroup(resolvedCustomer?.category ?? "민간")
+                            setOpportunityCustomerGroup(resolvedCustomer?.category ?? "誘쇨컙")
                           }}
                           onValueChange={setOpportunityCustomerName}
                           onUnregisteredAttempt={() => setCustomerRegistrationGuideOpen(true)}
-                          placeholder="고객사명 일부를 입력해 기존 고객사를 선택하세요"
+                          placeholder="怨좉컼?щ챸 ?쇰?瑜??낅젰??湲곗〈 怨좉컼?щ? ?좏깮?섏꽭??
                         />
                         {selectedOpportunityCustomer ? (
-                          <p className="text-xs text-muted-foreground">고객사 코드: {selectedOpportunityCustomer.id}</p>
+                          <p className="text-xs text-muted-foreground">怨좉컼??肄붾뱶: {selectedOpportunityCustomer.id}</p>
                         ) : (
-                          <p className="text-xs text-muted-foreground">자동완성 목록에서 선택하면 고객사 코드가 함께 연결됩니다.</p>
+                          <p className="text-xs text-muted-foreground">?먮룞?꾩꽦 紐⑸줉?먯꽌 ?좏깮?섎㈃ 怨좉컼??肄붾뱶媛 ?④퍡 ?곌껐?⑸땲??</p>
                         )}
                       </div>
                       <div className="space-y-2">
-                        <Label>협력사명</Label>
+                        <Label>?묐젰?щ챸</Label>
                         <div className="space-y-2">
                           {opportunityPartnerNames.map((partnerName, index) => (
                             <div key={`opportunity-partner-${index}`} className="flex items-center gap-2">
@@ -1034,8 +1018,8 @@ export function FindingCategoryNewPageView({
                                   setOpportunityPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? suggestion.label : item)))
                                 }}
                                 allowCustomValue
-                                placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
-                                emptyMessage="등록된 협력사가 없습니다."
+                                placeholder={index === 0 ? "?묐젰?щ챸???낅젰?섏꽭?? : `?묐젰?щ챸 ${index + 1}`}
+                                emptyMessage="?깅줉???묐젰?ш? ?놁뒿?덈떎."
                               />
                               <Button
                                 type="button"
@@ -1052,19 +1036,19 @@ export function FindingCategoryNewPageView({
                         <div className="flex justify-end">
                           <Button type="button" variant="outline" size="sm" onClick={() => setOpportunityPartnerNames((prev) => [...prev, ""])}>
                             <Plus className="mr-2 h-4 w-4" />
-                            협력사 추가
+                            ?묐젰??異붽?
                           </Button>
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label>사업명 *</Label>
-                        <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
+                        <Label>?ъ뾽紐?*</Label>
+                        <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="?ъ뾽紐낆쓣 ?낅젰?섏꽭?? />
                       </div>
                       <div className="space-y-2">
-                        <Label>고객군</Label>
+                        <Label>怨좉컼援?/Label>
                         <Select value={opportunityCustomerGroup} onValueChange={setOpportunityCustomerGroup}>
                           <SelectTrigger>
-                            <SelectValue placeholder="선택하세요" />
+                            <SelectValue placeholder="?좏깮?섏꽭?? />
                           </SelectTrigger>
                           <SelectContent>
                             {customerGroupOptions.map((option) => (
@@ -1076,26 +1060,26 @@ export function FindingCategoryNewPageView({
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>등록자</Label>
-                        <Input value={opportunityRegistrant} onChange={(event) => setOpportunityRegistrant(event.target.value)} placeholder="등록자명을 입력하세요" />
+                        <Label>?깅줉??/Label>
+                        <Input value={opportunityRegistrant} onChange={(event) => setOpportunityRegistrant(event.target.value)} placeholder="?깅줉?먮챸???낅젰?섏꽭?? />
                       </div>
                       <div className="space-y-2">
-                        <Label>영업대표</Label>
-                        <Input value={opportunitySalesRep} onChange={(event) => setOpportunitySalesRep(event.target.value)} placeholder="영업대표명을 입력하세요" />
+                        <Label>?곸뾽???/Label>
+                        <Input value={opportunitySalesRep} onChange={(event) => setOpportunitySalesRep(event.target.value)} placeholder="?곸뾽??쒕챸???낅젰?섏꽭?? />
                       </div>
                       <div className="space-y-2">
-                        <Label>예상 입찰 또는 계약 시점</Label>
-                        <Input value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} placeholder="예: 2026년 3분기" />
+                        <Label>?덉긽 ?낆같 ?먮뒗 怨꾩빟 ?쒖젏</Label>
+                        <Input value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} placeholder="?? 2026??3遺꾧린" />
                       </div>
                       <div className="space-y-2">
-                        <Label>예상 예산 또는 매출</Label>
-                        <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="예: 8억" />
+                        <Label>?덉긽 ?덉궛 ?먮뒗 留ㅼ텧</Label>
+                        <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="?? 8?? />
                       </div>
                       <div className="space-y-2">
-                        <Label>사업 구분 *</Label>
+                        <Label>?ъ뾽 援щ텇 *</Label>
                         <Select value={businessType} onValueChange={setBusinessType}>
                           <SelectTrigger>
-                            <SelectValue placeholder="선택하세요" />
+                            <SelectValue placeholder="?좏깮?섏꽭?? />
                           </SelectTrigger>
                           <SelectContent>
                             {businessTypeOptions.map((option) => (
@@ -1107,10 +1091,10 @@ export function FindingCategoryNewPageView({
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>상태</Label>
+                        <Label>?곹깭</Label>
                         <Select value={opportunityStatus} onValueChange={setOpportunityStatus}>
                           <SelectTrigger>
-                            <SelectValue placeholder="선택하세요" />
+                            <SelectValue placeholder="?좏깮?섏꽭?? />
                           </SelectTrigger>
                           <SelectContent>
                             {findingStatuses.map((status) => (
@@ -1122,30 +1106,30 @@ export function FindingCategoryNewPageView({
                         </Select>
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label>납품 모듈</Label>
-                        <Input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="납품 모듈을 입력하세요" />
+                        <Label>?⑺뭹 紐⑤뱢</Label>
+                        <Input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="?⑺뭹 紐⑤뱢???낅젰?섏꽭?? />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label>주요 사업 내용 및 주요 이슈 내용</Label>
-                        <Textarea value={issue} onChange={(event) => setIssue(event.target.value)} rows={4} placeholder="주요 사업 내용 및 주요 이슈 내용을 입력하세요" />
+                        <Label>二쇱슂 ?ъ뾽 ?댁슜 諛?二쇱슂 ?댁뒋 ?댁슜</Label>
+                        <Textarea value={issue} onChange={(event) => setIssue(event.target.value)} rows={4} placeholder="二쇱슂 ?ъ뾽 ?댁슜 諛?二쇱슂 ?댁뒋 ?댁슜???낅젰?섏꽭?? />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label>경쟁 상황</Label>
-                        <Textarea value={competition} onChange={(event) => setCompetition(event.target.value)} rows={4} placeholder="경쟁 상황을 입력하세요" />
+                        <Label>寃쎌웳 ?곹솴</Label>
+                        <Textarea value={competition} onChange={(event) => setCompetition(event.target.value)} rows={4} placeholder="寃쎌웳 ?곹솴???낅젰?섏꽭?? />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label>고객사 담당자 정보</Label>
+                        <Label>怨좉컼???대떦???뺣낫</Label>
                         <div className="overflow-hidden rounded-md border">
                           <table className="w-full border-collapse text-sm [&_td]:border [&_th]:border">
                             <thead className="bg-slate-50">
                               <tr>
-                                <th className="px-3 py-2 text-center font-medium">순위</th>
-                                <th className="px-3 py-2 text-center font-medium">성명</th>
-                                <th className="px-3 py-2 text-center font-medium">직급</th>
-                                <th className="px-3 py-2 text-center font-medium">부서명</th>
-                                <th className="px-3 py-2 text-center font-medium">전자우편</th>
-                                <th className="px-3 py-2 text-center font-medium">이동전화</th>
-                                <th className="px-3 py-2 text-center font-medium">일반전화</th>
+                                <th className="px-3 py-2 text-center font-medium">?쒖쐞</th>
+                                <th className="px-3 py-2 text-center font-medium">?깅챸</th>
+                                <th className="px-3 py-2 text-center font-medium">吏곴툒</th>
+                                <th className="px-3 py-2 text-center font-medium">遺?쒕챸</th>
+                                <th className="px-3 py-2 text-center font-medium">?꾩옄?고렪</th>
+                                <th className="px-3 py-2 text-center font-medium">?대룞?꾪솕</th>
+                                <th className="px-3 py-2 text-center font-medium">?쇰컲?꾪솕</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1164,7 +1148,7 @@ export function FindingCategoryNewPageView({
                               ) : (
                                 <tr>
                                   <td colSpan={7} className="px-3 py-4 text-center text-muted-foreground">
-                                    선택한 고객사의 담당자 정보가 없습니다.
+                                    ?좏깮??怨좉컼?ъ쓽 ?대떦???뺣낫媛 ?놁뒿?덈떎.
                                   </td>
                                 </tr>
                               )}
@@ -1176,7 +1160,7 @@ export function FindingCategoryNewPageView({
                   </section>
 
                   <section className="space-y-2">
-                    <Label>RFP 문서</Label>
+                    <Label>RFP 臾몄꽌</Label>
                     <div className="flex flex-col gap-2 md:flex-row">
                       <Input
                         ref={rfpInputRef}
@@ -1197,7 +1181,7 @@ export function FindingCategoryNewPageView({
                         onClick={() => rfpInputRef.current?.click()}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        파일 추가
+                        ?뚯씪 異붽?
                       </Button>
                     </div>
                     {rfpAttachments.length > 0 ? (
@@ -1219,7 +1203,7 @@ export function FindingCategoryNewPageView({
                                 }}
                               >
                                 {rfpSummaryLoadingId === attachment.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                AI 요약
+                                AI ?붿빟
                               </Button>
                               <Button
                                 type="button"
@@ -1228,7 +1212,7 @@ export function FindingCategoryNewPageView({
                                 className="h-8 w-8 text-destructive hover:text-destructive"
                                 disabled={rfpSummaryLoadingId === attachment.id}
                                 onClick={() => handleDeleteRfpAttachment(attachment.id)}
-                                title="삭제"
+                                title="??젣"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1241,21 +1225,21 @@ export function FindingCategoryNewPageView({
                       <div className="space-y-3">
                         {rfpAttachments.filter((attachment) => attachment.summary).map((attachment) => (
                           <div key={attachment.id} className="space-y-3 rounded-md border border-border p-4">
-                            <h3 className="text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; 요약</h3>
+                            <h3 className="text-sm font-semibold">&lt;{formatRfpSummaryTitle(attachment.name)}&gt; ?붿빟</h3>
                             <RfpSummaryMarkdown markdown={attachment.summary} />
                           </div>
                         ))}
                       </div>
                     ) : null}
-                    <p className="text-xs text-muted-foreground">사업기회와 함께 검토할 RFP 문서를 추가합니다.</p>
+                    <p className="text-xs text-muted-foreground">?ъ뾽湲고쉶? ?④퍡 寃?좏븷 RFP 臾몄꽌瑜?異붽??⑸땲??</p>
                   </section>
 
                   <div className="flex justify-end gap-2 border-t pt-6">
                     <Button variant="outline" asChild disabled={submitting}>
-                      <Link href={backHref}>취소</Link>
+                      <Link href={backHref}>痍⑥냼</Link>
                     </Button>
                     <Button onClick={handleOpportunitySubmit} disabled={submitting || loadingBackend}>
-                      {submitting ? "등록 중..." : "등록"}
+                      {submitting ? "?깅줉 以?.." : "?깅줉"}
                     </Button>
                   </div>
                 </CardContent>
@@ -1267,15 +1251,15 @@ export function FindingCategoryNewPageView({
         <AlertDialog open={customerRegistrationGuideOpen} onOpenChange={setCustomerRegistrationGuideOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>고객사 등록 필요</AlertDialogTitle>
+              <AlertDialogTitle>怨좉컼???깅줉 ?꾩슂</AlertDialogTitle>
               <AlertDialogDescription>
-                등록된 고객사 정보가 없어서 영업기회 등록을 할 수 없습니다. 먼저 고객사 등록 후 사업기회등록을 진행해주십시오.
+                ?깅줉??怨좉컼???뺣낫媛 ?놁뼱???곸뾽湲고쉶 ?깅줉???????놁뒿?덈떎. 癒쇱? 怨좉컼???깅줉 ???ъ뾽湲고쉶?깅줉??吏꾪뻾?댁＜??떆??
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>닫기</AlertDialogCancel>
+              <AlertDialogCancel>?リ린</AlertDialogCancel>
               <AlertDialogAction asChild>
-                <Link href="/finding/new/customers">고객사 등록</Link>
+                <Link href="/finding/new/customers">怨좉컼???깅줉</Link>
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -1288,45 +1272,45 @@ export function FindingCategoryNewPageView({
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header title={`${label} 등록`} description="고객사명 자동완성으로 기존 고객을 먼저 찾고, 신규 고객을 등록합니다" />
+        <Header title={`${label} ?깅줉`} description="怨좉컼?щ챸 ?먮룞?꾩꽦?쇰줈 湲곗〈 怨좉컼??癒쇱? 李얘퀬, ?좉퇋 怨좉컼???깅줉?⑸땲?? />
         <main className="flex-1 overflow-auto p-6">
           <div className="mx-auto max-w-5xl space-y-6">
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link href="/finding?tab=customers">발굴</Link>
+                    <Link href="/finding?tab=customers">諛쒓뎬</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{label} 등록</BreadcrumbPage>
+                  <BreadcrumbPage>{label} ?깅줉</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
 
             <Card>
               <CardHeader>
-                <CardTitle>{label} 등록</CardTitle>
+                <CardTitle>{label} ?깅줉</CardTitle>
               </CardHeader>
               <CardContent className="space-y-8">
                 <section className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>고객사명 *</Label>
+                      <Label>怨좉컼?щ챸 *</Label>
                       <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => setCustomerName(customer?.name ?? "")}
                         onValueChange={setCustomerName}
                         allowCustomValue
-                        placeholder="고객사명을 입력하세요"
+                        placeholder="怨좉컼?щ챸???낅젰?섏꽭??
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>고객군 *</Label>
+                      <Label>怨좉컼援?*</Label>
                       <Select value={customerGroup} onValueChange={setCustomerGroup}>
                         <SelectTrigger>
-                          <SelectValue placeholder="선택하세요" />
+                          <SelectValue placeholder="?좏깮?섏꽭?? />
                         </SelectTrigger>
                         <SelectContent>
                           {customerGroupOptions.map((option) => (
@@ -1338,12 +1322,12 @@ export function FindingCategoryNewPageView({
                       </Select>
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <Label>주소</Label>
-                      <Input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="주소를 입력하세요" />
+                      <Label>二쇱냼</Label>
+                      <Input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="二쇱냼瑜??낅젰?섏꽭?? />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <Label>메모</Label>
-                      <Textarea value={memo} onChange={(event) => setMemo(event.target.value)} rows={4} placeholder="메모를 입력하세요" />
+                      <Label>硫붾え</Label>
+                      <Textarea value={memo} onChange={(event) => setMemo(event.target.value)} rows={4} placeholder="硫붾え瑜??낅젰?섏꽭?? />
                     </div>
                   </div>
                 </section>
@@ -1351,8 +1335,8 @@ export function FindingCategoryNewPageView({
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-base font-semibold">고객사 담당자 정보</h2>
-                      <p className="text-xs text-muted-foreground">명함 이미지는 {BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} 이하만 업로드할 수 있습니다.</p>
+                      <h2 className="text-base font-semibold">怨좉컼???대떦???뺣낫</h2>
+                      <p className="text-xs text-muted-foreground">紐낇븿 ?대?吏??{BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL} ?댄븯留??낅줈?쒗븷 ???덉뒿?덈떎.</p>
                     </div>
                     <Button
                       type="button"
@@ -1361,7 +1345,7 @@ export function FindingCategoryNewPageView({
                       onClick={() => setContacts((prev) => [...prev, createEmptyContactDraft()])}
                     >
                       <Plus className="mr-2 h-4 w-4" />
-                      담당자 추가
+                      ?대떦??異붽?
                     </Button>
                     <Input
                       ref={businessCardInputRef}
@@ -1380,15 +1364,15 @@ export function FindingCategoryNewPageView({
                     {contacts.map((contact, index) => (
                       <section key={index} className="space-y-4 border border-border p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <h3 className="text-sm font-semibold">{`담당자 ${index + 1}`}</h3>
+                          <h3 className="text-sm font-semibold">{`?대떦??${index + 1}`}</h3>
                           <div className="flex flex-wrap gap-2">
                             <Button type="button" variant="outline" size="sm" disabled={ocrLoadingIndex !== null} onClick={() => openBusinessCardInput(index)}>
                               {ocrLoadingIndex === index ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
-                              명함 등록
+                              紐낇븿 ?깅줉
                             </Button>
                             <Button type="button" variant="outline" size="sm" onClick={() => setDeleteIndex(index)}>
                               <Trash2 className="mr-2 h-4 w-4" />
-                              담당자 삭제
+                              ?대떦????젣
                             </Button>
                           </div>
                         </div>
@@ -1408,45 +1392,45 @@ export function FindingCategoryNewPageView({
                               }
                             >
                               <X className="mr-2 h-4 w-4" />
-                              미리보기 제거
+                              誘몃━蹂닿린 ?쒓굅
                             </Button>
                           </div>
                         ) : null}
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>담당자명</Label>
+                            <Label>?대떦?먮챸</Label>
                             <Input
                               value={contact.name}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item)))
                               }
-                              placeholder="담당자 이름을 입력하세요."
+                              placeholder="?대떦???대쫫???낅젰?섏꽭??"
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>직급/직책</Label>
+                            <Label>吏곴툒/吏곸콉</Label>
                             <Input
                               value={contact.position}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, position: event.target.value } : item)))
                               }
-                              placeholder="직급/직책을 입력하세요."
+                              placeholder="吏곴툒/吏곸콉???낅젰?섏꽭??"
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>소속부서</Label>
+                            <Label>?뚯냽遺??/Label>
                             <Input
                               value={contact.department}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, department: event.target.value } : item)))
                               }
-                              placeholder="소속부서명을 입력하세요."
+                              placeholder="?뚯냽遺?쒕챸???낅젰?섏꽭??"
                             />
                           </div>
                         </div>
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>이메일</Label>
+                            <Label>?대찓??/Label>
                             <Input
                               type="email"
                               inputMode="email"
@@ -1459,7 +1443,7 @@ export function FindingCategoryNewPageView({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호</Label>
+                            <Label>臾댁꽑?꾪솕踰덊샇</Label>
                             <Input
                               inputMode="tel"
                               autoComplete="tel"
@@ -1471,7 +1455,7 @@ export function FindingCategoryNewPageView({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>유선전화번호</Label>
+                            <Label>?좎꽑?꾪솕踰덊샇</Label>
                             <Input
                               inputMode="tel"
                               autoComplete="tel"
@@ -1484,24 +1468,24 @@ export function FindingCategoryNewPageView({
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>담당 직무</Label>
+                          <Label>?대떦 吏곷Т</Label>
                           <Input
                             value={contact.duty}
                             onChange={(event) =>
                               setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                             }
-                            placeholder="담당 직무를 입력하세요."
+                            placeholder="?대떦 吏곷Т瑜??낅젰?섏꽭??"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>비고</Label>
+                          <Label>鍮꾧퀬</Label>
                           <Textarea
                             value={contact.memo}
                             onChange={(event) =>
                               setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
                             }
                             rows={3}
-                            placeholder="담당자 관련 특기사항을 입력하세요."
+                            placeholder="?대떦??愿???밴린?ы빆???낅젰?섏꽭??"
                           />
                         </div>
                       </section>
@@ -1511,10 +1495,10 @@ export function FindingCategoryNewPageView({
 
                 <div className="flex justify-end gap-2 border-t pt-6">
                   <Button variant="outline" asChild disabled={submitting}>
-                    <Link href="/finding">취소</Link>
+                    <Link href="/finding">痍⑥냼</Link>
                   </Button>
                   <Button onClick={handleSubmit} disabled={submitting || loadingBackend}>
-                    {submitting ? "등록 중..." : "등록"}
+                    {submitting ? "?깅줉 以?.." : "?깅줉"}
                   </Button>
                 </div>
               </CardContent>
@@ -1529,11 +1513,11 @@ export function FindingCategoryNewPageView({
             <X className="h-4 w-4" />
           </AlertDialogCancel>
           <AlertDialogHeader>
-            <AlertDialogTitle>고객사 중복 등록</AlertDialogTitle>
-            <AlertDialogDescription>이미 등록된 동일한 이름의 고객사가 있습니다.</AlertDialogDescription>
+            <AlertDialogTitle>怨좉컼??以묐났 ?깅줉</AlertDialogTitle>
+            <AlertDialogDescription>?대? ?깅줉???숈씪???대쫫??怨좉컼?ш? ?덉뒿?덈떎.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setDuplicateOpen(false)}>확인</AlertDialogAction>
+            <AlertDialogAction onClick={() => setDuplicateOpen(false)}>?뺤씤</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1544,11 +1528,11 @@ export function FindingCategoryNewPageView({
             <X className="h-4 w-4" />
           </AlertDialogCancel>
           <AlertDialogHeader>
-            <AlertDialogTitle>담당자 삭제</AlertDialogTitle>
-            <AlertDialogDescription>담당자 정보 전체를 삭제합니다. 진행하시겠습니까?</AlertDialogDescription>
+            <AlertDialogTitle>?대떦????젣</AlertDialogTitle>
+            <AlertDialogDescription>?대떦???뺣낫 ?꾩껜瑜???젣?⑸땲?? 吏꾪뻾?섏떆寃좎뒿?덇퉴?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogCancel>痍⑥냼</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (deleteIndex === null) return
@@ -1556,7 +1540,7 @@ export function FindingCategoryNewPageView({
                 setDeleteIndex(null)
               }}
             >
-              삭제
+              ??젣
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
