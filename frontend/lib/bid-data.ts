@@ -161,6 +161,13 @@ export type BidResultAttachment = {
   mimeType?: string
 }
 
+export type BidResultFile = {
+  fileId: number
+  originalFileName: string
+  fileSize: number
+  presignedUrl: string
+}
+
 export type BidResultCompetitorScore = {
   label: string
   technicalScore: string
@@ -221,6 +228,8 @@ export type BidResultRecord = {
   analysisSheet?: BidResultAnalysisSheet
   attachments?: BidResultAttachment[]
   attachmentNames: string[]
+  fileIds?: number[]
+  files?: BidResultFile[]
   createdAt: string
   updatedAt: string
 }
@@ -231,9 +240,6 @@ const RFP_ANALYSES_EVENT_NAME = "orbis-rfp-analyses-updated"
 const PROPOSALS_STORAGE_KEY = "orbis.proposals"
 const DELETED_PROPOSAL_IDS_STORAGE_KEY = "orbis.deleted-proposal-ids"
 const PROPOSALS_EVENT_NAME = "orbis-proposals-updated"
-const BID_RESULTS_STORAGE_KEY = "orbis.bidResults"
-const DELETED_BID_RESULT_IDS_STORAGE_KEY = "orbis.deleted-bid-result-ids"
-const BID_RESULTS_EVENT_NAME = "orbis-bid-results-updated"
 const PRBS_STORAGE_KEY = "orbis.prbs"
 const DELETED_PRB_IDS_STORAGE_KEY = "orbis.deleted-prb-ids"
 const PRBS_EVENT_NAME = "orbis-prbs-updated"
@@ -266,8 +272,7 @@ function emitProposalsUpdate() {
 }
 
 function emitBidResultsUpdate() {
-  if (!isBrowser()) return
-  window.dispatchEvent(new Event(BID_RESULTS_EVENT_NAME))
+  return
 }
 
 function emitPrbsUpdate() {
@@ -380,70 +385,6 @@ function readStoredProposals() {
 function writeStoredProposals(items: ProposalRecord[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(items))
-}
-
-function readStoredBidResults() {
-  if (!isBrowser()) return bidResults
-
-  const stored = window.localStorage.getItem(BID_RESULTS_STORAGE_KEY)
-  if (!stored) return bidResults
-
-  try {
-    const parsed = JSON.parse(stored) as BidResultRecord[]
-    const storedItems = Array.isArray(parsed)
-      ? parsed
-          .filter(
-            (item) =>
-              item &&
-              typeof item.id === "string" &&
-              typeof item.proposalId === "string" &&
-              typeof item.requestId === "string" &&
-              typeof item.customerCode === "string" &&
-              typeof item.opportunityCode === "string",
-          )
-          .map((item) => ({
-            ...item,
-            attachments: Array.isArray(item.attachments)
-              ? item.attachments.filter((attachment) => attachment && typeof attachment.name === "string")
-              : Array.isArray(item.attachmentNames)
-                ? item.attachmentNames
-                    .filter((name) => typeof name === "string")
-                    .map((name) => ({ name }))
-                : [],
-            attachmentNames: Array.isArray(item.attachmentNames)
-              ? item.attachmentNames.filter((name) => typeof name === "string")
-              : [],
-          }))
-      : []
-
-    const isLegacyMock = storedItems.some(
-      (item) =>
-        item.id.startsWith("BID-2026-") ||
-        item.proposalId.startsWith("PRO-2026-") ||
-        item.requestId.startsWith("REQ-2026-"),
-    )
-
-    if (isLegacyMock) {
-      window.localStorage.removeItem(BID_RESULTS_STORAGE_KEY)
-      window.localStorage.removeItem(DELETED_BID_RESULT_IDS_STORAGE_KEY)
-      return []
-    }
-
-    const merged = new Map<string, BidResultRecord>()
-    const deletedIds = new Set(readDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY))
-    for (const item of bidResults) {
-      if (!deletedIds.has(item.id)) merged.set(item.id, item)
-    }
-    for (const item of storedItems) merged.set(item.id, item)
-    return [...merged.values()]
-  } catch {
-    return bidResults
-  }
-}
-
-function writeStoredBidResults(items: BidResultRecord[]) {
-  if (!isBrowser()) return
-  window.localStorage.setItem(BID_RESULTS_STORAGE_KEY, JSON.stringify(items))
 }
 
 function readStoredPrbResults() {
@@ -625,11 +566,12 @@ export function replaceProposals(records: ProposalRecord[]) {
 }
 
 export function getBidResults() {
-  const items = readStoredBidResults()
-  if (isBrowser() && !window.localStorage.getItem(BID_RESULTS_STORAGE_KEY)) {
-    writeStoredBidResults(items)
-  }
-  return items
+  return bidResults
+}
+
+export function replaceBidResults(records: BidResultRecord[]) {
+  bidResults.splice(0, bidResults.length, ...records)
+  return records
 }
 
 export function getPrbs() {
@@ -671,7 +613,7 @@ export function getProposalByRequestId(requestId: string) {
 }
 
 export function getBidResultById(id: string) {
-  return getBidResults().find((item) => item.id === id) ?? null
+  return bidResults.find((item) => item.id === id) ?? null
 }
 
 export function getPrbById(id: string) {
@@ -692,7 +634,7 @@ export function getPrbRevisionHistory(prbId: string) {
 }
 
 export function getBidResultByProposalId(proposalId: string) {
-  return getBidResults().find((item) => item.proposalId === proposalId) ?? null
+  return bidResults.find((item) => item.proposalId === proposalId) ?? null
 }
 
 export function subscribeRfpAnalysesUpdates(callback: () => void) {
@@ -718,14 +660,7 @@ export function subscribeProposalUpdates(callback: () => void) {
 }
 
 export function subscribeBidResultUpdates(callback: () => void) {
-  if (!isBrowser()) return () => undefined
-
-  const listener = () => callback()
-  window.addEventListener(BID_RESULTS_EVENT_NAME, listener)
-
-  return () => {
-    window.removeEventListener(BID_RESULTS_EVENT_NAME, listener)
-  }
+  return () => undefined
 }
 
 export function subscribePrbUpdates(callback: () => void) {
@@ -900,9 +835,7 @@ export function saveBidResult(record: Omit<BidResultRecord, "id" | "createdAt" |
     ? items.map((item) => (item.id === targetId ? nextRecord : item))
     : [nextRecord, ...items]
 
-  writeStoredBidResults(nextItems)
-  writeDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY, readDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY).filter((item) => item !== targetId))
-  emitBidResultsUpdate()
+  replaceBidResults(nextItems)
 
   return nextRecord
 }
@@ -913,12 +846,7 @@ export function deleteBidResult(id: string) {
   if (!existing) return { status: "not_found" as const }
 
   const remainingStored = items.filter((item) => item.id !== id)
-  const deletedIds = new Set(readDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY))
-  deletedIds.add(id)
-
-  writeStoredBidResults(remainingStored)
-  writeDeletedIds(DELETED_BID_RESULT_IDS_STORAGE_KEY, [...deletedIds])
-  emitBidResultsUpdate()
+  replaceBidResults(remainingStored)
 
   return { status: "deleted" as const, bidResult: existing }
 }

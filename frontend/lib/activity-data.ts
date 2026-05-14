@@ -29,6 +29,7 @@ export type ActivityRecord = {
 
 export type QuotationRecord = {
   id: string
+  workflowId?: number
   requestId?: string
   refNumber?: string
   date: string

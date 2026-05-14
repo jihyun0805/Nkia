@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import { formatAttachmentSize } from "@/lib/attachments"
 import { toast } from "@/hooks/use-toast"
+import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, resolveWorkflowApproverId } from "@/lib/workflow-backend"
 import {
   type ActivityAttachment,
   type ActivityCategory,
@@ -47,7 +48,6 @@ import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backen
 import { deleteBackendQuotationRecord, loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
 import {
   approveQuotationStep,
-  deleteQuotation,
   deleteQuotationVersion,
   getQuotations,
   rejectQuotationStep,
@@ -305,16 +305,11 @@ export default function ActivityDetailPage() {
           description: `${id} 견적서가 삭제되었습니다.`,
         })
         router.push("/activity")
-        return
-      } catch {
-        const deleted = deleteQuotation(id)
-        if (!deleted) return
-
+      } catch (error) {
         toast({
-          title: "견적 삭제 완료",
-          description: `${id} 견적서가 삭제되었습니다.`,
+          title: "견적 삭제 실패",
+          description: error instanceof Error ? error.message : "백엔드에서 견적서를 삭제하지 못했습니다.",
         })
-        router.push("/activity")
       }
     })()
   }
@@ -359,27 +354,59 @@ export default function ActivityDetailPage() {
   const handleApproveQuotation = () => {
     if (!quotationItem || !canActOnApprovalStep) return
 
-    const updated = approveQuotationStep(quotationItem.id)
-    if (!updated) return
-
     scrollToTop()
-    toast({
-      title: "견적 승인 완료",
-      description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되었습니다.`,
-    })
+    void (async () => {
+      try {
+        if (quotationItem.workflowId) {
+          const users = await loadBackendUsers()
+          const nextStep = quotationApprovalProcess.steps[quotationApprovalProcess.currentStepIndex + 1] ?? null
+          const nextApproverId = nextStep ? resolveWorkflowApproverId(nextStep.assignee, users) : null
+
+          await approveBackendWorkflow(quotationItem.workflowId, {
+            nextApproverId,
+          })
+        }
+
+        const updated = approveQuotationStep(quotationItem.id)
+        if (!updated) return
+
+        toast({
+          title: "견적 승인 완료",
+          description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되었습니다.`,
+        })
+      } catch (error) {
+        toast({
+          title: "견적 승인 실패",
+          description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
+        })
+      }
+    })()
   }
 
   const handleRejectQuotation = () => {
     if (!quotationItem || !canActOnApprovalStep) return
 
-    const updated = rejectQuotationStep(quotationItem.id)
-    if (!updated) return
-
     scrollToTop()
-    toast({
-      title: "견적 반려 완료",
-      description: `${activeApprovalStep?.label ?? "현재 단계"} 반려가 처리되었습니다.`,
-    })
+    void (async () => {
+      try {
+        if (quotationItem.workflowId) {
+          await rejectBackendWorkflow(quotationItem.workflowId)
+        }
+
+        const updated = rejectQuotationStep(quotationItem.id)
+        if (!updated) return
+
+        toast({
+          title: "견적 반려 완료",
+          description: `${activeApprovalStep?.label ?? "현재 단계"} 반려가 처리되었습니다.`,
+        })
+      } catch (error) {
+        toast({
+          title: "견적 반려 실패",
+          description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
+        })
+      }
+    })()
   }
 
   const handleOpenQuotationDelete = () => {

@@ -28,7 +28,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
-import { readFileAsStoredAttachment, type StoredFileAttachment } from "@/lib/attachments"
+import { type StoredFileAttachment } from "@/lib/attachments"
 import { findingStatuses, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
 import {
   buildCompanyCode,
@@ -64,8 +64,6 @@ type ContactDraft = {
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
 }
-type AttachmentDraft = StoredFileAttachment
-
 function createEmptyContactDraft(): ContactDraft {
   return {
     name: "",
@@ -290,7 +288,6 @@ export function FindingCategoryNewPageView({
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
-  const [attachments, setAttachments] = useState<AttachmentDraft[]>([])
   const [rfpSummaryLoadingId, setRfpSummaryLoadingId] = useState<string | null>(null)
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const rfpInputRef = useRef<HTMLInputElement | null>(null)
@@ -440,21 +437,6 @@ export function FindingCategoryNewPageView({
 
   const handleDeleteRfpAttachment = (attachmentId: string) => {
     setRfpAttachments((prev) => prev.filter((attachment) => attachment.id !== attachmentId))
-  }
-
-  const handleAttachmentChange = async (files: FileList | null | undefined) => {
-    const selectedFiles = Array.from(files ?? [])
-    if (selectedFiles.length === 0) return
-
-    try {
-      const nextAttachments = await Promise.all(selectedFiles.map((file) => readFileAsStoredAttachment(file)))
-      setAttachments((prev) => [...prev, ...nextAttachments])
-    } catch (error) {
-      toast({
-        title: "첨부파일 등록 실패",
-        description: error instanceof Error ? error.message : "첨부파일을 다시 확인해주십시오.",
-      })
-    }
   }
 
   const handleSubmit = () => {
@@ -818,34 +800,6 @@ export function FindingCategoryNewPageView({
                         </section>
                       ))}
                     </div>
-                  </section>
-
-                  <section className="space-y-2">
-                    <Label>첨부파일</Label>
-                    <Input
-                      type="file"
-                      multiple
-                      onChange={(event) => {
-                        void handleAttachmentChange(event.target.files)
-                        event.target.value = ""
-                      }}
-                    />
-                    {attachments.length > 0 ? (
-                      <div className="space-y-2 rounded-md border border-border p-3">
-                        {attachments.map((attachment) => (
-                          <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                            <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                              {attachment.name}
-                            </a>
-                            <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                              삭제
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <Input readOnly value="등록된 첨부파일이 없습니다." />
-                    )}
                   </section>
 
                   <div className="flex justify-end gap-2 border-t pt-6">
@@ -1469,34 +1423,6 @@ export function FindingCategoryNewPageView({
                       </section>
                     ))}
                   </div>
-                </section>
-
-                <section className="space-y-2">
-                  <Label>첨부파일</Label>
-                  <Input
-                    type="file"
-                    multiple
-                    onChange={(event) => {
-                      void handleAttachmentChange(event.target.files)
-                      event.target.value = ""
-                    }}
-                  />
-                  {attachments.length > 0 ? (
-                    <div className="space-y-2 rounded-md border border-border p-3">
-                      {attachments.map((attachment) => (
-                        <div key={attachment.id} className="flex items-center justify-between gap-3 text-sm">
-                          <a href={attachment.dataUrl} download={attachment.name} className="truncate text-primary hover:underline">
-                            {attachment.name}
-                          </a>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}>
-                            삭제
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <Input readOnly value="등록된 첨부파일이 없습니다." />
-                  )}
                 </section>
 
                 <div className="flex justify-end gap-2 border-t pt-6">
