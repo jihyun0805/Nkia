@@ -258,6 +258,14 @@ async function loadCompanies(type: "CUSTOMER" | "PARTNER") {
   return payload.content ?? [];
 }
 
+async function findCompanyByCode(type: "CUSTOMER" | "PARTNER", code: string) {
+  const normalizedCode = code.trim();
+  if (!normalizedCode) return null;
+
+  const companies = await loadCompanies(type);
+  return companies.find((company) => company.code?.trim() === normalizedCode) ?? null;
+}
+
 async function loadCompanyManagers(companyId: number) {
   const payload = await fetchList<PageResponse<CompanyManagerSummaryResponse>>(`${getBackendApiBaseUrl()}/companies/${companyId}/managers?size=2000`, "회사 담당자 목록을 불러오지 못했습니다.");
   return payload.content ?? [];
@@ -444,7 +452,28 @@ export async function createBackendCompany(input: {
     }),
   });
 
-  return normalizeResponseMessage<number>(response, "회사를 등록하지 못했습니다.");
+  const payload = (await response.json().catch(() => null)) as ApiResponse<number> | null;
+  const fallbackMessage = "회사를 등록하지 못했습니다.";
+
+  if (!response.ok) {
+    throw new Error(payload?.message || fallbackMessage);
+  }
+
+  const isSuccess = payload?.result === "SUCCESS" || payload?.success === true;
+  if (!isSuccess) {
+    throw new Error(payload?.message || fallbackMessage);
+  }
+
+  if (typeof payload?.data === "number") {
+    return payload.data;
+  }
+
+  const created = await findCompanyByCode(input.companyType, input.code);
+  if (typeof created?.id === "number") {
+    return created.id;
+  }
+
+  throw new Error("회사 등록은 완료됐지만 생성된 회사 ID를 확인하지 못했습니다.");
 }
 
 export async function updateBackendCompany(

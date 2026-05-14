@@ -37,6 +37,7 @@ import {
   createBackendCompany,
   createBackendCompanyManager,
   createBackendProjectOpportunity,
+  deleteBackendCompany,
   loadBackendFindingData,
   mapCustomerSector,
   mapPartnerCategory,
@@ -157,6 +158,22 @@ function createCompanyManagerPayload(params: {
     position: params.contact.position.trim() || undefined,
     role: params.contact.duty.trim() || undefined,
   }
+}
+
+function validateCompanyManagers(contacts: ContactDraft[]) {
+  for (let index = 0; index < contacts.length; index += 1) {
+    const contact = contacts[index]
+    const email = contact.email.trim()
+    const mobilePhone = contact.mobilePhone.trim()
+
+    if (!contact.name.trim()) return `${index + 1}번째 담당자명을 입력해주세요.`
+    if (!mobilePhone) return `${index + 1}번째 담당자 휴대전화를 입력해주세요.`
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return `${index + 1}번째 담당자 이메일 형식이 올바르지 않습니다.`
+    }
+  }
+
+  return null
 }
 
 function getCustomerDecisionContacts(customer: CustomerRecord | null): CustomerContact[] {
@@ -453,11 +470,19 @@ export function FindingCategoryNewPageView({
       return
     }
 
+<<<<<<< Updated upstream
     const contactValidationMessage = validateManagerContacts(filledContacts)
     if (contactValidationMessage) {
       toast({
         title: "담당자 입력 확인",
         description: contactValidationMessage,
+=======
+    const managerValidationMessage = validateCompanyManagers(filledContacts)
+    if (managerValidationMessage) {
+      toast({
+        title: "고객사 등록 확인",
+        description: managerValidationMessage,
+>>>>>>> Stashed changes
       })
       return
     }
@@ -470,6 +495,7 @@ export function FindingCategoryNewPageView({
 
     setSubmitting(true)
     void (async () => {
+      let createdCompanyId: number | null = null
       try {
         const code = buildCompanyCode("CUS")
         const companyId = await createBackendCompany({
@@ -480,6 +506,7 @@ export function FindingCategoryNewPageView({
           sector: mapCustomerSector(customerGroup),
           address,
         })
+        createdCompanyId = companyId
 
         for (let index = 0; index < filledContacts.length; index += 1) {
           await createBackendCompanyManager(
@@ -498,6 +525,13 @@ export function FindingCategoryNewPageView({
         })
         router.push(`/finding/customers/${code}?tab=customers`)
       } catch (error) {
+        if (createdCompanyId != null) {
+          try {
+            await deleteBackendCompany(createdCompanyId)
+          } catch {
+            // Keep the original registration error visible to the user.
+          }
+        }
         toast({
           title: "고객사 등록 실패",
           description: error instanceof Error ? error.message : "등록에 실패했습니다.",
@@ -521,11 +555,19 @@ export function FindingCategoryNewPageView({
       return
     }
 
+<<<<<<< Updated upstream
     const contactValidationMessage = validateManagerContacts(filledContacts)
     if (contactValidationMessage) {
       toast({
         title: "담당자 입력 확인",
         description: contactValidationMessage,
+=======
+    const managerValidationMessage = validateCompanyManagers(filledContacts)
+    if (managerValidationMessage) {
+      toast({
+        title: "협력사 등록 확인",
+        description: managerValidationMessage,
+>>>>>>> Stashed changes
       })
       return
     }
@@ -541,6 +583,7 @@ export function FindingCategoryNewPageView({
 
     setSubmitting(true)
     void (async () => {
+      let createdCompanyId: number | null = null
       try {
         const code = buildCompanyCode("PTN")
         const companyId = await createBackendCompany({
@@ -551,6 +594,7 @@ export function FindingCategoryNewPageView({
           category: mapPartnerCategory(partnerType),
           address,
         })
+        createdCompanyId = companyId
 
         for (let index = 0; index < filledContacts.length; index += 1) {
           await createBackendCompanyManager(
@@ -569,6 +613,13 @@ export function FindingCategoryNewPageView({
         })
         router.push("/finding?tab=partners")
       } catch (error) {
+        if (createdCompanyId != null) {
+          try {
+            await deleteBackendCompany(createdCompanyId)
+          } catch {
+            // Keep the original registration error visible to the user.
+          }
+        }
         toast({
           title: "협력사 등록 실패",
           description: error instanceof Error ? error.message : "등록에 실패했습니다.",

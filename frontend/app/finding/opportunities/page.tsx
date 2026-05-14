@@ -120,11 +120,7 @@ export default function FindingOpportunitiesPage() {
                         key={opp.id}
                         type="button"
                         className="min-h-[168px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
-                        onClick={() =>
-                          router.push(
-                            `/activity/customers/${encodeURIComponent(opp.customerCode)}?opportunityId=${encodeURIComponent(opp.id)}`,
-                          )
-                        }
+                        onClick={() => router.push(`/finding/opportunities/${encodeURIComponent(opp.id)}?tab=opportunities`)}
                       >
                         <div className="flex h-full flex-col justify-between">
                           <div>
