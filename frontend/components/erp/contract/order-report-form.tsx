@@ -10,6 +10,7 @@ import { OrderDetailTables } from "./order/OrderDetailTables";
 import { orderReportApi, type OrderReportRequest } from "@/lib/api/contract-api";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { ProjectOpportunitySelector } from "@/components/erp/contract/order/ProjectOpportunitySelector";
 
 interface OrderReportFormProps {
   onSuccess: () => void;
@@ -26,19 +27,9 @@ interface OrderReportFormProps {
 
 export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderReportFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // 고객사(코드), 사업기회(코드)가 등록되지 않았다면 수주보고 등록 진행 불가
-  if (!inheritedData?.opportunityId && !inheritedData?.projectOpportunityId) {
-    return (
-      <div className="bg-card rounded-lg border p-12 flex flex-col items-center justify-center space-y-4 min-h-[300px]">
-        <p className="text-amber-600 font-medium">사업기회 정보가 필요합니다.</p>
-        <p className="text-sm text-muted-foreground">먼저 사업기회를 선택하거나 등록해주세요.</p>
-        <Button variant="outline" onClick={onCancel}>
-          돌아가기
-        </Button>
-      </div>
-    );
-  }
+  const [selectedOppId, setSelectedOppId] = useState<number | null>(
+    inheritedData?.projectOpportunityId ?? (inheritedData?.opportunityId ? parseInt(inheritedData.opportunityId.replace(/\D/g, "")) : null),
+  );
 
   const methods = useForm({
     defaultValues: {
@@ -66,11 +57,22 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderRep
     },
   });
 
+  const handleSelectOpportunity = (opp: any) => {
+    setSelectedOppId(opp.backendId);
+    methods.reset({
+      ...methods.getValues(),
+      projectName: opp.name,
+      finalCustomer: { name: opp.customer },
+      contractPartner: { name: opp.customer },
+      // 기타 매핑 필요한 필드
+    });
+  };
+
   const onSubmit = async (formData: any) => {
-    const projectOpportunityId = inheritedData?.projectOpportunityId ?? (inheritedData?.opportunityId ? parseInt(inheritedData.opportunityId.replace(/\D/g, "")) : undefined);
+    const projectOpportunityId = selectedOppId;
 
     if (!projectOpportunityId) {
-      toast.error("사업기회 ID를 확인할 수 없습니다.");
+      toast.error("사업기회를 선택해주세요.");
       return;
     }
 
@@ -156,6 +158,9 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData }: OrderRep
 
   return (
     <FormProvider {...methods}>
+      <div className="mb-6">
+        <ProjectOpportunitySelector onSelect={handleSelectOpportunity} selectedId={selectedOppId || undefined} />
+      </div>
       <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-8 bg-card rounded-lg border p-6">
         <OrderBasicSection />
         <OrderContractSection />

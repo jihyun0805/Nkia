@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,9 +24,20 @@ public class PurchaseController {
 
     @Operation(summary = "매입계약 목록 조회")
     @GetMapping
-    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PURCHASE', 'READ')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PURCHASE_CONTRACT', 'READ')")
     public ResponseEntity<ApiResponse<List<PurchaseResponse>>> getLicenses() {
         List<PurchaseResponse> response = purchaseService.getPurchases();
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "매입계약 상세 조회")
+    @GetMapping("/{purchaseId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PURCHASE_CONTRACT', 'READ')")
+    public ResponseEntity<ApiResponse<PurchaseResponse>> getPurchase(
+            @PathVariable("purchaseId") Long purchaseId
+    ) {
+        PurchaseResponse response = purchaseService.getPurchase(purchaseId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

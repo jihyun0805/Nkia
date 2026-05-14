@@ -1,9 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
@@ -14,27 +14,112 @@ import { OrderBasicSection } from "@/components/erp/contract/order/OrderBasicSec
 import { OrderContractSection } from "@/components/erp/contract/order/OrderContractSection";
 import { OrderScopeSection } from "@/components/erp/contract/order/OrderScopeSection";
 import { OrderDetailTables } from "@/components/erp/contract/order/OrderDetailTables";
+import { ProjectOpportunitySelector } from "@/components/erp/contract/order/ProjectOpportunitySelector";
+import { orderReportApi } from "@/lib/api/contract-api";
+import { loadBackendFindingData } from "@/lib/finding-backend";
 
 export default function ContractCategoryNewPage({ params }: { params: Promise<{ category: string }> }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const opportunityId = searchParams.get("opportunityId");
   const unwrappedParams = use(params);
   const category = unwrappedParams.category;
+  const [selectedOppId, setSelectedOppId] = useState<number | null>(opportunityId ? Number(opportunityId) : null);
 
   const form = useForm<OrderReportValues>({
     resolver: zodResolver(orderReportSchema),
     defaultValues: {
       projectName: "",
       totalAmount: "",
+      salesClassification: {
+        ems: "0",
+        emsMaintenance: "0",
+        itg: "0",
+        itgMaintenance: "0",
+        dashboard: "0",
+        ito: "0",
+        aiotion: "0",
+        others: "0",
+        verification: "0",
+      },
+      attachments: {
+        quotation: "N",
+        contract: "N",
+        purchaseOrder: "N",
+        prbReport: "N",
+        others: "",
+      },
     },
   });
 
-  // 프론트엔드 제출 핸들러 (콘솔 확인용 - 백엔드 로직 없음)
-  const onSubmit = (data: OrderReportValues) => {
-    console.log("제출된 수주보고서 데이터:", data);
-    alert("프론트엔드 검증 완료! 콘솔(F12)을 확인하세요.");
+  // 사업기회 데이터 승계 로직 분리
+  const handleSelectOpportunity = (opp: any) => {
+    setSelectedOppId(opp.backendId);
+    form.reset({
+      ...form.getValues(),
+      projectName: opp.name,
+      totalAmount: opp.expectedAmount.replace(/,/g, ""),
+      pmName: opp.registrant,
+      finalCustomer: { name: opp.customer },
+      type: opp.product === "EMS" ? "SOLUTION" : opp.product === "MAINTENANCE" ? "MAINTENANCE" : "SERVICE",
+    });
   };
 
-  // category가 'orders' (수주보고서)일 때만 해당 폼 보여줌
+  // 초기 렌더링 시 쿼리 파라미터가 있으면 데이터 로드
+  useEffect(() => {
+    if (opportunityId && category === "orders") {
+      const fetchOpp = async () => {
+        try {
+          const data = await loadBackendFindingData();
+          const opp = data.opportunities.find((o) => o.backendId === Number(opportunityId));
+          if (opp) {
+            handleSelectOpportunity(opp);
+          }
+        } catch (e) {
+          console.error("Failed to fetch opportunity for inheritance:", e);
+        }
+      };
+      fetchOpp();
+    }
+  }, [opportunityId, category]);
+
+  const onSubmit = async (values: OrderReportValues) => {
+    try {
+      console.log("Submitting Order Report:", values);
+
+      const requestData: any = {
+        type: values.type || "SOLUTION",
+        quotationProvided: values.attachments?.quotation === "Y",
+        contractProvided: values.attachments?.contract === "Y",
+        purchaseOrderProvided: values.attachments?.purchaseOrder === "Y",
+        prbReportProvided: values.attachments?.prbReport === "Y",
+        paymentCondition: values.paymentTerms || "",
+        additionalDocuments: values.attachments?.others || "",
+        channel: values.hasChannel === "Y",
+        codeType: values.codeClassification || "GN",
+        contractDate: values.contractDate || new Array(3).fill(0).map(() => new Date().toISOString().split("T")[0])[0],
+        contractStartDate: values.startDate || null,
+        contractEndDate: values.endDate || null,
+        contractPeriodMonths: 0,
+        scopeOfWork: values.businessScope || "",
+        remarks: values.specialNotes || "",
+        projectOpportunityId: selectedOppId || 0,
+      };
+
+      const res = await orderReportApi.createOrderReport(requestData);
+
+      if (res.success || res.result === "SUCCESS") {
+        alert("수주보고서가 성공적으로 등록되었습니다.");
+        router.push("/contract");
+      } else {
+        alert(`등록 실패: ${res.message}`);
+      }
+    } catch (e: any) {
+      console.error("Submission error:", e);
+      alert(`오류가 발생했습니다: ${e.message}`);
+    }
+  };
+
   const isOrderReport = category === "orders";
 
   return (
@@ -42,36 +127,32 @@ export default function ContractCategoryNewPage({ params }: { params: Promise<{ 
       <Card className="max-w-5xl mx-auto shadow-md border-0">
         <CardHeader className="border-b bg-white rounded-t-xl pb-6">
           <CardTitle className="text-2xl font-bold">{isOrderReport ? "수주보고서 등록" : "계약 등록"}</CardTitle>
-          <p className="text-sm text-muted-foreground mt-2"></p>
         </CardHeader>
 
         <CardContent className="pt-8 bg-white rounded-b-xl">
           {isOrderReport ? (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
-                {/* 기본 정보 및 매출분류 */}
-                <OrderBasicSection />
+            <>
+              {/* 사업기회 선택 섹션 */}
+              <ProjectOpportunitySelector onSelect={handleSelectOpportunity} selectedId={selectedOppId || undefined} />
 
-                {/* 계약 및 담당자 일정 정보 */}
-                <OrderContractSection />
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
+                  <OrderBasicSection />
+                  <OrderContractSection />
+                  <OrderScopeSection />
+                  <OrderDetailTables />
 
-                {/* 사업범위 및 첨부 */}
-                <OrderScopeSection />
-
-                {/* 세부 내역 테이블 (라이선스, 용역 등) */}
-                <OrderDetailTables />
-
-                {/* 하단 버튼 영역 */}
-                <div className="flex justify-end gap-3 border-t pt-8 mt-12">
-                  <Button type="button" variant="outline" className="w-24" onClick={() => router.back()}>
-                    취소
-                  </Button>
-                  <Button type="submit" className="w-24">
-                    등록
-                  </Button>
-                </div>
-              </form>
-            </Form>
+                  <div className="flex justify-end gap-3 border-t pt-8 mt-12">
+                    <Button type="button" variant="outline" className="w-24" onClick={() => router.back()}>
+                      취소
+                    </Button>
+                    <Button type="submit" className="w-24">
+                      등록
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </>
           ) : (
             <div className="text-center py-20 text-muted-foreground">수주보고서(orders) 외의 다른 계약 카테고리 폼 영역입니다.</div>
           )}
