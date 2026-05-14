@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { type OrderReportResponse, type VisitCycle } from "@/lib/api/contract-api";
+import { type OrderReportResponse, type VisitCycle, orderReportApi } from "@/lib/api/contract-api";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 interface OrderReportDetailProps {
   report: OrderReportResponse;
@@ -48,6 +52,21 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
   const maintenanceDetails = r.maintenances || [];
   const otherSalesDetails = r.others || [];
   const purchaseDetails = r.purchases || [];
+  const router = useRouter();
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm("정말로 이 수주보고서를 삭제하시겠습니까?")) return;
+    setIsDeleting(true);
+    try {
+      await orderReportApi.deleteOrderReport(r.id);
+      toast.success("수주보고서가 삭제되었습니다.");
+      router.push("/contract");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "삭제에 실패했습니다.");
+      setIsDeleting(false);
+    }
+  };
 
   const Col10 = () => (
     <colgroup>
@@ -438,6 +457,13 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
       <div className="flex justify-end gap-2">
         <Button variant="outline" asChild>
           <Link href="/contract">목록으로 돌아가기</Link>
+        </Button>
+        <Button variant="outline" onClick={() => router.push(`/contract/orders/${r.id}/edit`)}>
+          수정
+        </Button>
+        <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+          {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          삭제
         </Button>
       </div>
     </div>
