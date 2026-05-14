@@ -30,7 +30,6 @@ import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from
 import { findingStatuses, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
-  buildFallbackManagerEmail,
   createBackendCompanyManager,
   deleteBackendCompanyManager,
   loadBackendCompanyManagers,
@@ -558,7 +557,7 @@ export default function FindingEditPage() {
             const contact = filledContacts[index]
             const payload = {
               name: contact.name.trim(),
-              email: contact.email?.trim() || buildFallbackManagerEmail(currentPartner.id, contact.name, index),
+              email: contact.email?.trim() || "",
               mobilePhone: contact.mobilePhone?.trim() || undefined,
               officePhone: contact.landlinePhone?.trim() || undefined,
               department: contact.department?.trim() || undefined,

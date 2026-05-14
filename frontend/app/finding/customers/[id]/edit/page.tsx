@@ -27,7 +27,6 @@ import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusiness
 import { type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
-  buildFallbackManagerEmail,
   loadBackendCompanyManagers,
   loadBackendFindingData,
   mapCustomerSector,
@@ -234,7 +233,7 @@ function CustomerEditPageContent() {
         const contact = filledContacts[index]
         const payload = {
           name: contact.name.trim(),
-          email: contact.email?.trim() || buildFallbackManagerEmail(companyCode, contact.name, index),
+          email: contact.email?.trim() || "",
           mobilePhone: contact.mobilePhone?.trim() || undefined,
           officePhone: contact.landlinePhone?.trim() || undefined,
           department: contact.department?.trim() || undefined,

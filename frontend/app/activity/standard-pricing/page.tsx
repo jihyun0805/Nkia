@@ -20,12 +20,13 @@ import {
 } from "@/components/ui/breadcrumb"
 import {
   standardPriceNotes,
-  standardPriceRecords,
   type StandardPriceRecord,
 } from "@/lib/activity-data"
 import { Plus, Trash2 } from "lucide-react"
 
 const STANDARD_PRICE_STORAGE_KEY = "orbis.activity.standardPrices"
+const STANDARD_PRICE_SEED_MIGRATION_KEY = `${STANDARD_PRICE_STORAGE_KEY}.seed-cleared.v1`
+const LEGACY_STANDARD_PRICE_IDS = new Set(["SPR-001", "SPR-002", "SPR-003"])
 
 const standardPriceHeaders = [
   "제품분류\nProduct Class",
@@ -85,10 +86,25 @@ function normalizeRecord(item: Partial<StandardPriceRecord>): StandardPriceRecor
 
 export default function StandardPricingPage() {
   const [isPreferenceReady, setIsPreferenceReady] = useState(false)
-  const [standardPrices, setStandardPrices] = useState<StandardPriceRecord[]>(standardPriceRecords)
+  const [standardPrices, setStandardPrices] = useState<StandardPriceRecord[]>([])
   const [draftRow, setDraftRow] = useState<StandardPriceRecord | null>(null)
 
   useEffect(() => {
+    if (!window.localStorage.getItem(STANDARD_PRICE_SEED_MIGRATION_KEY)) {
+      const savedStandardPrices = window.localStorage.getItem(STANDARD_PRICE_STORAGE_KEY)
+      if (savedStandardPrices) {
+        try {
+          const parsed = JSON.parse(savedStandardPrices)
+          if (Array.isArray(parsed) && parsed.some((item) => item && LEGACY_STANDARD_PRICE_IDS.has(item.id))) {
+            window.localStorage.removeItem(STANDARD_PRICE_STORAGE_KEY)
+          }
+        } catch {
+          window.localStorage.removeItem(STANDARD_PRICE_STORAGE_KEY)
+        }
+      }
+      window.localStorage.setItem(STANDARD_PRICE_SEED_MIGRATION_KEY, "true")
+    }
+
     const savedStandardPrices = window.localStorage.getItem(STANDARD_PRICE_STORAGE_KEY)
     if (savedStandardPrices) {
       try {
@@ -97,7 +113,7 @@ export default function StandardPricingPage() {
           setStandardPrices(parsed.map((item) => normalizeRecord(item)))
         }
       } catch {
-        setStandardPrices(standardPriceRecords)
+        setStandardPrices([])
       }
     }
 

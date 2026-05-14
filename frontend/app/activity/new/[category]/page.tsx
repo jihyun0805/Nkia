@@ -28,7 +28,6 @@ import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
-import { getPresalesUsers } from "@/lib/admin-data"
 import {
   type CustomerRecord,
   getCustomerByCode,
@@ -36,6 +35,7 @@ import {
   getOpportunitiesByCustomerName,
   hasRegisteredCustomer,
 } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
 import { X } from "lucide-react"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
@@ -50,7 +50,6 @@ function ActivityCategoryNewPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const category = params.category
-  const presalesUsers = getPresalesUsers()
   const linkedRequestId = searchParams.get("requestId") ?? ""
   const [activityCustomer, setActivityCustomer] = useState("")
   const [activityCustomerCode, setActivityCustomerCode] = useState("")
@@ -75,7 +74,7 @@ function ActivityCategoryNewPageContent() {
     date: "",
     type: "",
     requester: "",
-    receiver: presalesUsers[0]?.name ?? "",
+    receiver: "",
     customerCode: "",
     customer: "",
     opportunityCode: "",
@@ -189,15 +188,32 @@ function ActivityCategoryNewPageContent() {
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(form.customer) : []
   const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
 
-  const ensureRegisteredCustomer = () => {
-    if (hasRegisteredCustomer(targetCustomer)) return true
+  const matchesCustomerName = (customers: CustomerRecord[], customerName: string) => {
+    const normalized = customerName.trim().toLowerCase()
+    if (!normalized) return false
+
+    return customers.some((customer) => {
+      if (customer.name.trim().toLowerCase() === normalized) return true
+      return customer.aliases?.some((alias) => alias.trim().toLowerCase() === normalized) ?? false
+    })
+  }
+
+  const ensureRegisteredCustomer = async () => {
+    if (hasRegisteredCustomer(targetCustomer) || getCustomerByName(targetCustomer)) return true
+
+    try {
+      const backendFindingData = await loadBackendFindingData()
+      if (matchesCustomerName(backendFindingData.customers, targetCustomer)) return true
+    } catch {
+      // ignore and fall through to the alert
+    }
 
     setIsCustomerAlertOpen(true)
     return false
   }
 
   const handleSubmit = async () => {
-    if (!ensureRegisteredCustomer()) return
+    if (!(await ensureRegisteredCustomer())) return
 
     if (category === "quotations") {
       const normalized = normalizeQuotationForm(quotationForm)
@@ -246,6 +262,8 @@ function ActivityCategoryNewPageContent() {
           customerName: activityCustomer,
           opportunityName,
           opportunityCode: activityOpportunityCode,
+          registrant: activityRegistrant,
+          requester: activityRequester,
           activityMode: activityForm.activityMode,
           activityContent: activityForm.activityContent,
           content: activityForm.content,
@@ -263,10 +281,11 @@ function ActivityCategoryNewPageContent() {
           description: `${created.customer} 영업활동이 등록되었습니다.`,
         })
         router.push(`/activity/activities/${created.id}`)
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "백엔드에 영업활동을 저장하지 못했습니다."
         toast({
           title: "영업활동 등록 실패",
-          description: "백엔드에 영업활동을 저장하지 못했습니다.",
+          description: message,
         })
         return
       }
@@ -287,10 +306,11 @@ function ActivityCategoryNewPageContent() {
           description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
         })
         router.push(`/activity/requests/${created.id}`)
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "백엔드에 활동 요청을 저장하지 못했습니다."
         toast({
           title: "활동 요청 등록 실패",
-          description: "백엔드에 활동 요청을 저장하지 못했습니다.",
+          description: message,
         })
         return
       }
@@ -418,18 +438,12 @@ function ActivityCategoryNewPageContent() {
                       </div>
                       <div className="space-y-2">
                         <Label>담당자 *</Label>
-                        <Select value={form.receiver} onValueChange={(value) => setForm((prev) => ({ ...prev, receiver: value }))}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="담당자를 선택하세요" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {presalesUsers.map((user) => (
-                              <SelectItem key={user.id} value={user.name}>
-                                {user.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          value={form.receiver}
+                          onChange={(event) => setForm((prev) => ({ ...prev, receiver: event.target.value }))}
+                          placeholder="담당자 이름을 직접 입력하세요"
+                        />
+                        <p className="text-sm text-muted-foreground">백엔드 사용자 이름과 일치해야 저장됩니다.</p>
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">

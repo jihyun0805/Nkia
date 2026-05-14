@@ -131,6 +131,18 @@ async function parseApiResponse<T>(response: Response, fallbackMessage: string):
   return payload.data
 }
 
+async function parseVoidApiResponse(response: Response, fallbackMessage: string): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<null> | null
+
+  if (!response.ok) {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+
+  if (payload?.result !== "SUCCESS") {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+}
+
 function writeStorage<T>(key: string, value: T) {
   if (!isBrowser()) return
   window.localStorage.setItem(key, JSON.stringify(value))
@@ -664,7 +676,7 @@ export async function deleteBackendQuotationRecord(id: string) {
     credentials: "include",
   })
 
-  await parseApiResponse<ApiResponseVoid>(response, "견적서를 삭제하지 못했습니다.")
+  await parseVoidApiResponse(response, "견적서를 삭제하지 못했습니다.")
 
   const localIndex = loadLocalQuotationIndex()
   const remaining = Array.from(localIndex.values()).filter((item) => item.id !== id)

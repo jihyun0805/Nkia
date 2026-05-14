@@ -33,7 +33,6 @@ import { findingStatuses, type CustomerContact, type CustomerRecord, type Opport
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   buildCompanyCode,
-  buildFallbackManagerEmail,
   createBackendCompany,
   createBackendCompanyManager,
   createBackendProjectOpportunity,
@@ -151,7 +150,7 @@ function createCompanyManagerPayload(params: {
 }) {
   return {
     name: params.contact.name.trim(),
-    email: params.contact.email.trim() || buildFallbackManagerEmail(params.companyCode, params.contact.name, params.index),
+    email: params.contact.email.trim(),
     mobilePhone: params.contact.mobilePhone.trim() || undefined,
     officePhone: params.contact.landlinePhone.trim() || undefined,
     department: params.contact.department.trim() || undefined,
