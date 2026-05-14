@@ -47,7 +47,10 @@ public enum AlarmType {
     CUSTOMER_SUPPORT_REJECTED("고객지원요청 반려"),
 
     BILLING_ISSUE_REQUEST("세금계산서 등록 요청"),
-    BILLING_COLLECTION_REQUEST("수금 확인 요청");
+    BILLING_COLLECTION_REQUEST("수금 확인 요청"),
+
+    FREE_MAINTENANCE_EXPIRY("무상유지보수 계약 종료 알림"),
+    PAID_MAINTENANCE_EXPIRY("유상유지보수 계약 종료 알림");
 
     private final String description;
 }
