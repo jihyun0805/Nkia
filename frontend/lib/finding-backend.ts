@@ -203,6 +203,10 @@ function formatAmount(value?: number | string | null) {
   return value || "-"
 }
 
+function buildCustomerRecordCode(company?: CompanySummaryResponse) {
+  return company?.code ?? (company?.id != null ? `CUS-${company.id}` : "")
+}
+
 function toContacts(managers: CompanyManagerSummaryResponse[]): CustomerContact[] {
   return managers
     .map((manager) => ({
@@ -315,7 +319,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       id: item.opportunityCode ?? String(item.id ?? `OPP-${index + 1}`),
       backendId: item.id,
       createdAt: "",
-      customerCode: item.customerCompanyId != null ? (customerLookup.get(item.customerCompanyId)?.code ?? "") : "",
+      customerCode: item.customerCompanyId != null ? buildCustomerRecordCode(customerLookup.get(item.customerCompanyId)) : "",
       partnerCode: "-",
       partnerCodes: [],
       name: item.opportunityName ?? "-",
@@ -343,7 +347,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
   const customers: CustomerRecord[] = customerCompanies.map((company) => {
     const managers = customerManagersByCode.get(company.code ?? "") ?? []
     return {
-      id: company.code ?? `CUS-${company.id ?? ""}`,
+      id: buildCustomerRecordCode(company),
       backendId: company.id,
       name: company.name ?? "-",
       category: sectorLabel(company.sector),

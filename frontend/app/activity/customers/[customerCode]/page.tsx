@@ -27,6 +27,7 @@ import { type ActivityRecord, getActivityDisplayType } from "@/lib/activity-data
 import { formatAttachmentSize } from "@/lib/attachments"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
 import { deleteOpportunity, getFindingFields, getOpportunities, getCustomerByCode } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
 import type { CustomerRecord, OpportunityRecord } from "@/lib/finding-data"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Mail, Phone, Users } from "lucide-react"
@@ -87,8 +88,23 @@ export default function ActivityCustomerDetailPage() {
   }, [])
 
   useEffect(() => {
-    setCustomer(getCustomerByCode(customerCode))
-    setOpportunities(getOpportunities())
+    let cancelled = false
+
+    loadBackendFindingData()
+      .then((data) => {
+        if (cancelled) return
+        setCustomer(data.customers.find((item) => item.id === customerCode) ?? null)
+        setOpportunities(data.opportunities)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCustomer(getCustomerByCode(customerCode))
+        setOpportunities(getOpportunities())
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [customerCode])
 
   const customerActivities = useMemo(
