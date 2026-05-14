@@ -3,6 +3,7 @@ import { customInstance } from "./customAxios";
 // 공통
 export interface ApiResponse<T> {
   success: boolean;
+  result?: string;
   message: string;
   data: T;
 }
