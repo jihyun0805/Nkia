@@ -146,7 +146,7 @@ export const projectApi = {
   /** 예상 매출액 조회 */
   getAnnualRevenue: (year?: number) =>
     customInstance<ApiResponse<EstimatedRevenueResponse[]>>({
-      url: "/api/v1/projects/revenues/annual",
+      url: "/projects/revenues/annual",
       method: "GET",
       params: year ? { year } : undefined,
     }),
@@ -154,21 +154,21 @@ export const projectApi = {
   /** 사업 전체 목록 조회 */
   getProjects: () =>
     customInstance<ApiResponse<ProjectListResponse[]>>({
-      url: "/api/v1/projects",
+      url: "/projects",
       method: "GET",
     }),
 
   /** 사업 상세 조회 */
   getProject: (projectId: number) =>
     customInstance<ApiResponse<ProjectDetailResponse>>({
-      url: `/api/v1/projects/${projectId}`,
+      url: `/projects/${projectId}`,
       method: "GET",
     }),
 
   /** 사업 등록 (수주보고서 ID 기반) */
   createProject: (data: ProjectCreateRequest) =>
     customInstance<ApiResponse<number>>({
-      url: "/api/v1/projects/register",
+      url: "/projects/register",
       method: "POST",
       data,
     }),
@@ -176,7 +176,7 @@ export const projectApi = {
   /** 사업 + 결과보고 통합 수정 */
   updateProjectWithReport: (projectId: number, data: ProjectCombinedUpdateRequest) =>
     customInstance<ApiResponse<ProjectDetailResponse>>({
-      url: `/api/v1/projects/${projectId}/with-report`,
+      url: `/projects/${projectId}/with-report`,
       method: "PUT",
       data,
     }),
@@ -184,7 +184,7 @@ export const projectApi = {
   /** 사업 삭제 */
   deleteProject: (projectId: number) =>
     customInstance<ApiResponse<null>>({
-      url: `/api/v1/projects/${projectId}`,
+      url: `/projects/${projectId}`,
       method: "DELETE",
     }),
 
@@ -193,28 +193,28 @@ export const projectApi = {
   /** 청구 목록 조회 */
   getBillings: () =>
     customInstance<ApiResponse<BillingListResponse[]>>({
-      url: "/api/v1/projects/billings",
+      url: "/projects/billings",
       method: "GET",
     }),
 
   /** 청구 상세 조회 */
   getBilling: (billingId: number) =>
     customInstance<ApiResponse<BillingDetailResponse>>({
-      url: `/api/v1/projects/billings/${billingId}`,
+      url: `/projects/billings/${billingId}`,
       method: "GET",
     }),
 
   /** 청구 폼 초기 데이터 (수주보고서 ID 기반 자동 채움) */
   getBillingFormInit: (orderReportId: number) =>
     customInstance<ApiResponse<BillingFormInitResponse>>({
-      url: `/api/v1/projects/billings/form-init/${orderReportId}`,
+      url: `/projects/billings/form-init/${orderReportId}`,
       method: "GET",
     }),
 
   /** 세금계산서 발행 요청 등록 */
   createBilling: (data: BillingCreateRequest) =>
     customInstance<ApiResponse<number>>({
-      url: "/api/v1/projects/billings",
+      url: "/projects/billings",
       method: "POST",
       data,
     }),
@@ -222,7 +222,7 @@ export const projectApi = {
   /** 세금계산서 발행 확인 처리 */
   issueBilling: (billingId: number, data: BillingIssueRequest) =>
     customInstance<ApiResponse<null>>({
-      url: `/api/v1/projects/billings/${billingId}/issue`,
+      url: `/projects/billings/${billingId}/issue`,
       method: "POST",
       data,
     }),
@@ -230,7 +230,7 @@ export const projectApi = {
   /** 수금 확인 처리 */
   collectBilling: (billingId: number, data: BillingCollectRequest) =>
     customInstance<ApiResponse<null>>({
-      url: `/api/v1/projects/billings/${billingId}/collect`,
+      url: `/projects/billings/${billingId}/collect`,
       method: "POST",
       data,
     }),
@@ -238,7 +238,7 @@ export const projectApi = {
   /** 청구 정보 수정 */
   updateBilling: (billingId: number, data: BillingUpdateRequest) =>
     customInstance<ApiResponse<BillingDetailResponse>>({
-      url: `/api/v1/projects/billings/${billingId}`,
+      url: `/projects/billings/${billingId}`,
       method: "PUT",
       data,
     }),
@@ -246,7 +246,7 @@ export const projectApi = {
   /** 청구 삭제 */
   deleteBilling: (billingId: number) =>
     customInstance<ApiResponse<null>>({
-      url: `/api/v1/projects/billings/${billingId}`,
+      url: `/projects/billings/${billingId}`,
       method: "DELETE",
     }),
 };
