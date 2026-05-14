@@ -52,7 +52,7 @@ public class BillingHandler implements WorkflowDomainHandler {
                 receiver,
                 AlarmType.BILLING_ISSUE_REQUEST,
                 "세금계산서 발행 요청이 승인되었습니다. 세금계산서를 발행하고 세금계산서를 등록하시겠습니까?",
-                targetId));
+                billingId));
     }
 
     @Override
