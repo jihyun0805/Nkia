@@ -449,7 +449,7 @@ def build_documents(
             elif config.table in {"rfp_analyze_requirement", "rfp_requirement"}:
                 documents.extend(build_current_rfp_requirement_documents(conn=conn, row=row))
             elif config.table == "bid_result":
-                documents.extend(build_current_bid_result_documents(row))
+                documents.extend(build_current_bid_result_documents(row, conn=conn))
             elif config.table == "order_report":
                 documents.extend(build_current_order_report_documents(row, conn=conn))
             elif config.table == "contract":
@@ -758,19 +758,54 @@ def build_current_rfp_requirement_documents(
     return [document] if document is not None else []
 
 
-def build_current_bid_result_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
+def build_current_bid_result_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
     config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "bid_result")
+    enriched = dict(row)
+    if conn is not None:
+        summary = _fetch_opportunity_summary(conn, row.get("project_opportunity_id"))
+        if summary:
+            enriched["opportunity_code"] = summary.get("opportunity_code")
+            enriched["opportunity_name"] = summary.get("opportunity_name")
+            enriched["customer_name"] = summary.get("customer_name")
+    outcome = (enriched.get("bid_outcome") or "").upper()
+    outcome_label = "수주(WIN)" if outcome == "WIN" else ("실주(LOSS)" if outcome == "LOSS" else outcome)
+    enriched["bid_outcome_label"] = outcome_label
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix=f"입찰결과·{outcome_label}" if outcome_label else "입찰결과",
+        fallback_code=enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+    enriched["display_title"] = nice_title
+
     documents: list[dict[str, Any]] = []
-    bid_doc = build_document(config=config, row=row)
+    bid_doc = build_document(
+        config=config,
+        row=enriched,
+        override_title_fields=("display_title", "id"),
+    )
     if bid_doc is not None:
         documents.append(bid_doc)
-    if is_lost_row(row):
+    if is_lost_row(enriched):
+        lost_title = _build_descriptive_title(
+            customer_name=enriched.get("customer_name"),
+            opportunity_name=enriched.get("opportunity_name"),
+            suffix="실주",
+            fallback_code=enriched.get("opportunity_code"),
+            raw_id=row.get("id"),
+        )
+        enriched_lost = dict(enriched)
+        enriched_lost["display_title"] = lost_title
         lost_doc = build_document(
             config=config,
-            row=row,
+            row=enriched_lost,
             override_source_type=SourceType.LOST,
             override_id_fields=("lostCode", "bidResultCode", "bid_result_code", "id"),
-            override_title_fields=("lostCode", "bidResultCode", "id"),
+            override_title_fields=("display_title", "lostCode", "bidResultCode", "id"),
         )
         if lost_doc is not None:
             documents.append(lost_doc)
@@ -1013,10 +1048,39 @@ def build_current_maintenance_documents(
                     cur.execute("ROLLBACK TO SAVEPOINT enrich_maint")
         except Exception:
             pass
+    # 유지보수 유형/상태를 자연어 라벨로 변환 (FREE/PAID/DRAFT 등)
+    raw_type = (enriched.get("type") or "").upper()
+    type_label = "무상 유지보수" if raw_type == "FREE" else ("유상 유지보수" if raw_type == "PAID" else raw_type)
+    enriched["maintenance_type_label"] = type_label
+    raw_status = (enriched.get("status") or "").upper()
+    # DRAFT 는 등록 직후 상태이지만 실제 유지보수 기간이 진행 중이면 운영 중으로 본다
+    today = date.today()
+    start_d = enriched.get("start_date")
+    end_d = enriched.get("end_date")
+    if isinstance(start_d, str):
+        try:
+            start_d = date.fromisoformat(start_d[:10])
+        except Exception:
+            start_d = None
+    if isinstance(end_d, str):
+        try:
+            end_d = date.fromisoformat(end_d[:10])
+        except Exception:
+            end_d = None
+    if start_d and end_d and start_d <= today <= end_d:
+        progress_label = "기간 내 유지보수 진행 중"
+    elif start_d and start_d > today:
+        progress_label = "유지보수 시작 전 (등록 완료)"
+    elif end_d and end_d < today:
+        progress_label = "유지보수 종료"
+    else:
+        progress_label = "유지보수 등록 (DRAFT)"
+    enriched["maintenance_progress_label"] = progress_label
+
     nice_title = _build_descriptive_title(
         customer_name=enriched.get("customer_name"),
         opportunity_name=enriched.get("opportunity_name"),
-        suffix="유지보수",
+        suffix=f"{type_label}·{progress_label}" if type_label else progress_label,
         fallback_code=enriched.get("opportunity_code"),
         raw_id=row.get("id"),
     )
@@ -1178,12 +1242,12 @@ def is_lost_row(row: dict[str, Any]) -> bool:
         normalized = str(explicit_won).strip().lower()
         if normalized in {"false", "f", "0", "n", "no"}:
             return True
-    for key in ("current_status", "order_status", "bid_result", "result_status", "status"):
+    for key in ("current_status", "order_status", "bid_result", "result_status", "status", "bid_outcome"):
         value = row.get(key)
         if value is None:
             continue
         normalized = str(value).strip().lower()
-        if any(token in normalized for token in ("lost", "실주", "탈락", "패")):
+        if any(token in normalized for token in ("lost", "loss", "실주", "탈락", "패")):
             return True
     return False
 
