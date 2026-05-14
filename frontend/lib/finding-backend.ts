@@ -60,6 +60,11 @@ type ProjectOpportunitySummaryResponse = {
   salesRepresentativeName?: string;
   createUserName?: string;
   description?: string;
+  competitionStatus?: string;
+};
+
+type OpportunityDisplayOverride = {
+  competitionStatus?: string;
 };
 
 type OrderReportSummaryResponse = {
@@ -75,6 +80,8 @@ export type FindingBackendData = {
   customers: CustomerRecord[];
   partners: PartnerRecord[];
 };
+
+const opportunityDisplayOverrideStorageKey = "orbis.project-opportunity-display-overrides";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -95,6 +102,43 @@ function normalizeResponseMessage<T>(response: Response, fallbackMessage: string
       }
       return body.data;
     });
+}
+
+function loadOpportunityDisplayOverrides() {
+  if (!isBrowser()) return {} as Record<string, OpportunityDisplayOverride>;
+
+  const stored = window.localStorage.getItem(opportunityDisplayOverrideStorageKey);
+  if (!stored) return {} as Record<string, OpportunityDisplayOverride>;
+
+  try {
+    const parsed = JSON.parse(stored) as Record<string, OpportunityDisplayOverride>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveOpportunityDisplayOverrides(overrides: Record<string, OpportunityDisplayOverride>) {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(opportunityDisplayOverrideStorageKey, JSON.stringify(overrides));
+}
+
+function setOpportunityDisplayOverride(opportunityCode?: string, override?: OpportunityDisplayOverride) {
+  const normalizedCode = opportunityCode?.trim();
+  if (!normalizedCode) return;
+
+  const overrides = loadOpportunityDisplayOverrides();
+  overrides[normalizedCode] = {
+    ...overrides[normalizedCode],
+    ...override,
+  };
+  saveOpportunityDisplayOverrides(overrides);
+}
+
+function getOpportunityDisplayOverride(opportunityCode?: string) {
+  const normalizedCode = opportunityCode?.trim();
+  if (!normalizedCode) return null;
+  return loadOpportunityDisplayOverrides()[normalizedCode] ?? null;
 }
 
 async function normalizeVoidResponse(response: Response, fallbackMessage: string): Promise<void> {
@@ -205,6 +249,78 @@ function stageLabel(value?: string) {
   if (value === "MAINTENANCE") return "유지보수";
   if (value === "POST_SALES") return "사후영업";
   return "-";
+}
+
+function parseOpportunityDescription(description?: string | null) {
+  const normalized = String(description ?? "").trim();
+  if (!normalized || normalized === "-") {
+    return {
+      moduleName: "",
+      issue: "",
+      decisionInfo: "",
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(normalized) as {
+      moduleName?: string
+      issue?: string
+      decisionInfo?: string
+    }
+    if (parsed && typeof parsed === "object") {
+      const moduleName = String(parsed.moduleName ?? "").trim()
+      const issue = String(parsed.issue ?? "").trim()
+      const decisionInfo = String(parsed.decisionInfo ?? "").trim()
+      if (moduleName || issue || decisionInfo) {
+        return {
+          moduleName,
+          issue,
+          decisionInfo,
+        }
+      }
+    }
+  } catch {
+    // Fall back to the legacy free-form format below.
+  }
+
+  const blocks = normalized
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  if (blocks.length === 0) {
+    return {
+      moduleName: "",
+      issue: "",
+      decisionInfo: "",
+    };
+  }
+
+  if (blocks.length === 1) {
+    return {
+      moduleName: "",
+      issue: blocks[0],
+      decisionInfo: "",
+    };
+  }
+
+  const moduleName = blocks[0];
+  const decisionInfo = blocks[blocks.length - 1];
+  const issueBlocks = blocks.slice(1, -1);
+
+  while (issueBlocks.length > 0 && issueBlocks[0] === moduleName) {
+    issueBlocks.shift();
+  }
+
+  while (issueBlocks.length > 0 && issueBlocks[issueBlocks.length - 1] === decisionInfo) {
+    issueBlocks.pop();
+  }
+
+  return {
+    moduleName,
+    issue: issueBlocks.join("\n\n"),
+    decisionInfo,
+  };
 }
 
 function formatAmount(value?: number | string | null) {
@@ -321,6 +437,8 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
 
   const customerLookup = new Map(customerCompanies.map((company) => [company.id ?? -1, company] as const));
   const opportunities: OpportunityRecord[] = projectOpportunities.map((item, index) => {
+    const parsedDescription = parseOpportunityDescription(item.description);
+    const displayOverride = getOpportunityDisplayOverride(item.opportunityCode);
     return {
       id: item.opportunityCode ?? String(item.id ?? `OPP-${index + 1}`),
       backendId: item.id,
@@ -335,12 +453,12 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       partners: [],
       category: "-",
       product: item.projectType ? String(item.projectType) : "-",
-      module: item.projectType ? String(item.projectType) : "-",
+      module: parsedDescription.moduleName || "-",
       expectedAmount: formatAmount(item.expectedBudget),
       expectedDate: item.expectedBidDate ?? "-",
-      issue: item.description ?? "-",
-      competition: "-",
-      decisionInfo: item.createUserName ?? "-",
+      issue: parsedDescription.issue || "-",
+      competition: displayOverride?.competitionStatus?.trim() || item.competitionStatus || "-",
+      decisionInfo: parsedDescription.decisionInfo || item.createUserName || "-",
       partnerType: "-",
       partnerContact: "-",
       partnerPhone: "-",
@@ -610,7 +728,11 @@ export async function createBackendProjectOpportunity(input: {
     }),
   });
 
-  return normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 등록하지 못했습니다.");
+  const saved = await normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 등록하지 못했습니다.");
+  setOpportunityDisplayOverride(saved.opportunityCode, {
+    competitionStatus: input.competitionStatus,
+  });
+  return saved;
 }
 
 export async function updateBackendProjectOpportunity(
@@ -645,7 +767,11 @@ export async function updateBackendProjectOpportunity(
     }),
   });
 
-  return normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 수정하지 못했습니다.");
+  const saved = await normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 수정하지 못했습니다.");
+  setOpportunityDisplayOverride(saved.opportunityCode, {
+    competitionStatus: input.competitionStatus,
+  });
+  return saved;
 }
 
 export async function deleteBackendProjectOpportunity(id: number) {

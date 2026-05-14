@@ -127,13 +127,13 @@ function createAutoBusinessRegistrationNumber(prefix: "CUS" | "PTN", code: strin
 function buildOpportunityDescription(params: {
   moduleName: string
   issue: string
-  competition: string
   decisionInfo: string
 }) {
-  return [params.moduleName, params.issue, params.competition, params.decisionInfo]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join("\n\n")
+  return JSON.stringify({
+    moduleName: params.moduleName.trim(),
+    issue: params.issue.trim(),
+    decisionInfo: params.decisionInfo.trim(),
+  })
 }
 
 function mapOpportunityProductClass(value: string) {
@@ -897,7 +897,6 @@ export function FindingCategoryNewPageView({
             description: buildOpportunityDescription({
               moduleName,
               issue,
-              competition,
               decisionInfo: buildDecisionInfoFromCustomer(resolvedCustomer),
             }),
             competitionStatus: competition,

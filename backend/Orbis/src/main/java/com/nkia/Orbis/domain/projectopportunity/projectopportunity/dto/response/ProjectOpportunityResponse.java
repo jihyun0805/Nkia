@@ -22,7 +22,8 @@ public record ProjectOpportunityResponse(
         String salesRepresentativeName,
         String createdBy,
         String createUserName,
-        String description
+        String description,
+        String competitionStatus
 ) {
     // Entity -> DTO 변환을 위한 정적 팩토리 메서드
     public static ProjectOpportunityResponse from(ProjectOpportunity entity, User createUser) {
@@ -40,7 +41,8 @@ public record ProjectOpportunityResponse(
                 entity.getSalesRepresentative() != null ? entity.getSalesRepresentative().getName() : null,
                 entity.getCreatedBy(),
                 createUser != null ? createUser.getName() : "알 수 없음",
-                entity.getDescription()
+                entity.getDescription(),
+                entity.getCompetitionStatus()
         );
     }
 }
