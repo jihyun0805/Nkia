@@ -413,6 +413,30 @@ def determine_aggregation(*, query: str, normalization: QueryNormalization) -> G
         metric = "customer_support_count"
         group_by = ["opportunity"]
 
+    # 자주 쓰이는 ranking 질문 metric 자동 추론
+    if metric is None and normalization.has_ranking_intent:
+        if "견적" in query and ("총액" in query or "금액" in query or "큰" in query):
+            metric = "quotation_total"
+            group_by = ["opportunity"]
+        elif "사업비" in query or "예상 사업비" in query or "예산" in query:
+            metric = "expected_revenue"
+            group_by = ["opportunity"]
+        elif "계약" in query and ("금액" in query or "큰" in query):
+            metric = "contract_amount"
+            group_by = ["opportunity"]
+        elif "사업기회" in query and ("큰" in query or "최대" in query or "높은" in query):
+            metric = "expected_revenue"
+            group_by = ["opportunity"]
+        elif "오래된" in query or "이전" in query:
+            metric = "registration_date"
+            group_by = ["opportunity"]
+        elif "최근" in query and ("활동" in query or "update" in query.lower() or "업데이트" in query):
+            metric = "activity_date"
+            group_by = ["activity"]
+        elif "수주율" in query or "당첨률" in query or "확률" in query:
+            metric = "expected_win_rate"
+            group_by = ["opportunity"]
+
     return GraphAggregation(metric=metric, operation=operation, groupBy=group_by, topN=top_n)
 
 
