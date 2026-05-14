@@ -8,11 +8,13 @@ import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowStepRepository;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Profile("!no-seed")
 @RequiredArgsConstructor
 @Order(5)
 public class WorkflowTemplateInitializer implements CommandLineRunner {

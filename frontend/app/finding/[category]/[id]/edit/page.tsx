@@ -28,6 +28,7 @@ import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusiness
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { findingStatuses, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   createBackendCompanyManager,
   deleteBackendCompanyManager,
@@ -514,6 +515,15 @@ export default function FindingEditPage() {
         return
       }
 
+      const contactValidationMessage = validateManagerContacts(filledContacts)
+      if (contactValidationMessage) {
+        toast({
+          title: "담당자 입력 확인",
+          description: contactValidationMessage,
+        })
+        return
+      }
+
       const duplicatePartner = partners.find((partner) => partner.id !== id && partner.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
       if (duplicatePartner) {
         toast({
@@ -869,6 +879,9 @@ export default function FindingEditPage() {
                             <div className="space-y-2">
                               <Label>이메일</Label>
                               <Input
+                                type="email"
+                                inputMode="email"
+                                autoComplete="email"
                                 value={contact.email}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
@@ -879,6 +892,8 @@ export default function FindingEditPage() {
                             <div className="space-y-2">
                               <Label>무선전화번호</Label>
                               <Input
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={contact.mobilePhone}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
@@ -889,6 +904,8 @@ export default function FindingEditPage() {
                             <div className="space-y-2">
                               <Label>유선전화번호</Label>
                               <Input
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={contact.landlinePhone}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))

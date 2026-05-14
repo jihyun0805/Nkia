@@ -216,13 +216,6 @@ type BackendQuotationResponse = QuotationResponse & {
   quotationLaborItems?: BackendQuotationLaborItem[]
 }
 
-type BackendQuotationApiResponse = {
-  result?: string
-  data?: BackendQuotationResponse | null
-  errorCode?: string | null
-  message?: string | null
-}
-
 function normalizeProductGroup(value?: string) {
   const normalized = value?.trim().toUpperCase()
   if (normalized === "EMS" || normalized === "ITSM" || normalized === "AUTOMATION" || normalized === "WSS") {
@@ -232,6 +225,48 @@ function normalizeProductGroup(value?: string) {
   return "EMS"
 }
 
+function resolveSectionTitle(value: string | undefined, generatedSummary: string, fallback: string) {
+  const title = value?.trim()
+  if (!title || title === generatedSummary || title.length > 80) {
+    return fallback
+  }
+
+  return title
+}
+
+function isLegacyLineSupplyPrice(item: BackendQuotationSolutionItem) {
+  const quantity = item.quantity ?? 1
+  return quantity > 1 && item.supplyPrice != null && item.consumerPrice != null && item.supplyPrice >= item.consumerPrice
+}
+
+function resolveSupplyUnitPrice(item: BackendQuotationSolutionItem) {
+  const quantity = item.quantity && item.quantity > 0 ? item.quantity : 1
+  if (isLegacyLineSupplyPrice(item)) {
+    return Math.round((item.supplyPrice ?? 0) / quantity)
+  }
+
+  return item.supplyPrice ?? Math.round((item.supplyTotalPrice ?? 0) / quantity)
+}
+
+function resolveSupplyLineTotal(item: BackendQuotationSolutionItem) {
+  const quantity = item.quantity && item.quantity > 0 ? item.quantity : 1
+  if (isLegacyLineSupplyPrice(item)) {
+    return item.supplyPrice ?? 0
+  }
+
+  return item.supplyTotalPrice ?? resolveSupplyUnitPrice(item) * quantity
+}
+
+function resolveDiscountRate(item: BackendQuotationSolutionItem) {
+  const consumerUnitPrice = item.consumerPrice ?? 0
+  const supplyUnitPrice = resolveSupplyUnitPrice(item)
+  if (consumerUnitPrice <= 0 || supplyUnitPrice <= 0 || supplyUnitPrice >= consumerUnitPrice) {
+    return 0
+  }
+
+  return Math.round(((consumerUnitPrice - supplyUnitPrice) / consumerUnitPrice) * 10000) / 100
+}
+
 async function fetchQuotationList() {
   const response = await fetch(`${getBackendApiBaseUrl()}/activity/quotations`, {
     headers: buildAuthHeaders(),
@@ -239,9 +274,7 @@ async function fetchQuotationList() {
     cache: "no-store",
   })
 
-  type Api = { result?: string; data?: BackendQuotationListItem[] | null; message?: string | null }
-  const payload = await parseApiResponse<Api>(response, "견적서 목록을 불러오지 못했습니다.")
-  return payload.data ?? []
+  return parseApiResponse<BackendQuotationListItem[]>(response, "견적서 목록을 불러오지 못했습니다.")
 }
 
 async function fetchQuotationDetail(id: number) {
@@ -251,8 +284,7 @@ async function fetchQuotationDetail(id: number) {
     cache: "no-store",
   })
 
-  const payload = await parseApiResponse<BackendQuotationApiResponse>(response, "견적서 상세를 불러오지 못했습니다.")
-  return payload.data ?? null
+  return parseApiResponse<BackendQuotationResponse>(response, "견적서 상세를 불러오지 못했습니다.")
 }
 
 async function fetchProjectOpportunities() {
@@ -343,12 +375,14 @@ function mapBackendQuotationRecord(
     "quotationSolutionItems" in quotation ? quotation.quotationSolutionItems ?? [] : []
   const laborItems: BackendQuotationLaborItem[] =
     "quotationLaborItems" in quotation ? quotation.quotationLaborItems ?? [] : []
-  const localSolutionRows = local?.solutionRows?.length ? local.solutionRows : null
-  const localCustomizingRows = local?.customizingRows?.length ? local.customizingRows : null
   const solutionSummary = solutionItems.map((item: BackendQuotationSolutionItem) => item.productName).filter(Boolean).join(", ")
   const laborSummary = laborItems.map((item: BackendQuotationLaborItem) => mapLaborLabel(item.laborType)).filter(Boolean).join(", ")
+  const localSolutionRows = solutionItems.length === 0 && local?.solutionRows?.length ? local.solutionRows : null
+  const localCustomizingRows = laborItems.length === 0 && local?.customizingRows?.length ? local.customizingRows : null
   const solutionTotal = quotation.supplyTotalPrice ?? 0
   const laborTotal = quotation.laborTotalPrice ?? 0
+  const solutionSectionTitle = resolveSectionTitle(local?.solutionSectionTitle, solutionSummary, "1) Solution Package")
+  const customizingSectionTitle = resolveSectionTitle(local?.customizingSectionTitle, laborSummary, "2) 인건비-커스터마이징")
 
   return {
     id: String(quotation.id ?? local?.id ?? `QT-${Date.now()}`),
@@ -371,21 +405,19 @@ function mapBackendQuotationRecord(
     salesRep: local?.salesRep ?? currentUser.name,
     paymentTerms: quotation.paymentCondition ?? local?.paymentTerms ?? "현금",
     contactName: local?.contactName ?? "",
-    items: local?.items?.length
-      ? local.items.map((item) => ({ ...item }))
-      : [
-          {
-            id: `${String(quotation.id ?? local?.id ?? "QT")}-ITEM-1`,
-            name: local?.solutionSectionTitle || solutionSummary || "1) Solution Package",
-            amount: String(solutionTotal),
-          },
-          {
-            id: `${String(quotation.id ?? local?.id ?? "QT")}-ITEM-2`,
-            name: local?.customizingSectionTitle || laborSummary || "2) 인건비-커스터마이징",
-            amount: String(laborTotal),
-          },
-        ],
-    solutionSectionTitle: local?.solutionSectionTitle || solutionSummary || "1) Solution Package",
+    items: [
+      {
+        id: local?.items?.[0]?.id ?? `${String(quotation.id ?? local?.id ?? "QT")}-ITEM-1`,
+        name: solutionSectionTitle,
+        amount: String(solutionTotal),
+      },
+      {
+        id: local?.items?.[1]?.id ?? `${String(quotation.id ?? local?.id ?? "QT")}-ITEM-2`,
+        name: customizingSectionTitle,
+        amount: String(laborTotal),
+      },
+    ],
+    solutionSectionTitle,
     solutionRows:
       localSolutionRows ??
       solutionItems.map((item: BackendQuotationSolutionItem, index: number) => ({
@@ -396,12 +428,12 @@ function mapBackendQuotationRecord(
         quantity: String(item.quantity ?? ""),
         consumerUnitPrice: String(item.consumerPrice ?? ""),
         consumerTotal: String(item.consumerTotalPrice ?? ""),
-        supplyUnitPrice: String(item.supplyPrice ?? ""),
-        supplyTotal: String(item.supplyTotalPrice ?? ""),
-        discountRate: String(item.discountRate ?? ""),
+        supplyUnitPrice: String(resolveSupplyUnitPrice(item)),
+        supplyTotal: String(resolveSupplyLineTotal(item)),
+        discountRate: String(resolveDiscountRate(item)),
         note: item.freeSupply ? "무상" : "",
       })),
-    customizingSectionTitle: local?.customizingSectionTitle || laborSummary || "2) 인건비-커스터마이징",
+    customizingSectionTitle,
     customizingRows:
       localCustomizingRows ??
       laborItems.map((item: BackendQuotationLaborItem, index: number) => ({
@@ -468,13 +500,15 @@ function buildQuotationPayload(input: QuotationCreateInput, projectOpportunityId
         null
 
       if (productModuleId == null) return null
+      const quantity = normalizeInteger(row.quantity, 1)
+      const supplyPrice = normalizeNumber(row.supplyUnitPrice) || Math.round(normalizeNumber(row.supplyTotal) / quantity)
 
       return {
         productModuleId,
-        quantity: normalizeInteger(row.quantity, 1),
-        supplyPrice: normalizeNumber(row.supplyUnitPrice || row.supplyTotal),
+        quantity,
+        supplyPrice,
         discountRate: normalizeNumber(row.discountRate),
-        freeSupply: normalizeNumber(row.supplyUnitPrice || row.supplyTotal) <= 0,
+        freeSupply: supplyPrice <= 0,
       }
     })
     .filter((item): item is SolutionItemCreateRequest => Boolean(item))

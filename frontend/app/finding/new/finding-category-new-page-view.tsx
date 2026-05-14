@@ -30,6 +30,7 @@ import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { type StoredFileAttachment } from "@/lib/attachments"
 import { findingStatuses, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
+import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   buildCompanyCode,
   createBackendCompany,
@@ -451,6 +452,15 @@ export function FindingCategoryNewPageView({
       return
     }
 
+    const contactValidationMessage = validateManagerContacts(filledContacts)
+    if (contactValidationMessage) {
+      toast({
+        title: "담당자 입력 확인",
+        description: contactValidationMessage,
+      })
+      return
+    }
+
     const duplicate = backendCustomers.find((item) => item.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
     if (duplicate) {
       setDuplicateOpen(true)
@@ -506,6 +516,15 @@ export function FindingCategoryNewPageView({
       toast({
         title: "협력사 등록 확인",
         description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+      })
+      return
+    }
+
+    const contactValidationMessage = validateManagerContacts(filledContacts)
+    if (contactValidationMessage) {
+      toast({
+        title: "담당자 입력 확인",
+        description: contactValidationMessage,
       })
       return
     }
@@ -747,6 +766,9 @@ export function FindingCategoryNewPageView({
                             <div className="space-y-2">
                               <Label>이메일</Label>
                               <Input
+                                type="email"
+                                inputMode="email"
+                                autoComplete="email"
                                 value={contact.email}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
@@ -757,6 +779,8 @@ export function FindingCategoryNewPageView({
                             <div className="space-y-2">
                               <Label>무선전화번호</Label>
                               <Input
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={contact.mobilePhone}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
@@ -767,6 +791,8 @@ export function FindingCategoryNewPageView({
                             <div className="space-y-2">
                               <Label>유선전화번호</Label>
                               <Input
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={contact.landlinePhone}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
@@ -1370,6 +1396,9 @@ export function FindingCategoryNewPageView({
                           <div className="space-y-2">
                             <Label>이메일</Label>
                             <Input
+                              type="email"
+                              inputMode="email"
+                              autoComplete="email"
                               value={contact.email}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
@@ -1380,6 +1409,8 @@ export function FindingCategoryNewPageView({
                           <div className="space-y-2">
                             <Label>무선전화번호</Label>
                             <Input
+                              inputMode="tel"
+                              autoComplete="tel"
                               value={contact.mobilePhone}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
@@ -1390,6 +1421,8 @@ export function FindingCategoryNewPageView({
                           <div className="space-y-2">
                             <Label>유선전화번호</Label>
                             <Input
+                              inputMode="tel"
+                              autoComplete="tel"
                               value={contact.landlinePhone}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
