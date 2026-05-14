@@ -70,10 +70,10 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
   // 선택 시 폼 업데이트
   const handleSelectReport = (report: OrderReportListResponse) => {
     setSelectedReport(report);
-    setValue("customerName", report.finalCustomerCompanyName);
+    setValue("customerName", report.finalCustomerCompanyName || "");
     setValue("projectName", report.projectName);
     setValue("projectAmount", report.totalAmount?.toLocaleString() || "");
-    setValue("salesRep", report.pmName);
+    setValue("salesRep", report.pmName || "");
   };
 
   // 필수 데이터 체크 (UX 개선)
