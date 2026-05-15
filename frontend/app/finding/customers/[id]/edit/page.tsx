@@ -25,8 +25,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
+import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
-  buildFallbackManagerEmail,
   loadBackendCompanyManagers,
   loadBackendFindingData,
   mapCustomerSector,
@@ -233,12 +233,13 @@ function CustomerEditPageContent() {
         const contact = filledContacts[index]
         const payload = {
           name: contact.name.trim(),
-          email: contact.email?.trim() || buildFallbackManagerEmail(companyCode, contact.name, index),
+          email: contact.email?.trim() || "",
           mobilePhone: contact.mobilePhone?.trim() || undefined,
           officePhone: contact.landlinePhone?.trim() || undefined,
           department: contact.department?.trim() || undefined,
           position: contact.position?.trim() || undefined,
           role: contact.duty?.trim() || undefined,
+          memo: contact.memo?.trim() || undefined,
         }
 
         const manager = normalizedExisting[index]
@@ -329,10 +330,19 @@ function CustomerEditPageContent() {
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !primaryContact?.name?.trim() || !primaryContact?.mobilePhone?.trim()) {
+    if (!normalizedName || !primaryContact?.name?.trim() || !primaryContact?.email?.trim() || !primaryContact?.mobilePhone?.trim()) {
       toast({
         title: "고객사 수정 확인",
-        description: "고객사명, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
+      })
+      return
+    }
+
+    const contactValidationMessage = validateManagerContacts(filledContacts)
+    if (contactValidationMessage) {
+      toast({
+        title: "담당자 입력 확인",
+        description: contactValidationMessage,
       })
       return
     }
@@ -359,7 +369,8 @@ function CustomerEditPageContent() {
         name: normalizedName,
         sector: mapCustomerSector(customerGroup),
         address,
-      })
+        memo,
+      }, customer.id)
       await syncBackendManagers(customer.id, customer.backendId, filledContacts)
       toast({
         title: "고객사 수정 완료",
@@ -455,7 +466,7 @@ function CustomerEditPageContent() {
                       <CustomerAutocomplete value={customerName} onSelect={(nextCustomer) => setCustomerName(nextCustomer?.name ?? "")} onValueChange={setCustomerName} allowCustomValue placeholder="고객사명을 입력하세요" />
                     </div>
                     <div className="space-y-2">
-                      <Label>고객군 *</Label>
+                      <Label>고객군</Label>
                       <Select value={customerGroup} onValueChange={setCustomerGroup}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
@@ -546,7 +557,7 @@ function CustomerEditPageContent() {
                         ) : null}
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>담당자명</Label>
+                            <Label>담당자명 *</Label>
                             <Input
                               value={contact.name}
                               onChange={(event) =>
@@ -578,8 +589,11 @@ function CustomerEditPageContent() {
                         </div>
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>이메일</Label>
+                            <Label>이메일 *</Label>
                             <Input
+                              type="email"
+                              inputMode="email"
+                              autoComplete="email"
                               value={contact.email ?? ""}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
@@ -588,8 +602,10 @@ function CustomerEditPageContent() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호</Label>
+                            <Label>무선전화번호 *</Label>
                             <Input
+                              inputMode="tel"
+                              autoComplete="tel"
                               value={contact.mobilePhone ?? ""}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
@@ -600,6 +616,8 @@ function CustomerEditPageContent() {
                           <div className="space-y-2">
                             <Label>유선전화번호</Label>
                             <Input
+                              inputMode="tel"
+                              autoComplete="tel"
                               value={contact.landlinePhone ?? ""}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
@@ -626,17 +644,6 @@ function CustomerEditPageContent() {
                               setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                             }
                             placeholder="담당 직무를 입력하세요."
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>비고</Label>
-                          <Textarea
-                            value={contact.memo ?? ""}
-                            onChange={(event) =>
-                              setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
-                            }
-                            rows={3}
-                            placeholder="담당자 관련 특기사항을 입력하세요."
                           />
                         </div>
                       </section>

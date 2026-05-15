@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.bid.bidresult.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultCreateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultDetailResponse;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -100,5 +102,20 @@ public class BidResultController {
     public ResponseEntity<ApiResponse<Void>> deleteBidResult(@PathVariable Long id) {
         bidResultService.deleteBidResult(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "입찰 결과 결재 상신")
+    @PostMapping("/submit/{bidResultId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BID_RESULT', 'CREATE')")
+    public ResponseEntity<ApiResponse<String>> submitBidResult(
+            @PathVariable("bidResultId") Long bidResultId,
+            @RequestBody SubmitRequest request
+    ) {
+        bidResultService.submitBidResult(
+                bidResultId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("입찰 결과 결재 상신 완료"));
     }
 }

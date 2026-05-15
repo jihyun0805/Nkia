@@ -1,8 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { Plus, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { UserPicker } from "@/components/erp/user-picker"
+import { useBackendUsers } from "@/lib/use-backend-users"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
@@ -18,6 +22,7 @@ const automaticLocationModes = ["이메일", "전화", "영상회의"]
 
 type ActivityFormFieldsProps = {
   defaultValues?: Partial<ActivityRecord>
+  readOnly?: boolean
   registrantValue?: string
   onRegistrantChange?: (value: string) => void
   customerValue?: string
@@ -64,6 +69,7 @@ type ActivityFormFieldsProps = {
 
 export function ActivityFormFields({
   defaultValues,
+  readOnly = false,
   registrantValue,
   onRegistrantChange,
   customerValue,
@@ -87,6 +93,16 @@ export function ActivityFormFields({
   const [issues, setIssues] = useState(defaultValues?.issues ?? "")
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
   const [registrant, setRegistrant] = useState(registrantValue ?? defaultValues?.registrant ?? "")
+  const activityFormUsers = useBackendUsers()
+  const [attendeeRows, setAttendeeRows] = useState<string[]>(
+    (() => {
+      const initial = (defaultValues?.attendees ?? "")
+        .split(/[\n,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+      return initial.length > 0 ? initial : [""]
+    })(),
+  )
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
   const linkedRequestId = defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
@@ -150,6 +166,14 @@ export function ActivityFormFields({
     setNextAction(next.nextAction)
   }
 
+  const updateAttendeeItems = (items: string[]) => {
+    setAttendeeRows(items)
+    updateValues((current) => ({
+      ...current,
+      attendees: items.map((item) => item.trim()).filter(Boolean).join(", "),
+    }))
+  }
+
   useEffect(() => {
     setActivityMode(defaultValues?.activityMode ?? "")
   }, [defaultValues?.activityMode])
@@ -167,8 +191,14 @@ export function ActivityFormFields({
   }, [defaultValues?.date])
 
   useEffect(() => {
-    setAttendees(defaultValues?.attendees ?? "")
-  }, [defaultValues?.attendees])
+    const nextAttendees = values?.attendees ?? defaultValues?.attendees ?? ""
+    setAttendees(nextAttendees)
+    const normalized = nextAttendees
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+    setAttendeeRows(normalized.length > 0 ? normalized : [""])
+  }, [defaultValues?.attendees, values?.attendees])
 
   useEffect(() => {
     setContent(defaultValues?.content ?? "")
@@ -204,7 +234,10 @@ export function ActivityFormFields({
         <Label>등록자</Label>
         <Input
           value={registrant}
+          readOnly={readOnly}
+          disabled={readOnly}
           onChange={(event) => {
+            if (readOnly) return
             const next = event.target.value
             setRegistrant(next)
             onRegistrantChange?.(next)
@@ -216,13 +249,19 @@ export function ActivityFormFields({
         <div className="space-y-2">
           <Label>요청자</Label>
           {typeof requesterValue === "string" && onRequesterChange ? (
-            <Input
-              value={requester}
-              onChange={(event) => onRequesterChange(event.target.value)}
-              placeholder="요청자가 없는 경우 비워둘 수 있습니다"
-            />
+            readOnly ? (
+              <Input value={requester} readOnly disabled />
+            ) : (
+              <UserPicker
+                value={requester}
+                users={activityFormUsers}
+                onValueChange={(v) => onRequesterChange(v)}
+                onSelect={(u) => onRequesterChange(u?.name ?? "")}
+                placeholder="요청자가 없는 경우 비워둘 수 있습니다"
+              />
+            )
           ) : (
-            <Input defaultValue={defaultValues?.requester} placeholder="요청자가 없는 경우 비워둘 수 있습니다" />
+            <Input defaultValue={defaultValues?.requester} readOnly={readOnly} disabled={readOnly} placeholder="요청자가 없는 경우 비워둘 수 있습니다" />
           )}
           {!linkedRequestId && (
             <p className="text-sm text-muted-foreground">
@@ -241,23 +280,22 @@ export function ActivityFormFields({
               onValueChange={onCustomerValueChange}
               placeholder="고객사명을 입력하세요"
               onUnregisteredAttempt={onUnregisteredCustomerAttempt}
+              disabled={readOnly}
             />
           ) : (
-            <Input defaultValue={defaultValues?.customer} placeholder="고객사를 입력하세요" />
+            <Input defaultValue={defaultValues?.customer} readOnly={readOnly} disabled={readOnly} placeholder="고객사를 입력하세요" />
           )}
           <p className="text-sm text-muted-foreground">
             등록된 고객사만 선택할 수 있으며 고객코드가 함께 승계됩니다.
           </p>
         </div>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>사업기회</Label>
+          <Label>사업기회 *</Label>
           {onOpportunityChange && opportunityOptions ? (
             <Select
               value={opportunity}
-              onValueChange={onOpportunityChange}
-              disabled={!customerValue}
+              onValueChange={readOnly ? undefined : onOpportunityChange}
+              disabled={readOnly || !customerValue}
             >
               <SelectTrigger>
                 <SelectValue placeholder={customerValue ? "사업기회를 선택하세요" : "고객사를 먼저 선택하세요"} />
@@ -272,19 +310,28 @@ export function ActivityFormFields({
               </SelectContent>
             </Select>
           ) : (
-            <Input defaultValue={defaultValues?.opportunity} placeholder="사업기회를 입력하세요" />
+            <Input defaultValue={defaultValues?.opportunity} readOnly={readOnly} disabled={readOnly} placeholder="사업기회를 입력하세요" />
           )}
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>활동일 *</Label>
-          <Input type="date" value={resolvedDate} onChange={(event) => updateValues((current) => ({ ...current, date: event.target.value }))} />
+          <Input
+            type="date"
+            value={resolvedDate}
+            readOnly={readOnly}
+            disabled={readOnly}
+            onChange={(event) => {
+              if (readOnly) return
+              updateValues((current) => ({ ...current, date: event.target.value }))
+            }}
+          />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>활동형태 *</Label>
-            <Select value={resolvedActivityMode} onValueChange={handleActivityModeChange}>
+            <Select value={resolvedActivityMode} onValueChange={readOnly ? undefined : handleActivityModeChange} disabled={readOnly}>
               <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
               <SelectContent>
                 {activityModeOptions.map((option) => (
@@ -297,7 +344,11 @@ export function ActivityFormFields({
           </div>
           <div className="space-y-2">
             <Label>활동내용 *</Label>
-            <Select value={resolvedActivityContent} onValueChange={(value) => updateValues((current) => ({ ...current, activityContent: value }))}>
+            <Select
+              value={resolvedActivityContent}
+              onValueChange={readOnly ? undefined : (value) => updateValues((current) => ({ ...current, activityContent: value }))}
+              disabled={readOnly}
+            >
               <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
               <SelectContent>
                 {activityContentOptions.map((option) => (
@@ -325,32 +376,102 @@ export function ActivityFormFields({
           <Label>장소</Label>
           <Input
             value={locationValue}
-            onChange={(event) => updateValues((current) => ({ ...current, location: event.target.value }))}
+            readOnly={readOnly || isAutomaticLocation}
+            disabled={readOnly}
+            onChange={(event) => {
+              if (readOnly) return
+              updateValues((current) => ({ ...current, location: event.target.value }))
+            }}
             placeholder="활동 장소를 입력하세요"
-            readOnly={isAutomaticLocation}
           />
         </div>
         <div className="space-y-2">
           <Label>참석자</Label>
-          <Input
-            value={resolvedAttendees}
-            onChange={(event) => updateValues((current) => ({ ...current, attendees: event.target.value }))}
-            placeholder="참석자 이름 또는 사번을 쉼표로 구분해 입력하세요"
-          />
+          <div className="max-h-64 space-y-2 overflow-auto rounded-md border border-border p-3">
+            {attendeeRows.map((item, index) => (
+              <div key={index} className="grid grid-cols-[1fr_auto] gap-2">
+                <Input
+                  value={item}
+                  readOnly={readOnly}
+                  disabled={readOnly}
+                  onChange={(event) => {
+                    if (readOnly) return
+                    const next = [...attendeeRows]
+                    next[index] = event.target.value
+                    updateAttendeeItems(next)
+                  }}
+                  placeholder="참석자 이름 또는 사번"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={readOnly}
+                  onClick={() => {
+                    if (readOnly) return
+                    updateAttendeeItems(attendeeRows.filter((_, itemIndex) => itemIndex !== index))
+                  }}
+                  aria-label="참석자 삭제"
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-dashed"
+              disabled={readOnly}
+              onClick={() => {
+                if (readOnly) return
+                updateAttendeeItems([...attendeeRows, ""])
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              참석자 추가
+            </Button>
+          </div>
           <p className="text-sm text-muted-foreground">저장 시 백엔드에는 사용자 ID 배열로 전달됩니다.</p>
         </div>
       </div>
       <div className="space-y-2">
         <Label>주요 내용 *</Label>
-        <Textarea value={resolvedContent} onChange={(event) => updateValues((current) => ({ ...current, content: event.target.value }))} rows={4} />
+        <Textarea
+          value={resolvedContent}
+          readOnly={readOnly}
+          disabled={readOnly}
+          onChange={(event) => {
+            if (readOnly) return
+            updateValues((current) => ({ ...current, content: event.target.value }))
+          }}
+          rows={4}
+        />
       </div>
       <div className="space-y-2">
         <Label>고객 관심 사항 / 이슈</Label>
-        <Textarea value={resolvedIssues} onChange={(event) => updateValues((current) => ({ ...current, issues: event.target.value }))} rows={3} />
+        <Textarea
+          value={resolvedIssues}
+          readOnly={readOnly}
+          disabled={readOnly}
+          onChange={(event) => {
+            if (readOnly) return
+            updateValues((current) => ({ ...current, issues: event.target.value }))
+          }}
+          rows={3}
+        />
       </div>
       <div className="space-y-2">
         <Label>다음 할 일</Label>
-        <Textarea value={resolvedNextAction} onChange={(event) => updateValues((current) => ({ ...current, nextAction: event.target.value }))} rows={3} />
+        <Textarea
+          value={resolvedNextAction}
+          readOnly={readOnly}
+          disabled={readOnly}
+          onChange={(event) => {
+            if (readOnly) return
+            updateValues((current) => ({ ...current, nextAction: event.target.value }))
+          }}
+          rows={3}
+        />
       </div>
     </>
   )

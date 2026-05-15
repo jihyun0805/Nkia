@@ -23,9 +23,36 @@ function parseCurrency(value: string) {
   return Number.parseInt(value.replace(/[^\d]/g, "") || "0", 10)
 }
 
+function parseQuantity(value: string) {
+  const parsed = Number.parseFloat(value.replace(/[^\d.]/g, "") || "1")
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+}
+
 function formatCurrency(value: string) {
   const amount = parseCurrency(value)
   return amount ? amount.toLocaleString("ko-KR") : ""
+}
+
+function formatNumber(value: number) {
+  if (!Number.isFinite(value)) return "0"
+  return String(Math.round(value))
+}
+
+function formatDiscountValue(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0"
+  const rounded = Math.round(value * 100) / 100
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")
+}
+
+function calculateDiscountRate(consumerUnitPrice: number, supplyUnitPrice: number) {
+  if (consumerUnitPrice <= 0 || supplyUnitPrice <= 0 || supplyUnitPrice >= consumerUnitPrice) return 0
+  return ((consumerUnitPrice - supplyUnitPrice) / consumerUnitPrice) * 100
+}
+
+function formatDiscountRate(value: string | number | undefined) {
+  const numericValue =
+    typeof value === "number" ? value : Number.parseFloat(String(value ?? "").replace(/[^\d.]/g, ""))
+  return Number.isFinite(numericValue) && numericValue > 0 ? `${formatDiscountValue(numericValue)}%` : "-"
 }
 
 function formatMaybeDash(value: string) {
@@ -271,19 +298,34 @@ export function normalizeQuotationForm(form: QuotationFormState): QuotationFormS
   const matchedCustomer = getCustomerByName(normalizedCustomer)
 
   const solutionRows = (form.solutionRows ?? [])
-    .map((row) => ({
-      ...row,
-      rowNo: row.rowNo.trim(),
-      category: row.category.trim(),
-      module: row.module.trim(),
-      quantity: row.quantity.replace(/[^\d.]/g, ""),
-      consumerUnitPrice: row.consumerUnitPrice.replace(/[^\d]/g, ""),
-      consumerTotal: row.consumerTotal.replace(/[^\d]/g, ""),
-      supplyUnitPrice: row.supplyUnitPrice.replace(/[^\d]/g, ""),
-      supplyTotal: row.supplyTotal.replace(/[^\d]/g, ""),
-      discountRate: row.discountRate.trim(),
-      note: row.note.trim(),
-    }))
+    .map((row) => {
+      const quantity = parseQuantity(row.quantity)
+      const consumerUnitPrice = parseCurrency(row.consumerUnitPrice)
+      const rawSupplyUnitPrice = parseCurrency(row.supplyUnitPrice)
+      const fallbackSupplyUnitPrice = Math.round(parseCurrency(row.supplyTotal) / quantity)
+      const requestedSupplyUnitPrice = rawSupplyUnitPrice || fallbackSupplyUnitPrice
+      const supplyUnitPrice =
+        consumerUnitPrice > 0 && requestedSupplyUnitPrice >= consumerUnitPrice
+          ? Math.max(0, consumerUnitPrice - 1)
+          : requestedSupplyUnitPrice
+      const consumerTotal = consumerUnitPrice * quantity
+      const supplyTotal = supplyUnitPrice * quantity
+      const discountRate = calculateDiscountRate(consumerUnitPrice, supplyUnitPrice)
+
+      return {
+        ...row,
+        rowNo: row.rowNo.trim(),
+        category: row.category.trim(),
+        module: row.module.trim(),
+        quantity: row.quantity.replace(/[^\d.]/g, ""),
+        consumerUnitPrice: formatNumber(consumerUnitPrice),
+        consumerTotal: formatNumber(consumerTotal),
+        supplyUnitPrice: formatNumber(supplyUnitPrice),
+        supplyTotal: formatNumber(supplyTotal),
+        discountRate: formatDiscountValue(discountRate),
+        note: row.note.trim(),
+      }
+    })
     .filter((row) => Object.values(row).some((value) => value && value !== row.id))
 
   const customizingRows = (form.customizingRows ?? [])
@@ -299,6 +341,11 @@ export function normalizeQuotationForm(form: QuotationFormState): QuotationFormS
 
   const normalizedSolutionRows = solutionRows.length > 0 ? solutionRows : baseSolutionRows()
   const normalizedCustomizingRows = customizingRows.length > 0 ? customizingRows : baseCustomizingRows()
+  const solutionAmount = sumBy(normalizedSolutionRows, (row) => row.supplyTotal)
+  const customizingAmount = sumBy(
+    normalizedCustomizingRows.filter((row) => row.supplyAmount !== "-"),
+    (row) => row.supplyAmount,
+  )
 
   const items = (form.items ?? [])
     .map((item, index) => ({
@@ -309,12 +356,19 @@ export function normalizeQuotationForm(form: QuotationFormState): QuotationFormS
     }))
     .filter((item) => item.name || item.amount)
 
-  const normalizedItems = items.length > 0
-    ? items
-    : [
-        { id: "TEMP-ITEM-1", name: form.solutionSectionTitle?.trim() || "1) Solution Package", amount: "" },
-        { id: "TEMP-ITEM-2", name: form.customizingSectionTitle?.trim() || "2) 인건비-커스터마이징", amount: "" },
-      ]
+  const normalizedItems = [
+    {
+      id: items[0]?.id ?? "TEMP-ITEM-1",
+      name: form.solutionSectionTitle?.trim() || items[0]?.name || "1) Solution Package",
+      amount: String(solutionAmount),
+    },
+    {
+      id: items[1]?.id ?? "TEMP-ITEM-2",
+      name: form.customizingSectionTitle?.trim() || items[1]?.name || "2) 인건비-커스터마이징",
+      amount: String(customizingAmount),
+    },
+    ...items.slice(2),
+  ]
 
   const totalAmount = sumBy(normalizedItems, (item) => item.amount)
 
@@ -381,10 +435,13 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
   const totalAmountSuffix = templateText.totalAmountSuffix === "원정 (부가세별도)" ? "" : templateText.totalAmountSuffix
   const itemsTotal = sumBy(items, (item) => item.amount)
   const solutionTotal = sumBy(solutionRows, (row) => row.supplyTotal)
+  const solutionConsumerTotal = sumBy(solutionRows, (row) => row.consumerTotal)
+  const solutionDiscountRate = calculateDiscountRate(solutionConsumerTotal, solutionTotal)
   const customizingTotal = sumBy(customizingRows.filter((row) => row.supplyAmount !== "-"), (row) => row.supplyAmount)
   const inputClass = "h-8 appearance-none rounded-none border-0 bg-transparent px-1 text-inherit shadow-none focus-visible:ring-0"
   const wrappingTextClass = "min-h-0 appearance-none resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 py-0 text-inherit shadow-none focus-visible:ring-0 [field-sizing:content] whitespace-pre-wrap break-words [scrollbar-width:none] [-ms-overflow-style:none]"
   const tableCellTextareaClass = "min-h-[24px] appearance-none resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 py-0 text-inherit shadow-none focus-visible:ring-0 whitespace-pre-wrap break-words [field-sizing:content] [scrollbar-width:none] [-ms-overflow-style:none]"
+  const readOnlyTableCellClass = "min-h-6 whitespace-pre-wrap break-words leading-snug"
   const inlineLineInputClass = "h-auto min-h-0 appearance-none rounded-none border-0 bg-transparent px-0 py-0 align-baseline shadow-none focus-visible:ring-0"
   const lineRowTextClass = "text-[18px] font-bold leading-none"
   const refRowTextClass = "text-[17px] font-normal leading-none"
@@ -499,7 +556,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
               <div className="mt-10 space-y-2 text-[16px]">
                 <div className="flex items-center gap-2">
                   {readOnly ? (
-                    <span>{templateText.quoteDateLabel}</span>
+                    <span className="shrink-0">{templateText.quoteDateLabel}</span>
                   ) : (
                     <Input
                       value={templateText.quoteDateLabel}
@@ -508,14 +565,14 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                     />
                   )}
                   {readOnly ? (
-                    <span>{form.date || "-"}</span>
+                    <span className="min-w-0 break-words">{form.date || "-"}</span>
                   ) : (
                     <Input value={form.date} onChange={(event) => updateForm((prev) => ({ ...prev, date: event.target.value }))} className={`${inputClass} w-[180px] text-[16px]`} />
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-start gap-2">
                   {readOnly ? (
-                    <span>{templateText.paymentTermsLabel}</span>
+                    <span className="shrink-0">{templateText.paymentTermsLabel}</span>
                   ) : (
                     <Input
                       value={templateText.paymentTermsLabel}
@@ -524,7 +581,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                     />
                   )}
                   {readOnly ? (
-                    <span>{form.paymentTerms || "-"}</span>
+                    <span className="min-w-0 break-words leading-7">{form.paymentTerms || "-"}</span>
                   ) : (
                     <Input value={form.paymentTerms ?? ""} onChange={(event) => updateForm((prev) => ({ ...prev, paymentTerms: event.target.value }))} className={`${inputClass} w-[120px] text-[16px]`} />
                   )}
@@ -686,7 +743,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   <tr key={item.id || `summary-${index}`}>
                     <td className="border-b-[2px] border-r-[2px] border-black px-3 py-2">
                       {readOnly ? (
-                        <div className="text-[16px]">{item.name || "-"}</div>
+                        <div className="whitespace-pre-wrap break-words text-[16px] leading-relaxed">{item.name || "-"}</div>
                       ) : (
                         <Textarea
                           value={item.name}
@@ -834,9 +891,11 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                       ].map((field, fieldIndex) => (
                         <td key={field.key} className={`border-r border-b border-black ${fieldIndex === 9 ? "border-r-0" : ""} px-1 py-1`}>
                           {readOnly ? (
-                            <div className={`${field.align} min-h-6`}>
+                            <div className={`${field.align} ${readOnlyTableCellClass}`}>
                               {["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
                                 ? formatMaybeDash(row[field.key as keyof typeof row] as string)
+                                : field.key === "discountRate"
+                                  ? formatDiscountRate(row.discountRate)
                                 : (row[field.key as keyof typeof row] as string) || "-"}
                             </div>
                           ) : (
@@ -875,11 +934,11 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   <td colSpan={4} className="border-r border-t border-black py-2 text-center">
                     1. Solution Package 비용 합계
                   </td>
+                  <td className="border-r border-t border-black py-2" />
                   <td className="border-r border-t border-black py-2 text-right">{formatCurrency(String(sumBy(solutionRows, (row) => row.consumerTotal))) || "0"}</td>
-                  <td className="border-r border-t border-black py-2 text-right">{formatCurrency(String(solutionTotal)) || "0"}</td>
                   <td className="border-r border-t border-black py-2" />
                   <td className="border-r border-t border-black py-2 text-right">{formatCurrency(String(solutionTotal)) || "0"}</td>
-                  <td className="border-r border-t border-black py-2" />
+                  <td className="border-r border-t border-black py-2 text-center">{formatDiscountRate(solutionDiscountRate)}</td>
                   <td className="border-t border-black py-2 text-center">-</td>
                 </tr>
               </tbody>
@@ -969,7 +1028,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                     ].map((field, fieldIndex) => (
                       <td key={field.key} className={`${fieldIndex < 4 ? "border-r" : ""} border-b border-black px-1 py-1`}>
                         {readOnly ? (
-                          <div className={`${field.align} min-h-6`}>
+                          <div className={`${field.align} ${readOnlyTableCellClass}`}>
                             {["laborRate", "supplyAmount"].includes(field.key) ? formatMaybeDash(row[field.key as keyof typeof row] as string) : (row[field.key as keyof typeof row] as string) || "-"}
                           </div>
                         ) : (
@@ -1129,9 +1188,11 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                     ].map((field, fieldIndex) => (
                       <td key={field.key} className={`border-r border-b border-black ${fieldIndex === 9 ? "border-r-0" : ""} px-1 py-1`}>
                         {readOnly ? (
-                          <div className={`${field.align} min-h-6`}>
+                          <div className={`${field.align} ${readOnlyTableCellClass}`}>
                             {["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
                               ? formatMaybeDash(row[field.key as keyof typeof row] as string)
+                              : field.key === "discountRate"
+                                ? formatDiscountRate(row.discountRate)
                               : (row[field.key as keyof typeof row] as string) || "-"}
                           </div>
                         ) : (
@@ -1171,11 +1232,11 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 <td colSpan={4} className="border-r border-t border-black py-2 text-center">
                   1. Solution Package 비용 합계
                 </td>
+                <td className="border-r border-t border-black py-2" />
                 <td className="border-r border-t border-black py-2 text-right">{formatCurrency(String(sumBy(solutionRows, (row) => row.consumerTotal))) || "0"}</td>
-                <td className="border-r border-t border-black py-2 text-right">{formatCurrency(String(solutionTotal)) || "0"}</td>
                 <td className="border-r border-t border-black py-2" />
                 <td className="border-r border-t border-black py-2 text-right">{formatCurrency(String(solutionTotal)) || "0"}</td>
-                <td className="border-r border-t border-black py-2" />
+                <td className="border-r border-t border-black py-2 text-center">{formatDiscountRate(solutionDiscountRate)}</td>
                 <td className="border-t border-black py-2 text-center">-</td>
               </tr>
               )}
@@ -1272,7 +1333,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   ].map((field, fieldIndex) => (
                     <td key={field.key} className={`${fieldIndex < 4 ? "border-r" : ""} border-b border-black px-1 py-1`}>
                       {readOnly ? (
-                        <div className={`${field.align} min-h-6`}>
+                        <div className={`${field.align} ${readOnlyTableCellClass}`}>
                           {["laborRate", "supplyAmount"].includes(field.key) ? formatMaybeDash(row[field.key as keyof typeof row] as string) : (row[field.key as keyof typeof row] as string) || "-"}
                         </div>
                       ) : (

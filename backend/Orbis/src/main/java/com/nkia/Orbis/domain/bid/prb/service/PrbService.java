@@ -4,8 +4,14 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.PrbErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.bid.prb.dto.request.PrbCreateRequestDto;
 import com.nkia.Orbis.domain.bid.prb.dto.request.PrbUpdateRequestDto;
 import com.nkia.Orbis.domain.bid.prb.dto.response.PrbResponseDto;
@@ -28,6 +34,8 @@ public class PrbService {
     private final PrbRepository prbRepository;
     private final ProjectOpportunityRepository projectOpportunityRepository;
     private final UserRepository userRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     /**
      * 1. PRB 등록 (Create)
@@ -91,7 +99,7 @@ public class PrbService {
         Prb prb = prbRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new ApiException(PrbErrorCode.PRB_NOT_FOUND));
 
-        return PrbResponseDto.from(prb);
+        return PrbResponseDto.from(prb, getWorkflowId(prb.getId()));
     }
 
     /**
@@ -99,7 +107,11 @@ public class PrbService {
      */
     public Page<PrbResponseDto> getPrbList(Pageable pageable) {
         // 목록 조회용 EntityGraph가 적용된 findAll 호출
-        return prbRepository.findAll(pageable).map(PrbResponseDto::from);
+        return prbRepository.findAll(pageable)
+                .map(prb -> PrbResponseDto.from(
+                        prb,
+                        getWorkflowId(prb.getId())
+                ));
     }
 
     // ==========================================
@@ -125,5 +137,41 @@ public class PrbService {
     private String generatePrbCode() {
         // TODO: 향후 PRB 채번 규칙에 맞게 수정 (예: PRB-240501-001)
         return "PRB-" + System.currentTimeMillis();
+    }
+
+    @Transactional
+    public void submitPrb(
+            Long prbId,
+            UUID firstApproverId
+    ) {
+        Prb prb = prbRepository.findById(prbId)
+                .orElseThrow(() -> new ApiException(PrbErrorCode.PRB_NOT_FOUND));
+
+        if (!prb.isDraft()) {
+            throw new ApiException(PrbErrorCode.INVALID_PRB_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.PRB,
+                prb.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        prb.submit();
+    }
+
+    private Long getWorkflowId(Long prbId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.PRB,
+                        prbId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }

@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.bid.prb.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.prbresult.entity.PrbResult;
@@ -8,6 +9,8 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -38,6 +41,9 @@ public class Prb extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status = ApprovalStatus.DRAFT;
 
     // 1. PRB 코드
     @Column(name = "prb_code", unique = true, nullable = false, updatable = false, length = 50)
@@ -157,5 +163,25 @@ public class Prb extends BaseEntity {
 
     public void assignProjectOpportunity(ProjectOpportunity projectOpportunity) {
         this.projectOpportunity = projectOpportunity;
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }

@@ -197,6 +197,8 @@ export interface OrderReportResponse {
   finalCustomerCompanyName: string;
   finalCustomerManagerId: number;
   finalCustomerManagerName: string;
+  finalCustomerPhone?: string;
+  contractCounterpartPhone?: string;
   maintenances: OrderReportMaintenanceResponse[];
   licenses: LicenseFromOrderReportResponse[];
   services: OrderReportServiceResponse[];
@@ -226,13 +228,73 @@ export interface OrderReportResponse {
 
 export interface OrderReportHistoryListResponse {
   id: number;
-  orderReportId: number;
-  changedAt: string;
-  changedBy: string;
+  orderReportCode: string;
+  version: number;
+  orderReportDate: string;
+}
+
+export interface OrderReportHistoryResponse {
+  id: number;
+  orderReportDate: string;
+  version: number;
+  orderReportCode: string;
+  totalAmount: number;
+  paymentCondition: string;
+  quotationProvided: boolean;
+  contractProvided: boolean;
+  purchaseOrderProvided: boolean;
+  prbReportProvided: boolean;
+  additionalDocuments: string;
+  type: OrderReportType;
+  channel: boolean;
+  codeType: CodeType;
+  contractDate: string;
+  freeMaintenancePeriodMonths: number;
+  contractStartDate: string;
+  contractEndDate: string;
+  contractPeriodMonths: number;
+  scopeOfWork: string;
+  remarks: string;
+  projectOpportunity: any; // backend returns ProjectOpportunity entity
+  pmId: string;
+  pmName: string;
+  contractCounterpartCompanyId: number;
+  contractCounterpartCompanyName: string;
+  contractCounterpartManagerId: number;
+  contractCounterpartManagerName: string;
+  finalCustomerCompanyId: number;
+  finalCustomerCompanyName: string;
+  finalCustomerManagerId: number;
+  finalCustomerManagerName: string;
+  maintenances: any[];
+  licenses: any[];
+  services: any[];
+  maintenanceOnlyItems: any[];
+  others: any[];
+  purchases: any[];
+  itemTotalAmount: number;
+  itemTotalLicense: number;
+  itemTotalThirdParty: number;
+  itemTotalService: number;
+  itemTotalMaintenance: number;
+  itemTotalMaintenanceRate: number;
+  licenseTotal: number;
+  serviceTotal: number;
+  maintenanceTotal: number;
+  otherTotal: number;
+  purchaseTotal: number;
+  emsSummary: number;
+  itgSummary: number;
+  dashboardSummary: number;
+  aiotionSummary: number;
+  emsMaintenanceSummary: number;
+  itgMaintenanceSummary: number;
+  itoSummary: number;
+  otherSummary: number;
 }
 
 export interface SubmitRequest {
-  firstApproverId: string; // UUID
+  firstApproverId: string;
 }
 
 // 계약 (Contract Summary) 타입
@@ -249,9 +311,9 @@ export interface ContractRequest {
   contractModuleItems: ContractModuleItemRequest[];
   proposalType: ProposalType;
   contractAmount: number;
-  contractDate: string; // LocalDate → ISO string
+  contractDate: string;
   maintenanceCondition?: string;
-  salesRepresentativeId: string; // UUID
+  salesRepresentativeId: string;
 }
 
 export interface ContractModuleItemResponse {
@@ -344,6 +406,31 @@ export interface LicenseResponse {
   endDate: string;
 }
 
+export interface ProjectOpportunityResponse {
+  id: number;
+  opportunityCode: string;
+  opportunityName: string;
+  stage: string;
+  projectType: string;
+  expectedBidDate: string;
+  expectedBudget: number;
+  customerCompanyName: string;
+  salesRepresentativeId: string;
+  salesRepresentativeName: string;
+  createdBy: string;
+  createUserName: string;
+  description: string;
+  competitionStatus: string;
+}
+
+export const projectOpportunityApi = {
+  getProjectOpportunity: (id: number) =>
+    customInstance<ApiResponse<ProjectOpportunityResponse>>({
+      url: `/project-opportunities/${id}`,
+      method: "GET",
+    }),
+};
+
 // 수주보고서 API
 export const orderReportApi = {
   /** 수주보고서 목록 조회 */
@@ -392,7 +479,7 @@ export const orderReportApi = {
 
   /** 수주보고서 변경이력 상세 조회 */
   getOrderReportHistory: (historyId: number) =>
-    customInstance<ApiResponse<OrderReportResponse>>({
+    customInstance<ApiResponse<OrderReportHistoryResponse>>({
       url: `/contract/order-reports/histories/${historyId}`,
       method: "GET",
     }),

@@ -28,7 +28,6 @@ import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
-import { getPresalesUsers } from "@/lib/admin-data"
 import {
   type CustomerRecord,
   getCustomerByCode,
@@ -36,6 +35,7 @@ import {
   getOpportunitiesByCustomerName,
   hasRegisteredCustomer,
 } from "@/lib/finding-data"
+import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
 import { X } from "lucide-react"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
@@ -45,12 +45,53 @@ import { createBackendQuotationRecord } from "@/lib/sales-quotation-backend"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
 
+const emptyFindingData: FindingBackendData = { opportunities: [], customers: [], partners: [] }
+
+function normalizeLookupText(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function findCustomerByNameOrCode(
+  customers: FindingBackendData["customers"],
+  customerName: string,
+  customerCode: string,
+) {
+  const normalizedName = normalizeLookupText(customerName)
+  const normalizedCode = normalizeLookupText(customerCode)
+
+  return (
+    customers.find((customer) => {
+      if (normalizedCode && normalizeLookupText(customer.id) === normalizedCode) return true
+      if (normalizedName && normalizeLookupText(customer.name) === normalizedName) return true
+      return customer.aliases?.some((alias) => normalizeLookupText(alias) === normalizedName) ?? false
+    }) ?? null
+  )
+}
+
+function getOpportunitiesForCustomer(
+  findingData: FindingBackendData,
+  customerName: string,
+  customerCode: string,
+) {
+  const normalizedName = normalizeLookupText(customerName)
+  const normalizedCode = normalizeLookupText(customerCode)
+
+  return findingData.opportunities.filter((opportunity) => {
+    const opportunityCustomerCode = normalizeLookupText(opportunity.customerCode)
+    const opportunityCustomerName = normalizeLookupText(opportunity.customer)
+
+    return (
+      (normalizedCode && opportunityCustomerCode === normalizedCode) ||
+      (normalizedName && opportunityCustomerName === normalizedName)
+    )
+  })
+}
+
 function ActivityCategoryNewPageContent() {
   const params = useParams<{ category: ActivityCategory }>()
   const router = useRouter()
   const searchParams = useSearchParams()
   const category = params.category
-  const presalesUsers = getPresalesUsers()
   const linkedRequestId = searchParams.get("requestId") ?? ""
   const [activityCustomer, setActivityCustomer] = useState("")
   const [activityCustomerCode, setActivityCustomerCode] = useState("")
@@ -60,6 +101,7 @@ function ActivityCategoryNewPageContent() {
   const [activityRegistrant, setActivityRegistrant] = useState("")
   const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
   const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
+  const [findingData, setFindingData] = useState<FindingBackendData>(emptyFindingData)
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
   const [activityForm, setActivityForm] = useState({
     date: "",
@@ -75,7 +117,7 @@ function ActivityCategoryNewPageContent() {
     date: "",
     type: "",
     requester: "",
-    receiver: presalesUsers[0]?.name ?? "",
+    receiver: "",
     customerCode: "",
     customer: "",
     opportunityCode: "",
@@ -83,6 +125,26 @@ function ActivityCategoryNewPageContent() {
     dueDate: "",
     content: "",
   })
+
+  useEffect(() => {
+    let cancelled = false
+
+    void loadBackendFindingData()
+      .then((data) => {
+        if (!cancelled) {
+          setFindingData(data)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFindingData(emptyFindingData)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (category !== "quotations") return
@@ -187,17 +249,34 @@ function ActivityCategoryNewPageContent() {
     category === "activities" ? activityCustomer : category === "quotations" ? quotationForm.customer : form.customer
   const matchedCustomer = category === "requests" ? getCustomerByName(form.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(form.customer) : []
-  const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
+  const activityOpportunityOptions = getOpportunitiesForCustomer(findingData, activityCustomer, activityCustomerCode)
 
-  const ensureRegisteredCustomer = () => {
-    if (hasRegisteredCustomer(targetCustomer)) return true
+  const matchesCustomerName = (customers: CustomerRecord[], customerName: string) => {
+    const normalized = customerName.trim().toLowerCase()
+    if (!normalized) return false
+
+    return customers.some((customer) => {
+      if (customer.name.trim().toLowerCase() === normalized) return true
+      return customer.aliases?.some((alias) => alias.trim().toLowerCase() === normalized) ?? false
+    })
+  }
+
+  const ensureRegisteredCustomer = async () => {
+    if (hasRegisteredCustomer(targetCustomer) || getCustomerByName(targetCustomer)) return true
+
+    try {
+      const backendFindingData = await loadBackendFindingData()
+      if (matchesCustomerName(backendFindingData.customers, targetCustomer)) return true
+    } catch {
+      // ignore and fall through to the alert
+    }
 
     setIsCustomerAlertOpen(true)
     return false
   }
 
   const handleSubmit = async () => {
-    if (!ensureRegisteredCustomer()) return
+    if (!(await ensureRegisteredCustomer())) return
 
     if (category === "quotations") {
       const normalized = normalizeQuotationForm(quotationForm)
@@ -237,6 +316,14 @@ function ActivityCategoryNewPageContent() {
         return
       }
 
+      if (activityOpportunityOptions.length > 1 && !activityOpportunityCode) {
+        toast({
+          title: "사업기회 선택 필요",
+          description: "선택한 고객사에 연결된 사업기회가 여러 개 있습니다. 사업기회를 선택해주십시오.",
+        })
+        return
+      }
+
       const opportunityName = activityOpportunity === "미확인" ? "" : activityOpportunity
       const localRequestId = Number.parseInt((linkedRequest?.id ?? linkedRequestId).replace(/[^\d]/g, ""), 10)
       const salesActivityRequestId = Number.isNaN(localRequestId) ? undefined : localRequestId
@@ -246,6 +333,8 @@ function ActivityCategoryNewPageContent() {
           customerName: activityCustomer,
           opportunityName,
           opportunityCode: activityOpportunityCode,
+          registrant: activityRegistrant,
+          requester: activityRequester,
           activityMode: activityForm.activityMode,
           activityContent: activityForm.activityContent,
           content: activityForm.content,
@@ -263,10 +352,11 @@ function ActivityCategoryNewPageContent() {
           description: `${created.customer} 영업활동이 등록되었습니다.`,
         })
         router.push(`/activity/activities/${created.id}`)
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "백엔드에 영업활동을 저장하지 못했습니다."
         toast({
           title: "영업활동 등록 실패",
-          description: "백엔드에 영업활동을 저장하지 못했습니다.",
+          description: message,
         })
         return
       }
@@ -287,10 +377,11 @@ function ActivityCategoryNewPageContent() {
           description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
         })
         router.push(`/activity/requests/${created.id}`)
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "백엔드에 활동 요청을 저장하지 못했습니다."
         toast({
           title: "활동 요청 등록 실패",
-          description: "백엔드에 활동 요청을 저장하지 못했습니다.",
+          description: message,
         })
         return
       }
@@ -299,18 +390,31 @@ function ActivityCategoryNewPageContent() {
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
     setActivityCustomer(customer?.name ?? "")
     setActivityCustomerCode(customer?.id ?? "")
-    const firstOpportunity = customer ? getOpportunitiesByCustomerName(customer.name)[0] : null
-    setActivityOpportunity(firstOpportunity?.name ?? (customer ? "미확인" : ""))
-    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+    const matchedOpportunities = customer ? getOpportunitiesForCustomer(findingData, customer.name, customer.id) : []
+    const preservedOpportunity = matchedOpportunities.find((item) => item.name === activityOpportunity || item.id === activityOpportunityCode) ?? null
+    const nextOpportunity = matchedOpportunities.length === 1 ? matchedOpportunities[0] : preservedOpportunity
+    setActivityOpportunity(nextOpportunity?.name ?? "")
+    setActivityOpportunityCode(nextOpportunity?.id ?? "")
   }
 
   const handleActivityCustomerValueChange = (value: string) => {
     setActivityCustomer(value)
-    const matchedCustomer = getCustomerByName(value)
-    setActivityCustomerCode(matchedCustomer?.id ?? "")
-    const firstOpportunity = matchedCustomer ? getOpportunitiesByCustomerName(matchedCustomer.name)[0] : null
-    setActivityOpportunity(firstOpportunity?.name ?? (matchedCustomer ? "미확인" : value ? activityOpportunity : ""))
-    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+    const matchedCustomer =
+      getCustomerByName(value) ??
+      findCustomerByNameOrCode(findingData.customers, value, value)
+    const nextCustomerCode = matchedCustomer?.id ?? ""
+    setActivityCustomerCode(nextCustomerCode)
+
+    const matchedOpportunities = matchedCustomer
+      ? getOpportunitiesForCustomer(findingData, matchedCustomer.name, nextCustomerCode)
+      : value
+        ? getOpportunitiesForCustomer(findingData, value, nextCustomerCode)
+        : []
+    const preservedOpportunity =
+      matchedOpportunities.find((item) => item.name === activityOpportunity || item.id === activityOpportunityCode) ?? null
+    const nextOpportunity = matchedOpportunities.length === 1 ? matchedOpportunities[0] : preservedOpportunity
+    setActivityOpportunity(nextOpportunity?.name ?? "")
+    setActivityOpportunityCode(nextOpportunity?.id ?? "")
   }
 
   const handleActivityOpportunityChange = (value: string) => {
@@ -366,6 +470,7 @@ function ActivityCategoryNewPageContent() {
                       registrantValue={activityRegistrant}
                       onRegistrantChange={setActivityRegistrant}
                       customerValue={activityCustomer}
+                      customerCodeValue={activityCustomerCode}
                       onCustomerSelect={handleActivityCustomerSelect}
                       onCustomerValueChange={handleActivityCustomerValueChange}
                       onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
@@ -418,18 +523,12 @@ function ActivityCategoryNewPageContent() {
                       </div>
                       <div className="space-y-2">
                         <Label>담당자 *</Label>
-                        <Select value={form.receiver} onValueChange={(value) => setForm((prev) => ({ ...prev, receiver: value }))}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="담당자를 선택하세요" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {presalesUsers.map((user) => (
-                              <SelectItem key={user.id} value={user.name}>
-                                {user.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          value={form.receiver}
+                          onChange={(event) => setForm((prev) => ({ ...prev, receiver: event.target.value }))}
+                          placeholder="담당자 이름을 직접 입력하세요"
+                        />
+                        <p className="text-sm text-muted-foreground">백엔드 사용자 이름과 일치해야 저장됩니다.</p>
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">

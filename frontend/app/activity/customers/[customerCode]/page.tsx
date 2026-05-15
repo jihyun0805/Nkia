@@ -26,7 +26,7 @@ import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { type ActivityRecord, getActivityDisplayType } from "@/lib/activity-data"
 import { formatAttachmentSize } from "@/lib/attachments"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
-import { deleteOpportunity, getFindingFields, getOpportunities, getCustomerByCode } from "@/lib/finding-data"
+import { deleteOpportunity, getFindingFields, getOpportunities, getCustomerByCode, normalizeCustomerKeyword } from "@/lib/finding-data"
 import { loadBackendFindingData } from "@/lib/finding-backend"
 import type { CustomerRecord, OpportunityRecord } from "@/lib/finding-data"
 import { toast } from "@/hooks/use-toast"
@@ -42,6 +42,12 @@ const fullWidthFieldLabels = [
 function formatRfpSummaryTitle(fileName: string) {
   const title = fileName.replace(/\.[^.]+$/, "").trim()
   return title || "RFP 문서"
+}
+
+function customerKeywordMatches(value: string | undefined, target: string) {
+  const normalizedValue = normalizeCustomerKeyword(value ?? "")
+  const normalizedTarget = normalizeCustomerKeyword(target)
+  return Boolean(normalizedValue) && normalizedValue === normalizedTarget
 }
 
 export default function ActivityCustomerDetailPage() {
@@ -108,16 +114,28 @@ export default function ActivityCustomerDetailPage() {
   }, [customerCode])
 
   const customerActivities = useMemo(
-    () =>
-      activityRecords
-        .filter((activity) => activity.customerCode === customerCode)
-        .sort((a, b) => b.date.localeCompare(a.date)),
-    [activityRecords, customerCode],
+    () => {
+      const normalizedCustomerName = normalizeCustomerKeyword(displayCustomer.name)
+
+      return activityRecords
+        .filter((activity) => {
+          if (customerKeywordMatches(activity.customerCode, customerCode)) return true
+          if (customerKeywordMatches(activity.customer, displayCustomer.name)) return true
+          if (normalizedCustomerName && normalizeCustomerKeyword(activity.customer) === normalizedCustomerName) return true
+          return false
+        })
+        .sort((a, b) => b.date.localeCompare(a.date))
+    },
+    [activityRecords, customerCode, displayCustomer.name],
   )
   const customerOpportunities = useMemo(
     () =>
       opportunities
-        .filter((opportunity) => opportunity.customerCode === customerCode)
+        .filter(
+          (opportunity) =>
+            customerKeywordMatches(opportunity.customerCode, customerCode) ||
+            customerKeywordMatches(opportunity.customer, displayCustomer.name),
+        )
         .sort((a, b) => {
           if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt)
           return b.id.localeCompare(a.id)

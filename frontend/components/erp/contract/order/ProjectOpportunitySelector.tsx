@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { loadBackendFindingData } from "@/lib/finding-backend";
 import { type OpportunityRecord } from "@/lib/finding-data";
+import { fuzzyMatch } from "@/lib/fuzzy-match";
 
 interface ProjectOpportunitySelectorProps {
   onSelect: (opportunity: OpportunityRecord) => void;
@@ -37,7 +38,16 @@ export function ProjectOpportunitySelector({ onSelect, selectedId }: ProjectOppo
     }
   }, [open]);
 
-  const filteredOpportunities = opportunities.filter((opp) => opp.name.toLowerCase().includes(searchTerm.toLowerCase()) || opp.customer.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredOpportunities = (() => {
+    const trimmed = searchTerm.trim();
+    if (!trimmed) return opportunities;
+    return fuzzyMatch(
+      trimmed,
+      opportunities,
+      (opp) => [opp.name, opp.customer, opp.id, opp.customerCode],
+      opportunities.length,
+    ).map((h) => h.item);
+  })();
 
   const selectedOpp = opportunities.find((o) => o.backendId === selectedId);
 
@@ -55,7 +65,7 @@ export function ProjectOpportunitySelector({ onSelect, selectedId }: ProjectOppo
               {selectedOpp ? "사업기회 변경" : "사업기회 찾기"}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>사업기회 검색</DialogTitle>
             </DialogHeader>

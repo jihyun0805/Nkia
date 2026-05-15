@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { ActivityFormFields } from "@/components/erp/activity-form-fields"
+import { ActivityFormFields } from "@/components/erp/searchable-activity-form-fields"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
 import { QuotationSheet, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import {
@@ -45,6 +45,7 @@ import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } 
 import { getPresalesUsers } from "@/lib/admin-data"
 import { currentUser } from "@/lib/current-user"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
+import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
 import { loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
@@ -69,6 +70,8 @@ export default function ActivityEditPage() {
   const [activityCustomerCode, setActivityCustomerCode] = useState("")
   const [activityOpportunity, setActivityOpportunity] = useState("")
   const [activityOpportunityCode, setActivityOpportunityCode] = useState("")
+  const [activityRegistrant, setActivityRegistrant] = useState("")
+  const [activityRequester, setActivityRequester] = useState("")
   const [activityForm, setActivityForm] = useState({
     date: "",
     activityMode: "",
@@ -186,6 +189,8 @@ export default function ActivityEditPage() {
     setActivityCustomerCode(normalizedCustomer?.id ?? activity.customerCode ?? "")
     setActivityOpportunity(activity.opportunity ?? "")
     setActivityOpportunityCode(activity.businessCode ?? "")
+    setActivityRegistrant(activity.registrant ?? "")
+    setActivityRequester(activity.requester ?? "")
     setActivityForm({
       date: activity.date,
       activityMode: activity.activityMode ?? "",
@@ -275,6 +280,25 @@ export default function ActivityEditPage() {
     setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
   }
 
+  const handleActivityCustomerValueChange = (value: string) => {
+    setActivityCustomer(value)
+    const matchedCustomer = getCustomerByName(value)
+    setActivityCustomerCode(matchedCustomer?.id ?? "")
+    const firstOpportunity = matchedCustomer ? getOpportunitiesByCustomerName(matchedCustomer.name)[0] : null
+    setActivityOpportunity(firstOpportunity?.name ?? (matchedCustomer ? "미확인" : value ? activityOpportunity : ""))
+    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+  }
+
+  const handleActivityOpportunitySuggestionSelect = (suggestion: EntitySuggestion | null) => {
+    if (!suggestion) {
+      setActivityOpportunityCode("")
+      return
+    }
+
+    setActivityOpportunity(suggestion.label)
+    setActivityOpportunityCode(suggestion.code || suggestion.id)
+  }
+
   const handleSubmit = async () => {
     if (category === "quotations") {
       if (!quotationForm) return
@@ -331,6 +355,8 @@ export default function ActivityEditPage() {
           customerName: activityCustomer,
           opportunityName,
           opportunityCode: activityOpportunityCode,
+          registrant: activityRegistrant,
+          requester: activityRequester,
           activityMode: activityForm.activityMode,
           activityContent: activityForm.activityContent,
           content: activityForm.content,
@@ -349,11 +375,12 @@ export default function ActivityEditPage() {
           description: `${updatedActivity.customer} 영업활동이 수정되었습니다.`,
         })
         router.push(`/activity/${category}/${id}`)
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "백엔드에서 영업활동을 수정하지 못했습니다."
         scrollToTop()
         toast({
           title: "영업활동 수정 실패",
-          description: "백엔드에서 영업활동을 수정하지 못했습니다.",
+          description: message,
         })
       }
       return
@@ -433,29 +460,41 @@ export default function ActivityEditPage() {
                     본인이 요청한 활동 요청만 수정할 수 있습니다.
                   </div>
                 ) : category === "activities" ? (
-                  <>
-                    <ActivityFormFields
-                      defaultValues={item as ActivityRecord}
-                      customerValue={activityCustomer}
-                      onCustomerSelect={handleActivityCustomerSelect}
-                      opportunityValue={activityOpportunity}
-                      opportunityOptions={activityOpportunityOptions}
-                      onOpportunityChange={handleActivityOpportunityChange}
-                      values={activityForm}
-                      onValuesChange={setActivityForm}
-                    />
-                  </>
+                  <ActivityFormFields
+                    defaultValues={{
+                      ...(item as ActivityRecord),
+                      requester: activityRequester,
+                      registrant: activityRegistrant,
+                      activityContent: activityForm.activityContent || (item as ActivityRecord).activityContent,
+                      opportunity: activityOpportunity,
+                    }}
+                    registrantValue={activityRegistrant}
+                    onRegistrantChange={setActivityRegistrant}
+                    customerValue={activityCustomer}
+                    customerCodeValue={activityCustomerCode}
+                    onCustomerSelect={handleActivityCustomerSelect}
+                    onCustomerValueChange={handleActivityCustomerValueChange}
+                    onUnregisteredCustomerAttempt={() => {}}
+                    opportunityValue={activityOpportunity}
+                    opportunityOptions={activityOpportunityOptions}
+                    onOpportunityChange={handleActivityOpportunityChange}
+                    onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
+                    requesterValue={activityRequester}
+                    onRequesterChange={setActivityRequester}
+                    values={activityForm}
+                    onValuesChange={setActivityForm}
+                  />
                 ) : category === "requests" ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {[
-                      { label: "요청일", key: "date", type: "date" },
-                      { label: "요청 유형", key: "type" },
-                      { label: "요청자", key: "requester" },
-                      { label: "담당자", key: "receiver" },
-                      { label: "고객사", key: "customer" },
-                      { label: "사업기회", key: "opportunity" },
-                      { label: "활동일", key: "dueDate", type: "date" },
-                      { label: "요청 내용", key: "content" },
+                      { label: "요청일 *", key: "date", type: "date" },
+                      { label: "요청 유형 *", key: "type" },
+                      { label: "요청자 *", key: "requester" },
+                      { label: "담당자 *", key: "receiver" },
+                      { label: "고객사 *", key: "customer" },
+                      { label: "사업기회 *", key: "opportunity" },
+                      { label: "활동일 *", key: "dueDate", type: "date" },
+                      { label: "요청 내용 *", key: "content" },
                     ].map((field) => (
                       <div
                         key={field.key}

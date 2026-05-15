@@ -36,6 +36,7 @@ type ProjectOpportunitySummaryResponse = {
   id?: number
   opportunityCode?: string
   opportunityName?: string
+  customerCompanyId?: number
   customerCompanyName?: string
 }
 
@@ -64,6 +65,48 @@ type SalesActivityBackendItem = {
   status?: string
   salesActivityRequestId?: number
   salesActivityRequestTitle?: string
+}
+
+type ActivityExtraFieldRecord = {
+  registrant?: string
+  requester?: string
+}
+
+const ACTIVITY_EXTRA_FIELDS_STORAGE_KEY = "orbis.activity.extra-fields"
+
+function isBrowser() {
+  return typeof window !== "undefined"
+}
+
+function readActivityExtraFieldRecords() {
+  if (!isBrowser()) return {} as Record<string, ActivityExtraFieldRecord>
+
+  try {
+    const stored = window.localStorage.getItem(ACTIVITY_EXTRA_FIELDS_STORAGE_KEY)
+    if (!stored) return {}
+    const parsed = JSON.parse(stored) as Record<string, ActivityExtraFieldRecord>
+    return parsed && typeof parsed === "object" ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeActivityExtraFieldRecords(records: Record<string, ActivityExtraFieldRecord>) {
+  if (!isBrowser()) return
+  window.localStorage.setItem(ACTIVITY_EXTRA_FIELDS_STORAGE_KEY, JSON.stringify(records))
+}
+
+function saveActivityExtraFields(id: string, fields: ActivityExtraFieldRecord) {
+  const current = readActivityExtraFieldRecords()
+  current[id] = {
+    registrant: fields.registrant ?? "",
+    requester: fields.requester ?? "",
+  }
+  writeActivityExtraFieldRecords(current)
+}
+
+function getActivityExtraFields(id: string) {
+  return readActivityExtraFieldRecords()[id] ?? {}
 }
 
 const ACTIVITY_TYPE_LABELS: Record<string, string> = {
@@ -136,6 +179,18 @@ async function parseApiResponse<T>(response: Response, fallbackMessage: string):
   }
 
   return payload.data
+}
+
+async function parseVoidApiResponse(response: Response, fallbackMessage: string): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<null> | null
+
+  if (!response.ok) {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+
+  if (payload?.result !== "SUCCESS") {
+    throw new Error(payload?.message || fallbackMessage)
+  }
 }
 
 function mapActivityType(activityType?: string) {
@@ -271,6 +326,9 @@ async function resolveProjectOpportunityId(params: {
   const normalizedCustomer = params.customerName?.trim()
   const normalizedOpportunity = params.opportunityName?.trim()
   const normalizedOpportunityCode = params.opportunityCode?.trim()
+  const customerMatches = normalizedCustomer
+    ? opportunities.filter((item) => item.customerCompanyName?.trim() === normalizedCustomer)
+    : []
 
   const matched = opportunities.find((item) => {
     if (normalizedOpportunityCode && item.opportunityCode === normalizedOpportunityCode) {
@@ -285,37 +343,49 @@ async function resolveProjectOpportunityId(params: {
     )
   })
 
+  if (matched?.id != null) {
+    return matched.id
+  }
+
+  if (normalizedCustomer && customerMatches.length === 1) {
+    return customerMatches[0]?.id ?? null
+  }
+
   return matched?.id ?? null
 }
 
 function mapBackendActivityRecord(
   activity: SalesActivityBackendItem,
   company: CompanySummaryResponse | null,
+  opportunity: ProjectOpportunitySummaryResponse | null,
   index: number,
 ): ActivityRecord {
+  const extras = activity.id != null ? getActivityExtraFields(String(activity.id)) : {}
   const date = activity.activityDateTime?.slice(0, 10) || ""
   const activityMode = mapActivityType(activity.activityType)
   const activityPurpose = mapActivityPurpose(activity.activityPurpose)
+  const customerId = activity.companyId ?? opportunity?.customerCompanyId
+  const opportunityId = activity.projectOpportunityId ?? opportunity?.id
 
   return {
     id: String(activity.id ?? index + 1),
     date,
     requestId: activity.salesActivityRequestId != null ? String(activity.salesActivityRequestId) : undefined,
-    projectOpportunityId: activity.projectOpportunityId,
-    registrant: activity.salesActivityRequestTitle ?? "-",
-    requester: activity.salesActivityRequestTitle ?? "-",
-    customerCode: company?.code ?? String(activity.companyId ?? activity.projectOpportunityId ?? activity.id ?? ""),
-    businessCode: activity.projectOpportunityId != null ? String(activity.projectOpportunityId) : "",
+    projectOpportunityId: opportunityId,
+    registrant: extras.registrant ?? "",
+    requester: extras.requester ?? "",
+    customerCode: company?.code ?? (customerId != null ? String(customerId) : String(activity.id ?? "")),
+    businessCode: opportunityId != null ? String(opportunityId) : "",
     activityMode,
     activityContent: activityPurpose,
     type: activityPurpose,
-    customer: activity.companyName ?? company?.name ?? "-",
-    opportunity: activity.projectOpportunityName ?? "-",
-    location: activity.location ?? "-",
-    attendees: activity.attendeeUserIds?.length ? activity.attendeeUserIds.join(", ") : "-",
-    content: activity.activityContent ?? "-",
-    issues: activity.customerInterest ?? activity.issue ?? "-",
-    nextAction: activity.nextActivity ?? "-",
+    customer: activity.companyName ?? company?.name ?? opportunity?.customerCompanyName ?? "",
+    opportunity: activity.projectOpportunityName ?? opportunity?.opportunityName ?? "",
+    location: activity.location ?? "",
+    attendees: activity.attendeeUserIds?.length ? activity.attendeeUserIds.join(", ") : "",
+    content: activity.activityContent ?? "",
+    issues: activity.customerInterest ?? activity.issue ?? "",
+    nextAction: activity.nextActivity ?? "",
     status: mapActivityStatus(activity.status),
     attachments: [],
   }
@@ -323,10 +393,21 @@ function mapBackendActivityRecord(
 
 export async function loadBackendActivityRecords() {
   const activities = await fetchSalesActivities()
+  let opportunities: ProjectOpportunitySummaryResponse[] = []
+  try {
+    opportunities = (await fetchProjectOpportunities()).content ?? []
+  } catch {
+    opportunities = []
+  }
+  const opportunityLookup = new Map(
+    opportunities
+      .filter((opportunity) => typeof opportunity.id === "number")
+      .map((opportunity) => [opportunity.id as number, opportunity] as const),
+  )
   const uniqueCompanyIds = Array.from(
     new Set(
       activities
-        .map((activity) => activity.companyId)
+        .map((activity) => activity.companyId ?? (activity.projectOpportunityId != null ? opportunityLookup.get(activity.projectOpportunityId)?.customerCompanyId : undefined))
         .filter((companyId): companyId is number => typeof companyId === "number"),
     ),
   )
@@ -345,8 +426,10 @@ export async function loadBackendActivityRecords() {
   const companyLookup = new Map<number, CompanySummaryResponse | null>(companyEntries)
 
   return activities.map((activity, index) => {
-    const company = activity.companyId != null ? companyLookup.get(activity.companyId) ?? null : null
-    return mapBackendActivityRecord(activity, company, index)
+    const opportunity = activity.projectOpportunityId != null ? opportunityLookup.get(activity.projectOpportunityId) ?? null : null
+    const companyId = activity.companyId ?? opportunity?.customerCompanyId
+    const company = companyId != null ? companyLookup.get(companyId) ?? null : null
+    return mapBackendActivityRecord(activity, company, opportunity, index)
   })
 }
 
@@ -373,7 +456,21 @@ async function postSalesActivity(
 
 async function mapSavedSalesActivityResponse(saved: SalesActivityResponse & SalesActivityBackendItem) {
   const company = saved.companyId != null ? await fetchCompanySummary(saved.companyId) : null
-  return mapBackendActivityRecord(saved, company, 0)
+  return mapBackendActivityRecord(saved, company, null, 0)
+}
+
+export async function loadBackendActivityRecord(salesActivityId: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/sales-activities/${salesActivityId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  const saved = await parseApiResponse<SalesActivityResponse & SalesActivityBackendItem>(
+    response,
+    "영업 활동 상세를 불러오지 못했습니다.",
+  )
+  return mapSavedSalesActivityResponse(saved)
 }
 
 async function buildSalesActivityPayload(params: {
@@ -416,6 +513,8 @@ export async function createBackendActivityRecord(params: {
   opportunityName?: string
   opportunityCode?: string
   projectOpportunityId?: number
+  registrant?: string
+  requester?: string
   activityMode: string
   activityContent: string
   content: string
@@ -436,7 +535,7 @@ export async function createBackendActivityRecord(params: {
   })
 
   if (projectOpportunityId == null) {
-    throw new Error("선택한 고객사/사업기회를 백엔드에서 찾을 수 없습니다.")
+    throw new Error("선택한 고객사에 연결된 사업기회를 찾을 수 없습니다. 먼저 사업기회를 등록한 뒤 활동을 등록해주세요.")
   }
 
   const payload = await buildSalesActivityPayload({
@@ -445,7 +544,16 @@ export async function createBackendActivityRecord(params: {
   })
 
   const saved = await postSalesActivity("POST", payload)
-  return mapSavedSalesActivityResponse(saved)
+  const mapped = await mapSavedSalesActivityResponse(saved)
+  saveActivityExtraFields(mapped.id, {
+    registrant: params.registrant,
+    requester: params.requester,
+  })
+  return {
+    ...mapped,
+    registrant: params.registrant ?? mapped.registrant,
+    requester: params.requester ?? mapped.requester,
+  }
 }
 
 export async function updateBackendActivityRecord(
@@ -455,6 +563,8 @@ export async function updateBackendActivityRecord(
     opportunityName?: string
     opportunityCode?: string
     projectOpportunityId?: number
+    registrant?: string
+    requester?: string
     activityMode: string
     activityContent: string
     content: string
@@ -475,7 +585,7 @@ export async function updateBackendActivityRecord(
   })
 
   if (projectOpportunityId == null) {
-    throw new Error("선택한 고객사/사업기회를 백엔드에서 찾을 수 없습니다.")
+    throw new Error("선택한 고객사에 연결된 사업기회를 찾을 수 없습니다. 먼저 사업기회를 등록한 뒤 활동을 수정해주세요.")
   }
 
   const payload = {
@@ -487,7 +597,16 @@ export async function updateBackendActivityRecord(
   } satisfies SalesActivityUpdateRequest & { projectOpportunityId: number }
 
   const saved = await postSalesActivity("PATCH", payload, salesActivityId)
-  return mapSavedSalesActivityResponse(saved)
+  const mapped = await mapSavedSalesActivityResponse(saved)
+  saveActivityExtraFields(mapped.id, {
+    registrant: params.registrant,
+    requester: params.requester,
+  })
+  return {
+    ...mapped,
+    registrant: params.registrant ?? mapped.registrant,
+    requester: params.requester ?? mapped.requester,
+  }
 }
 
 export async function deleteBackendActivityRecord(salesActivityId: string) {
@@ -497,6 +616,6 @@ export async function deleteBackendActivityRecord(salesActivityId: string) {
     credentials: "include",
   })
 
-  await parseApiResponse<ApiResponseVoid>(response, "영업 활동을 삭제하지 못했습니다.")
+  await parseVoidApiResponse(response, "영업 활동을 삭제하지 못했습니다.")
   return true
 }

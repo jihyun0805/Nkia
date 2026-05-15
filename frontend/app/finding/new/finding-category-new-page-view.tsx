@@ -2,11 +2,14 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
+import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
+import { UserPicker } from "@/components/erp/user-picker"
+import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -30,9 +33,9 @@ import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { type StoredFileAttachment } from "@/lib/attachments"
 import { findingStatuses, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
+import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   buildCompanyCode,
-  buildFallbackManagerEmail,
   createBackendCompany,
   createBackendCompanyManager,
   createBackendProjectOpportunity,
@@ -41,6 +44,7 @@ import {
   mapPartnerCategory,
   resolveSalesRepresentativeId,
 } from "@/lib/finding-backend"
+import { loadBackendUsers, type BackendUserSummary } from "@/lib/workflow-backend"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
@@ -127,13 +131,13 @@ function createAutoBusinessRegistrationNumber(prefix: "CUS" | "PTN", code: strin
 function buildOpportunityDescription(params: {
   moduleName: string
   issue: string
-  competition: string
   decisionInfo: string
 }) {
-  return [params.moduleName, params.issue, params.competition, params.decisionInfo]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join("\n\n")
+  return JSON.stringify({
+    moduleName: params.moduleName.trim(),
+    issue: params.issue.trim(),
+    decisionInfo: params.decisionInfo.trim(),
+  })
 }
 
 function mapOpportunityProductClass(value: string) {
@@ -149,12 +153,13 @@ function createCompanyManagerPayload(params: {
 }) {
   return {
     name: params.contact.name.trim(),
-    email: params.contact.email.trim() || buildFallbackManagerEmail(params.companyCode, params.contact.name, params.index),
+    email: params.contact.email.trim(),
     mobilePhone: params.contact.mobilePhone.trim() || undefined,
     officePhone: params.contact.landlinePhone.trim() || undefined,
     department: params.contact.department.trim() || undefined,
     position: params.contact.position.trim() || undefined,
     role: params.contact.duty.trim() || undefined,
+    memo: params.contact.memo.trim() || undefined,
   }
 }
 
@@ -260,6 +265,41 @@ export function FindingCategoryNewPageView({
   const label = getFindingCategoryLabel(category)
   const [backendCustomers, setBackendCustomers] = useState<CustomerRecord[]>([])
   const [backendPartners, setBackendPartners] = useState<PartnerRecord[]>([])
+  const [backendUsers, setBackendUsers] = useState<BackendUserSummary[]>([])
+
+  const customerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      backendCustomers.map((c) => ({
+        id: c.id,
+        label: c.name,
+        subtitle: c.category || undefined,
+        keywords: c.aliases ?? [],
+      })),
+    [backendCustomers],
+  )
+  const partnerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      backendPartners.map((p) => ({
+        id: p.id,
+        label: p.name,
+        subtitle: p.type || undefined,
+      })),
+    [backendPartners],
+  )
+  const partnerLocalSuggestions = useMemo<EntitySuggestion[]>(
+    () =>
+      backendPartners.map((p) => ({
+        type: "PARTNER" as const,
+        id: p.id,
+        code: p.id,
+        label: p.name,
+        subtitle: p.type || null,
+        score: 0,
+        matchedBy: "fuzzy" as const,
+        metadata: {},
+      })),
+    [backendPartners],
+  )
   const [loadingBackend, setLoadingBackend] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [customerName, setCustomerName] = useState("")
@@ -278,6 +318,7 @@ export function FindingCategoryNewPageView({
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
   const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
   const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
+  const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string | null>(null)
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -299,14 +340,16 @@ export function FindingCategoryNewPageView({
     const sync = async () => {
       setLoadingBackend(true)
       try {
-        const data = await loadBackendFindingData()
+        const [data, users] = await Promise.all([loadBackendFindingData(), loadBackendUsers().catch(() => [])])
         if (cancelled) return
         setBackendCustomers(data.customers)
         setBackendPartners(data.partners)
+        setBackendUsers(Array.isArray(users) ? users : [])
       } catch {
         if (!cancelled) {
           setBackendCustomers([])
           setBackendPartners([])
+          setBackendUsers([])
         }
       } finally {
         if (!cancelled) {
@@ -444,10 +487,19 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "고객사 등록 확인",
-        description: "고객사명, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
+      })
+      return
+    }
+
+    const contactValidationMessage = validateManagerContacts(filledContacts)
+    if (contactValidationMessage) {
+      toast({
+        title: "담당자 입력 확인",
+        description: contactValidationMessage,
       })
       return
     }
@@ -469,6 +521,7 @@ export function FindingCategoryNewPageView({
           businessRegistrationNumber: createAutoBusinessRegistrationNumber("CUS", code),
           sector: mapCustomerSector(customerGroup),
           address,
+          memo,
         })
 
         for (let index = 0; index < filledContacts.length; index += 1) {
@@ -503,10 +556,19 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "협력사 등록 확인",
-        description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+        description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
+      })
+      return
+    }
+
+    const contactValidationMessage = validateManagerContacts(filledContacts)
+    if (contactValidationMessage) {
+      toast({
+        title: "담당자 입력 확인",
+        description: contactValidationMessage,
       })
       return
     }
@@ -531,6 +593,7 @@ export function FindingCategoryNewPageView({
           businessRegistrationNumber: createAutoBusinessRegistrationNumber("PTN", code),
           category: mapPartnerCategory(partnerType),
           address,
+          memo,
         })
 
         for (let index = 0; index < filledContacts.length; index += 1) {
@@ -589,7 +652,7 @@ export function FindingCategoryNewPageView({
                 <CardContent className="space-y-8">
                   <section className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
+                      <div className="space-y-2 md:col-span-2">
                         <Label>협력사명 *</Label>
                         <EntityAutocomplete
                           value={partnerName}
@@ -599,12 +662,19 @@ export function FindingCategoryNewPageView({
                             if (suggestion) setPartnerName(suggestion.label)
                           }}
                           allowCustomValue
-                          placeholder="협력사명을 입력하세요"
+                          placeholder="협력사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
                           emptyMessage="등록된 협력사가 없습니다."
+                          localCandidates={partnerLocalSuggestions}
+                        />
+                        <SimilarMatchHint
+                          query={partnerName}
+                          candidates={partnerSimilarCandidates}
+                          hintTitle="비슷한 협력사가 이미 등록되어 있어요"
+                          onPick={(c) => setPartnerName(c.label)}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>유형 *</Label>
+                        <Label>유형</Label>
                         <Select value={partnerType} onValueChange={setPartnerType}>
                           <SelectTrigger>
                             <SelectValue placeholder="선택하세요" />
@@ -714,7 +784,7 @@ export function FindingCategoryNewPageView({
                           ) : null}
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>담당자명</Label>
+                              <Label>담당자명 *</Label>
                               <Input
                                 value={contact.name}
                                 onChange={(event) =>
@@ -746,8 +816,11 @@ export function FindingCategoryNewPageView({
                           </div>
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>이메일</Label>
+                              <Label>이메일 *</Label>
                               <Input
+                                type="email"
+                                inputMode="email"
+                                autoComplete="email"
                                 value={contact.email}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
@@ -756,8 +829,10 @@ export function FindingCategoryNewPageView({
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호</Label>
+                              <Label>무선전화번호 *</Label>
                               <Input
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={contact.mobilePhone}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
@@ -768,6 +843,8 @@ export function FindingCategoryNewPageView({
                             <div className="space-y-2">
                               <Label>유선전화번호</Label>
                               <Input
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={contact.landlinePhone}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
@@ -784,17 +861,6 @@ export function FindingCategoryNewPageView({
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                               }
                               placeholder="담당 직무를 입력하세요."
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>비고</Label>
-                            <Textarea
-                              value={contact.memo}
-                              onChange={(event) =>
-                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
-                              }
-                              rows={3}
-                              placeholder="담당자 관련 특기사항을 입력하세요."
                             />
                           </div>
                         </section>
@@ -843,7 +909,8 @@ export function FindingCategoryNewPageView({
 
       void (async () => {
         try {
-          const salesRepresentativeId = await resolveSalesRepresentativeId(opportunitySalesRep)
+          const salesRepresentativeId =
+            opportunitySalesRepUserId ?? (await resolveSalesRepresentativeId(opportunitySalesRep))
           if (!salesRepresentativeId) {
             toast({
               title: "사업기회 등록 확인",
@@ -872,7 +939,6 @@ export function FindingCategoryNewPageView({
             description: buildOpportunityDescription({
               moduleName,
               issue,
-              competition,
               decisionInfo: buildDecisionInfoFromCustomer(resolvedCustomer),
             }),
             competitionStatus: competition,
@@ -959,6 +1025,7 @@ export function FindingCategoryNewPageView({
                                 allowCustomValue
                                 placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
                                 emptyMessage="등록된 협력사가 없습니다."
+                                localCandidates={partnerLocalSuggestions}
                               />
                               <Button
                                 type="button"
@@ -1004,7 +1071,17 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>영업대표</Label>
-                        <Input value={opportunitySalesRep} onChange={(event) => setOpportunitySalesRep(event.target.value)} placeholder="영업대표명을 입력하세요" />
+                        <UserPicker
+                          value={opportunitySalesRep}
+                          users={backendUsers}
+                          onValueChange={setOpportunitySalesRep}
+                          onSelect={(user) => {
+                            setOpportunitySalesRep(user?.name ?? "")
+                            setOpportunitySalesRepUserId(user?.id ?? null)
+                          }}
+                          placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "이름으로 영업대표를 검색하세요"}
+                          disabled={backendUsers.length === 0}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>예상 입찰 또는 계약 시점</Label>
@@ -1235,18 +1312,24 @@ export function FindingCategoryNewPageView({
               <CardContent className="space-y-8">
                 <section className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label>고객사명 *</Label>
                       <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => setCustomerName(customer?.name ?? "")}
                         onValueChange={setCustomerName}
                         allowCustomValue
-                        placeholder="고객사명을 입력하세요"
+                        placeholder="고객사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
+                      />
+                      <SimilarMatchHint
+                        query={customerName}
+                        candidates={customerSimilarCandidates}
+                        hintTitle="비슷한 고객사가 이미 등록되어 있어요"
+                        onPick={(c) => setCustomerName(c.label)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>고객군 *</Label>
+                      <Label>고객군</Label>
                       <Select value={customerGroup} onValueChange={setCustomerGroup}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
@@ -1337,7 +1420,7 @@ export function FindingCategoryNewPageView({
                         ) : null}
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>담당자명</Label>
+                            <Label>담당자명 *</Label>
                             <Input
                               value={contact.name}
                               onChange={(event) =>
@@ -1369,8 +1452,11 @@ export function FindingCategoryNewPageView({
                         </div>
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>이메일</Label>
+                            <Label>이메일 *</Label>
                             <Input
+                              type="email"
+                              inputMode="email"
+                              autoComplete="email"
                               value={contact.email}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
@@ -1379,8 +1465,10 @@ export function FindingCategoryNewPageView({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호</Label>
+                            <Label>무선전화번호 *</Label>
                             <Input
+                              inputMode="tel"
+                              autoComplete="tel"
                               value={contact.mobilePhone}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
@@ -1391,6 +1479,8 @@ export function FindingCategoryNewPageView({
                           <div className="space-y-2">
                             <Label>유선전화번호</Label>
                             <Input
+                              inputMode="tel"
+                              autoComplete="tel"
                               value={contact.landlinePhone}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
@@ -1407,17 +1497,6 @@ export function FindingCategoryNewPageView({
                               setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                             }
                             placeholder="담당 직무를 입력하세요."
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>비고</Label>
-                          <Textarea
-                            value={contact.memo}
-                            onChange={(event) =>
-                              setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
-                            }
-                            rows={3}
-                            placeholder="담당자 관련 특기사항을 입력하세요."
                           />
                         </div>
                       </section>

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getStatusOptions, isStatusField } from "@/lib/status-options";
 import { orderReportApi, contractApi, licenseApi, type OrderReportResponse, type ContractResponse, type LicenseResponse } from "@/lib/api/contract-api";
 import { Loader2, AlertCircle } from "lucide-react";
+import { OrderReportForm } from "@/components/erp/contract/order-report-form";
 
 type Category = "orders" | "order" | "contracts" | "contract" | "purchases" | "purchase" | "licenses" | "license";
 
@@ -180,46 +181,57 @@ export default function ContractEditPage() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-            <Card>
-              <CardHeader>
-                <CardTitle>{label} 수정</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                  {getFields().map((field) => (
-                    <div key={field.label} className="space-y-2">
-                      <Label>{field.label}</Label>
-                      {isStatusField(field.label) ? (
-                        <Select defaultValue={String(field.value)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="상태 선택" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getStatusOptions(String(field.value)).map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input defaultValue={String(field.value)} />
-                      )}
+
+            {category === "orders" || category === "order" ? (
+              <OrderReportForm
+                isEdit={true}
+                orderReportId={numericId}
+                initialData={data}
+                onSuccess={() => router.push(`/contract/${category}/${id}`)}
+                onCancel={() => router.push(`/contract/${category}/${id}`)}
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{label} 수정</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {getFields().map((field) => (
+                      <div key={field.label} className="space-y-2">
+                        <Label>{field.label}</Label>
+                        {isStatusField(field.label) ? (
+                          <Select defaultValue={String(field.value)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="상태 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getStatusOptions(String(field.value)).map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input defaultValue={String(field.value)} />
+                        )}
+                      </div>
+                    ))}
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>첨부파일</Label>
+                      <Input type="file" multiple />
                     </div>
-                  ))}
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>첨부파일</Label>
-                    <Input type="file" multiple />
                   </div>
-                </div>
-                <div className="flex justify-end gap-2 border-t pt-6">
-                  <Button variant="outline" asChild>
-                    <Link href={`/contract/${category}/${id}`}>취소</Link>
-                  </Button>
-                  <Button onClick={() => router.push(`/contract/${category}/${id}`)}>수정</Button>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="flex justify-end gap-2 border-t pt-6">
+                    <Button variant="outline" asChild>
+                      <Link href={`/contract/${category}/${id}`}>취소</Link>
+                    </Button>
+                    <Button onClick={() => router.push(`/contract/${category}/${id}`)}>수정</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </main>
       </div>

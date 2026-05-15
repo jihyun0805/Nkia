@@ -18,7 +18,7 @@ type BackendMyInfoResponse = {
   permissions?: string[]
 }
 
-type BackendUserSummary = {
+export type BackendUserSummary = {
   id?: string
   employeeNumber?: string
   position?: "TEAM_MEMBER" | "TEAM_LEADER" | "HEAD_DIRECTOR"

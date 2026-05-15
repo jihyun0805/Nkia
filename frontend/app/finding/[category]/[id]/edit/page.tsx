@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
+import { UserPicker } from "@/components/erp/user-picker"
+import { useBackendUsers } from "@/lib/use-backend-users"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -28,8 +30,8 @@ import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusiness
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { findingStatuses, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
-  buildFallbackManagerEmail,
   createBackendCompanyManager,
   deleteBackendCompanyManager,
   loadBackendCompanyManagers,
@@ -156,13 +158,13 @@ function parseExpectedBudget(value?: string) {
 function buildOpportunityDescription(params: {
   moduleName: string
   issue: string
-  competition: string
   decisionInfo: string
 }) {
-  return [params.moduleName, params.issue, params.competition, params.decisionInfo]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join("\n\n")
+  return JSON.stringify({
+    moduleName: params.moduleName.trim(),
+    issue: params.issue.trim(),
+    decisionInfo: params.decisionInfo.trim(),
+  })
 }
 
 function getFindingCategoryLabel(category: FindingCategory) {
@@ -291,6 +293,8 @@ export default function FindingEditPage() {
   const [expectedAmount, setExpectedAmount] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
   const [salesRep, setSalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
+  const [salesRepUserId, setSalesRepUserId] = useState<string | null>(null)
+  const editPageUsers = useBackendUsers()
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -507,10 +511,19 @@ export default function FindingEditPage() {
       const filledContacts = contacts.filter(hasContactValue)
       const primaryContact = filledContacts[0]
 
-      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.mobilePhone.trim()) {
+      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
         toast({
           title: "협력사 수정 확인",
-          description: "협력사명, 유형, 담당자 1의 성명, 무선전화번호를 모두 입력해주십시오.",
+          description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
+        })
+        return
+      }
+
+      const contactValidationMessage = validateManagerContacts(filledContacts)
+      if (contactValidationMessage) {
+        toast({
+          title: "담당자 입력 확인",
+          description: contactValidationMessage,
         })
         return
       }
@@ -540,7 +553,8 @@ export default function FindingEditPage() {
             name: normalizedName,
             category: mapPartnerCategory(partnerType),
             address,
-          })
+            memo,
+          }, currentPartner.id)
 
           const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
           const sortedManagers = [...existingManagers].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
@@ -548,12 +562,13 @@ export default function FindingEditPage() {
             const contact = filledContacts[index]
             const payload = {
               name: contact.name.trim(),
-              email: contact.email?.trim() || buildFallbackManagerEmail(currentPartner.id, contact.name, index),
+              email: contact.email?.trim() || "",
               mobilePhone: contact.mobilePhone?.trim() || undefined,
               officePhone: contact.landlinePhone?.trim() || undefined,
               department: contact.department?.trim() || undefined,
               position: contact.position?.trim() || undefined,
               role: contact.duty?.trim() || undefined,
+              memo: contact.memo?.trim() || undefined,
             }
 
             const managerId = sortedManagers[index]?.id
@@ -620,7 +635,7 @@ export default function FindingEditPage() {
     setSubmitting(true)
     ;(async () => {
       try {
-        const salesRepresentativeId = await resolveSalesRepresentativeId(salesRep)
+        const salesRepresentativeId = salesRepUserId ?? (await resolveSalesRepresentativeId(salesRep))
         if (!salesRepresentativeId) {
           toast({
             title: "사업기회 수정 확인",
@@ -640,7 +655,6 @@ export default function FindingEditPage() {
           description: buildOpportunityDescription({
             moduleName,
             issue,
-            competition,
             decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
           }),
           competitionStatus: competition,
@@ -738,7 +752,7 @@ export default function FindingEditPage() {
                         <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
                       </div>
                       <div className="space-y-2">
-                        <Label>유형 *</Label>
+                        <Label>유형</Label>
                         <Select value={partnerType} onValueChange={setPartnerType}>
                           <SelectTrigger>
                             <SelectValue placeholder="선택하세요" />
@@ -836,7 +850,7 @@ export default function FindingEditPage() {
                           ) : null}
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>담당자명</Label>
+                              <Label>담당자명 *</Label>
                               <Input
                                 value={contact.name}
                                 onChange={(event) =>
@@ -868,8 +882,11 @@ export default function FindingEditPage() {
                           </div>
                           <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>이메일</Label>
+                              <Label>이메일 *</Label>
                               <Input
+                                type="email"
+                                inputMode="email"
+                                autoComplete="email"
                                 value={contact.email}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, email: event.target.value } : item)))
@@ -878,8 +895,10 @@ export default function FindingEditPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호</Label>
+                              <Label>무선전화번호 *</Label>
                               <Input
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={contact.mobilePhone}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, mobilePhone: event.target.value } : item)))
@@ -890,6 +909,8 @@ export default function FindingEditPage() {
                             <div className="space-y-2">
                               <Label>유선전화번호</Label>
                               <Input
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={contact.landlinePhone}
                                 onChange={(event) =>
                                   setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
@@ -906,17 +927,6 @@ export default function FindingEditPage() {
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, duty: event.target.value } : item)))
                               }
                               placeholder="담당 직무를 입력하세요."
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>비고</Label>
-                            <Textarea
-                              value={contact.memo}
-                              onChange={(event) =>
-                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, memo: event.target.value } : item)))
-                              }
-                              rows={3}
-                              placeholder="담당자 관련 특기사항을 입력하세요."
                             />
                           </div>
                         </section>
@@ -1037,7 +1047,16 @@ export default function FindingEditPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>영업대표</Label>
-                      <Input value={salesRep} onChange={(event) => setSalesRep(event.target.value)} placeholder="영업대표명을 입력하세요" />
+                      <UserPicker
+                        value={salesRep}
+                        users={editPageUsers}
+                        onValueChange={setSalesRep}
+                        onSelect={(u) => {
+                          setSalesRep(u?.name ?? "")
+                          setSalesRepUserId(u?.id ?? null)
+                        }}
+                        placeholder="이름으로 영업대표를 검색하세요"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>사업명 *</Label>

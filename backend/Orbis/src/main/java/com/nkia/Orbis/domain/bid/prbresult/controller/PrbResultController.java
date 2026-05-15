@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.bid.prbresult.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultCreateRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultListResponse;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -85,5 +87,20 @@ public class PrbResultController {
     public ResponseEntity<ApiResponse<Void>> deletePrbResult(@PathVariable Long id) {
         prbResultService.deletePrbResult(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "PRB 결과보고서 결재 상신")
+    @PostMapping("/submit/{prbResultId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB_RESULT', 'CREATE')")
+    public ResponseEntity<ApiResponse<String>> submitPrbResult(
+            @PathVariable("prbResultId") Long prbResultId,
+            @RequestBody SubmitRequest request
+    ) {
+        prbResultService.submitPrbResult(
+                prbResultId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("PRB 결과보고서 결재 상신 완료"));
     }
 }

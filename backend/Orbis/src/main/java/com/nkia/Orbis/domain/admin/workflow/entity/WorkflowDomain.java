@@ -10,5 +10,8 @@ public enum WorkflowDomain {
     PAID_MAINTENANCE_CONTRACT,
     LICENSE,
     BILLING,
-    CUSTOMER_SUPPORT
+    CUSTOMER_SUPPORT,
+    PRB,
+    PRB_RESULT,
+    BID_RESULT
 }

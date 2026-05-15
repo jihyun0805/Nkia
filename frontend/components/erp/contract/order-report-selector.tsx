@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Search, Loader2 } from "lucide-react";
 import { orderReportApi, type OrderReportListResponse } from "@/lib/api/order-report-api";
+import { fuzzyMatch } from "@/lib/fuzzy-match";
 import { Badge } from "@/components/ui/badge";
 
 interface OrderReportSelectorProps {
@@ -37,11 +38,17 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
     }
   }, [open]);
 
-  const filteredReports = reports.filter(
-    (r) =>
-      r.finalCustomerCompanyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.projectName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredReports = (() => {
+    const trimmed = searchTerm.trim();
+    if (!trimmed) return reports;
+    const hits = fuzzyMatch(
+      trimmed,
+      reports,
+      (r) => [r.finalCustomerCompanyName, r.projectName],
+      reports.length,
+    );
+    return hits.map((h) => h.item);
+  })();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -49,13 +56,13 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
         {trigger || (
           <Button variant="outline" size="sm" className="gap-2">
             <Search className="w-4 h-4" />
-            사업 선택
+            수주보고서 선택
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>사업 선택</DialogTitle>
+          <DialogTitle>수주보고서 선택</DialogTitle>
         </DialogHeader>
         <div className="p-4 space-y-4 flex-1 overflow-hidden flex flex-col">
           <div className="relative">
@@ -75,7 +82,7 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
                 <TableRow>
                   <TableHead>고객사</TableHead>
                   <TableHead>사업명</TableHead>
-                  <TableHead>영업대표</TableHead>
+                  <TableHead>PM</TableHead>
                   <TableHead>수주일</TableHead>
                   <TableHead>상태</TableHead>
                   <TableHead className="text-right">금액</TableHead>
@@ -108,9 +115,7 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
                           {report.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right text-xs font-semibold">
-                        ₩{report.totalAmount?.toLocaleString()}
-                      </TableCell>
+                      <TableCell className="text-right text-xs font-semibold">₩{report.totalAmount?.toLocaleString()}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           size="sm"

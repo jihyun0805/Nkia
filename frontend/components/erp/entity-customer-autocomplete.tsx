@@ -8,6 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@
 import { getEntitySuggestions, type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { cn } from "@/lib/utils"
 import { type CustomerRecord, getCustomerByName, normalizeCustomerKeyword, searchCustomers } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
 
 type CustomerAutocompleteProps = {
   value: string
@@ -76,18 +77,38 @@ export function CustomerAutocomplete({
     setOpen(false)
   }
 
-  const handleEnter = () => {
+  const resolveKnownCustomer = async () => {
     if (suggestions.length > 0) {
-      commitSelection(suggestions[0])
-      return
+      return suggestions[0]
     }
 
     const exactMatch = findKnownCustomer(query, dbSuggestions)
-    if (!exactMatch && normalizeCustomerKeyword(query) && !allowCustomValue) {
-      onUnregisteredAttempt?.()
+    if (exactMatch) {
+      return exactMatch
     }
+
+    try {
+      const backendData = await loadBackendFindingData()
+      const normalizedQuery = normalizeCustomerKeyword(query)
+      const backendMatch = backendData.customers.find((customer) => {
+        if (normalizeCustomerKeyword(customer.name) === normalizedQuery) return true
+        return customer.aliases?.some((alias) => normalizeCustomerKeyword(alias) === normalizedQuery) ?? false
+      })
+      return backendMatch ?? null
+    } catch {
+      return null
+    }
+  }
+
+  const handleEnter = async () => {
+    const exactMatch = await resolveKnownCustomer()
     if (exactMatch) {
       commitSelection(exactMatch)
+      return
+    }
+
+    if (normalizeCustomerKeyword(query) && !allowCustomValue) {
+      onUnregisteredAttempt?.()
       return
     }
 
@@ -119,27 +140,30 @@ export function CustomerAutocomplete({
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault()
-              handleEnter()
+              void handleEnter()
             }
           }}
           onBlur={() => {
             window.setTimeout(() => {
-              const exactMatch = findKnownCustomer(query, dbSuggestions)
-              if (!exactMatch && normalizeCustomerKeyword(query) && !allowCustomValue) {
-                onUnregisteredAttempt?.()
-              }
-              if (exactMatch) {
-                commitSelection(exactMatch)
-                return
-              }
+              void (async () => {
+                const exactMatch = await resolveKnownCustomer()
+                if (exactMatch) {
+                  commitSelection(exactMatch)
+                  return
+                }
 
-              if (allowCustomValue) {
+                if (normalizeCustomerKeyword(query) && !allowCustomValue) {
+                  onUnregisteredAttempt?.()
+                }
+
+                if (allowCustomValue) {
+                  setOpen(false)
+                  return
+                }
+
+                setQuery(value)
                 setOpen(false)
-                return
-              }
-
-              setQuery(value)
-              setOpen(false)
+              })()
             }, 100)
           }}
         />

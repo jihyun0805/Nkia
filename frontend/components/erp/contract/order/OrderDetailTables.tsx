@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { Plus, Trash2 } from "lucide-react";
-
-import { productData } from "@/lib/product-data";
+import { adminApi } from "@/lib/api/admin-api";
 
 export function OrderDetailTables() {
   const { control, register, setValue } = useFormContext();
@@ -29,14 +28,33 @@ export function OrderDetailTables() {
   const isInitialized = useRef(false);
   useEffect(() => {
     if (!isInitialized.current) {
-      if (license.fields.length === 0) license.append({ category: "", group: "", product: "", quantity: "", unitPrice: "", subtotal: "" });
+      if (license.fields.length === 0) license.append({ category: "", group: "", productModuleId: "", quantity: "", unitPrice: "", subtotal: "" });
       if (service.fields.length === 0) service.append({ content: "", mm: "", unitPrice: "", subtotal: "" });
       if (maintenance.fields.length === 0) maintenance.append({ content: "", cycle: "", months: "", monthlyAmount: "", subtotal: "" });
       if (otherSales.fields.length === 0) otherSales.append({ content: "", quantity: "", unitPrice: "", subtotal: "" });
       if (purchase.fields.length === 0) purchase.append({ content: "", quantity: "", unitPrice: "", subtotal: "" });
       isInitialized.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [productData, setProductData] = useState<any>({});
+
+  useEffect(() => {
+    adminApi
+      .getProducts()
+      .then((res) => {
+        const raw = res.data || [];
+        const tree: any = {};
+        raw.forEach((p: any) => {
+          const cat = p.productClass || "기타";
+          const grp = p.productGroup || "기본";
+          if (!tree[cat]) tree[cat] = {};
+          if (!tree[cat][grp]) tree[cat][grp] = [];
+          tree[cat][grp].push({ id: p.id, name: p.productName, price: p.unitPrice });
+        });
+        setProductData(tree);
+      })
+      .catch(console.error);
   }, []);
 
   // 합계 자동 계산 로직
@@ -104,7 +122,7 @@ export function OrderDetailTables() {
         <h2 className="text-lg font-extrabold text-slate-900 border-b-2 border-black pb-2 mb-4">매출</h2>
 
         {/* 라이선스 */}
-        <TableHeader title="▶ 라이선스" onAdd={() => license.append({ category: "", group: "", product: "", quantity: "", unitPrice: "", subtotal: "" })} />
+        <TableHeader title="▶ 라이선스" onAdd={() => license.append({ category: "", group: "", productModuleId: "", quantity: "", unitPrice: "", subtotal: "" })} />
         <div className="relative">
           <table className="w-full border-collapse border border-black text-sm text-center table-fixed bg-white">
             <colgroup>
@@ -141,7 +159,7 @@ export function OrderDetailTables() {
                 const currentGroup = licenseData[i]?.group;
 
                 // 현재 제품명 값이 선택되어 있는지 확인
-                const currentProduct = licenseData[i]?.product;
+                const currentProductModuleId = licenseData[i]?.productModuleId;
 
                 // 선택된 분류/군에 맞는 옵션 리스트 추출
                 const groupOptions = currentCategory && productData[currentCategory] ? Object.keys(productData[currentCategory]) : [];
@@ -150,6 +168,7 @@ export function OrderDetailTables() {
                 // 하위 드롭다운을 초기화하기 위한 레지스터
                 const categoryReg = register(`licenseDetails.${i}.category`);
                 const groupReg = register(`licenseDetails.${i}.group`);
+                const productReg = register(`licenseDetails.${i}.productModuleId`);
 
                 return (
                   <tr key={f.id} className="border-b border-black relative group">
@@ -160,7 +179,8 @@ export function OrderDetailTables() {
                         onChange={(e) => {
                           categoryReg.onChange(e);
                           setValue(`licenseDetails.${i}.group`, ""); // 분류 변경 시 제품군 초기화
-                          setValue(`licenseDetails.${i}.product`, ""); // 분류 변경 시 제품명 초기화
+                          setValue(`licenseDetails.${i}.productModuleId`, ""); // 분류 변경 시 제품명 초기화
+                          setValue(`licenseDetails.${i}.unitPrice`, "");
                         }}
                       >
                         <option value="" hidden>
@@ -179,7 +199,8 @@ export function OrderDetailTables() {
                         {...groupReg}
                         onChange={(e) => {
                           groupReg.onChange(e);
-                          setValue(`licenseDetails.${i}.product`, ""); // 제품군 변경 시 제품명 초기화
+                          setValue(`licenseDetails.${i}.productModuleId`, ""); // 제품군 변경 시 제품명 초기화
+                          setValue(`licenseDetails.${i}.unitPrice`, "");
                         }}
                         disabled={!currentCategory} // 상위항목 미선택시 비활성화
                       >
@@ -196,15 +217,22 @@ export function OrderDetailTables() {
                     <td className="border-r border-black p-0" colSpan={3}>
                       <select
                         className={`${cellInput} text-left [text-align-last:center] cursor-pointer ${!currentGroup ? "bg-slate-50" : ""}`}
-                        {...register(`licenseDetails.${i}.product`)}
+                        {...productReg}
+                        onChange={(e) => {
+                          productReg.onChange(e);
+                          const selectedProd = productOptions.find((p: any) => String(p.id) === e.target.value);
+                          if (selectedProd) {
+                            setValue(`licenseDetails.${i}.unitPrice`, formatTotal(selectedProd.price || 0));
+                          }
+                        }}
                         disabled={!currentGroup} // 상위항목 미선택시 비활성화
                       >
                         <option value="" hidden>
                           선택
                         </option>
-                        {productOptions.map((prod) => (
-                          <option key={prod} value={prod} className="text-left">
-                            {prod}
+                        {productOptions.map((prod: any) => (
+                          <option key={prod.id} value={prod.id} className="text-left">
+                            {prod.name}
                           </option>
                         ))}
                       </select>

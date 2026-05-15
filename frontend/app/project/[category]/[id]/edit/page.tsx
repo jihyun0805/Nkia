@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, AlertCircle } from "lucide-react";
 import { projectApi, type ProjectDetailResponse } from "@/lib/api/project-api";
+import { UserPicker } from "@/components/erp/user-picker";
+import { useBackendUsers } from "@/lib/use-backend-users";
+import type { BackendUserSummary } from "@/lib/workflow-backend";
 
 interface EditFormValues {
   startDate: string;
@@ -32,7 +35,7 @@ export default function ProjectEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { register, handleSubmit, reset } = useForm<EditFormValues>({
+  const { register, handleSubmit, reset, setValue } = useForm<EditFormValues>({
     defaultValues: {
       startDate: "",
       endDate: "",
@@ -40,6 +43,9 @@ export default function ProjectEditPage() {
       salesRepresentativeId: "",
     },
   });
+  const projectUsers = useBackendUsers();
+  const [pmUser, setPmUser] = useState<BackendUserSummary | null>(null);
+  const [salesRepUser, setSalesRepUser] = useState<BackendUserSummary | null>(null);
 
   useEffect(() => {
     if (isNaN(numericId)) return;
@@ -161,17 +167,35 @@ export default function ProjectEditPage() {
                         <Input id="endDate" type="date" {...register("endDate")} />
                       </div>
 
-                      {/* PM UUID */}
+                      {/* PM */}
                       <div className="space-y-2">
-                        <Label htmlFor="managerId">PM UUID *</Label>
-                        <Input id="managerId" {...register("managerId", { required: true })} placeholder="PM 사용자 UUID 입력" />
+                        <Label htmlFor="managerId">PM *</Label>
+                        <UserPicker
+                          value={pmUser?.name ?? ""}
+                          users={projectUsers}
+                          onSelect={(u) => {
+                            setPmUser(u)
+                            setValue("managerId", u?.id ?? "", { shouldValidate: true })
+                          }}
+                          placeholder="이름으로 PM 검색"
+                        />
+                        <input type="hidden" {...register("managerId", { required: true })} />
                         <p className="text-xs text-muted-foreground">현재: {data?.pmName ?? "미배정"}</p>
                       </div>
 
-                      {/* 영업대표 UUID */}
+                      {/* 영업대표 */}
                       <div className="space-y-2">
-                        <Label htmlFor="salesRepresentativeId">영업대표 UUID *</Label>
-                        <Input id="salesRepresentativeId" {...register("salesRepresentativeId", { required: true })} placeholder="영업대표 사용자 UUID 입력" />
+                        <Label htmlFor="salesRepresentativeId">영업대표 *</Label>
+                        <UserPicker
+                          value={salesRepUser?.name ?? ""}
+                          users={projectUsers}
+                          onSelect={(u) => {
+                            setSalesRepUser(u)
+                            setValue("salesRepresentativeId", u?.id ?? "", { shouldValidate: true })
+                          }}
+                          placeholder="이름으로 영업대표 검색"
+                        />
+                        <input type="hidden" {...register("salesRepresentativeId", { required: true })} />
                         <p className="text-xs text-muted-foreground">현재: {data?.salesRepName ?? "미배정"}</p>
                       </div>
                     </div>
