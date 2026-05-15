@@ -1,11 +1,14 @@
 package com.nkia.Orbis.domain.bid.prbresult.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -33,6 +36,9 @@ public class PrbResult extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "prb_result_id")
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     // Prb와의 관계는 지연 로딩(LAZY)으로 설정하여 N+1 문제 사전 방지
     @ManyToOne(fetch = FetchType.LAZY)
@@ -80,5 +86,25 @@ public class PrbResult extends BaseEntity {
         this.comprehensiveOpinion = comprehensiveOpinion;
         this.meetingLocation = meetingLocation;
         this.meetingDateTime = meetingDateTime;
+    }
+
+    public void submit() {
+        this.status = com.nkia.Orbis.common.constant.ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = com.nkia.Orbis.common.constant.ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = com.nkia.Orbis.common.constant.ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = com.nkia.Orbis.common.constant.ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == com.nkia.Orbis.common.constant.ApprovalStatus.DRAFT;
     }
 }
