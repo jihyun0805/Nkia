@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertCircle, Search } from "lucide-react";
 import { OrderReportSelector } from "@/components/erp/contract/order-report-selector";
 import { type OrderReportListResponse } from "@/lib/api/contract-api";
+import { UserPicker } from "@/components/erp/user-picker";
+import { useBackendUsers } from "@/lib/use-backend-users";
+import type { BackendUserSummary } from "@/lib/workflow-backend";
 
 export interface PaidMaintenanceFormProps {
   onSuccess: () => void;
@@ -29,6 +32,11 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
   const [data, setData] = useState<any>(inheritedData);
   const [amount, setAmount] = useState<string>("");
   const [annualAmount, setAnnualAmount] = useState<string>("");
+  const users = useBackendUsers();
+  const [engineerMain, setEngineerMain] = useState<BackendUserSummary | null>(null);
+  const [engineerSub, setEngineerSub] = useState<BackendUserSummary | null>(null);
+  const [regularPm, setRegularPm] = useState<BackendUserSummary | null>(null);
+  const [salesRep, setSalesRep] = useState<BackendUserSummary | null>(null);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const numericValue = e.target.value.replace(/[^0-9]/g, "");
@@ -131,11 +139,23 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
               </div>
               <div className="space-y-2">
                 <Label htmlFor="engineerMain">변경(정)</Label>
-                <Input id="engineerMain" />
+                <UserPicker
+                  value={engineerMain?.name ?? ""}
+                  users={users}
+                  onSelect={setEngineerMain}
+                  placeholder="이름으로 검색"
+                />
+                <input type="hidden" name="engineerMainId" value={engineerMain?.id ?? ""} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="engineerSub">변경(부)</Label>
-                <Input id="engineerSub" />
+                <UserPicker
+                  value={engineerSub?.name ?? ""}
+                  users={users}
+                  onSelect={setEngineerSub}
+                  placeholder="이름으로 검색"
+                />
+                <input type="hidden" name="engineerSubId" value={engineerSub?.id ?? ""} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="type">
@@ -267,7 +287,13 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
               </div>
               <div className="space-y-2">
                 <Label htmlFor="regularPm">정기 PM</Label>
-                <Input id="regularPm" />
+                <UserPicker
+                  value={regularPm?.name ?? ""}
+                  users={users}
+                  onSelect={setRegularPm}
+                  placeholder="이름으로 검색"
+                />
+                <input type="hidden" name="regularPmId" value={regularPm?.id ?? ""} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="productFamily">
@@ -347,7 +373,13 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
                 <Label htmlFor="salesRep">
                   영업 <span className="text-red-500">*</span>
                 </Label>
-                <Input id="salesRep" required />
+                <UserPicker
+                  value={salesRep?.name ?? ""}
+                  users={users}
+                  onSelect={setSalesRep}
+                  placeholder="이름으로 영업담당자 검색"
+                />
+                <input type="hidden" name="salesRepId" value={salesRep?.id ?? ""} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="customerContactName">

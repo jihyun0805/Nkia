@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
+import { UserPicker } from "@/components/erp/user-picker"
+import { useBackendUsers } from "@/lib/use-backend-users"
 import {
   activityContentOptions,
   activityModeOptions,
@@ -97,6 +99,7 @@ export function ActivityFormFields({
   const [issues, setIssues] = useState(defaultValues?.issues ?? "")
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
   const [registrant, setRegistrant] = useState(registrantValue ?? defaultValues?.registrant ?? "")
+  const activityFormUsers = useBackendUsers()
   const [attendeeRows, setAttendeeRows] = useState<string[]>(
     (() => {
       const initial = (defaultValues?.attendees ?? "")
@@ -253,16 +256,17 @@ export function ActivityFormFields({
         <div className="space-y-2">
           <Label>요청자</Label>
           {typeof requesterValue === "string" && onRequesterChange ? (
-            <Input
-              value={requester}
-              readOnly={readOnly}
-              disabled={readOnly}
-              onChange={(event) => {
-                if (readOnly) return
-                onRequesterChange(event.target.value)
-              }}
-              placeholder="요청자가 없는 경우 비워둘 수 있습니다"
-            />
+            readOnly ? (
+              <Input value={requester} readOnly disabled />
+            ) : (
+              <UserPicker
+                value={requester}
+                users={activityFormUsers}
+                onValueChange={(v) => onRequesterChange(v)}
+                onSelect={(u) => onRequesterChange(u?.name ?? "")}
+                placeholder="요청자가 없는 경우 비워둘 수 있습니다"
+              />
+            )
           ) : (
             <Input defaultValue={defaultValues?.requester} readOnly={readOnly} disabled={readOnly} placeholder="요청자가 없는 경우 비워둘 수 있습니다" />
           )}
