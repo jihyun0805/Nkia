@@ -1,6 +1,5 @@
 package com.nkia.Orbis.domain.admin.workflow.dto.response;
 
-import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowTemplate;
 import java.util.List;
 import lombok.Builder;
@@ -12,7 +11,7 @@ public class WorkflowTemplateResponse {
 
     private Long id;
 
-    private WorkflowDomain workflowDomain;
+    private String workflowDomain;
 
     private String name;
 
@@ -26,7 +25,7 @@ public class WorkflowTemplateResponse {
     ) {
         return WorkflowTemplateResponse.builder()
                 .id(workflowTemplate.getId())
-                .workflowDomain(workflowTemplate.getWorkflowDomain())
+                .workflowDomain(workflowTemplate.getWorkflowDomain().getDescription())
                 .name(workflowTemplate.getName())
                 .active(workflowTemplate.getActive())
                 .steps(steps)

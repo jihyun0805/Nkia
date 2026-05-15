@@ -1,10 +1,6 @@
 package com.nkia.Orbis.domain.contract.license.dto.response;
 
-import com.nkia.Orbis.common.constant.ApprovalStatus;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.contract.license.entity.License;
-import com.nkia.Orbis.domain.contract.license.entity.LicenseStatus;
-import com.nkia.Orbis.domain.contract.license.entity.LicenseType;
 import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,13 +13,13 @@ public class LicenseResponse {
 
     private Long workflowId;
 
-    private ApprovalStatus status;
+    private String status;
 
     private Long orderReportId;
 
     private Long productModuleId;
 
-    private ProductClass productClass;
+    private String productClass;
 
     private String productGroup;
 
@@ -35,9 +31,9 @@ public class LicenseResponse {
 
     private Long totalPrice;
 
-    private LicenseType licenseType;
+    private String licenseType;
 
-    private LicenseStatus licenseStatus;
+    private String licenseStatus;
 
     private Long customerCompanyId;
 
@@ -51,17 +47,17 @@ public class LicenseResponse {
         return LicenseResponse.builder()
                 .id(license.getId())
                 .workflowId(workflowId)
-                .status(license.getStatus())
+                .status(license.getStatus().getDescription())
                 .orderReportId(license.getOrderReport() != null ? license.getOrderReport().getId() : null)
                 .productModuleId(license.getProductModule().getId())
-                .productClass(license.getProductClass())
+                .productClass(license.getProductClass().getDescription())
                 .productGroup(license.getProductGroup())
                 .productName(license.getProductName())
                 .quantity(license.getQuantity())
                 .price(license.getPrice())
                 .totalPrice(license.getTotalPrice())
-                .licenseType(license.getLicenseType())
-                .licenseStatus(license.getLicenseStatus())
+                .licenseType(license.getLicenseType().getDescription())
+                .licenseStatus(license.getLicenseStatus().getDescription())
                 .customerCompanyId(license.getCustomerCompany().getId())
                 .customerCompanyName(license.getCustomerCompany().getName())
                 .startDate(license.getStartDate())
