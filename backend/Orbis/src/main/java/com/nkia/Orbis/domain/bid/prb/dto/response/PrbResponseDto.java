@@ -66,14 +66,14 @@ public class PrbResponseDto {
     private GeneralOverheadExpensesDto overheadExpenses;  // 제경비 리스트 + 제경비 합계
     private IndirectExpensesDto indirectExpenses;         // 대상 금액, 간접비율, 간접비 합계
 
-    public static PrbResponseDto from(Prb entity) {
+    public static PrbResponseDto from(Prb entity, Long workflowId) {
         if (entity == null) {
             return null;
         }
 
         PrbResponseDtoBuilder builder = PrbResponseDto.builder();
 
-        mapBaseInfo(builder, entity);
+        mapBaseInfo(builder, entity, workflowId);
         mapSalesRepresentativeInfo(builder, entity.getSalesRepresentative());
         mapProjectOpportunityInfo(builder, entity.getProjectOpportunity());
         mapValueObjects(builder, entity);

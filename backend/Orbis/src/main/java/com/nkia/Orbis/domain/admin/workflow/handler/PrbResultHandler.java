@@ -25,7 +25,6 @@ public class PrbResultHandler implements WorkflowDomainHandler {
                 .orElseThrow(() -> new ApiException(PrbResultErrorCode.PRB_RESULT_NOT_FOUND));
 
         prbResult.approve();
-        prbResult.issued();
     }
 
     @Override

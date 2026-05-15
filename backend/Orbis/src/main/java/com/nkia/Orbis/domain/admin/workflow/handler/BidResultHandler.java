@@ -25,7 +25,6 @@ public class BidResultHandler implements WorkflowDomainHandler {
                 .orElseThrow(() -> new ApiException(BidResultErrorCode.BID_RESULT_NOT_FOUND));
 
         bidResult.approve();
-        bidResult.issued();
     }
 
     @Override
