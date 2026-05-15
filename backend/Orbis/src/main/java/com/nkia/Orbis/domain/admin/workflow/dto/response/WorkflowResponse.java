@@ -1,9 +1,7 @@
 package com.nkia.Orbis.domain.admin.workflow.dto.response;
 
 import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
-import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLine;
-import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
 import java.util.Comparator;
 import java.util.List;
 import lombok.Builder;
@@ -15,13 +13,13 @@ public class WorkflowResponse {
 
     private Long id;
 
-    private WorkflowDomain workflowDomain;
+    private String workflowDomain;
 
     private Boolean needNextApprover;
 
     private Long targetId;
 
-    private WorkflowStatus status;
+    private String status;
 
     private Integer currentStepOrder;
 
@@ -33,10 +31,10 @@ public class WorkflowResponse {
     ) {
         return WorkflowResponse.builder()
                 .id(workflow.getId())
-                .workflowDomain(workflow.getWorkflowDomain())
+                .workflowDomain(workflow.getWorkflowDomain().getDescription())
                 .needNextApprover(needNextApprover)
                 .targetId(workflow.getTargetId())
-                .status(workflow.getStatus())
+                .status(workflow.getStatus().getDescription())
                 .currentStepOrder(workflow.getCurrentStepOrder())
                 .lines(
                         workflow.getWorkflowLines()

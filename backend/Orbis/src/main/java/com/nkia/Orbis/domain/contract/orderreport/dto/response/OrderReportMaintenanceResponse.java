@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportMaintenance;
-import com.nkia.Orbis.domain.contract.orderreport.entity.VisitCycle;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -13,7 +12,7 @@ public class OrderReportMaintenanceResponse {
 
     private String content;
 
-    private VisitCycle visitCycle;
+    private String visitCycle;
 
     private Integer month;
 
@@ -25,7 +24,7 @@ public class OrderReportMaintenanceResponse {
         return OrderReportMaintenanceResponse.builder()
                 .id(maintenance.getId())
                 .content(maintenance.getContent())
-                .visitCycle(maintenance.getVisitCycle())
+                .visitCycle(maintenance.getVisitCycle().getDescription())
                 .month(maintenance.getMonth())
                 .price(maintenance.getPrice())
                 .totalPrice(maintenance.getTotalPrice())

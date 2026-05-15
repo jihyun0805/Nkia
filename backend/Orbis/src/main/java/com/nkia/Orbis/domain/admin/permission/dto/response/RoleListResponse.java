@@ -18,7 +18,8 @@ public class RoleListResponse {
                 .id(role.getId())
                 .name(role.getName())
                 .permissions(role.getPermissions().stream()
-                        .map(permission -> permission.getDomain() + "_" + permission.getAction())
+                        .map(permission -> permission.getDomain().getDescription() + "_" + permission.getAction()
+                                .getDescription())
                         .collect(Collectors.toSet()))
                 .build();
     }
