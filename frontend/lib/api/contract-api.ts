@@ -406,6 +406,31 @@ export interface LicenseResponse {
   endDate: string;
 }
 
+export interface ProjectOpportunityResponse {
+  id: number;
+  opportunityCode: string;
+  opportunityName: string;
+  stage: string;
+  projectType: string;
+  expectedBidDate: string;
+  expectedBudget: number;
+  customerCompanyName: string;
+  salesRepresentativeId: string;
+  salesRepresentativeName: string;
+  createdBy: string;
+  createUserName: string;
+  description: string;
+  competitionStatus: string;
+}
+
+export const projectOpportunityApi = {
+  getProjectOpportunity: (id: number) =>
+    customInstance<ApiResponse<ProjectOpportunityResponse>>({
+      url: `/project-opportunities/${id}`,
+      method: "GET",
+    }),
+};
+
 // 수주보고서 API
 export const orderReportApi = {
   /** 수주보고서 목록 조회 */
