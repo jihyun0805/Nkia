@@ -32,6 +32,7 @@ import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusiness
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { type StoredFileAttachment } from "@/lib/attachments"
+import { currentUser } from "@/lib/current-user"
 import { findingStatuses, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
@@ -316,7 +317,6 @@ export function FindingCategoryNewPageView({
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
-  const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
   const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
   const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string | null>(null)
   const [businessType, setBusinessType] = useState("")
@@ -1067,7 +1067,7 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>등록자</Label>
-                        <Input value={opportunityRegistrant} onChange={(event) => setOpportunityRegistrant(event.target.value)} placeholder="등록자명을 입력하세요" />
+                        <Input readOnly value={currentUser.name} />
                       </div>
                       <div className="space-y-2">
                         <Label>영업대표</Label>
