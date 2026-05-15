@@ -22,6 +22,10 @@ import { toast } from "sonner";
 
 type ActiveTab = "orders" | "contracts" | "purchases" | "licenses" | "maintenance";
 
+function isContractTab(value: string | null): value is ActiveTab {
+  return value === "orders" || value === "contracts" || value === "purchases" || value === "licenses" || value === "maintenance";
+}
+
 export default function ContractPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
@@ -37,6 +41,13 @@ export default function ContractPage() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [loadingContracts, setLoadingContracts] = useState(false);
   const [loadingLicenses, setLoadingLicenses] = useState(false);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (isContractTab(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
 
   // 수주보고서 목록 조회
   const fetchOrderReports = useCallback(async () => {

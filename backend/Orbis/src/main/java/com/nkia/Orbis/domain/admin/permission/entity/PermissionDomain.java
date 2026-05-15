@@ -6,11 +6,13 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum PermissionDomain {
+
     PROJECT_OPPORTUNITY("사업 기회"),
     COMPANY("고객사/협력사"),
     SALES_ACTIVITY("영업 활동"),
     SALES_ACTIVITY_REQUEST("영업 활동 요청"),
     QUOTATION("견적"),
+    PROPOSAL("제안"),
     RFP_ANALYSE_RESULT("RFP 분석 결과"),
     PRB("PRB"),
     PRB_RESULT("PRB 결과"),

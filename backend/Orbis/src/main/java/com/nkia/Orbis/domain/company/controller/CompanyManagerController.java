@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +37,7 @@ public class CompanyManagerController {
      */
     @Operation(summary = "회사 담당자 등록")
     @PostMapping("/{companyId}/managers")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'COMPANY', 'CREATE')")
     public ResponseEntity<ApiResponse<Long>> createManager(
             @PathVariable Long companyId,
             @Valid @RequestBody CompanyManagerCreateRequest request) { // @Valid로 DTO 검증 수행
@@ -53,6 +55,7 @@ public class CompanyManagerController {
      */
     @Operation(summary = "회사 담당자 정보 수정")
     @PutMapping("/managers/{managerId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'COMPANY', 'UPDATE')")
     public ResponseEntity<ApiResponse<Void>> updateManager(
             @PathVariable Long managerId,
             @Valid @RequestBody CompanyManagerUpdateRequest request) {
@@ -66,6 +69,7 @@ public class CompanyManagerController {
      */
     @Operation(summary = "회사 담당자 정보 삭제")
     @DeleteMapping("/managers/{managerId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'COMPANY', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteManager(@PathVariable Long managerId) {
         companyManagerService.deleteManager(managerId);
         return ResponseEntity.ok(ApiResponse.success(null));
@@ -76,6 +80,7 @@ public class CompanyManagerController {
      */
     @Operation(summary = "회사 담당자 상세 정보 조회")
     @GetMapping("/managers/{managerId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'COMPANY', 'READ')")
     public ResponseEntity<ApiResponse<CompanyManagerResponse>> getManager(@PathVariable Long managerId) {
         CompanyManagerResponse response = companyManagerService.getManager(managerId);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -86,6 +91,7 @@ public class CompanyManagerController {
      */
     @Operation(summary = "회사 담당자 목록 조회")
     @GetMapping("/{companyId}/managers")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'COMPANY', 'READ')")
     public ResponseEntity<ApiResponse<Page<CompanyManagerResponse>>> getManagersByCompany(
             @PathVariable Long companyId,
             @PageableDefault(size = 10) Pageable pageable) {

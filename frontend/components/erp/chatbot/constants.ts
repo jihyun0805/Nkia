@@ -2,10 +2,11 @@ export const MAX_HISTORY_MESSAGES = 8
 export const DEFAULT_LIMIT = 5
 
 export const EXAMPLE_PROMPTS = [
-  "최근 3개월 수주한 사업 목록을 알려줘",
-  "RFP 분석이 진행 중인 사업기회를 알려줘",
-  "유지보수 계약 중인 고객사 목록을 알려줘",
-  "이번 분기 영업 활동 요약을 알려줘",
+  "키움증권 실주 이유 알려줘",
+  "국민은행 견적서 요약해줘",
+  "롯데카드 사업기회 진행 상황 알려줘",
+  "올해 계약된 프로젝트와 계약 금액 알려줘",
+  "현재 진행 중인 사업기회 목록 알려줘",
 ]
 
 export const SOURCE_TYPE_LABELS: Record<string, string> = {
