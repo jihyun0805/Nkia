@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.project.project.controller;
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCombinedUpdateRequest;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectCreateResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
 import com.nkia.Orbis.domain.project.project.service.ProjectFacadeService;
@@ -38,10 +39,10 @@ public class ProjectController {
     @Operation(summary = "사업 등록")
     @PostMapping("/register")
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT', 'CREATE')")
-    public ResponseEntity<ApiResponse<Long>> registerProject(@Valid @RequestBody ProjectCreateRequest request) {
-        Long projectId = projectService.registerProject(request);
+    public ResponseEntity<ApiResponse<ProjectCreateResponse>> registerProject(@Valid @RequestBody ProjectCreateRequest request) {
+        ProjectCreateResponse response = projectService.registerProject(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(projectId));
+                .body(ApiResponse.success(response));
     }
 
     /**
