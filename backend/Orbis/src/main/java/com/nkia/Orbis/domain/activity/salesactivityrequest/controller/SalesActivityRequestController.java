@@ -59,4 +59,12 @@ public class SalesActivityRequestController {
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @Operation(summary = "내가 받은 영업 활동 요청 목록 조회")
+    @GetMapping("/my")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'SALES_ACTIVITY_REQUEST', 'READ')")
+    public ResponseEntity<ApiResponse<List<SalesActivityRequestListResponse>>> getMySalesActivityRequests() {
+        List<SalesActivityRequestListResponse> response = salesActivityRequestService.getMySalesActivityRequests();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }
