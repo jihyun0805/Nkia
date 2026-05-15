@@ -1,10 +1,7 @@
 package com.nkia.Orbis.domain.admin.workflow.dto.response;
 
 import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
-import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLine;
-import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLineStatus;
-import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -14,26 +11,26 @@ public class MyWorkflowResponse {
 
     private Long workflowId;
 
-    private WorkflowDomain workflowDomain;
+    private String workflowDomain;
 
     private Long targetId;
 
-    private WorkflowStatus workflowStatus;
+    private String workflowStatus;
 
     private Integer currentStepOrder;
 
     private String currentStepName;
 
-    private WorkflowLineStatus lineStatus;
+    private String lineStatus;
 
-    private String type; // REQUESTED or APPROVAL_PENDING
+    private String type;
 
     public static MyWorkflowResponse requested(Workflow workflow) {
         return MyWorkflowResponse.builder()
                 .workflowId(workflow.getId())
-                .workflowDomain(workflow.getWorkflowDomain())
+                .workflowDomain(workflow.getWorkflowDomain().getDescription())
                 .targetId(workflow.getTargetId())
-                .workflowStatus(workflow.getStatus())
+                .workflowStatus(workflow.getStatus().getDescription())
                 .currentStepOrder(workflow.getCurrentStepOrder())
                 .type("REQUESTED")
                 .build();
@@ -44,12 +41,12 @@ public class MyWorkflowResponse {
 
         return MyWorkflowResponse.builder()
                 .workflowId(workflow.getId())
-                .workflowDomain(workflow.getWorkflowDomain())
+                .workflowDomain(workflow.getWorkflowDomain().getDescription())
                 .targetId(workflow.getTargetId())
-                .workflowStatus(workflow.getStatus())
+                .workflowStatus(workflow.getStatus().getDescription())
                 .currentStepOrder(workflow.getCurrentStepOrder())
                 .currentStepName(line.getWorkflowStep().getStepName())
-                .lineStatus(line.getStatus())
+                .lineStatus(line.getStatus().getDescription())
                 .type("APPROVAL_PENDING")
                 .build();
     }
