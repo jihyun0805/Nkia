@@ -4,6 +4,90 @@ import { useEffect, useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { adminApi } from "@/lib/api/admin-api";
 import { loadBackendFindingData, loadBackendCompanyManagers } from "@/lib/finding-backend";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+function ComboboxCell({
+  value,
+  onChange,
+  options,
+  placeholder = "선택",
+  disabled = false,
+  className,
+}: {
+  value: any;
+  onChange: (value: any) => void;
+  options: { value: any; label: string }[];
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      const selected = options.find((opt) => String(opt.value) === String(value));
+      setInputValue(selected ? selected.label : "");
+    }
+  }, [value, options, open]);
+
+  const filteredOptions = options.filter((opt) => opt.label.toLowerCase().includes(inputValue.toLowerCase()));
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <input
+          type="text"
+          disabled={disabled}
+          value={inputValue}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setOpen(true);
+            if (e.target.value === "") {
+              onChange("");
+            }
+          }}
+          onFocus={() => setOpen(true)}
+          className={cn(
+            "w-full h-full min-h-[32px] text-center border-0 bg-transparent px-2 text-sm focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-50 placeholder:text-slate-400",
+            className,
+          )}
+        />
+      </PopoverTrigger>
+      <PopoverContent className="w-[250px] p-0" align="center" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <Command shouldFilter={false}>
+          <CommandList>
+            {inputValue.trim().length === 0 ? (
+              <div className="py-4 px-2 text-center text-xs text-slate-500">검색어를 입력해 주세요.</div>
+            ) : filteredOptions.length === 0 ? (
+              <div className="py-6 text-center text-sm">결과가 없습니다.</div>
+            ) : (
+              <CommandGroup>
+                {filteredOptions.map((opt) => (
+                  <CommandItem
+                    key={opt.value}
+                    value={opt.label}
+                    onSelect={() => {
+                      onChange(opt.value);
+                      setInputValue(opt.label);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={cn("mr-2 h-4 w-4", String(value) === String(opt.value) ? "opacity-100" : "opacity-0")} />
+                    {opt.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function OrderContractSection() {
   const { register, control, setValue } = useFormContext();
@@ -40,6 +124,7 @@ export function OrderContractSection() {
   const finalCompanyId = useWatch({ control, name: "finalCustomer.companyId" });
   const contractManagerId = useWatch({ control, name: "contractPartner.managerId" });
   const finalManagerId = useWatch({ control, name: "finalCustomer.managerId" });
+  const pmId = useWatch({ control, name: "pmId" });
 
   useEffect(() => {
     adminApi
@@ -135,22 +220,46 @@ export function OrderContractSection() {
             코드분류
           </th>
           <td className="p-0" colSpan={3}>
-            <select className={`${cellInput} text-left cursor-pointer`} {...register("codeClassification")}>
+            <select className={`${cellInput} text-center cursor-pointer`} {...register("codeClassification")}>
               <option value="" hidden>
                 선택
               </option>
-              <option value="GN">공공신규: GN</option>
-              <option value="GA">공공증설: GA</option>
-              <option value="JN">3자단가신규: JN</option>
-              <option value="JA">3자단가증설: JA</option>
-              <option value="MN">민간신규: MN</option>
-              <option value="MA">민간증설: MA</option>
-              <option value="GN-MA">[공공]신규 고객사 유지보수: GN-MA</option>
-              <option value="GE-MA">[공공]기존 유지보수(연장): GE-MA</option>
-              <option value="GL-MA">[공공]추가 라이선스 유상전환: GL-MA</option>
-              <option value="MN-MA">[민간]신규 고객사 유지보수: MN-MA</option>
-              <option value="ME-MA">[민간]기존 유지보수(연장): ME-MA</option>
-              <option value="ML-MA">[민간]추가 라이선스 유상전환: ML-MA</option>
+              <option value="GN" className="text-left">
+                공공신규: GN
+              </option>
+              <option value="GA" className="text-left">
+                공공증설: GA
+              </option>
+              <option value="JN" className="text-left">
+                3자단가신규: JN
+              </option>
+              <option value="JA" className="text-left">
+                3자단가증설: JA
+              </option>
+              <option value="MN" className="text-left">
+                민간신규: MN
+              </option>
+              <option value="MA" className="text-left">
+                민간증설: MA
+              </option>
+              <option value="GN-MA" className="text-left">
+                [공공]신규 고객사 유지보수: GN-MA
+              </option>
+              <option value="GE-MA" className="text-left">
+                [공공]기존 유지보수(연장): GE-MA
+              </option>
+              <option value="GL-MA" className="text-left">
+                [공공]추가 라이선스 유상전환: GL-MA
+              </option>
+              <option value="MN-MA" className="text-left">
+                [민간]신규 고객사 유지보수: MN-MA
+              </option>
+              <option value="ME-MA" className="text-left">
+                [민간]기존 유지보수(연장): ME-MA
+              </option>
+              <option value="ML-MA" className="text-left">
+                [민간]추가 라이선스 유상전환: ML-MA
+              </option>
             </select>
           </td>
         </tr>
@@ -159,16 +268,12 @@ export function OrderContractSection() {
             수행PM
           </th>
           <td className="p-0" colSpan={9}>
-            <select className={`${cellInput} text-center`} {...register("pmId")}>
-              <option value="" hidden>
-                선택
-              </option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.roles?.join(", ")})
-                </option>
-              ))}
-            </select>
+            <ComboboxCell
+              value={pmId || ""}
+              onChange={(val) => setValue("pmId", val)}
+              options={users.map((u) => ({ value: u.id, label: `${u.name} (${u.roles?.join(", ") || ""})` }))}
+              className="text-center"
+            />
           </td>
         </tr>
         <tr className="border-b border-black">
@@ -176,31 +281,29 @@ export function OrderContractSection() {
             계약상대
           </th>
           <td className="border-r border-black p-0" colSpan={4}>
-            <select className={`${cellInput} text-center`} {...register("contractPartner.companyId")}>
-              <option value="" hidden>
-                선택
-              </option>
-              {companies.map((c) => (
-                <option key={c.backendId} value={c.backendId}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <ComboboxCell
+              value={contractCompanyId || ""}
+              onChange={(val) => {
+                setValue("contractPartner.companyId", val);
+                setValue("contractPartner.managerId", ""); // 회사 변경 시 담당자 초기화
+              }}
+              options={companies.map((c) => ({ value: c.backendId, label: c.name }))}
+              className="text-center"
+            />
           </td>
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
             최종고객사
           </th>
           <td className="p-0" colSpan={4}>
-            <select className={`${cellInput} text-center`} {...register("finalCustomer.companyId")}>
-              <option value="" hidden>
-                선택
-              </option>
-              {companies.map((c) => (
-                <option key={c.backendId} value={c.backendId}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <ComboboxCell
+              value={finalCompanyId || ""}
+              onChange={(val) => {
+                setValue("finalCustomer.companyId", val);
+                setValue("finalCustomer.managerId", ""); // 회사 변경 시 담당자 초기화
+              }}
+              options={companies.map((c) => ({ value: c.backendId, label: c.name }))}
+              className="text-center"
+            />
           </td>
         </tr>
         <tr className="border-b border-black">
@@ -208,31 +311,25 @@ export function OrderContractSection() {
             담당자
           </th>
           <td className="border-r border-black p-0" colSpan={4}>
-            <select className={`${cellInput} text-center ${!contractCompanyId ? "bg-slate-50" : ""}`} {...register("contractPartner.managerId")} disabled={!contractCompanyId}>
-              <option value="" hidden>
-                선택
-              </option>
-              {contractManagers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <ComboboxCell
+              value={contractManagerId || ""}
+              onChange={(val) => setValue("contractPartner.managerId", val)}
+              options={contractManagers.map((m) => ({ value: m.id, label: m.name }))}
+              disabled={!contractCompanyId}
+              className={`text-center ${!contractCompanyId ? "bg-slate-50" : ""}`}
+            />
           </td>
           <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
             담당자
           </th>
           <td className="p-0" colSpan={4}>
-            <select className={`${cellInput} text-center ${!finalCompanyId ? "bg-slate-50" : ""}`} {...register("finalCustomer.managerId")} disabled={!finalCompanyId}>
-              <option value="" hidden>
-                선택
-              </option>
-              {finalManagers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <ComboboxCell
+              value={finalManagerId || ""}
+              onChange={(val) => setValue("finalCustomer.managerId", val)}
+              options={finalManagers.map((m) => ({ value: m.id, label: m.name }))}
+              disabled={!finalCompanyId}
+              className={`text-center ${!finalCompanyId ? "bg-slate-50" : ""}`}
+            />
           </td>
         </tr>
         <tr className="border-b border-black">
