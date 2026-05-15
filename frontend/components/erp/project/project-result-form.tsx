@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Loader2, AlertCircle, Link as LinkIcon, Search } from "lucide-react";
 import { projectApi, type ProjectDetailResponse } from "@/lib/api/project-api";
 import { OrderReportSelector } from "@/components/erp/contract/order-report-selector";
-import { type OrderReportListResponse } from "@/lib/api/order-report-api";
+import { orderReportApi, projectOpportunityApi, type OrderReportListResponse } from "@/lib/api/contract-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ProjectResultFormProps {
@@ -52,7 +52,8 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
   const currentProjectName = selectedReport?.projectName || inheritedData?.projectName || inheritedData?.opportunityName || "";
   const currentOrderReportId = selectedReport?.id || inheritedData?.orderReportId || "";
   const currentContractId = inheritedData?.contractId || "";
-  const currentSalesRep = selectedReport?.pmName || inheritedData?.salesRep || "";
+  const currentPmName = selectedReport?.pmName || inheritedData?.pmName || "";
+  const currentSalesRep = inheritedData?.salesRep || "";
   const currentProjectAmount = selectedReport?.totalAmount?.toString() || inheritedData?.projectAmount || "";
 
   const { register, handleSubmit, setValue, reset } = useForm<FormValues>({
@@ -62,21 +63,46 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
       projectAmount: currentProjectAmount ? Number(currentProjectAmount).toLocaleString() : "",
       startDate: "",
       endDate: "",
-      pmName: "",
+      pmName: currentPmName,
       salesRep: currentSalesRep,
     },
   });
 
   // 선택 시 폼 업데이트
-  const handleSelectReport = (report: OrderReportListResponse) => {
+  const handleSelectReport = async (report: OrderReportListResponse) => {
     setSelectedReport(report);
     setValue("customerName", report.finalCustomerCompanyName || "");
-    setValue("projectName", report.projectName);
+    setValue("projectName", report.projectName || "");
     setValue("projectAmount", report.totalAmount?.toLocaleString() || "");
-    setValue("salesRep", report.pmName || "");
+    setValue("pmName", report.pmName || "");
+    setValue("salesRep", ""); // TODO : 영업대표 정보는 수주보고서 목록에 없으므로 초기화 / 나중에 추가
+
+    try {
+      const res = await orderReportApi.getOrderReport(report.id);
+      const detail = res.data;
+      if (detail.contractStartDate) setValue("startDate", detail.contractStartDate);
+      if (detail.contractEndDate) setValue("endDate", detail.contractEndDate);
+
+      if (!report.finalCustomerCompanyName && detail.finalCustomerCompanyName) {
+        setValue("customerName", detail.finalCustomerCompanyName);
+      }
+
+      if (detail.projectOpportunityId) {
+        try {
+          const oppRes = await projectOpportunityApi.getProjectOpportunity(detail.projectOpportunityId);
+          if (oppRes.data.salesRepresentativeName) {
+            setValue("salesRep", oppRes.data.salesRepresentativeName);
+          }
+        } catch (oppErr) {
+          console.error("Failed to fetch project opportunity details", oppErr);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch order report details", err);
+    }
   };
 
-  // 필수 데이터 체크 (UX 개선)
+  // 필수 데이터 체크
   const isDataMissing = !currentOrderReportId;
 
   useEffect(() => {
@@ -105,7 +131,7 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
     try {
       const res = await projectApi.createProject({ orderReportId });
       // 생성된 사업 상세 조회
-      const detail = await projectApi.getProject(res.data);
+      const detail = await projectApi.getProject(res.data.id);
       setCreatedProject(detail.data);
       setUploadStep("complete");
     } catch (err: any) {
@@ -253,19 +279,19 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
               {/* 사업금액 */}
               <div className="space-y-2">
                 <Label htmlFor="projectAmount">사업금액</Label>
-                <Input id="projectAmount" type="text" {...register("projectAmount")} readOnly className="bg-muted" placeholder="계약 금액 자동 연동" />
+                <Input id="projectAmount" type="text" {...register("projectAmount")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
               </div>
 
               {/* 사업개시일 */}
               <div className="space-y-2">
                 <Label htmlFor="startDate">사업개시일</Label>
-                <Input id="startDate" type="date" {...register("startDate")} readOnly className="bg-muted" placeholder="계약에서 자동 연동" />
+                <Input id="startDate" type="date" {...register("startDate")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
               </div>
 
               {/* 사업완료일 */}
               <div className="space-y-2">
                 <Label htmlFor="endDate">사업완료일</Label>
-                <Input id="endDate" type="date" {...register("endDate")} readOnly className="bg-muted" placeholder="계약에서 자동 연동" />
+                <Input id="endDate" type="date" {...register("endDate")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
               </div>
 
               {/* PM 이름 */}

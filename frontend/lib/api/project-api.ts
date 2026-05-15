@@ -45,6 +45,18 @@ export interface ResultReportInfo {
   fileUrl: string;
 }
 
+/** 사업 등록 응답 */
+export interface ProjectCreateResponse {
+  id: number;
+  pjtNumber: string;
+  pjtName: string;
+  type: string;
+  totalAmount: number;
+  customerName: string;
+  salesRepresentativeName: string;
+  createdAt: string;
+}
+
 /** 사업 등록 요청 (수주보고서 ID로 생성) */
 export interface ProjectCreateRequest {
   orderReportId: number;
@@ -52,10 +64,10 @@ export interface ProjectCreateRequest {
 
 /** 사업 결합 수정 요청 (PM, 영업대표, 기간, 결과보고 파일) */
 export interface ProjectCombinedUpdateRequest {
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string;
   endDate?: string;
-  managerId: string; // UUID
-  salesRepresentativeId: string; // UUID
+  managerId: string;
+  salesRepresentativeId: string;
   fileId?: number | null;
 }
 
@@ -67,7 +79,7 @@ export interface BillingListResponse {
   customerName: string;
   projectName: string;
   billingAmount: number;
-  issuedAt: string | null; // YYYY-MM-DD
+  issuedAt: string | null;
   collectedAt: string | null;
   salesRepName: string;
   requesterName: string;
@@ -82,14 +94,14 @@ export interface BillingDetailResponse {
   customerName: string;
   projectName: string;
   billingAmount: number;
-  requestedIssueDate: string; // YYYY-MM-DD
+  requestedIssueDate: string;
   issuedAt: string | null;
   collectedAt: string | null;
   remarks: string | null;
   invoiceImageId: number | null;
   status: "REQUESTED" | "ISSUED" | "COLLECTED";
   createdBy: string;
-  createdAt: string; // ISO datetime
+  createdAt: string;
 }
 
 /** 청구 폼 초기화 데이터 */
@@ -97,7 +109,7 @@ export interface BillingFormInitResponse {
   customerName: string;
   projectName: string;
   requesterName: string;
-  requestDate: string; // YYYY-MM-DD
+  requestDate: string;
   contractId: number;
 }
 
@@ -105,19 +117,19 @@ export interface BillingFormInitResponse {
 export interface BillingCreateRequest {
   orderReportId: number;
   billingAmount: number;
-  requestedIssueDate: string; // YYYY-MM-DD
+  requestedIssueDate: string;
   remarks?: string;
 }
 
 /** 청구 발행 확인 요청 */
 export interface BillingIssueRequest {
-  issuedAt: string; // YYYY-MM-DD
+  issuedAt: string;
   invoiceImageId?: number | null;
 }
 
 /** 수금 확인 요청 */
 export interface BillingCollectRequest {
-  collectedAt: string; // YYYY-MM-DD
+  collectedAt: string;
 }
 
 /** 청구 수정 요청 */
@@ -132,7 +144,7 @@ export interface BillingUpdateRequest {
 
 /** 예상 매출액 응답 */
 export interface EstimatedRevenueResponse {
-  productCategory: string; // 'EMS', 'ITG', 'IOT', 'ETC', 'EMS_MAINTENANCE', 'ITG_MAINTENANCE'
+  productCategory: string;
   categoryName: string;
   monthlyRevenue: Record<string, number>;
   totalAmount: number;
@@ -167,7 +179,7 @@ export const projectApi = {
 
   /** 사업 등록 (수주보고서 ID 기반) */
   createProject: (data: ProjectCreateRequest) =>
-    customInstance<ApiResponse<number>>({
+    customInstance<ApiResponse<ProjectCreateResponse>>({
       url: "/projects/register",
       method: "POST",
       data,
