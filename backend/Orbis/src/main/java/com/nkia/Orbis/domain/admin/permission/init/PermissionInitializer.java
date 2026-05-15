@@ -33,6 +33,7 @@ public class PermissionInitializer implements CommandLineRunner {
             PermissionDomain.RFP_ANALYSE_RESULT,
             PermissionDomain.PRB,
             PermissionDomain.PRB_RESULT,
+            PermissionDomain.PROPOSAL,
             PermissionDomain.BID_RESULT,
             PermissionDomain.ORDER_REPORT,
             PermissionDomain.CONTRACT,
