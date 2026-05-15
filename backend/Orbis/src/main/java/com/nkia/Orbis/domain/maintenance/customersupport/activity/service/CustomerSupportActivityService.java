@@ -5,11 +5,15 @@ import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportCreateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportHistoryDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportHistoryListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.IntegratedSupportListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.ActivityType;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupport;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupportHistory;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.CustomerSupportOtherDepartmentUser;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.entity.SupportDataType;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.repository.CustomerSupportHistoryRepository;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.repository.CustomerSupportRepository;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.CustomerSupportRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.repository.CustomerSupportRequestRepository;
@@ -37,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CustomerSupportActivityService {
     private final CustomerSupportRepository supportRepository;
+    private final CustomerSupportHistoryRepository historyRepository;
     private final CustomerSupportRequestRepository requestRepository;
     private final UploadFileRepository uploadFileRepository;
     private final MaintenanceRepository maintenanceRepository;
@@ -45,7 +50,7 @@ public class CustomerSupportActivityService {
     private final UploadFileService uploadFileService;
 
     /**
-     * 고객지원 활동 결과 신규 등록
+     * 고객지원 활동 결과 등록
      */
     @Transactional
     public Long createActivity(CustomerSupportCreateRequest requestDto) {
@@ -63,6 +68,9 @@ public class CustomerSupportActivityService {
         mapAttachedFiles(support, requestDto.getAttachedFileIds());
 
         supportRepository.save(support);
+
+        // 히스토리 생성 (등록 시점)
+        historyRepository.save(CustomerSupportHistory.createSnapshot(support));
 
         return support.getId();
     }
@@ -85,6 +93,9 @@ public class CustomerSupportActivityService {
         mapParticipants(support, dto.getParticipantList());
         mapAttachedFiles(support, dto.getAttachedFileIds());
 
+        // 히스토리 생성 (수정 시점)
+        historyRepository.save(CustomerSupportHistory.createSnapshot(support));
+
         return CustomerSupportDetailResponse.from(support);
     }
 
@@ -102,7 +113,7 @@ public class CustomerSupportActivityService {
     }
 
     /**
-     * 고객지원 요청과 활동 결과를 통합하여 조회
+     * 고객지원 통합 현황 조회
      */
     public List<IntegratedSupportListResponse> getIntegratedStatus() {
         List<IntegratedSupportListResponse> requests = requestRepository.findAll().stream()
@@ -117,7 +128,7 @@ public class CustomerSupportActivityService {
     }
 
     /**
-     * 특정 고객지원 활동 결과의 상세 내역 조회
+     * 고객지원 활동 결과 상세 조회
      */
     public CustomerSupportDetailResponse getActivityDetail(Long id) {
         CustomerSupport support = supportRepository.findById(id)
@@ -126,6 +137,30 @@ public class CustomerSupportActivityService {
         return CustomerSupportDetailResponse.from(support);
     }
 
+    /**
+     * 고객지원 활동 이력(히스토리) 목록 조회
+     */
+    public List<CustomerSupportHistoryListResponse> getActivityHistories(Long id) {
+        List<CustomerSupportHistory> histories = historyRepository.findByOriginalActivityIdOrderByCreatedAtDesc(id);
+        
+        return histories.stream()
+                .map(CustomerSupportHistoryListResponse::from)
+                .toList();
+    }
+
+    /**
+     * 고객지원 활동 특정 이력(히스토리) 상세 조회
+     */
+    public CustomerSupportHistoryDetailResponse getActivityHistoryDetail(Long historyId) {
+        CustomerSupportHistory history = historyRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+
+        return CustomerSupportHistoryDetailResponse.from(history);
+    }
+
+    /**
+     * 통합 현황 데이터 변환 (요청)
+     */
     private IntegratedSupportListResponse mapToRequestStatus(CustomerSupportRequest req) {
         return IntegratedSupportListResponse.builder()
                 .dataType(SupportDataType.REQUEST)
@@ -139,6 +174,9 @@ public class CustomerSupportActivityService {
                 .build();
     }
 
+    /**
+     * 통합 현황 데이터 변환 (활동)
+     */
     private IntegratedSupportListResponse mapToActivityStatus(CustomerSupport act) {
         String category = (act.getActivityType() == ActivityType.REQUEST && act.getRequest() != null)
                 ? "요청 (#" + act.getRequest().getId() + ")"
@@ -155,6 +193,9 @@ public class CustomerSupportActivityService {
                 .build();
     }
 
+    /**
+     * 고객지원 요청 엔티티 조회
+     */
     private CustomerSupportRequest getRequestIfNecessary(ActivityType activityType, Long requestId) {
         if (activityType != ActivityType.REQUEST || requestId == null) {
             return null;
@@ -163,6 +204,9 @@ public class CustomerSupportActivityService {
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
     }
 
+    /**
+     * 유지보수 계약 엔티티 조회
+     */
     private Maintenance getMaintenanceIfNecessary(Long contractId) {
         if (contractId == null) {
             return null;
@@ -170,6 +214,9 @@ public class CustomerSupportActivityService {
         return maintenanceRepository.getReferenceById(contractId);
     }
 
+    /**
+     * 고객지원 활동 엔티티 생성
+     */
     private CustomerSupport createSupportEntity(CustomerSupportCreateRequest dto,
             CustomerSupportRequest request,
             Maintenance maintenance,
@@ -188,6 +235,9 @@ public class CustomerSupportActivityService {
                 .build();
     }
 
+    /**
+     * 참여자 정보 매핑
+     */
     private void mapParticipants(CustomerSupport support,
             List<CustomerSupportCreateRequest.ParticipantDto> participantList) {
         if (participantList == null || participantList.isEmpty()) {
@@ -203,6 +253,9 @@ public class CustomerSupportActivityService {
         }
     }
 
+    /**
+     * 첨부파일 매핑
+     */
     private void mapAttachedFiles(CustomerSupport support, List<Long> fileIds) {
         if (fileIds == null || fileIds.isEmpty()) {
             return;
@@ -211,6 +264,9 @@ public class CustomerSupportActivityService {
         files.forEach(support::addAttachedFile);
     }
 
+    /**
+     * 사용자 엔티티 조회
+     */
     private User getUserOrNull(UUID userId) {
         if (userId == null) {
             return null;
@@ -219,6 +275,9 @@ public class CustomerSupportActivityService {
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 
+    /**
+     * 고객사 엔티티 조회
+     */
     private Company getCompanyOrNull(Long companyId) {
         if (companyId == null) {
             return null;
