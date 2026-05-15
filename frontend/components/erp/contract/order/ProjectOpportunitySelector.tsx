@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { loadBackendFindingData } from "@/lib/finding-backend";
 import { type OpportunityRecord } from "@/lib/finding-data";
+import { fuzzyMatch } from "@/lib/fuzzy-match";
 
 interface ProjectOpportunitySelectorProps {
   onSelect: (opportunity: OpportunityRecord) => void;
@@ -37,7 +38,16 @@ export function ProjectOpportunitySelector({ onSelect, selectedId }: ProjectOppo
     }
   }, [open]);
 
-  const filteredOpportunities = opportunities.filter((opp) => opp.name.toLowerCase().includes(searchTerm.toLowerCase()) || opp.customer.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredOpportunities = (() => {
+    const trimmed = searchTerm.trim();
+    if (!trimmed) return opportunities;
+    return fuzzyMatch(
+      trimmed,
+      opportunities,
+      (opp) => [opp.name, opp.customer, opp.id, opp.customerCode],
+      opportunities.length,
+    ).map((h) => h.item);
+  })();
 
   const selectedOpp = opportunities.find((o) => o.backendId === selectedId);
 
