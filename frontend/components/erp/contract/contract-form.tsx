@@ -11,6 +11,9 @@ import { AlertCircle, FileText, ArrowRight, Loader2, Search } from "lucide-react
 import { contractApi, type ContractRequest, type ProposalType, type OrderReportListResponse } from "@/lib/api/contract-api";
 import { toast } from "sonner";
 import { OrderReportSelector } from "@/components/erp/contract/order-report-selector";
+import { UserPicker } from "@/components/erp/user-picker";
+import { useBackendUsers } from "@/lib/use-backend-users";
+import type { BackendUserSummary } from "@/lib/workflow-backend";
 
 export interface ContractFormProps {
   onSuccess: () => void;
@@ -31,6 +34,8 @@ export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFor
   const [contractDate, setContractDate] = useState<string>("");
   const [maintenanceCondition, setMaintenanceCondition] = useState<string>("");
   const [salesRepId, setSalesRepId] = useState<string>("");
+  const [salesRepUser, setSalesRepUser] = useState<BackendUserSummary | null>(null);
+  const users = useBackendUsers();
   const [proposalType, setProposalType] = useState<ProposalType | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -183,9 +188,18 @@ export function ContractForm({ onSuccess, onCancel, inheritedData }: ContractFor
               {/* 영업대표 */}
               <div className="space-y-2">
                 <Label htmlFor="salesRep">
-                  영업대표 ID (UUID) <span className="text-red-500">*</span>
+                  영업대표 <span className="text-red-500">*</span>
                 </Label>
-                <Input id="salesRep" required placeholder="영업대표 UUID를 입력하세요" value={salesRepId} onChange={(e) => setSalesRepId(e.target.value)} />
+                <UserPicker
+                  value={salesRepUser?.name ?? ""}
+                  users={users}
+                  onSelect={(u) => {
+                    setSalesRepUser(u)
+                    setSalesRepId(u?.id ?? "")
+                  }}
+                  placeholder="이름으로 영업대표를 검색하세요"
+                />
+                <input type="hidden" name="salesRep" required value={salesRepId} />
               </div>
             </div>
 

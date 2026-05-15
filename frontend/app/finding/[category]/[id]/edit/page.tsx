@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
+import { UserPicker } from "@/components/erp/user-picker"
+import { useBackendUsers } from "@/lib/use-backend-users"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -291,6 +293,8 @@ export default function FindingEditPage() {
   const [expectedAmount, setExpectedAmount] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
   const [salesRep, setSalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
+  const [salesRepUserId, setSalesRepUserId] = useState<string | null>(null)
+  const editPageUsers = useBackendUsers()
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -631,7 +635,7 @@ export default function FindingEditPage() {
     setSubmitting(true)
     ;(async () => {
       try {
-        const salesRepresentativeId = await resolveSalesRepresentativeId(salesRep)
+        const salesRepresentativeId = salesRepUserId ?? (await resolveSalesRepresentativeId(salesRep))
         if (!salesRepresentativeId) {
           toast({
             title: "사업기회 수정 확인",
@@ -1043,7 +1047,16 @@ export default function FindingEditPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>영업대표</Label>
-                      <Input value={salesRep} onChange={(event) => setSalesRep(event.target.value)} placeholder="영업대표명을 입력하세요" />
+                      <UserPicker
+                        value={salesRep}
+                        users={editPageUsers}
+                        onValueChange={setSalesRep}
+                        onSelect={(u) => {
+                          setSalesRep(u?.name ?? "")
+                          setSalesRepUserId(u?.id ?? null)
+                        }}
+                        placeholder="이름으로 영업대표를 검색하세요"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>사업명 *</Label>

@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
+import { UserPicker } from "@/components/erp/user-picker"
+import { useBackendUsers } from "@/lib/use-backend-users"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { type ProposalProductGroup, type ProposalRecord, type ProposalType } from "@/lib/bid-data"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
@@ -75,6 +77,7 @@ function isBackendRequestId(value: string) {
 
 export function ProposalRegistrationForm({ initialRequestId, proposalId }: ProposalRegistrationFormProps) {
   const router = useRouter()
+  const users = useBackendUsers()
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [proposals, setProposals] = useState<ProposalRecord[]>([])
   const [findingData, setFindingData] = useState<FindingBackendData>({ opportunities: [], customers: [], partners: [] })
@@ -459,7 +462,13 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
             </div>
             <div className="space-y-2">
               <Label>영업대표</Label>
-              <Input value={form.salesRep} onChange={(event) => setForm((current) => ({ ...current, salesRep: event.target.value }))} />
+              <UserPicker
+                value={form.salesRep}
+                users={users}
+                onSelect={(u) => setForm((current) => ({ ...current, salesRep: u?.name ?? "" }))}
+                onValueChange={(v) => setForm((current) => ({ ...current, salesRep: v }))}
+                placeholder="이름으로 영업대표를 검색하세요"
+              />
             </div>
             <div className="space-y-2">
               <Label>담당자</Label>
