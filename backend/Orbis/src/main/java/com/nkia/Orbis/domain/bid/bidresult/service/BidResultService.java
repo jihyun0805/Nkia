@@ -5,8 +5,14 @@ import com.nkia.Orbis.common.exception.errorcode.BidResultErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProposalErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultCreateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultDetailResponse;
@@ -35,6 +41,8 @@ public class BidResultService {
     private final ProjectOpportunityRepository projectOpportunityRepository;
     private final ProposalRepository proposalRepository;
     private final UserRepository userRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     /**
      * 1. 입찰 결과 등록 (Create)
@@ -157,7 +165,7 @@ public class BidResultService {
             proposalCreatorName = getCreatorName(bidResult.getProposal().getCreatedBy());
         }
 
-        return BidResultDetailResponse.of(bidResult, proposalCreatorName);
+        return BidResultDetailResponse.of(bidResult, proposalCreatorName, getWorkflowId(bidResult.getId()));
     }
 
     /**
@@ -212,5 +220,41 @@ public class BidResultService {
         } catch (IllegalArgumentException e) {
             return "시스템"; // UUID 파싱 실패 시 기본값
         }
+    }
+
+    @Transactional
+    public void submitBidResult(
+            Long bidResultId,
+            UUID firstApproverId
+    ) {
+        BidResult bidResult = bidResultRepository.findById(bidResultId)
+                .orElseThrow(() -> new ApiException(BidResultErrorCode.BID_RESULT_NOT_FOUND));
+
+        if (!bidResult.isDraft()) {
+            throw new ApiException(BidResultErrorCode.INVALID_BID_RESULT_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.BID_RESULT,
+                bidResult.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        bidResult.submit();
+    }
+
+    private Long getWorkflowId(Long bidResultId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.BID_RESULT,
+                        bidResultId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }

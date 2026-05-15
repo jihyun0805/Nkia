@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.bid.bidresult.entity;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.proposal.entity.Proposal;
@@ -43,6 +44,9 @@ public class BidResult extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus status;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_opportunity_id", unique = true, nullable = false)
@@ -131,6 +135,7 @@ public class BidResult extends BaseEntity {
         this.bidAnnouncementDate = bidAnnouncementDate; // 할당 추가
         this.presentationDate = presentationDate;       // 할당 추가
         this.totalAnalysisScore = 0;
+        this.status = ApprovalStatus.DRAFT;
     }
 
     // --- 비즈니스 로직 (도메인 주도 설계) ---
@@ -255,5 +260,25 @@ public class BidResult extends BaseEntity {
             this.analyses.addAll(newAnalyses);
         }
         recalculateTotalAnalysisScore(); // 데이터 변경 후 총점 재계산 필수!
+    }
+
+    public void submit() {
+        this.status = ApprovalStatus.PENDING;
+    }
+
+    public void approve() {
+        this.status = ApprovalStatus.APPROVED;
+    }
+
+    public void reject() {
+        this.status = ApprovalStatus.REJECTED;
+    }
+
+    public void cancel() {
+        this.status = ApprovalStatus.CANCELED;
+    }
+
+    public boolean isDraft() {
+        return this.status == ApprovalStatus.DRAFT;
     }
 }

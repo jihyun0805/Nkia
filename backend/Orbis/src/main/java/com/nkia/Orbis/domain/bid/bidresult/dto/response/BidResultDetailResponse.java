@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.bid.bidresult.dto.response;
 
+import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.bid.bidresult.dto.vo.CompanyScoreDto;
 import com.nkia.Orbis.domain.bid.bidresult.dto.vo.ProductModuleSummaryDto;
 import com.nkia.Orbis.domain.bid.bidresult.dto.vo.WinLossAnalysisDto;
@@ -39,6 +40,8 @@ public class BidResultDetailResponse {
     private LocalDate bidAnnouncementDate;
     private LocalDate presentationDate;
     private Integer totalAnalysisScore;
+    private Long workflowId;
+    private ApprovalStatus status;
 
     // --- 2. User 관련 필드 ---
     private String salesRepresentativeName;
@@ -70,7 +73,7 @@ public class BidResultDetailResponse {
     /**
      * 메인 팩토리 메서드: 복잡한 로직은 헬퍼 메서드로 위임하여 전체적인 매핑 구조만 한눈에 파악할 수 있게 합니다.
      */
-    public static BidResultDetailResponse of(BidResult bidResult, String proposalCreatorName) {
+    public static BidResultDetailResponse of(BidResult bidResult, String proposalCreatorName, Long workflowId) {
         ProjectOpportunity po = bidResult.getProjectOpportunity();
 
         return BidResultDetailResponse.builder()
@@ -86,6 +89,8 @@ public class BidResultDetailResponse {
                 .bidAnnouncementDate(bidResult.getBidAnnouncementDate())
                 .presentationDate(bidResult.getPresentationDate())
                 .totalAnalysisScore(bidResult.getTotalAnalysisScore())
+                .workflowId(workflowId)
+                .status(bidResult.getStatus())
 
                 // 연관 엔티티 단일 필드 (Null-safe 처리)
                 .salesRepresentativeName(
