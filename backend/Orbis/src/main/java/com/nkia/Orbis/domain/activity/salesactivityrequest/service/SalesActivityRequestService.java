@@ -74,4 +74,14 @@ public class SalesActivityRequestService {
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
         return SalesActivityRequestResponse.from(salesActivityRequest);
     }
+
+    @Transactional
+    public List<SalesActivityRequestListResponse> getMySalesActivityRequests() {
+        UUID currentUserId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        return salesActivityRequestRepository.findByTargetUserId(currentUserId)
+                .stream()
+                .map(SalesActivityRequestListResponse::from)
+                .toList();
+    }
 }
