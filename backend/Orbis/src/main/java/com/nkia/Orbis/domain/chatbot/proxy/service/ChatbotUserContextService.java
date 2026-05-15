@@ -202,7 +202,7 @@ public class ChatbotUserContextService {
         if (readableDomains.contains(PermissionDomain.CONTRACT)) {
             addScopedKeys(accessibleIds, SOURCE_TYPE_CONTRACT, fetchContractKeys(scopedUserIds, orderReportKeys));
         }
-        if (readableDomains.contains(PermissionDomain.PROJECT_RESULT_REPORT)) {
+        if (readableDomains.contains(PermissionDomain.PROJECT_RESULT)) {
             addScopedKeys(accessibleIds, SOURCE_TYPE_PROJECT_RESULT_REPORT, fetchProjectResultReportKeys(projectKeys));
         }
         if (readableDomains.contains(PermissionDomain.MAINTENANCE_QUOTATION)) {
@@ -751,10 +751,12 @@ public class ChatbotUserContextService {
             case ORDER_REPORT -> Set.of(SOURCE_TYPE_ORDER_REPORT, SOURCE_TYPE_WON);
             case CONTRACT, PURCHASE_CONTRACT -> Set.of(SOURCE_TYPE_CONTRACT);
             case LICENSE -> Set.of(SOURCE_TYPE_LICENSE);
-            case PROJECT, PROJECT_RESULT, PROJECT_RESULT_REPORT -> Set.of(
+            case PROJECT, PROJECT_RESULT -> Set.of(
                     SOURCE_TYPE_PROJECT,
                     SOURCE_TYPE_PROJECT_RESULT_REPORT
             );
+            case PROPOSAL -> Set.of(SOURCE_TYPE_PROPOSAL);
+            case ESTIMATED_REVENUE -> Set.of();
             case BILLING -> Set.of(SOURCE_TYPE_BILLING);
             case MAINTENANCE -> Set.of(SOURCE_TYPE_MAINTENANCE);
             case MAINTENANCE_QUOTATION -> Set.of(SOURCE_TYPE_MAINTENANCE_QUOTE);
