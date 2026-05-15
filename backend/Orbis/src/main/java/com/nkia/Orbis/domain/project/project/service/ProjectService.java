@@ -11,6 +11,7 @@ import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportReposito
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCombinedUpdateRequest;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectCreateResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.entity.ProjectCode;
@@ -41,12 +42,13 @@ public class ProjectService {
      * 사업 등록
      */
     @Transactional
-    public Long registerProject(ProjectCreateRequest dto) {
+    public ProjectCreateResponse registerProject(ProjectCreateRequest dto) {
         OrderReport report = validateAndGetOrderReport(dto.getOrderReportId());
 
         Project project = createProject(report);
+        Project savedProject = projectRepository.save(project);
 
-        return projectRepository.save(project).getId();
+        return ProjectCreateResponse.from(savedProject);
     }
 
     /**
@@ -54,7 +56,7 @@ public class ProjectService {
      */
     @Transactional
     private Project createProject(OrderReport report) {
-        String pjtNumber = generatePjtNumber(report.getContractDate());
+        String pjtNumber = generatePjtNumber(LocalDate.now());
         ProjectCode code = determineProjectCode(report);
 
         Project project = Project.builder()
@@ -121,7 +123,6 @@ public class ProjectService {
         project.delete();
     }
 
-
     /**
      * ID로 사업 엔티티 조회
      */
@@ -187,4 +188,3 @@ public class ProjectService {
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 }
-
