@@ -1,7 +1,5 @@
 package com.nkia.Orbis.domain.contract.license.dto.response;
 
-import com.nkia.Orbis.common.constant.ApprovalStatus;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.contract.license.entity.License;
 import java.time.LocalDate;
 import lombok.Builder;
@@ -15,13 +13,13 @@ public class LicenseResponse {
 
     private Long workflowId;
 
-    private ApprovalStatus status;
+    private String status;
 
     private Long orderReportId;
 
     private Long productModuleId;
 
-    private ProductClass productClass;
+    private String productClass;
 
     private String productGroup;
 
@@ -49,10 +47,10 @@ public class LicenseResponse {
         return LicenseResponse.builder()
                 .id(license.getId())
                 .workflowId(workflowId)
-                .status(license.getStatus())
+                .status(license.getStatus().getDescription())
                 .orderReportId(license.getOrderReport() != null ? license.getOrderReport().getId() : null)
                 .productModuleId(license.getProductModule().getId())
-                .productClass(license.getProductClass())
+                .productClass(license.getProductClass().getDescription())
                 .productGroup(license.getProductGroup())
                 .productName(license.getProductName())
                 .quantity(license.getQuantity())

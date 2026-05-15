@@ -1,6 +1,5 @@
 package com.nkia.Orbis.domain.contract.contractsummary.dto.response;
 
-import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
 import java.time.LocalDate;
 import java.util.List;
@@ -16,7 +15,7 @@ public class ContractResponse {
 
     private Long workflowId;
 
-    private ApprovalStatus status;
+    private String status;
 
     private Long orderReportId;
 
@@ -53,7 +52,7 @@ public class ContractResponse {
                                 .toList()
                 )
                 .salesRepresentativeName(contract.getSalesRepresentative().getName())
-                .status(contract.getStatus())
+                .status(contract.getStatus().getDescription())
                 .workflowId(workflowId)
                 .build();
     }

@@ -41,7 +41,7 @@ public class PermissionInitializer implements CommandLineRunner {
             PermissionDomain.PROJECT,
             PermissionDomain.PROJECT_RESULT,
             PermissionDomain.BILLING,
-            PermissionDomain.PROJECT_RESULT_REPORT,
+            PermissionDomain.ESTIMATED_REVENUE,
             PermissionDomain.MAINTENANCE,
             PermissionDomain.MAINTENANCE_QUOTATION,
             PermissionDomain.CUSTOMER_SUPPORT,

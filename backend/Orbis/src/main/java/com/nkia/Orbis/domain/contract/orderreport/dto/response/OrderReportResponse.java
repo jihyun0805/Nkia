@@ -1,6 +1,5 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
-import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseFromOrderReportResponse;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.purchase.dto.response.PurchaseFromOrderReportResponse;
@@ -18,7 +17,7 @@ public class OrderReportResponse {
 
     private Long workflowId;
 
-    private ApprovalStatus status;
+    private String status;
 
     private String orderReportCode;
 
@@ -149,7 +148,7 @@ public class OrderReportResponse {
         return OrderReportResponse.builder()
                 .id(orderReport.getId())
                 .workflowId(workflowId)
-                .status(orderReport.getStatus())
+                .status(orderReport.getStatus().getDescription())
                 .orderReportCode(orderReport.getOrderReportCode())
                 .totalAmount(orderReport.getTotalAmount())
                 .paymentCondition(orderReport.getPaymentCondition())

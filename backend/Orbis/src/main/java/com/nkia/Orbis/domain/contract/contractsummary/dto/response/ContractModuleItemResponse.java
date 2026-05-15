@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.contract.contractsummary.dto.response;
 
 import com.nkia.Orbis.domain.contract.contractsummary.entity.ContractModuleItem;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,7 +14,7 @@ public class ContractModuleItemResponse {
 
     private String productModuleName;
 
-    private ProductClass productClass;
+    private String productClass;
 
     private Integer quantity;
 
@@ -28,7 +27,7 @@ public class ContractModuleItemResponse {
                 .id(item.getId())
                 .productModuleId(item.getProductModule().getId())
                 .productModuleName(item.getProductModule().getProductName())
-                .productClass(item.getProductClass())
+                .productClass(item.getProductClass().getDescription())
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
                 .totalPrice(item.getTotalPrice())

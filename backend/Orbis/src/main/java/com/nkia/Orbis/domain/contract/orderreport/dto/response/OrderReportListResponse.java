@@ -1,6 +1,5 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
-import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -13,7 +12,7 @@ public class OrderReportListResponse {
 
     private Long id;
 
-    private ApprovalStatus status;
+    private String status;
 
     private String orderReportCode;
 
@@ -67,6 +66,7 @@ public class OrderReportListResponse {
 
                 .finalCustomerCompanyId(null)
                 .finalCustomerCompanyName(null)
+                .status(orderReport.getStatus().getDescription())
                 .build();
     }
 }
