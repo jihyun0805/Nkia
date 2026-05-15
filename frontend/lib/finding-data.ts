@@ -1,4 +1,5 @@
 import type { StoredFileAttachment } from "@/lib/attachments"
+import { fuzzyMatch } from "@/lib/fuzzy-match"
 
 export type FindingCategory = "opportunities" | "customers" | "partners"
 export type CustomerAttachment = StoredFileAttachment
@@ -375,22 +376,36 @@ export function normalizeCustomerKeyword(value: string) {
 }
 
 export function searchCustomers(query: string) {
-  const normalized = normalizeCustomerKeyword(query)
-  if (!normalized) return getCustomers()
+  if (!query || !query.trim()) return getCustomers()
+  const hits = fuzzyMatch(
+    query,
+    getCustomers(),
+    (c) => [c.name, c.id, ...(c.aliases ?? [])],
+    20,
+  )
+  return hits.map((h) => h.item)
+}
 
-  return [...getCustomers()]
-    .map((customer) => {
-      const keywords = [customer.name, ...(customer.aliases ?? [])].map(normalizeCustomerKeyword)
-      const startsWith = keywords.some((keyword) => keyword.startsWith(normalized))
-      const includes = keywords.some((keyword) => keyword.includes(normalized))
-      return { customer, startsWith, includes }
-    })
-    .filter((item) => item.startsWith || item.includes)
-    .sort((a, b) => {
-      if (a.startsWith !== b.startsWith) return a.startsWith ? -1 : 1
-      return a.customer.name.localeCompare(b.customer.name)
-    })
-    .map((item) => item.customer)
+export function searchPartners(query: string) {
+  if (!query || !query.trim()) return getPartners()
+  const hits = fuzzyMatch(
+    query,
+    getPartners(),
+    (p) => [p.name, p.id, p.contactName ?? "", p.email ?? ""],
+    20,
+  )
+  return hits.map((h) => h.item)
+}
+
+export function searchOpportunities(query: string) {
+  if (!query || !query.trim()) return getOpportunities()
+  const hits = fuzzyMatch(
+    query,
+    getOpportunities(),
+    (o) => [o.name, o.id, o.customer, o.customerCode, o.product],
+    20,
+  )
+  return hits.map((h) => h.item)
 }
 
 function getStoredCustomers(): CustomerRecord[] {

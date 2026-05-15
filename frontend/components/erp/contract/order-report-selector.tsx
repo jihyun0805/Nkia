@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Search, Loader2 } from "lucide-react";
 import { orderReportApi, type OrderReportListResponse } from "@/lib/api/order-report-api";
+import { fuzzyMatch } from "@/lib/fuzzy-match";
 import { Badge } from "@/components/ui/badge";
 
 interface OrderReportSelectorProps {
@@ -37,7 +38,17 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
     }
   }, [open]);
 
-  const filteredReports = reports.filter((r) => r.finalCustomerCompanyName?.toLowerCase().includes(searchTerm.toLowerCase()) || r.projectName?.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredReports = (() => {
+    const trimmed = searchTerm.trim();
+    if (!trimmed) return reports;
+    const hits = fuzzyMatch(
+      trimmed,
+      reports,
+      (r) => [r.finalCustomerCompanyName, r.projectName],
+      reports.length,
+    );
+    return hits.map((h) => h.item);
+  })();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

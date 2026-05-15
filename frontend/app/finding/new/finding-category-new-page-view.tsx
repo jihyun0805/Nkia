@@ -2,11 +2,14 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
+import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
+import { UserPicker } from "@/components/erp/user-picker"
+import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -41,6 +44,7 @@ import {
   mapPartnerCategory,
   resolveSalesRepresentativeId,
 } from "@/lib/finding-backend"
+import { loadBackendUsers, type BackendUserSummary } from "@/lib/workflow-backend"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
@@ -261,6 +265,41 @@ export function FindingCategoryNewPageView({
   const label = getFindingCategoryLabel(category)
   const [backendCustomers, setBackendCustomers] = useState<CustomerRecord[]>([])
   const [backendPartners, setBackendPartners] = useState<PartnerRecord[]>([])
+  const [backendUsers, setBackendUsers] = useState<BackendUserSummary[]>([])
+
+  const customerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      backendCustomers.map((c) => ({
+        id: c.id,
+        label: c.name,
+        subtitle: c.category || undefined,
+        keywords: c.aliases ?? [],
+      })),
+    [backendCustomers],
+  )
+  const partnerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      backendPartners.map((p) => ({
+        id: p.id,
+        label: p.name,
+        subtitle: p.type || undefined,
+      })),
+    [backendPartners],
+  )
+  const partnerLocalSuggestions = useMemo<EntitySuggestion[]>(
+    () =>
+      backendPartners.map((p) => ({
+        type: "PARTNER" as const,
+        id: p.id,
+        code: p.id,
+        label: p.name,
+        subtitle: p.type || null,
+        score: 0,
+        matchedBy: "fuzzy" as const,
+        metadata: {},
+      })),
+    [backendPartners],
+  )
   const [loadingBackend, setLoadingBackend] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [customerName, setCustomerName] = useState("")
@@ -279,6 +318,7 @@ export function FindingCategoryNewPageView({
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
   const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
   const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
+  const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string | null>(null)
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -300,14 +340,16 @@ export function FindingCategoryNewPageView({
     const sync = async () => {
       setLoadingBackend(true)
       try {
-        const data = await loadBackendFindingData()
+        const [data, users] = await Promise.all([loadBackendFindingData(), loadBackendUsers().catch(() => [])])
         if (cancelled) return
         setBackendCustomers(data.customers)
         setBackendPartners(data.partners)
+        setBackendUsers(Array.isArray(users) ? users : [])
       } catch {
         if (!cancelled) {
           setBackendCustomers([])
           setBackendPartners([])
+          setBackendUsers([])
         }
       } finally {
         if (!cancelled) {
@@ -610,7 +652,7 @@ export function FindingCategoryNewPageView({
                 <CardContent className="space-y-8">
                   <section className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
+                      <div className="space-y-2 md:col-span-2">
                         <Label>협력사명 *</Label>
                         <EntityAutocomplete
                           value={partnerName}
@@ -620,8 +662,15 @@ export function FindingCategoryNewPageView({
                             if (suggestion) setPartnerName(suggestion.label)
                           }}
                           allowCustomValue
-                          placeholder="협력사명을 입력하세요"
+                          placeholder="협력사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
                           emptyMessage="등록된 협력사가 없습니다."
+                          localCandidates={partnerLocalSuggestions}
+                        />
+                        <SimilarMatchHint
+                          query={partnerName}
+                          candidates={partnerSimilarCandidates}
+                          hintTitle="비슷한 협력사가 이미 등록되어 있어요"
+                          onPick={(c) => setPartnerName(c.label)}
                         />
                       </div>
                       <div className="space-y-2">
@@ -860,7 +909,8 @@ export function FindingCategoryNewPageView({
 
       void (async () => {
         try {
-          const salesRepresentativeId = await resolveSalesRepresentativeId(opportunitySalesRep)
+          const salesRepresentativeId =
+            opportunitySalesRepUserId ?? (await resolveSalesRepresentativeId(opportunitySalesRep))
           if (!salesRepresentativeId) {
             toast({
               title: "사업기회 등록 확인",
@@ -975,6 +1025,7 @@ export function FindingCategoryNewPageView({
                                 allowCustomValue
                                 placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
                                 emptyMessage="등록된 협력사가 없습니다."
+                                localCandidates={partnerLocalSuggestions}
                               />
                               <Button
                                 type="button"
@@ -1020,7 +1071,17 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>영업대표</Label>
-                        <Input value={opportunitySalesRep} onChange={(event) => setOpportunitySalesRep(event.target.value)} placeholder="영업대표명을 입력하세요" />
+                        <UserPicker
+                          value={opportunitySalesRep}
+                          users={backendUsers}
+                          onValueChange={setOpportunitySalesRep}
+                          onSelect={(user) => {
+                            setOpportunitySalesRep(user?.name ?? "")
+                            setOpportunitySalesRepUserId(user?.id ?? null)
+                          }}
+                          placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "이름으로 영업대표를 검색하세요"}
+                          disabled={backendUsers.length === 0}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>예상 입찰 또는 계약 시점</Label>
@@ -1251,14 +1312,20 @@ export function FindingCategoryNewPageView({
               <CardContent className="space-y-8">
                 <section className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label>고객사명 *</Label>
                       <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => setCustomerName(customer?.name ?? "")}
                         onValueChange={setCustomerName}
                         allowCustomValue
-                        placeholder="고객사명을 입력하세요"
+                        placeholder="고객사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
+                      />
+                      <SimilarMatchHint
+                        query={customerName}
+                        candidates={customerSimilarCandidates}
+                        hintTitle="비슷한 고객사가 이미 등록되어 있어요"
+                        onPick={(c) => setCustomerName(c.label)}
                       />
                     </div>
                     <div className="space-y-2">
