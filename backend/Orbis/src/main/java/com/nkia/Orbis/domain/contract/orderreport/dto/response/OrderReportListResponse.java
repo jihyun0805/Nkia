@@ -1,9 +1,7 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
 import com.nkia.Orbis.common.constant.ApprovalStatus;
-import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.Builder;
@@ -21,11 +19,11 @@ public class OrderReportListResponse {
 
     private Long totalAmount;
 
-    private OrderReportType type;
+    private String type;
 
     private boolean channel;
 
-    private CodeType codeType;
+    private String codeType;
 
     private LocalDate contractDate;
 
@@ -49,9 +47,9 @@ public class OrderReportListResponse {
                 .projectName(orderReport.getProjectOpportunity().getOpportunityName())
                 .orderReportCode(orderReport.getOrderReportCode())
                 .totalAmount(orderReport.getTotalAmount())
-                .type(orderReport.getType())
+                .type(orderReport.getType().getDescription())
                 .channel(orderReport.isChannel())
-                .codeType(orderReport.getCodeType())
+                .codeType(orderReport.getCodeType().getDescription())
                 .contractDate(orderReport.getContractDate())
                 .contractPeriodMonths(orderReport.getContractPeriodMonths())
                 .projectOpportunityId(
