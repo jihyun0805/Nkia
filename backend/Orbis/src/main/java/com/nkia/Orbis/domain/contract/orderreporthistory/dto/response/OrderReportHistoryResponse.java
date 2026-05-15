@@ -1,7 +1,5 @@
 package com.nkia.Orbis.domain.contract.orderreporthistory.dto.response;
 
-import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportHistory;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import java.time.LocalDate;
@@ -37,11 +35,11 @@ public class OrderReportHistoryResponse {
 
     private String additionalDocuments;
 
-    private OrderReportType type;
+    private String type;
 
     private boolean channel;
 
-    private CodeType codeType;
+    private String codeType;
 
     private LocalDate contractDate;
 
@@ -155,9 +153,9 @@ public class OrderReportHistoryResponse {
                 .purchaseOrderProvided(orderReport.isPurchaseOrderProvided())
                 .prbReportProvided(orderReport.isPrbReportProvided())
                 .additionalDocuments(orderReport.getAdditionalDocuments())
-                .type(orderReport.getType())
+                .type(orderReport.getType().getDescription())
                 .channel(orderReport.isChannel())
-                .codeType(orderReport.getCodeType())
+                .codeType(orderReport.getCodeType().getDescription())
                 .contractDate(orderReport.getContractDate())
                 .freeMaintenancePeriodMonths(orderReport.getFreeMaintenancePeriodMonths())
                 .contractStartDate(orderReport.getContractStartDate())

@@ -1,6 +1,5 @@
 package com.nkia.Orbis.domain.admin.productmodule.dto.response;
 
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import lombok.Builder;
 import lombok.Getter;
@@ -10,7 +9,7 @@ import lombok.Getter;
 public class ProductModuleResponse {
     private Long id;
 
-    private ProductClass productClass;
+    private String productClass;
 
     private String productGroup;
 
@@ -25,7 +24,7 @@ public class ProductModuleResponse {
     public static ProductModuleResponse from(ProductModule productModule) {
         return ProductModuleResponse.builder()
                 .id(productModule.getId())
-                .productClass(productModule.getProductClass())
+                .productClass(productModule.getProductClass().getDescription())
                 .productGroup(productModule.getProductGroup())
                 .productName(productModule.getProductName())
                 .licenseStandard(productModule.getLicenseStandard())

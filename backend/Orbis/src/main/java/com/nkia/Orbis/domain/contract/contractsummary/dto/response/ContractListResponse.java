@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.contract.contractsummary.dto.response;
 
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
-import com.nkia.Orbis.domain.contract.contractsummary.entity.ProposalType;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.Builder;
@@ -13,7 +12,7 @@ public class ContractListResponse {
 
     private Long id;
 
-    private ProposalType proposalType;
+    private String proposalType;
 
     private Long contractAmount;
 
@@ -26,7 +25,7 @@ public class ContractListResponse {
     public static ContractListResponse from(Contract contract) {
         return ContractListResponse.builder()
                 .id(contract.getId())
-                .proposalType(contract.getProposalType())
+                .proposalType(contract.getProposalType().getDescription())
                 .contractAmount(contract.getContractAmount())
                 .contractDate(contract.getContractDate())
                 .salesRepresentativeId(contract.getSalesRepresentative().getId())

@@ -1,6 +1,5 @@
 package com.nkia.Orbis.domain.activity.quotationhistory.dto.response;
 
-import com.nkia.Orbis.domain.activity.quotation.entity.LaborType;
 import com.nkia.Orbis.domain.activity.quotationhistory.entity.QuotationLaborItemHistory;
 import lombok.Builder;
 import lombok.Getter;
@@ -11,7 +10,7 @@ public class LaborItemHistoryResponse {
 
     private Long id;
 
-    private LaborType laborType;
+    private String laborType;
 
     private Long unitPrice;
 
@@ -22,7 +21,7 @@ public class LaborItemHistoryResponse {
     public static LaborItemHistoryResponse from(QuotationLaborItemHistory item) {
         return LaborItemHistoryResponse.builder()
                 .id(item.getId())
-                .laborType(item.getLaborType())
+                .laborType(item.getLaborType().getDescription())
                 .unitPrice(item.getUnitPrice())
                 .manMonth(item.getManMonth())
                 .supplyPrice(item.getSupplyPrice())
