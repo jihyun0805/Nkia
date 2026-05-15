@@ -9,6 +9,7 @@ public enum PermissionDomain {
     RFP_ANALYSE_RESULT,
     PRB,
     PRB_RESULT,
+    PROPOSAL,
     BID_RESULT,
     ORDER_REPORT,
     CONTRACT,
