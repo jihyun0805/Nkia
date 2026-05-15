@@ -1,8 +1,6 @@
 package com.nkia.Orbis.domain.admin.user.dto.response;
 
 import com.nkia.Orbis.domain.admin.permission.entity.Role;
-import com.nkia.Orbis.domain.admin.user.entity.Position;
-import com.nkia.Orbis.domain.admin.user.entity.Status;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -19,7 +17,7 @@ public class UserResponse {
 
     private String employeeNumber;
 
-    private Position position;
+    private String position;
 
     private String name;
 
@@ -27,7 +25,7 @@ public class UserResponse {
 
     private String email;
 
-    private Status status;
+    private String status;
 
     private Long departmentId;
 
@@ -41,11 +39,11 @@ public class UserResponse {
         return UserResponse.builder()
                 .id(user.getId())
                 .employeeNumber(user.getEmployeeNumber())
-                .position(user.getPosition())
+                .position(user.getPosition().getDescription())
                 .name(user.getName())
                 .phone(user.getPhone())
                 .email(user.getEmail())
-                .status(user.getStatus())
+                .status(user.getStatus().getDescription())
                 .departmentId(user.getDepartment().getId())
                 .departmentName(user.getDepartment().getTeam())
                 .createdAt(user.getCreatedAt())
