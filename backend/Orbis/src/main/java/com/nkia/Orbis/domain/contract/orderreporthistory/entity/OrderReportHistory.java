@@ -7,6 +7,7 @@ import com.nkia.Orbis.domain.company.entity.CompanyManager;
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
+import com.nkia.Orbis.domain.contract.orderreport.entity.VatType;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -39,6 +40,9 @@ public class OrderReportHistory extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private VatType vatType;
 
     private Integer version;
 
@@ -182,6 +186,7 @@ public class OrderReportHistory extends BaseEntity {
         OrderReportHistory orderReportHistory = new OrderReportHistory();
         orderReportHistory.orderReportCode = orderReport.getOrderReportCode();
         orderReportHistory.version = version;
+        orderReportHistory.vatType = orderReport.getVatType();
         orderReportHistory.totalAmount = orderReport.getTotalAmount();
         orderReportHistory.paymentCondition = orderReport.getPaymentCondition();
         orderReportHistory.quotationProvided = orderReport.isQuotationProvided();

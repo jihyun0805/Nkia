@@ -1,7 +1,5 @@
 package com.nkia.Orbis.domain.activity.salesactivityrequest.dto.response;
 
-import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityPurpose;
-import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityType;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.entity.SalesActivityRequest;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -26,9 +24,9 @@ public class SalesActivityRequestResponse {
 
     private String requestUserName;
 
-    private ActivityPurpose activityPurpose;
+    private String activityPurpose;
 
-    private ActivityType activityType;
+    private String activityType;
 
     private LocalDateTime activityDateTime;
 
@@ -48,8 +46,8 @@ public class SalesActivityRequestResponse {
                 .targetUserName(salesActivityRequest.getTargetUser().getName())
                 .requestUserId(salesActivityRequest.getRequestUser().getId())
                 .requestUserName(salesActivityRequest.getRequestUser().getName())
-                .activityPurpose(salesActivityRequest.getActivityPurpose())
-                .activityType(salesActivityRequest.getActivityType())
+                .activityPurpose(salesActivityRequest.getActivityPurpose().getDescription())
+                .activityType(salesActivityRequest.getActivityType().getDescription())
                 .activityDateTime(salesActivityRequest.getActivityDateTime())
                 .requestContent(salesActivityRequest.getRequestContent())
                 .build();

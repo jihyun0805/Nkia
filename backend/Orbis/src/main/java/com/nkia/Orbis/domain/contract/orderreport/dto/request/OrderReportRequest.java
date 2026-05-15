@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.contract.orderreport.dto.request;
 import com.nkia.Orbis.domain.contract.license.dto.request.LicenseFromOrderReportRequest;
 import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
+import com.nkia.Orbis.domain.contract.orderreport.entity.VatType;
 import com.nkia.Orbis.domain.contract.purchase.dto.request.PurchaseFromOrderReportRequest;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,6 +14,7 @@ import lombok.Getter;
 public class OrderReportRequest {
 
     private OrderReportType type;
+    private VatType vatType;
     private boolean quotationProvided;
     private boolean contractProvided;
     private boolean purchaseOrderProvided;

@@ -5,10 +5,9 @@ import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
-public enum OrderReportType {
-    SOLUTION("솔루션"),
-    MAINTENANCE("유지보수"),
-    SERVICE("용역");
+public enum VatType {
+    INCLUDED("VAT 포함"),
+    EXCLUDED("VAT 별도");
 
     private final String description;
 }

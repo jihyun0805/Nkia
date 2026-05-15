@@ -1,10 +1,7 @@
 package com.nkia.Orbis.domain.contract.orderreport.dto.response;
 
-import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.contract.license.dto.response.LicenseFromOrderReportResponse;
-import com.nkia.Orbis.domain.contract.orderreport.entity.CodeType;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
-import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import com.nkia.Orbis.domain.contract.purchase.dto.response.PurchaseFromOrderReportResponse;
 import java.time.LocalDate;
 import java.util.List;
@@ -18,9 +15,11 @@ public class OrderReportResponse {
 
     private Long id;
 
+    private String vatType;
+
     private Long workflowId;
 
-    private ApprovalStatus status;
+    private String status;
 
     private String orderReportCode;
 
@@ -38,11 +37,11 @@ public class OrderReportResponse {
 
     private String additionalDocuments;
 
-    private OrderReportType type;
+    private String type;
 
     private boolean channel;
 
-    private CodeType codeType;
+    private String codeType;
 
     private LocalDate contractDate;
 
@@ -150,8 +149,9 @@ public class OrderReportResponse {
     public static OrderReportResponse from(OrderReport orderReport, Long workflowId) {
         return OrderReportResponse.builder()
                 .id(orderReport.getId())
+                .vatType(orderReport.getVatType().getDescription())
                 .workflowId(workflowId)
-                .status(orderReport.getStatus())
+                .status(orderReport.getStatus().getDescription())
                 .orderReportCode(orderReport.getOrderReportCode())
                 .totalAmount(orderReport.getTotalAmount())
                 .paymentCondition(orderReport.getPaymentCondition())
@@ -160,9 +160,9 @@ public class OrderReportResponse {
                 .purchaseOrderProvided(orderReport.isPurchaseOrderProvided())
                 .prbReportProvided(orderReport.isPrbReportProvided())
                 .additionalDocuments(orderReport.getAdditionalDocuments())
-                .type(orderReport.getType())
+                .type(orderReport.getType().getDescription())
                 .channel(orderReport.isChannel())
-                .codeType(orderReport.getCodeType())
+                .codeType(orderReport.getCodeType().getDescription())
                 .contractDate(orderReport.getContractDate())
                 .freeMaintenancePeriodMonths(orderReport.getFreeMaintenancePeriodMonths())
                 .contractStartDate(orderReport.getContractStartDate())
