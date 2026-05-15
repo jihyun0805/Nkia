@@ -17,11 +17,17 @@ import { ProjectResultForm } from "@/components/erp/project/project-result-form"
 import { BillingRequestForm } from "@/components/erp/project/billing-request-form";
 import { projectApi, type ProjectListResponse, type BillingListResponse } from "@/lib/api/project-api";
 
+type ProjectTab = "results" | "billingAndCollection" | "revenue";
+
+function isProjectTab(value: string | null): value is ProjectTab {
+  return value === "results" || value === "billingAndCollection" || value === "revenue";
+}
+
 export default function ProjectPage() {
   const router = useRouter();
 
   // 탭 / 생성 상태
-  const [activeTab, setActiveTab] = useState<"results" | "billingAndCollection" | "revenue">("results");
+  const [activeTab, setActiveTab] = useState<ProjectTab>("results");
   const [isCreating, setIsCreating] = useState(false);
 
   // 검색 / 필터
@@ -38,6 +44,13 @@ export default function ProjectPage() {
   const [billings, setBillings] = useState<BillingListResponse[]>([]);
   const [billingsLoading, setBillingsLoading] = useState(false);
   const [billingsError, setBillingsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (isProjectTab(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
 
   // 데이터 페칭
   const fetchProjects = useCallback(async () => {

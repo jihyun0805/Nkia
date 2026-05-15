@@ -17,16 +17,29 @@ import { getFreeMaintenanceList, getPaidMaintenanceList, getSupportHistoryList, 
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
 
+type MaintenanceTab = "free" | "paid" | "support";
+
+function isMaintenanceTab(value: string | null): value is MaintenanceTab {
+  return value === "free" || value === "paid" || value === "support";
+}
+
 export default function MaintenancePage() {
   const router = useRouter();
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues);
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"free" | "paid" | "support">("free");
+  const [activeTab, setActiveTab] = useState<MaintenanceTab>("free");
   const [creationMode, setCreationMode] = useState<"none" | "request" | "result">("none");
   const [freeMaintenances, setFreeMaintenances] = useState<any[]>([]);
   const [paidMaintenances, setPaidMaintenances] = useState<any[]>([]);
   const [supportHistories, setSupportHistories] = useState<any[]>([]);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (isMaintenanceTab(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {

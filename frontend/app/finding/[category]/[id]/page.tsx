@@ -106,6 +106,10 @@ function getPartnerContacts(partner: PartnerRecord | null) {
   return []
 }
 
+function matchesFindingRecordId(item: { id: string; backendId?: number }, id: string) {
+  return item.id === id || (item.backendId != null && String(item.backendId) === id)
+}
+
 export default function FindingDetailPage() {
   const params = useParams<{ category?: string | string[]; id?: string | string[] }>()
   const searchParams = useSearchParams()
@@ -166,9 +170,9 @@ export default function FindingDetailPage() {
   }, [category])
 
   const item = useMemo(() => {
-    if (category === "opportunities") return opportunities.find((entry) => entry.id === id) ?? null
-    if (category === "customers") return customers.find((entry) => entry.id === id) ?? null
-    return partners.find((entry) => entry.id === id) ?? null
+    if (category === "opportunities") return opportunities.find((entry) => matchesFindingRecordId(entry, id)) ?? null
+    if (category === "customers") return customers.find((entry) => matchesFindingRecordId(entry, id)) ?? null
+    return partners.find((entry) => matchesFindingRecordId(entry, id)) ?? null
   }, [category, customers, id, opportunities, partners])
   const opportunityItem = category === "opportunities" ? (item as OpportunityRecord | null) : null
   const selectedCustomer = useMemo(() => {
