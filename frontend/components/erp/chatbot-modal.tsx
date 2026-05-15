@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import {
   Bot,
   ChevronDown,
+  ExternalLink,
   FilePlus2,
   FileText,
   History,
@@ -29,6 +30,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
+import { buildEvidenceNavigationLink } from "@/lib/chatbot-evidence-links"
 
 type ChatMessage = {
   id: string
@@ -60,11 +62,11 @@ const MAX_HISTORY_MESSAGES = 8
 const DEFAULT_LIMIT = 5
 
 const EXAMPLE_PROMPTS = [
-  "현재 진행 중인 사업기회 목록을 알려줘",
-  "QT-260520-0001 견적의 주요 내용과 금액을 알려줘",
-  "유지보수 중인 고객사와 계약 기간은?",
-  "올해 계약된 프로젝트와 계약 금액을 알려줘",
-  "PRB 심의 결과를 알려줘",
+  "키움증권 실주 이유 알려줘",
+  "국민은행 견적서 요약해줘",
+  "롯데카드 사업기회 진행 상황 알려줘",
+  "올해 계약된 프로젝트와 계약 금액 알려줘",
+  "현재 진행 중인 사업기회 목록 알려줘",
 ]
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
@@ -905,6 +907,7 @@ export function ChatbotModal() {
                                           {section.evidences.map((evidence) => {
                                             const evidenceKey = `${message.id}-${section.key}-${evidence.sourceType}-${evidence.sourceId}-${evidence.chunkIndex}`
                                             const isEvidenceOpen = openEvidenceItemKeys.includes(evidenceKey)
+                                            const evidenceNavigationLink = buildEvidenceNavigationLink(evidence)
 
                                             return (
                                               <div
@@ -944,6 +947,18 @@ export function ChatbotModal() {
                                                     <span>{isEvidenceOpen ? "숨기기" : "보기"}</span>
                                                   </div>
                                                 </button>
+
+                                                {evidenceNavigationLink && (
+                                                  <div className="border-t border-slate-200 bg-white/80 px-4 py-2">
+                                                    <a
+                                                      href={evidenceNavigationLink.href}
+                                                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 text-[11px] font-semibold text-sky-700 hover:border-sky-300 hover:bg-sky-100"
+                                                    >
+                                                      <ExternalLink className="h-3.5 w-3.5" />
+                                                      {evidenceNavigationLink.label}
+                                                    </a>
+                                                  </div>
+                                                )}
 
                                                 {isEvidenceOpen && (
                                                   <div className="border-t border-slate-200 bg-white px-4 py-4 text-xs leading-6 text-slate-600">
