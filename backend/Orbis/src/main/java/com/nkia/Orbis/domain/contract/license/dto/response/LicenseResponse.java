@@ -3,8 +3,6 @@ package com.nkia.Orbis.domain.contract.license.dto.response;
 import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import com.nkia.Orbis.domain.contract.license.entity.License;
-import com.nkia.Orbis.domain.contract.license.entity.LicenseStatus;
-import com.nkia.Orbis.domain.contract.license.entity.LicenseType;
 import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Getter;
@@ -35,9 +33,9 @@ public class LicenseResponse {
 
     private Long totalPrice;
 
-    private LicenseType licenseType;
+    private String licenseType;
 
-    private LicenseStatus licenseStatus;
+    private String licenseStatus;
 
     private Long customerCompanyId;
 
@@ -60,8 +58,8 @@ public class LicenseResponse {
                 .quantity(license.getQuantity())
                 .price(license.getPrice())
                 .totalPrice(license.getTotalPrice())
-                .licenseType(license.getLicenseType())
-                .licenseStatus(license.getLicenseStatus())
+                .licenseType(license.getLicenseType().getDescription())
+                .licenseStatus(license.getLicenseStatus().getDescription())
                 .customerCompanyId(license.getCustomerCompany().getId())
                 .customerCompanyName(license.getCustomerCompany().getName())
                 .startDate(license.getStartDate())
