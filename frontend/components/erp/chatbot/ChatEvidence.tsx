@@ -1,7 +1,8 @@
 "use client"
 
-import { FileText } from "lucide-react"
+import { ExternalLink, FileText } from "lucide-react"
 import type { ChatbotEvidence } from "@/lib/chatbot-api"
+import { buildEvidenceNavigationLink } from "@/lib/chatbot-evidence-links"
 import type { ChatMessage } from "./types"
 import { SOURCE_TYPE_LABELS } from "./constants"
 import { buildEvidenceSections } from "./utils"
@@ -53,6 +54,7 @@ export function ChatEvidence({
               {section.evidences.map((evidence) => {
                 const evidenceKey = `${message.id}-${section.key}-${evidence.sourceType}-${evidence.sourceId}-${evidence.chunkIndex}`
                 const isEvidenceOpen = openEvidenceItemKeys.includes(evidenceKey)
+                const evidenceNavigationLink = buildEvidenceNavigationLink(evidence)
 
                 return (
                   <div
@@ -92,6 +94,18 @@ export function ChatEvidence({
                         <span>{isEvidenceOpen ? "숨기기" : "보기"}</span>
                       </div>
                     </button>
+
+                    {evidenceNavigationLink && (
+                      <div className="border-t border-slate-200 bg-white/80 px-4 py-2">
+                        <a
+                          href={evidenceNavigationLink.href}
+                          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 text-[11px] font-semibold text-sky-700 hover:border-sky-300 hover:bg-sky-100"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          {evidenceNavigationLink.label}
+                        </a>
+                      </div>
+                    )}
 
                     {isEvidenceOpen && (
                       <div className="border-t border-slate-200 bg-white px-4 py-4 text-xs leading-6 text-slate-600">
