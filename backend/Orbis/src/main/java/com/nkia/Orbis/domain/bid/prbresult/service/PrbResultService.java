@@ -2,9 +2,16 @@ package com.nkia.Orbis.domain.bid.prbresult.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.PrbErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.PrbResultErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
+import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
+import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
+import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.bid.prb.repository.PrbRepository;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultAttendeeOpinionRequest;
@@ -33,6 +40,8 @@ public class PrbResultService {
     private final PrbResultRepository prbResultRepository;
     private final PrbRepository prbRepository;
     private final UserRepository userRepository;
+    private final WorkflowRepository workflowRepository;
+    private final WorkflowService workflowService;
 
     /**
      * 1. PRB 결과 등록
@@ -148,6 +157,42 @@ public class PrbResultService {
         Map<UUID, User> attendeeMap = userRepository.findAllById(attendeeIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
 
-        return PrbResultResponse.of(prbResult, creator, attendeeMap);
+        return PrbResultResponse.of(prbResult, creator, attendeeMap, getWorkflowId(prbResult.getId()));
+    }
+
+    @Transactional
+    public void submitPrbResult(
+            Long prbResultId,
+            UUID firstApproverId
+    ) {
+        PrbResult prbResult = prbResultRepository.findById(prbResultId)
+                .orElseThrow(() -> new ApiException(PrbResultErrorCode.PRB_RESULT_NOT_FOUND));
+
+        if (!prbResult.isDraft()) {
+            throw new ApiException(PrbResultErrorCode.INVALID_PRB_RESULT_STATUS);
+        }
+
+        UUID requesterId = UUID.fromString(SecurityUtil.getCurrentUserId());
+
+        Workflow workflow = workflowService.startWorkflow(
+                WorkflowDomain.PRB_RESULT,
+                prbResult.getId(),
+                requesterId,
+                firstApproverId
+        );
+
+        prbResult.submit();
+    }
+
+    private Long getWorkflowId(Long prbResultId) {
+
+        return workflowRepository
+                .findByWorkflowDomainAndTargetIdAndStatus(
+                        WorkflowDomain.PRB_RESULT,
+                        prbResultId,
+                        WorkflowStatus.IN_PROGRESS
+                )
+                .map(Workflow::getId)
+                .orElse(null);
     }
 }

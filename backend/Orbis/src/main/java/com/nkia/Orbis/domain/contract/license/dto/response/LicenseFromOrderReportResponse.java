@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.contract.license.dto.response;
 
 import com.nkia.Orbis.domain.contract.license.entity.License;
-import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -13,7 +12,7 @@ public class LicenseFromOrderReportResponse {
 
     private Long productModuleId;
 
-    private ProductClass productClass;
+    private String productClass;
 
     private String productGroup;
 
@@ -29,7 +28,7 @@ public class LicenseFromOrderReportResponse {
         return LicenseFromOrderReportResponse.builder()
                 .id(license.getId())
                 .productModuleId(license.getProductModule().getId())
-                .productClass(license.getProductClass())
+                .productClass(license.getProductClass().getDescription())
                 .productGroup(license.getProductGroup())
                 .productName(license.getProductName())
                 .quantity(license.getQuantity())

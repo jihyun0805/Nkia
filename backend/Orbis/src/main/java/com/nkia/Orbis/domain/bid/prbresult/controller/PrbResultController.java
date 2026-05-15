@@ -1,6 +1,7 @@
 package com.nkia.Orbis.domain.bid.prbresult.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
+import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultCreateRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultListResponse;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,6 +40,7 @@ public class PrbResultController {
      */
     @Operation(summary = "PRB 결과 등록")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB_RESULT', 'CREATE')")
     public ResponseEntity<ApiResponse<PrbResultResponse>> createPrbResult(
             @Valid @RequestBody PrbResultCreateRequest request) {
         PrbResultResponse response = prbResultService.createPrbResult(request);
@@ -49,6 +52,7 @@ public class PrbResultController {
      */
     @Operation(summary = "PRB 결과 상세 조회")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB_RESULT', 'READ')")
     public ResponseEntity<ApiResponse<PrbResultResponse>> getPrbResult(@PathVariable Long id) {
         PrbResultResponse response = prbResultService.getPrbResult(id);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -59,6 +63,7 @@ public class PrbResultController {
      */
     @Operation(summary = "PRB 결과 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB_RESULT', 'READ')")
     public ResponseEntity<ApiResponse<Page<PrbResultListResponse>>> getPrbResultList(
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<PrbResultListResponse> response = prbResultService.getPrbResultList(pageable);
@@ -70,6 +75,7 @@ public class PrbResultController {
      */
     @Operation(summary = "PRB 결과 정보 수정")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB_RESULT', 'UPDATE')")
     public ResponseEntity<ApiResponse<PrbResultResponse>> updatePrbResult(
             @PathVariable Long id,
             @Valid @RequestBody PrbResultUpdateRequest request) {
@@ -82,8 +88,24 @@ public class PrbResultController {
      */
     @Operation(summary = "PRB 결과 삭제")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB_RESULT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deletePrbResult(@PathVariable Long id) {
         prbResultService.deletePrbResult(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "PRB 결과보고서 결재 상신")
+    @PostMapping("/submit/{prbResultId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB_RESULT', 'CREATE')")
+    public ResponseEntity<ApiResponse<String>> submitPrbResult(
+            @PathVariable("prbResultId") Long prbResultId,
+            @RequestBody SubmitRequest request
+    ) {
+        prbResultService.submitPrbResult(
+                prbResultId,
+                request.getFirstApproverId()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("PRB 결과보고서 결재 상신 완료"));
     }
 }

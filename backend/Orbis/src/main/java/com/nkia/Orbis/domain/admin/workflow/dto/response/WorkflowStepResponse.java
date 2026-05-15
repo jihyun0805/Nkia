@@ -1,6 +1,5 @@
 package com.nkia.Orbis.domain.admin.workflow.dto.response;
 
-import com.nkia.Orbis.domain.admin.user.entity.Position;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStep;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,7 +14,7 @@ public class WorkflowStepResponse {
 
     private String stepName;
 
-    private Position approverPosition;
+    private String approverPosition;
 
     private Boolean required;
 
@@ -28,7 +27,7 @@ public class WorkflowStepResponse {
                 .id(workflowStep.getId())
                 .stepOrder(workflowStep.getStepOrder())
                 .stepName(workflowStep.getStepName())
-                .approverPosition(workflowStep.getApproverPosition())
+                .approverPosition(workflowStep.getApproverPosition().getDescription())
                 .required(workflowStep.getRequired())
                 .active(workflowStep.getActive())
                 .build();

@@ -9,6 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { AlertCircle, FileText, ArrowRight, Search } from "lucide-react";
 import { OrderReportSelector } from "@/components/erp/contract/order-report-selector";
 import { type OrderReportListResponse } from "@/lib/api/contract-api";
+import { UserPicker } from "@/components/erp/user-picker";
+import { useBackendUsers } from "@/lib/use-backend-users";
+import type { BackendUserSummary } from "@/lib/workflow-backend";
 
 export interface PurchaseFormProps {
   onSuccess: () => void;
@@ -25,6 +28,8 @@ export interface PurchaseFormProps {
 export function PurchaseForm({ onSuccess, onCancel, inheritedData }: PurchaseFormProps) {
   const [data, setData] = useState<any>(inheritedData);
   const [amount, setAmount] = useState<string>("");
+  const users = useBackendUsers();
+  const [salesRep, setSalesRep] = useState<BackendUserSummary | null>(null);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // 숫자만 추출하여 천 단위 콤마 추가
@@ -150,7 +155,13 @@ export function PurchaseForm({ onSuccess, onCancel, inheritedData }: PurchaseFor
                 <Label htmlFor="salesRep">
                   영업대표 <span className="text-red-500">*</span>
                 </Label>
-                <Input id="salesRep" required />
+                <UserPicker
+                  value={salesRep?.name ?? ""}
+                  users={users}
+                  onSelect={setSalesRep}
+                  placeholder="이름으로 영업대표를 검색하세요"
+                />
+                <input type="hidden" name="salesRepId" value={salesRep?.id ?? ""} required />
               </div>
             </div>
 

@@ -2,11 +2,14 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
+import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
+import { UserPicker } from "@/components/erp/user-picker"
+import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -29,7 +32,6 @@ import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusiness
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { type StoredFileAttachment } from "@/lib/attachments"
-import { currentUser } from "@/lib/current-user"
 import { findingStatuses, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
@@ -38,10 +40,11 @@ import {
   createBackendCompanyManager,
   createBackendProjectOpportunity,
   loadBackendFindingData,
-  loadBackendUsers,
   mapCustomerSector,
   mapPartnerCategory,
+  resolveSalesRepresentativeId,
 } from "@/lib/finding-backend"
+import { loadBackendUsers, type BackendUserSummary } from "@/lib/workflow-backend"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
@@ -65,13 +68,6 @@ type ContactDraft = {
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
 }
-
-type BackendUserOption = {
-  id: string
-  name: string
-  email: string
-}
-
 function createEmptyContactDraft(): ContactDraft {
   return {
     name: "",
@@ -269,6 +265,41 @@ export function FindingCategoryNewPageView({
   const label = getFindingCategoryLabel(category)
   const [backendCustomers, setBackendCustomers] = useState<CustomerRecord[]>([])
   const [backendPartners, setBackendPartners] = useState<PartnerRecord[]>([])
+  const [backendUsers, setBackendUsers] = useState<BackendUserSummary[]>([])
+
+  const customerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      backendCustomers.map((c) => ({
+        id: c.id,
+        label: c.name,
+        subtitle: c.category || undefined,
+        keywords: c.aliases ?? [],
+      })),
+    [backendCustomers],
+  )
+  const partnerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      backendPartners.map((p) => ({
+        id: p.id,
+        label: p.name,
+        subtitle: p.type || undefined,
+      })),
+    [backendPartners],
+  )
+  const partnerLocalSuggestions = useMemo<EntitySuggestion[]>(
+    () =>
+      backendPartners.map((p) => ({
+        type: "PARTNER" as const,
+        id: p.id,
+        code: p.id,
+        label: p.name,
+        subtitle: p.type || null,
+        score: 0,
+        matchedBy: "fuzzy" as const,
+        metadata: {},
+      })),
+    [backendPartners],
+  )
   const [loadingBackend, setLoadingBackend] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [customerName, setCustomerName] = useState("")
@@ -285,13 +316,14 @@ export function FindingCategoryNewPageView({
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
-  const [opportunitySalesRepId, setOpportunitySalesRepId] = useState("")
+  const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
+  const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
+  const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string | null>(null)
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
   const [opportunityStatus, setOpportunityStatus] = useState("발굴")
-  const [salesRepOptions, setSalesRepOptions] = useState<BackendUserOption[]>([])
   const [customerRegistrationGuideOpen, setCustomerRegistrationGuideOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
@@ -308,20 +340,16 @@ export function FindingCategoryNewPageView({
     const sync = async () => {
       setLoadingBackend(true)
       try {
-        const [data, users] = await Promise.all([loadBackendFindingData(), loadBackendUsers()])
+        const [data, users] = await Promise.all([loadBackendFindingData(), loadBackendUsers().catch(() => [])])
         if (cancelled) return
         setBackendCustomers(data.customers)
         setBackendPartners(data.partners)
-        setSalesRepOptions(users)
-        const currentUserMatch = users.find((user) => user.email === currentUser.email || user.name === currentUser.name)
-        if (currentUserMatch) {
-          setOpportunitySalesRepId((prev) => prev || currentUserMatch.id)
-        }
+        setBackendUsers(Array.isArray(users) ? users : [])
       } catch {
         if (!cancelled) {
           setBackendCustomers([])
           setBackendPartners([])
-          setSalesRepOptions([])
+          setBackendUsers([])
         }
       } finally {
         if (!cancelled) {
@@ -624,7 +652,7 @@ export function FindingCategoryNewPageView({
                 <CardContent className="space-y-8">
                   <section className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
+                      <div className="space-y-2 md:col-span-2">
                         <Label>협력사명 *</Label>
                         <EntityAutocomplete
                           value={partnerName}
@@ -634,8 +662,15 @@ export function FindingCategoryNewPageView({
                             if (suggestion) setPartnerName(suggestion.label)
                           }}
                           allowCustomValue
-                          placeholder="협력사명을 입력하세요"
+                          placeholder="협력사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
                           emptyMessage="등록된 협력사가 없습니다."
+                          localCandidates={partnerLocalSuggestions}
+                        />
+                        <SimilarMatchHint
+                          query={partnerName}
+                          candidates={partnerSimilarCandidates}
+                          hintTitle="비슷한 협력사가 이미 등록되어 있어요"
+                          onPick={(c) => setPartnerName(c.label)}
                         />
                       </div>
                       <div className="space-y-2">
@@ -874,10 +909,12 @@ export function FindingCategoryNewPageView({
 
       void (async () => {
         try {
-          if (!opportunitySalesRepId) {
+          const salesRepresentativeId =
+            opportunitySalesRepUserId ?? (await resolveSalesRepresentativeId(opportunitySalesRep))
+          if (!salesRepresentativeId) {
             toast({
               title: "사업기회 등록 확인",
-              description: "영업대표를 선택해주십시오.",
+              description: "영업대표를 사용자 목록에서 찾지 못했습니다.",
             })
             return
           }
@@ -895,7 +932,7 @@ export function FindingCategoryNewPageView({
           const result = await createBackendProjectOpportunity({
             opportunityName: opportunityName.trim(),
             customerCompanyId,
-            salesRepresentativeId: opportunitySalesRepId,
+            salesRepresentativeId,
             projectType: businessType,
             expectedBidDate: expectedDate || undefined,
             expectedBudget: expectedAmount || undefined,
@@ -988,6 +1025,7 @@ export function FindingCategoryNewPageView({
                                 allowCustomValue
                                 placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
                                 emptyMessage="등록된 협력사가 없습니다."
+                                localCandidates={partnerLocalSuggestions}
                               />
                               <Button
                                 type="button"
@@ -1029,22 +1067,21 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>등록자</Label>
-                        <Input value={currentUser.name} readOnly />
+                        <Input value={opportunityRegistrant} onChange={(event) => setOpportunityRegistrant(event.target.value)} placeholder="등록자명을 입력하세요" />
                       </div>
                       <div className="space-y-2">
                         <Label>영업대표</Label>
-                        <Select value={opportunitySalesRepId} onValueChange={setOpportunitySalesRepId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="영업대표를 선택하세요" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {salesRepOptions.map((user) => (
-                              <SelectItem key={user.id} value={user.id}>
-                                {user.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <UserPicker
+                          value={opportunitySalesRep}
+                          users={backendUsers}
+                          onValueChange={setOpportunitySalesRep}
+                          onSelect={(user) => {
+                            setOpportunitySalesRep(user?.name ?? "")
+                            setOpportunitySalesRepUserId(user?.id ?? null)
+                          }}
+                          placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "이름으로 영업대표를 검색하세요"}
+                          disabled={backendUsers.length === 0}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>예상 입찰 또는 계약 시점</Label>
@@ -1275,14 +1312,20 @@ export function FindingCategoryNewPageView({
               <CardContent className="space-y-8">
                 <section className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label>고객사명 *</Label>
                       <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => setCustomerName(customer?.name ?? "")}
                         onValueChange={setCustomerName}
                         allowCustomValue
-                        placeholder="고객사명을 입력하세요"
+                        placeholder="고객사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
+                      />
+                      <SimilarMatchHint
+                        query={customerName}
+                        candidates={customerSimilarCandidates}
+                        hintTitle="비슷한 고객사가 이미 등록되어 있어요"
+                        onPick={(c) => setCustomerName(c.label)}
                       />
                     </div>
                     <div className="space-y-2">

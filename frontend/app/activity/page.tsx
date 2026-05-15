@@ -47,6 +47,21 @@ const REQUEST_CALENDAR_OPEN_KEY = "orbis.activity.requests.calendar.open"
 const ACTIVITY_ACTIVE_TAB_KEY = "orbis.activity.activeTab"
 const REQUESTS_STORAGE_KEY = "orbis.activityRequests"
 const NOTIFICATIONS_STORAGE_KEY = "orbis.workflowNotifications"
+type ActivityTab = "activities" | "quotations" | "requests"
+
+function isActivityTab(value: string | null): value is ActivityTab {
+  return value === "activities" || value === "quotations" || value === "requests"
+}
+
+function getInitialActivityTab(): ActivityTab {
+  if (typeof window === "undefined") return "activities"
+
+  const tab = new URLSearchParams(window.location.search).get("tab")
+  if (isActivityTab(tab)) return tab
+
+  const savedTab = window.localStorage.getItem(ACTIVITY_ACTIVE_TAB_KEY)
+  return isActivityTab(savedTab) ? savedTab : "activities"
+}
 
 export default function ActivityPage() {
   const router = useRouter()
@@ -54,7 +69,7 @@ export default function ActivityPage() {
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [searchTerm, setSearchTerm] = useState("")
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
-  const [activeTab, setActiveTab] = useState<"activities" | "quotations" | "requests">("activities")
+  const [activeTab, setActiveTab] = useState<ActivityTab>(getInitialActivityTab)
   const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [activityRequests, setActivityRequests] = useState<ReturnType<typeof getActivityRequests>>([])
   const [quotationRecords, setQuotationRecords] = useState<ReturnType<typeof getQuotations>>([])
@@ -68,11 +83,6 @@ export default function ActivityPage() {
   }, [])
 
   useEffect(() => {
-    const savedTab = window.localStorage.getItem(ACTIVITY_ACTIVE_TAB_KEY)
-    if (savedTab === "activities" || savedTab === "quotations" || savedTab === "requests") {
-      setActiveTab(savedTab)
-    }
-
     const saved = window.localStorage.getItem(REQUEST_CALENDAR_OPEN_KEY)
     if (saved) {
       setIsCalendarOpen(saved === "true")

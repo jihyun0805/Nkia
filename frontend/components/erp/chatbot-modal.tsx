@@ -5,10 +5,18 @@ import type { KeyboardEvent } from "react"
 import { useRouter } from "next/navigation"
 
 import {
+  addChatbotSessionMessages,
+  createChatbotSession,
+  deleteChatbotSession,
   deleteChatbotAttachment,
+  getChatbotSessionMessages,
+  getChatbotSessions,
   postChatbotAnswer,
+  updateChatbotSessionTitle,
   type ChatbotEvidence,
   type ChatbotTypedEvidences,
+  type ChatMessagePayload,
+  type ChatSessionPayload,
   uploadChatbotAttachment,
   type UploadedChatbotAttachment,
 } from "@/lib/chatbot-api"
@@ -17,6 +25,7 @@ import { useToast } from "@/hooks/use-toast"
 import {
   Bot,
   ChevronDown,
+  ExternalLink,
   FilePlus2,
   FileText,
   History,
@@ -29,6 +38,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
+import { buildEvidenceNavigationLink } from "@/lib/chatbot-evidence-links"
 
 type ChatMessage = {
   id: string
@@ -55,16 +65,17 @@ type PendingAttachment = {
   fileType: string
 }
 
-const STORAGE_KEY_PREFIX = "orbis-chatbot-sessions"
 const MAX_HISTORY_MESSAGES = 8
 const DEFAULT_LIMIT = 5
+const TYPEWRITER_INTERVAL_MS = 20
+const TYPEWRITER_CHARS_PER_TICK = 6
 
 const EXAMPLE_PROMPTS = [
-  "현재 진행 중인 사업기회 목록을 알려줘",
-  "QT-260520-0001 견적의 주요 내용과 금액을 알려줘",
-  "유지보수 중인 고객사와 계약 기간은?",
-  "올해 계약된 프로젝트와 계약 금액을 알려줘",
-  "PRB 심의 결과를 알려줘",
+  "키움증권 실주 이유 알려줘",
+  "국민은행 견적서 요약해줘",
+  "롯데카드 사업기회 진행 상황 알려줘",
+  "올해 계약된 프로젝트와 계약 금액 알려줘",
+  "현재 진행 중인 사업기회 목록 알려줘",
 ]
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
@@ -100,27 +111,6 @@ function createId() {
 
 function nowIso() {
   return new Date().toISOString()
-}
-
-function createWelcomeMessage(): ChatMessage {
-  return {
-    id: createId(),
-    role: "assistant",
-    content:
-      "안녕하세요. 오르비스 AI 챗봇입니다. 영업 문서 검색, 업무 질의, 업로드 문서 비교 요청을 보낼 수 있습니다.",
-    createdAt: nowIso(),
-  }
-}
-
-function createSession(title = "새 대화"): ChatSession {
-  const timestamp = nowIso()
-  return {
-    id: createId(),
-    title,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    messages: [createWelcomeMessage()],
-  }
 }
 
 function summarizeTitle(text: string) {
@@ -177,38 +167,39 @@ function buildEvidenceSections(
   ].filter((section) => section.evidences.length > 0)
 }
 
-function buildStorageKey(email: string) {
-  return `${STORAGE_KEY_PREFIX}:${email}`
-}
-
-function normalizeStoredSessions(raw: string | null): ChatSession[] | null {
-  if (!raw) return null
+function parseJson<T>(raw: string | null | undefined): T | undefined {
+  if (!raw) {
+    return undefined
+  }
 
   try {
-    const parsed = JSON.parse(raw) as Array<Partial<ChatSession>>
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return null
-    }
-
-    return parsed.map((session): ChatSession => ({
-      id: session.id || createId(),
-      title: session.title || "새 대화",
-      createdAt: session.createdAt || nowIso(),
-      updatedAt: session.updatedAt || session.createdAt || nowIso(),
-      messages:
-        Array.isArray(session.messages) && session.messages.length > 0
-          ? session.messages.map((message) => ({
-              id: message.id || createId(),
-              role: message.role === "user" ? "user" : "assistant",
-              content: message.content || "",
-              createdAt: message.createdAt || nowIso(),
-              evidences: message.evidences,
-              typedEvidences: message.typedEvidences,
-            }))
-          : [createWelcomeMessage()],
-    }))
+    return JSON.parse(raw) as T
   } catch {
-    return null
+    return undefined
+  }
+}
+
+function mapChatMessagePayload(message: ChatMessagePayload): ChatMessage {
+  const typedEvidences = parseJson<ChatbotTypedEvidences>(message.typedEvidences)
+  const evidences = parseJson<ChatbotEvidence[]>(message.evidences)
+
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    createdAt: message.createdAt,
+    evidences: evidences && evidences.length > 0 ? evidences : undefined,
+    typedEvidences,
+  }
+}
+
+function mapChatSessionPayload(session: ChatSessionPayload, messages: ChatMessage[] = []): ChatSession {
+  return {
+    id: session.id,
+    title: session.title,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    messages,
   }
 }
 
@@ -216,7 +207,6 @@ export function ChatbotModal() {
   const router = useRouter()
   const { toast } = useToast()
   const [authSession, setAuthSession] = useState<AuthSession | null>(null)
-  const [storageOwnerEmail, setStorageOwnerEmail] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -229,6 +219,9 @@ export function ChatbotModal() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true)
+  const [typingMessageId, setTypingMessageId] = useState<string | null>(null)
+  const [typedAssistantContent, setTypedAssistantContent] = useState("")
+  const [isSessionsLoading, setIsSessionsLoading] = useState(false)
   const [pendingAttachmentsBySession, setPendingAttachmentsBySession] = useState<
     Record<string, PendingAttachment[]>
   >({})
@@ -246,54 +239,118 @@ export function ChatbotModal() {
   }, [])
 
   useEffect(() => {
-    if (!authSession?.email) {
-      setStorageOwnerEmail(null)
+    let cancelled = false
+
+    if (!authSession?.accessToken) {
       setSessions([])
       setActiveSessionId(null)
       setPendingAttachmentsBySession({})
+      setTypingMessageId(null)
+      setTypedAssistantContent("")
       setIsOpen(false)
       return
     }
 
-    const stored = normalizeStoredSessions(localStorage.getItem(buildStorageKey(authSession.email)))
-    if (!stored) {
-      const initial = createSession()
-      setSessions([initial])
-      setActiveSessionId(initial.id)
-      setStorageOwnerEmail(authSession.email)
-      return
-    }
+    const loadServerSessions = async () => {
+      setIsSessionsLoading(true)
+      setErrorMessage("")
 
-    setSessions(stored)
-    setActiveSessionId((current) => {
-      if (current && stored.some((session) => session.id === current)) {
-        return current
+      try {
+        const sessionPayloads = await getChatbotSessions()
+        const ensuredPayloads =
+          sessionPayloads.length > 0
+            ? sessionPayloads
+            : [await createChatbotSession("새 대화")]
+
+        const nextSessions = await Promise.all(
+          ensuredPayloads.map(async (session) => {
+            const messages = await getChatbotSessionMessages(session.id)
+            return mapChatSessionPayload(session, messages.map(mapChatMessagePayload))
+          }),
+        )
+
+        if (cancelled) {
+          return
+        }
+
+        setSessions(nextSessions)
+        setActiveSessionId((current) => {
+          if (current && nextSessions.some((session) => session.id === current)) {
+            return current
+          }
+          return nextSessions[0]?.id ?? null
+        })
+        setPendingAttachmentsBySession({})
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+        const message = error instanceof Error ? error.message : "챗봇 세션을 불러오지 못했습니다."
+        setErrorMessage(message)
+        toast({
+          title: "챗봇 세션 조회 실패",
+          description: message,
+          variant: "destructive",
+        })
+      } finally {
+        if (!cancelled) {
+          setIsSessionsLoading(false)
+        }
       }
-      return stored[0]?.id ?? null
+    }
+
+    void loadServerSessions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [authSession?.accessToken, toast])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: typingMessageId ? "auto" : "smooth",
+      block: "end",
     })
-    setPendingAttachmentsBySession({})
-    setStorageOwnerEmail(authSession.email)
-  }, [authSession?.email])
-
-  useEffect(() => {
-    if (!authSession?.email || storageOwnerEmail !== authSession.email) {
-      return
-    }
-
-    if (sessions.length > 0) {
-      localStorage.setItem(buildStorageKey(authSession.email), JSON.stringify(sessions))
-      return
-    }
-
-    localStorage.removeItem(buildStorageKey(authSession.email))
-  }, [authSession?.email, sessions, storageOwnerEmail])
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-  }, [activeSessionId, sessions, isLoading, isOpen])
+  }, [activeSessionId, sessions, isLoading, isOpen, typedAssistantContent, typingMessageId])
 
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? sessions[0] ?? null
   const activePendingAttachments = activeSession ? pendingAttachmentsBySession[activeSession.id] ?? [] : []
+  const isAnswering = isLoading || typingMessageId !== null
+
+  useEffect(() => {
+    if (!typingMessageId) {
+      setTypedAssistantContent("")
+      return
+    }
+
+    const targetMessage = sessions
+      .flatMap((session) => session.messages)
+      .find((message) => message.id === typingMessageId)
+
+    if (!targetMessage) {
+      setTypingMessageId(null)
+      setTypedAssistantContent("")
+      return
+    }
+
+    let visibleLength = 0
+    setTypedAssistantContent("")
+
+    const timer = window.setInterval(() => {
+      visibleLength = Math.min(
+        targetMessage.content.length,
+        visibleLength + TYPEWRITER_CHARS_PER_TICK,
+      )
+      setTypedAssistantContent(targetMessage.content.slice(0, visibleLength))
+
+      if (visibleLength >= targetMessage.content.length) {
+        window.clearInterval(timer)
+        setTypingMessageId((current) => (current === typingMessageId ? null : current))
+      }
+    }, TYPEWRITER_INTERVAL_MS)
+
+    return () => window.clearInterval(timer)
+  }, [sessions, typingMessageId])
 
   const requireAuthenticatedAccess = () => {
     if (authSession?.accessToken) {
@@ -322,21 +379,35 @@ export function ChatbotModal() {
     window.setTimeout(() => textareaRef.current?.focus(), 50)
   }
 
-  const createNewConversation = () => {
+  const createNewConversation = async () => {
     if (!requireAuthenticatedAccess()) {
       return
     }
-    const session = createSession()
-    setSessions((current) => [session, ...current])
-    setActiveSessionId(session.id)
-    setDraft("")
-    setErrorMessage("")
-    setEditingSessionId(null)
-    setEditingTitle("")
-    setOpenEvidenceMessageIds([])
-    setOpenEvidenceItemKeys([])
-    setIsOpen(true)
-    window.setTimeout(() => textareaRef.current?.focus(), 50)
+
+    try {
+      const sessionPayload = await createChatbotSession("새 대화")
+      const session = mapChatSessionPayload(sessionPayload)
+      setSessions((current) => [session, ...current])
+      setActiveSessionId(session.id)
+      setDraft("")
+      setErrorMessage("")
+      setEditingSessionId(null)
+      setEditingTitle("")
+      setOpenEvidenceMessageIds([])
+      setOpenEvidenceItemKeys([])
+      setTypingMessageId(null)
+      setTypedAssistantContent("")
+      setIsOpen(true)
+      window.setTimeout(() => textareaRef.current?.focus(), 50)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "새 챗봇 세션을 만들지 못했습니다."
+      setErrorMessage(message)
+      toast({
+        title: "챗봇 세션 생성 실패",
+        description: message,
+        variant: "destructive",
+      })
+    }
   }
 
   const updateSession = (sessionId: string, updater: (session: ChatSession) => ChatSession) => {
@@ -368,7 +439,7 @@ export function ChatbotModal() {
     setEditingTitle(session.title)
   }
 
-  const saveConversationTitle = (sessionId: string) => {
+  const saveConversationTitle = async (sessionId: string) => {
     const nextTitle = editingTitle.trim() || "새 대화"
     const updatedAt = nowIso()
     updateSession(sessionId, (session) => ({
@@ -378,6 +449,23 @@ export function ChatbotModal() {
     }))
     setEditingSessionId(null)
     setEditingTitle("")
+
+    try {
+      const updated = await updateChatbotSessionTitle(sessionId, nextTitle)
+      updateSession(sessionId, (session) => ({
+        ...session,
+        title: updated.title,
+        updatedAt: updated.updatedAt,
+      }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "챗봇 세션 제목을 저장하지 못했습니다."
+      setErrorMessage(message)
+      toast({
+        title: "챗봇 세션 제목 저장 실패",
+        description: message,
+        variant: "destructive",
+      })
+    }
   }
 
   const cancelEditingConversation = () => {
@@ -422,42 +510,56 @@ export function ChatbotModal() {
     textareaRef.current?.focus()
   }
 
-  const deleteConversation = (sessionId: string) => {
+  const deleteConversation = async (sessionId: string) => {
     const targetSession = sessions.find((session) => session.id === sessionId)
     const confirmed = window.confirm(`'${targetSession?.title ?? "이 대화"}' 대화를 삭제하시겠습니까?`)
     if (!confirmed || !targetSession) {
       return
     }
 
-    setSessions((current) => {
-      const remaining = current.filter((session) => session.id !== sessionId)
-      if (remaining.length === 0) {
-        const next = createSession()
-        setActiveSessionId(next.id)
-        setOpenEvidenceMessageIds([])
-        setOpenEvidenceItemKeys([])
-        setEditingSessionId(null)
-        setEditingTitle("")
-        return [next]
-      }
+    try {
+      await deleteChatbotSession(sessionId)
+      const replacementSession =
+        sessions.length <= 1
+          ? mapChatSessionPayload(await createChatbotSession("새 대화"))
+          : null
 
-      if (activeSessionId === sessionId) {
-        setActiveSessionId(remaining[0].id)
-      }
+      setSessions((current) => {
+        const remaining = current.filter((session) => session.id !== sessionId)
+        if (remaining.length === 0 && replacementSession) {
+          setActiveSessionId(replacementSession.id)
+          return [replacementSession]
+        }
+
+        if (activeSessionId === sessionId) {
+          setActiveSessionId(remaining[0]?.id ?? null)
+          setTypingMessageId(null)
+          setTypedAssistantContent("")
+        }
+        return remaining
+      })
+
       setOpenEvidenceMessageIds([])
       setOpenEvidenceItemKeys([])
       if (editingSessionId === sessionId) {
         setEditingSessionId(null)
         setEditingTitle("")
       }
-      return remaining
-    })
 
-    setPendingAttachmentsBySession((current) => {
-      const next = { ...current }
-      delete next[sessionId]
-      return next
-    })
+      setPendingAttachmentsBySession((current) => {
+        const next = { ...current }
+        delete next[sessionId]
+        return next
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "챗봇 세션을 삭제하지 못했습니다."
+      setErrorMessage(message)
+      toast({
+        title: "챗봇 세션 삭제 실패",
+        description: message,
+        variant: "destructive",
+      })
+    }
   }
 
   const handleUploadFiles = async (fileList: FileList | null) => {
@@ -517,6 +619,7 @@ export function ChatbotModal() {
   const sendMessage = async () => {
     const query = draft.trim()
     if (!query || !activeSession) return
+    if (isAnswering) return
     if (!requireAuthenticatedAccess()) return
 
     const userMessage: ChatMessage = {
@@ -576,15 +679,18 @@ export function ChatbotModal() {
       }
 
       appendAssistantMessage(activeSession.id, assistantMessage)
+      setTypingMessageId(assistantMessage.id)
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI 요청 중 오류가 발생했습니다."
-      setErrorMessage(message)
-      appendAssistantMessage(activeSession.id, {
+      const assistantMessage: ChatMessage = {
         id: createId(),
         role: "assistant",
         content: `요청 처리 중 오류가 발생했습니다.\n${message}`,
         createdAt: nowIso(),
-      })
+      }
+      setErrorMessage(message)
+      appendAssistantMessage(activeSession.id, assistantMessage)
+      setTypingMessageId(assistantMessage.id)
     } finally {
       if (requestAttachmentSessionId && indexedAttachments.length > 0) {
         const cleanupResults = await Promise.allSettled(
@@ -611,7 +717,7 @@ export function ChatbotModal() {
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault()
-      if (!isLoading) {
+      if (!isAnswering) {
         void sendMessage()
       }
     }
@@ -861,11 +967,15 @@ export function ChatbotModal() {
                 <div className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,#f8fbff_0%,#f6f8fc_35%,#f8fafc_100%)] px-4 py-4 md:px-6">
                   {activeSession && activeSession.messages.length > 0 ? (
                     <div className="space-y-4">
-                      {activeSession.messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                        >
+                      {activeSession.messages.map((message) => {
+                        const isTypingMessage = typingMessageId === message.id
+                        const messageContent = isTypingMessage ? typedAssistantContent : message.content
+
+                        return (
+                          <div
+                            key={message.id}
+                            className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                          >
                           <div
                             className={`max-w-[960px] rounded-[24px] px-4 py-4 text-sm leading-7 shadow-sm ${
                               message.role === "user"
@@ -880,9 +990,14 @@ export function ChatbotModal() {
                                 <span className="rounded-full bg-sky-50 px-2 py-1 text-sky-700">Orbis AI</span>
                               )}
                             </div>
-                            <div className="whitespace-pre-wrap">{message.content}</div>
+                            <div className="whitespace-pre-wrap">
+                              {messageContent}
+                              {isTypingMessage && (
+                                <span className="ml-0.5 inline-block h-4 w-1 animate-pulse rounded-full bg-sky-500 align-[-2px]" />
+                              )}
+                            </div>
 
-                            {message.role === "assistant" && message.evidences && message.evidences.length > 0 && (
+                            {message.role === "assistant" && !isTypingMessage && message.evidences && message.evidences.length > 0 && (
                               <div className="mt-5 border-t border-slate-100 pt-4">
                                 <button
                                   type="button"
@@ -905,6 +1020,7 @@ export function ChatbotModal() {
                                           {section.evidences.map((evidence) => {
                                             const evidenceKey = `${message.id}-${section.key}-${evidence.sourceType}-${evidence.sourceId}-${evidence.chunkIndex}`
                                             const isEvidenceOpen = openEvidenceItemKeys.includes(evidenceKey)
+                                            const evidenceNavigationLink = buildEvidenceNavigationLink(evidence)
 
                                             return (
                                               <div
@@ -945,6 +1061,18 @@ export function ChatbotModal() {
                                                   </div>
                                                 </button>
 
+                                                {evidenceNavigationLink && (
+                                                  <div className="border-t border-slate-200 bg-white/80 px-4 py-2">
+                                                    <a
+                                                      href={evidenceNavigationLink.href}
+                                                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 text-[11px] font-semibold text-sky-700 hover:border-sky-300 hover:bg-sky-100"
+                                                    >
+                                                      <ExternalLink className="h-3.5 w-3.5" />
+                                                      {evidenceNavigationLink.label}
+                                                    </a>
+                                                  </div>
+                                                )}
+
                                                 {isEvidenceOpen && (
                                                   <div className="border-t border-slate-200 bg-white px-4 py-4 text-xs leading-6 text-slate-600">
                                                     <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -979,7 +1107,8 @@ export function ChatbotModal() {
                             )}
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
 
                       {isLoading && (
                         <div className="flex justify-start">
@@ -1078,7 +1207,7 @@ export function ChatbotModal() {
                     <button
                       type="button"
                       onClick={() => void sendMessage()}
-                      disabled={isLoading || !draft.trim() || !activeSession}
+                      disabled={isAnswering || !draft.trim() || !activeSession}
                       className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[18px] bg-slate-950 px-5 text-sm font-semibold text-white transition-all hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
                     >
                       <SendHorizonal className="h-4 w-4" />

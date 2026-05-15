@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
 import { findingStatuses, type CustomerRecord, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { loadBackendFindingData } from "@/lib/finding-backend"
-import { Building2, Plus, Search, Target, Users } from "lucide-react"
+import { ArrowLeft, Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
 const PREVIEW_CARD_COUNT = 10
@@ -139,6 +139,31 @@ function FindingPageContent() {
     [filteredOpportunities],
   )
 
+  const opportunityCustomerGroups = useMemo(() => {
+    const map = new Map<string, { key: string; customer: string; customerCode: string; items: OpportunityRecord[] }>()
+    for (const opp of opportunityCards) {
+      const key = (opp.customerCode || opp.customer || "UNKNOWN").trim() || "UNKNOWN"
+      const existing = map.get(key)
+      if (existing) {
+        existing.items.push(opp)
+      } else {
+        map.set(key, {
+          key,
+          customer: opp.customer || "(이름 없음)",
+          customerCode: opp.customerCode || "",
+          items: [opp],
+        })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.customer.localeCompare(b.customer, "ko"))
+  }, [opportunityCards])
+
+  const [selectedOppCustomerKey, setSelectedOppCustomerKey] = useState<string | null>(null)
+  const selectedOppGroup = useMemo(
+    () => (selectedOppCustomerKey ? opportunityCustomerGroups.find((g) => g.key === selectedOppCustomerKey) ?? null : null),
+    [opportunityCustomerGroups, selectedOppCustomerKey],
+  )
+
   const filteredCustomers = filterRecords(customerRows, filters, {
     owner: (item) => item.contact,
     fields: {
@@ -260,35 +285,83 @@ function FindingPageContent() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">사업기회 카드 전체 보기</CardTitle>
+                    <CardTitle className="text-lg">
+                      {selectedOppGroup ? `${selectedOppGroup.customer} 사업기회` : "고객사 카드 보기"}
+                    </CardTitle>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{opportunityCards.length}건</Badge>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href="/finding/opportunities">전체 보기</Link>
-                      </Button>
+                      {selectedOppGroup ? (
+                        <Badge variant="secondary">{selectedOppGroup.items.length}건</Badge>
+                      ) : (
+                        <Badge variant="secondary">
+                          고객사 {opportunityCustomerGroups.length}개 · 사업기회 {opportunityCards.length}건
+                        </Badge>
+                      )}
+                      {selectedOppGroup ? (
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => setSelectedOppCustomerKey(null)}>
+                          <ArrowLeft className="h-4 w-4" />
+                          고객사 목록
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href="/finding/opportunities">전체 보기</Link>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {previewOpportunityCards.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                      {previewOpportunityCards.map((opp) => (
+                  {selectedOppGroup ? (
+                    selectedOppGroup.items.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {selectedOppGroup.items.map((opp) => (
+                          <button
+                            key={opp.id}
+                            type="button"
+                            className="min-h-[180px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
+                            onClick={() => router.push(`/finding/opportunities/${encodeURIComponent(opp.id)}?tab=opportunities`)}
+                          >
+                            <div className="flex h-full flex-col justify-between">
+                              <div>
+                                <p className="line-clamp-2 text-lg font-semibold">{opp.name}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{opp.id}</p>
+                                <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{opp.customer}</p>
+                              </div>
+                              <div className="mt-5 text-sm text-muted-foreground">
+                                <p>제품 {opp.product}</p>
+                                <p>예산/예상매출 {opp.expectedAmount}</p>
+                                <p>예상시점 {opp.expectedDate}</p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                        해당 고객사의 사업기회가 없습니다.
+                      </div>
+                    )
+                  ) : opportunityCustomerGroups.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      {opportunityCustomerGroups.map((group) => (
                         <button
-                          key={opp.id}
+                          key={group.key}
                           type="button"
                           className="min-h-[168px] rounded-xl border p-5 text-left transition-colors hover:bg-muted/50"
-                          onClick={() => router.push(`/finding/opportunities/${encodeURIComponent(opp.id)}?tab=opportunities`)}
+                          onClick={() => setSelectedOppCustomerKey(group.key)}
                         >
                           <div className="flex h-full flex-col justify-between">
                             <div>
-                              <p className="line-clamp-2 text-lg font-semibold">{opp.customer}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">{opp.id}</p>
-                              <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{opp.name}</p>
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-5 w-5 text-muted-foreground" />
+                                <p className="line-clamp-2 text-lg font-semibold">{group.customer}</p>
+                              </div>
+                              {group.customerCode && (
+                                <p className="mt-1 text-xs text-muted-foreground">{group.customerCode}</p>
+                              )}
                             </div>
-                            <div className="mt-5 text-sm text-muted-foreground">
-                              <p>제품 {opp.product}</p>
-                              <p>예산/예상매출 {opp.expectedAmount}</p>
-                              <p>예상시점 {opp.expectedDate}</p>
+                            <div className="mt-5 flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">사업기회</span>
+                              <Badge variant="outline">{group.items.length}건</Badge>
                             </div>
                           </div>
                         </button>

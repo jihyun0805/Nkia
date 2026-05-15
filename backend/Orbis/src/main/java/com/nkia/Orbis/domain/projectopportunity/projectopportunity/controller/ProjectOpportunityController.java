@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,6 +41,7 @@ public class ProjectOpportunityController {
      */
     @Operation(summary = "사업 기회 등록")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_OPPORTUNITY', 'CREATE')")
     public ResponseEntity<ApiResponse<ProjectOpportunityResponse>> createProjectOpportunity(
             @Valid @RequestBody ProjectOpportunityCreateRequest request) {
         ProjectOpportunityResponse response = projectOpportunityService.createProjectOpportunity(request);
@@ -51,6 +53,7 @@ public class ProjectOpportunityController {
      */
     @Operation(summary = "사업 기회 상세 조회")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_OPPORTUNITY', 'READ')")
     public ResponseEntity<ApiResponse<ProjectOpportunityResponse>> getProjectOpportunity(@PathVariable Long id) {
         ProjectOpportunityResponse response = projectOpportunityService.getProjectOpportunity(id);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -63,6 +66,7 @@ public class ProjectOpportunityController {
      */
     @Operation(summary = "사업 기회 목록 조회")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_OPPORTUNITY', 'READ')")
     public ResponseEntity<ApiResponse<Page<ProjectOpportunityResponse>>> getProjectOpportunityList(
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<ProjectOpportunityResponse> response = projectOpportunityService.getProjectOpportunityList(pageable);
@@ -72,6 +76,7 @@ public class ProjectOpportunityController {
     /**
      * 4. 사업 기회 정보 수정 (PUT)
      */
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_OPPORTUNITY', 'UPDATE')")
     @Operation(summary = "사업 기회 정보 수정")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ProjectOpportunityResponse>> updateProjectOpportunity(
@@ -86,6 +91,7 @@ public class ProjectOpportunityController {
      */
     @Operation(summary = "사업 기회 정보 삭제")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_OPPORTUNITY', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteProjectOpportunity(@PathVariable Long id) {
         projectOpportunityService.deleteProjectOpportunity(id);
         return ResponseEntity.ok(ApiResponse.success(null));

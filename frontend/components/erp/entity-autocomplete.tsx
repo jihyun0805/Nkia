@@ -10,6 +10,7 @@ import {
   type EntitySuggestion,
   type EntitySuggestionTarget,
 } from "@/lib/entity-suggestions-api"
+import { fuzzyMatch } from "@/lib/fuzzy-match"
 import { cn } from "@/lib/utils"
 
 type EntityAutocompleteProps = {
@@ -22,6 +23,8 @@ type EntityAutocompleteProps = {
   allowCustomValue?: boolean
   emptyMessage?: string
   filterSuggestion?: (suggestion: EntitySuggestion) => boolean
+  /** BE 결과가 비거나 부족할 때 함께 검색할 로컬 후보. 한영/유사 매칭 강화용. */
+  localCandidates?: EntitySuggestion[]
 }
 
 export function EntityAutocomplete({
@@ -34,6 +37,7 @@ export function EntityAutocomplete({
   allowCustomValue = false,
   emptyMessage = "추천 결과가 없습니다.",
   filterSuggestion,
+  localCandidates,
 }: EntityAutocompleteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
@@ -71,9 +75,28 @@ export function EntityAutocomplete({
     }
   }, [disabled, query, target])
 
+  const mergedSuggestions = useMemo(() => {
+    const trimmed = query.trim()
+    if (!trimmed || !localCandidates || localCandidates.length === 0) {
+      return suggestions
+    }
+    const fuzzyHits = fuzzyMatch(
+      trimmed,
+      localCandidates,
+      (s) => [s.label, s.code ?? "", s.subtitle ?? ""],
+      8,
+    )
+    if (fuzzyHits.length === 0) return suggestions
+    const seen = new Set(suggestions.map((s) => `${s.type}-${s.id}`))
+    const extras = fuzzyHits
+      .map((h) => h.item)
+      .filter((s) => !seen.has(`${s.type}-${s.id}`))
+    return [...suggestions, ...extras]
+  }, [suggestions, localCandidates, query])
+
   const filteredSuggestions = useMemo(
-    () => (filterSuggestion ? suggestions.filter(filterSuggestion) : suggestions),
-    [filterSuggestion, suggestions],
+    () => (filterSuggestion ? mergedSuggestions.filter(filterSuggestion) : mergedSuggestions),
+    [filterSuggestion, mergedSuggestions],
   )
 
   const commitSelection = (suggestion: EntitySuggestion | null) => {

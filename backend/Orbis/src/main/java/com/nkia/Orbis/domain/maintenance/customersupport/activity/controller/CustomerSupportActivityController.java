@@ -4,6 +4,8 @@ import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportCreateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.request.CustomerSupportUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportHistoryDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.CustomerSupportHistoryListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.dto.response.IntegratedSupportListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.activity.service.CustomerSupportActivityService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +32,9 @@ public class CustomerSupportActivityController {
 
     private final CustomerSupportActivityService activityService;
 
+    /**
+     * 고객지원 활동 결과 생성
+     */
     @Operation(summary = "고객지원 활동 결과 생성")
     @PostMapping
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'CREATE')")
@@ -68,7 +73,7 @@ public class CustomerSupportActivityController {
     /**
      * 고객지원 통합 현황 목록 조회
      */
-    @Operation(summary = "고객지원 통합 현황 조회")
+    @Operation(summary = "고객지원 통합 현황 목록 조회")
     @GetMapping("/integrated-status")
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'READ')")
     public ResponseEntity<ApiResponse<List<IntegratedSupportListResponse>>> getIntegratedStatus() {
@@ -85,6 +90,30 @@ public class CustomerSupportActivityController {
             @PathVariable Long id) {
 
         CustomerSupportDetailResponse response = activityService.getActivityDetail(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 고객지원 활동 이력(히스토리) 목록 조회
+     */
+    @Operation(summary = "고객지원 활동 이력(히스토리) 목록 조회")
+    @GetMapping("/{id}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'READ')")
+    public ResponseEntity<ApiResponse<List<CustomerSupportHistoryListResponse>>> getActivityHistories(
+            @PathVariable Long id) {
+        List<CustomerSupportHistoryListResponse> response = activityService.getActivityHistories(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 고객지원 활동 이력(히스토리) 상세 조회
+     */
+    @Operation(summary = "고객지원 활동 이력(히스토리) 상세 조회")
+    @GetMapping("/histories/{historyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'READ')")
+    public ResponseEntity<ApiResponse<CustomerSupportHistoryDetailResponse>> getHistoryDetail(
+            @PathVariable Long historyId) {
+        CustomerSupportHistoryDetailResponse response = activityService.getActivityHistoryDetail(historyId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

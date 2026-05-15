@@ -11,13 +11,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-@Profile("!no-seed")
 @RequiredArgsConstructor
 @Order(2)
 public class PermissionInitializer implements CommandLineRunner {
@@ -35,6 +33,7 @@ public class PermissionInitializer implements CommandLineRunner {
             PermissionDomain.RFP_ANALYSE_RESULT,
             PermissionDomain.PRB,
             PermissionDomain.PRB_RESULT,
+            PermissionDomain.PROPOSAL,
             PermissionDomain.BID_RESULT,
             PermissionDomain.ORDER_REPORT,
             PermissionDomain.CONTRACT,
@@ -43,7 +42,7 @@ public class PermissionInitializer implements CommandLineRunner {
             PermissionDomain.PROJECT,
             PermissionDomain.PROJECT_RESULT,
             PermissionDomain.BILLING,
-            PermissionDomain.PROJECT_RESULT_REPORT,
+            PermissionDomain.ESTIMATED_REVENUE,
             PermissionDomain.MAINTENANCE,
             PermissionDomain.MAINTENANCE_QUOTATION,
             PermissionDomain.CUSTOMER_SUPPORT,

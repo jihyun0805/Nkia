@@ -1,8 +1,5 @@
 package com.nkia.Orbis.domain.activity.salesactivity.dto.response;
 
-import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityPurpose;
-import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityStatus;
-import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityType;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import java.time.LocalDateTime;
 import lombok.Builder;
@@ -21,9 +18,9 @@ public class SalesActivityResponse {
 
     private String companyName;
 
-    private ActivityType activityType;
+    private String activityType;
 
-    private ActivityPurpose activityPurpose;
+    private String activityPurpose;
 
     private String activityContent;
 
@@ -37,7 +34,7 @@ public class SalesActivityResponse {
 
     private String customerInterest;
 
-    private ActivityStatus status;
+    private String status;
 
     private Long salesActivityRequestId;
 
@@ -50,15 +47,15 @@ public class SalesActivityResponse {
                 .projectOpportunityName(salesActivity.getProjectOpportunity().getOpportunityName())
                 .companyId(salesActivity.getProjectOpportunity().getCustomerCompany().getId())
                 .companyName(salesActivity.getProjectOpportunity().getCustomerCompany().getName())
-                .activityType(salesActivity.getActivityType())
-                .activityPurpose(salesActivity.getActivityPurpose())
+                .activityType(salesActivity.getActivityType().getDescription())
+                .activityPurpose(salesActivity.getActivityPurpose().getDescription())
                 .activityContent(salesActivity.getActivityContent())
                 .location(salesActivity.getLocation())
                 .activityDateTime(salesActivity.getActivityDateTime())
                 .issue(salesActivity.getIssue())
                 .nextActivity(salesActivity.getNextActivity())
                 .customerInterest(salesActivity.getCustomerInterest())
-                .status(salesActivity.getStatus())
+                .status(salesActivity.getStatus().getDescription())
                 .salesActivityRequestId(
                         salesActivity.getSalesActivityRequest() != null
                                 ? salesActivity.getSalesActivityRequest().getId()

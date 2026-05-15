@@ -151,7 +151,7 @@ class GmsChatClient:
         if conversation_context:
             prompt_sections.append(f"이전 대화:\n{conversation_context}")
         prompt_sections.append(f"근거 문서:\n{context}")
-        prompt_sections.append("위 근거만 사용해서 자연어 답변을 작성해줘.")
+        prompt_sections.append(build_plain_grounded_answer_prompt())
 
         payload = {
             "model": self.config.model,
@@ -160,14 +160,7 @@ class GmsChatClient:
             "messages": [
                 {
                     "role": "developer",
-                    "content": (
-                        "너는 엔키아 영업관리시스템의 사내 AI 어시스턴트다. "
-                        "반드시 제공된 근거 문서만 사용해서 한국어로 답변한다. "
-                        "일본어, 중국어, 영어 문장을 섞지 말고 자연스러운 한국어만 사용한다. "
-                        "근거에 없는 내용은 추측하지 말고 '제공된 근거만으로는 확인하기 어렵습니다'라고 말한다. "
-                        "답변은 핵심 결론, 근거, 참고 문서 순서로 간결하게 작성한다. "
-                        "질의 계획에 timeline이 있으면 시간 순서대로 정리하고, bullet_summary면 핵심 포인트를 짧게 요약한다."
-                    ),
+                    "content": build_grounded_answer_system_prompt(),
                 },
                 {
                     "role": "user",
@@ -348,6 +341,47 @@ def build_chat_plan_prompt(*, query: str, normalization_summary: str) -> str:
 - time_from, time_to는 정규화 힌트에 기간이 있으면 최대한 반영한다.
 - rewritten_query는 검색 성능 향상을 위해 필요한 경우에만 쓴다.
 - JSON 객체 하나만 출력한다.
+""".strip()
+
+
+def build_grounded_answer_system_prompt() -> str:
+    return (
+        "너는 엔키아 영업관리시스템의 사내 AI 어시스턴트다. "
+        "반드시 제공된 근거 문서만 사용해서 한국어로 답변한다. "
+        "일본어, 중국어, 영어 문장을 섞지 말고 자연스러운 한국어만 사용한다. "
+        "근거에 없는 내용은 추측하지 말고 '제공된 근거만으로는 확인하기 어렵습니다'라고 말한다. "
+        "답변은 일반 직원도 바로 이해할 수 있게 쉬운 말로 쓴다. "
+        "전문 용어, 약어, 코드명은 필요하면 그대로 쓰되 괄호로 짧게 풀어 설명한다. "
+        "첫 문단에서 결론을 먼저 말하고, 그 다음에 이유와 근거를 짧게 나눈다. "
+        "한 문장은 길게 이어 쓰지 말고 45자 안팎으로 끊는다. "
+        "숫자, 금액, 기간이 있으면 값만 나열하지 말고 의미를 한 문장으로 덧붙인다. "
+        "질의 계획에 timeline이 있으면 날짜 흐름대로 정리하고, "
+        "bullet_summary면 핵심 포인트만 3개 안팎으로 요약한다."
+    )
+
+
+def build_plain_grounded_answer_prompt() -> str:
+    return """
+위 근거만 사용해서 답변을 작성해라.
+
+출력 형식:
+결론: 질문에 대한 답을 한 문장으로 먼저 말한다.
+
+왜냐하면:
+- 근거에서 확인한 이유를 쉬운 말로 쓴다.
+- 숫자나 상태가 중요하면 그 의미까지 짧게 설명한다.
+- 근거가 여러 개면 가장 중요한 것부터 2~4개만 쓴다.
+
+참고 문서:
+- 사용한 근거 제목이나 코드를 1~3개만 적는다.
+
+다음에 볼 것: 사용자가 이어서 확인하면 좋은 항목을 1개만 제안한다.
+
+규칙:
+- 위 형식의 섹션 이름을 그대로 사용한다.
+- 마크다운 제목(#)과 굵게(**)는 사용하지 않는다.
+- 표는 순위나 비교 질문처럼 표가 더 쉬운 경우에만 사용한다.
+- 근거가 부족하면 결론에서 부족하다고 말하고, 어떤 정보가 더 필요한지 알려준다.
 """.strip()
 
 
