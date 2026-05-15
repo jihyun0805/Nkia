@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
-import { UserPicker } from "@/components/erp/user-picker"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { useBackendUsers } from "@/lib/use-backend-users"
 import {
   activityContentOptions,
@@ -19,6 +19,8 @@ import {
 } from "@/lib/activity-data"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
+import { currentUser } from "@/lib/current-user"
+import { findUserByToken, formatUserDisplayName, resolveUserId, splitDelimitedValues } from "@/lib/user-utils"
 
 const automaticLocationModes = ["이메일", "전화", "영상회의"]
 
@@ -98,18 +100,19 @@ export function ActivityFormFields({
   const [content, setContent] = useState(defaultValues?.content ?? "")
   const [issues, setIssues] = useState(defaultValues?.issues ?? "")
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
-  const [registrant, setRegistrant] = useState(registrantValue ?? defaultValues?.registrant ?? "")
   const activityFormUsers = useBackendUsers()
-  const [attendeeRows, setAttendeeRows] = useState<string[]>(
-    (() => {
-      const initial = (defaultValues?.attendees ?? "")
-        .split(/[\n,;]+/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-      return initial.length > 0 ? initial : [""]
-    })(),
+  const requesterUsers = useMemo(
+    () => [currentUser, ...activityFormUsers.filter((user) => user.id !== currentUser.id)],
+    [activityFormUsers],
   )
+  const attendeeUsers = useMemo(
+    () => [currentUser, ...activityFormUsers.filter((user) => user.id !== currentUser.id)],
+    [activityFormUsers],
+  )
+  const [attendeeRows, setAttendeeRows] = useState<string[]>([""])
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
+  const resolvedRequester = resolveUserId(requester, requesterUsers)
+  const requesterDisplay = formatUserDisplayName(findUserByToken(requesterUsers, requester) ?? (requester ? { id: requester } : null))
   const linkedRequestId = defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
   const customerCode = typeof customerCodeValue === "string" ? customerCodeValue.trim() : ""
@@ -198,14 +201,11 @@ export function ActivityFormFields({
   }, [defaultValues?.date])
 
   useEffect(() => {
-    const nextAttendees = values?.attendees ?? defaultValues?.attendees ?? ""
+    const nextAttendees = values?.attendees ?? defaultValues?.attendeeUserIds?.join(",") ?? defaultValues?.attendees ?? ""
     setAttendees(nextAttendees)
-    const normalized = nextAttendees
-      .split(/[\n,;]+/)
-      .map((item) => item.trim())
-      .filter(Boolean)
+    const normalized = splitDelimitedValues(nextAttendees).map((item) => resolveUserId(item, attendeeUsers))
     setAttendeeRows(normalized.length > 0 ? normalized : [""])
-  }, [defaultValues?.attendees, values?.attendees])
+  }, [attendeeUsers, defaultValues?.attendeeUserIds, defaultValues?.attendees, values?.attendees])
 
   useEffect(() => {
     setContent(defaultValues?.content ?? "")
@@ -220,8 +220,12 @@ export function ActivityFormFields({
   }, [defaultValues?.nextAction])
 
   useEffect(() => {
-    setRegistrant(registrantValue ?? defaultValues?.registrant ?? "")
-  }, [registrantValue, defaultValues?.registrant])
+    if (typeof requesterValue !== "string" || !onRequesterChange) return
+    if (!requester) return
+    if (resolvedRequester !== requester) {
+      onRequesterChange(resolvedRequester)
+    }
+  }, [onRequesterChange, resolvedRequester, requester, requesterValue])
 
   const handleActivityModeChange = (nextMode: string) => {
     updateValues((current) => ({
@@ -234,41 +238,33 @@ export function ActivityFormFields({
           : current.location,
     }))
   }
+  const registrantDisplay =
+    registrantValue !== undefined
+      ? registrantValue.trim() || defaultValues?.registrant?.trim() || currentUser.name
+      : defaultValues?.registrant?.trim() || "-"
 
   return (
     <>
       <div className="space-y-2 md:w-1/2">
         <Label>등록자</Label>
-        <Input
-          value={registrant}
-          readOnly={readOnly}
-          disabled={readOnly}
-          onChange={(event) => {
-            if (readOnly) return
-            const next = event.target.value
-            setRegistrant(next)
-            onRegistrantChange?.(next)
-          }}
-          placeholder="등록자명을 입력하세요"
-        />
+        <Input value={registrantDisplay} readOnly />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>요청자</Label>
           {typeof requesterValue === "string" && onRequesterChange ? (
             readOnly ? (
-              <Input value={requester} readOnly disabled />
+              <Input value={requesterDisplay} readOnly />
             ) : (
-              <UserPicker
-                value={requester}
-                users={activityFormUsers}
+              <UserIdPicker
+                value={resolvedRequester}
+                users={requesterUsers}
                 onValueChange={(v) => onRequesterChange(v)}
-                onSelect={(u) => onRequesterChange(u?.name ?? "")}
                 placeholder="요청자가 없는 경우 비워둘 수 있습니다"
               />
             )
           ) : (
-            <Input defaultValue={defaultValues?.requester} readOnly={readOnly} disabled={readOnly} placeholder="요청자가 없는 경우 비워둘 수 있습니다" />
+            <Input value={requesterDisplay} readOnly placeholder="요청자가 없는 경우 비워둘 수 있습니다" />
           )}
           {!linkedRequestId && (
             <p className="text-sm text-muted-foreground">
@@ -402,17 +398,17 @@ export function ActivityFormFields({
           <div className="max-h-64 space-y-2 overflow-auto rounded-md border border-border p-3">
             {attendeeRows.map((item, index) => (
               <div key={index} className="grid grid-cols-[1fr_auto] gap-2">
-                <Input
+                <UserIdPicker
                   value={item}
-                  readOnly={readOnly}
                   disabled={readOnly}
-                  onChange={(event) => {
+                  users={attendeeUsers}
+                  onValueChange={(nextValue) => {
                     if (readOnly) return
                     const next = [...attendeeRows]
-                    next[index] = event.target.value
+                    next[index] = nextValue
                     updateAttendeeItems(next)
                   }}
-                  placeholder="참석자 이름 또는 사번"
+                  placeholder="참석자를 선택하세요"
                 />
                 <Button
                   type="button"

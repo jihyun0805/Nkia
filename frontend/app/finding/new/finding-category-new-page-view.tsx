@@ -8,7 +8,7 @@ import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
-import { UserPicker } from "@/components/erp/user-picker"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,7 +43,6 @@ import {
   loadBackendFindingData,
   mapCustomerSector,
   mapPartnerCategory,
-  resolveSalesRepresentativeId,
 } from "@/lib/finding-backend"
 import { loadBackendUsers, type BackendUserSummary } from "@/lib/workflow-backend"
 import { toast } from "@/hooks/use-toast"
@@ -317,8 +316,7 @@ export function FindingCategoryNewPageView({
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
-  const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
-  const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string | null>(null)
+  const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string>("")
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -909,12 +907,11 @@ export function FindingCategoryNewPageView({
 
       void (async () => {
         try {
-          const salesRepresentativeId =
-            opportunitySalesRepUserId ?? (await resolveSalesRepresentativeId(opportunitySalesRep))
+          const salesRepresentativeId = opportunitySalesRepUserId.trim()
           if (!salesRepresentativeId) {
             toast({
               title: "사업기회 등록 확인",
-              description: "영업대표를 사용자 목록에서 찾지 못했습니다.",
+              description: "영업대표를 선택해주십시오.",
             })
             return
           }
@@ -1071,15 +1068,11 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>영업대표</Label>
-                        <UserPicker
-                          value={opportunitySalesRep}
+                        <UserIdPicker
+                          value={opportunitySalesRepUserId}
                           users={backendUsers}
-                          onValueChange={setOpportunitySalesRep}
-                          onSelect={(user) => {
-                            setOpportunitySalesRep(user?.name ?? "")
-                            setOpportunitySalesRepUserId(user?.id ?? null)
-                          }}
-                          placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "이름으로 영업대표를 검색하세요"}
+                          onValueChange={setOpportunitySalesRepUserId}
+                          placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "영업대표를 선택하세요"}
                           disabled={backendUsers.length === 0}
                         />
                       </div>

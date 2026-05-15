@@ -5,6 +5,7 @@ import { buildAuthHeaders } from "@/lib/auth-session"
 import { getPresalesUsers } from "@/lib/admin-data"
 import type { ActivityRecord } from "@/lib/activity-data"
 import { currentUser } from "@/lib/current-user"
+import { findUserByToken, formatUserDisplayName, splitDelimitedValues } from "@/lib/user-utils"
 import type {
   ApiResponseVoid,
   SalesActivityCreateRequest,
@@ -70,6 +71,7 @@ type SalesActivityBackendItem = {
 type ActivityExtraFieldRecord = {
   registrant?: string
   requester?: string
+  requesterUserId?: string
 }
 
 const ACTIVITY_EXTRA_FIELDS_STORAGE_KEY = "orbis.activity.extra-fields"
@@ -101,6 +103,7 @@ function saveActivityExtraFields(id: string, fields: ActivityExtraFieldRecord) {
   current[id] = {
     registrant: fields.registrant ?? "",
     requester: fields.requester ?? "",
+    requesterUserId: fields.requesterUserId ?? "",
   }
   writeActivityExtraFieldRecords(current)
 }
@@ -220,15 +223,8 @@ function mapActivityStatusToEnum(status: string) {
   return ACTIVITY_STATUS_TO_ENUM[status] ?? "COMPLETED"
 }
 
-function normalizeLookupText(value: string) {
-  return value.trim().toLowerCase()
-}
-
 async function resolveAttendeeUserIds(attendees?: string) {
-  const tokens = (attendees ?? "")
-    .split(/[\n,;]+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
+  const tokens = splitDelimitedValues(attendees)
 
   if (tokens.length === 0) {
     return []
@@ -254,28 +250,18 @@ async function resolveAttendeeUserIds(attendees?: string) {
     { id: currentUser.id, name: currentUser.name, email: currentUser.email },
   ]
 
-  const resolved = tokens
-    .map((token) => {
-      const normalized = normalizeLookupText(token)
-      const matched = allUsers.find((user) => {
-        const userId = user.id?.trim()
-        const employeeNumber = user.employeeNumber?.trim()
-        const name = user.name?.trim()
-        const email = user.email?.trim()
-
-        return (
-          (userId && normalizeLookupText(userId) === normalized) ||
-          (employeeNumber && normalizeLookupText(employeeNumber) === normalized) ||
-          (name && normalizeLookupText(name) === normalized) ||
-          (email && normalizeLookupText(email) === normalized)
-        )
-      })
-
-      return matched?.id?.trim() ?? ""
-    })
-    .filter((value): value is string => Boolean(value))
+  const resolved = tokens.map((token) => findUserByToken(allUsers, token)?.id?.trim() ?? "").filter((value): value is string => Boolean(value))
 
   return Array.from(new Set(resolved))
+}
+
+function formatAttendeeNames(attendeeUserIds: string[] | undefined, users: BackendUserSummary[]) {
+  const ids = attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
+  if (ids.length === 0) return ""
+
+  return ids
+    .map((id) => formatUserDisplayName(users.find((user) => user.id?.trim() === id) ?? { id }))
+    .join(", ")
 }
 
 async function fetchSalesActivities() {
@@ -359,6 +345,7 @@ function mapBackendActivityRecord(
   company: CompanySummaryResponse | null,
   opportunity: ProjectOpportunitySummaryResponse | null,
   index: number,
+  users: BackendUserSummary[] = [],
 ): ActivityRecord {
   const extras = activity.id != null ? getActivityExtraFields(String(activity.id)) : {}
   const date = activity.activityDateTime?.slice(0, 10) || ""
@@ -366,6 +353,9 @@ function mapBackendActivityRecord(
   const activityPurpose = mapActivityPurpose(activity.activityPurpose)
   const customerId = activity.companyId ?? opportunity?.customerCompanyId
   const opportunityId = activity.projectOpportunityId ?? opportunity?.id
+  const attendeeUserIds = activity.attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
+  const requesterUser = findUserByToken(users, extras.requesterUserId ?? extras.requester ?? "")
+  const requesterUserId = requesterUser?.id?.trim() ?? extras.requesterUserId ?? ""
 
   return {
     id: String(activity.id ?? index + 1),
@@ -373,7 +363,8 @@ function mapBackendActivityRecord(
     requestId: activity.salesActivityRequestId != null ? String(activity.salesActivityRequestId) : undefined,
     projectOpportunityId: opportunityId,
     registrant: extras.registrant ?? "",
-    requester: extras.requester ?? "",
+    requester: formatUserDisplayName(requesterUser ? requesterUser : requesterUserId ? { id: requesterUserId } : { id: extras.requester }),
+    requesterUserId,
     customerCode: company?.code ?? (customerId != null ? String(customerId) : String(activity.id ?? "")),
     businessCode: opportunityId != null ? String(opportunityId) : "",
     activityMode,
@@ -382,7 +373,8 @@ function mapBackendActivityRecord(
     customer: activity.companyName ?? company?.name ?? opportunity?.customerCompanyName ?? "",
     opportunity: activity.projectOpportunityName ?? opportunity?.opportunityName ?? "",
     location: activity.location ?? "",
-    attendees: activity.attendeeUserIds?.length ? activity.attendeeUserIds.join(", ") : "",
+    attendees: formatAttendeeNames(attendeeUserIds, users),
+    attendeeUserIds,
     content: activity.activityContent ?? "",
     issues: activity.customerInterest ?? activity.issue ?? "",
     nextAction: activity.nextActivity ?? "",
@@ -393,6 +385,7 @@ function mapBackendActivityRecord(
 
 export async function loadBackendActivityRecords() {
   const activities = await fetchSalesActivities()
+  const backendUsers = await loadBackendUsers().catch(() => [])
   let opportunities: ProjectOpportunitySummaryResponse[] = []
   try {
     opportunities = (await fetchProjectOpportunities()).content ?? []
@@ -424,12 +417,18 @@ export async function loadBackendActivityRecords() {
   )
 
   const companyLookup = new Map<number, CompanySummaryResponse | null>(companyEntries)
+  const userLookup = new Map(
+    backendUsers
+      .filter((user) => Boolean(user.id))
+      .map((user) => [user.id?.trim() ?? "", user] as const)
+      .filter(([key]) => Boolean(key)),
+  )
 
   return activities.map((activity, index) => {
     const opportunity = activity.projectOpportunityId != null ? opportunityLookup.get(activity.projectOpportunityId) ?? null : null
     const companyId = activity.companyId ?? opportunity?.customerCompanyId
     const company = companyId != null ? companyLookup.get(companyId) ?? null : null
-    return mapBackendActivityRecord(activity, company, opportunity, index)
+    return mapBackendActivityRecord(activity, company, opportunity, index, Array.from(userLookup.values()))
   })
 }
 
@@ -455,8 +454,9 @@ async function postSalesActivity(
 }
 
 async function mapSavedSalesActivityResponse(saved: SalesActivityResponse & SalesActivityBackendItem) {
+  const backendUsers = await loadBackendUsers().catch(() => [])
   const company = saved.companyId != null ? await fetchCompanySummary(saved.companyId) : null
-  return mapBackendActivityRecord(saved, company, null, 0)
+  return mapBackendActivityRecord(saved, company, null, 0, backendUsers)
 }
 
 export async function loadBackendActivityRecord(salesActivityId: string) {
@@ -548,11 +548,13 @@ export async function createBackendActivityRecord(params: {
   saveActivityExtraFields(mapped.id, {
     registrant: params.registrant,
     requester: params.requester,
+    requesterUserId: params.requester,
   })
   return {
     ...mapped,
     registrant: params.registrant ?? mapped.registrant,
-    requester: params.requester ?? mapped.requester,
+    requester: mapped.requester,
+    requesterUserId: params.requester ?? mapped.requesterUserId,
   }
 }
 
@@ -601,11 +603,13 @@ export async function updateBackendActivityRecord(
   saveActivityExtraFields(mapped.id, {
     registrant: params.registrant,
     requester: params.requester,
+    requesterUserId: params.requester,
   })
   return {
     ...mapped,
     registrant: params.registrant ?? mapped.registrant,
-    requester: params.requester ?? mapped.requester,
+    requester: mapped.requester,
+    requesterUserId: params.requester ?? mapped.requesterUserId,
   }
 }
 

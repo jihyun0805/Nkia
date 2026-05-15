@@ -190,7 +190,7 @@ export default function ActivityEditPage() {
     setActivityOpportunity(activity.opportunity ?? "")
     setActivityOpportunityCode(activity.businessCode ?? "")
     setActivityRegistrant(activity.registrant ?? "")
-    setActivityRequester(activity.requester ?? "")
+    setActivityRequester(activity.requesterUserId ?? activity.requester ?? "")
     setActivityForm({
       date: activity.date,
       activityMode: activity.activityMode ?? "",
