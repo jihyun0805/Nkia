@@ -2,7 +2,6 @@ package com.nkia.Orbis.domain.contract.contractsummary.dto.response;
 
 import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.domain.contract.contractsummary.entity.Contract;
-import com.nkia.Orbis.domain.contract.contractsummary.entity.ProposalType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -25,7 +24,7 @@ public class ContractResponse {
 
     private List<ContractModuleItemResponse> contractModuleItems;
 
-    private ProposalType proposalType;
+    private String proposalType;
 
     private Long contractAmount;
 
@@ -42,7 +41,7 @@ public class ContractResponse {
                 .id(contract.getId())
                 .orderReportId(contract.getOrderReport() != null ? contract.getOrderReport().getId() : null)
                 .contractFileId(contract.getContractFile() != null ? contract.getContractFile().getId() : null)
-                .proposalType(contract.getProposalType())
+                .proposalType(contract.getProposalType().getDescription())
                 .contractAmount(contract.getContractAmount())
                 .contractDate(contract.getContractDate())
                 .maintenanceCondition(contract.getMaintenanceCondition())
