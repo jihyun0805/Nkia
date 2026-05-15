@@ -42,6 +42,7 @@ public class PrbController {
      */
     @Operation(summary = "PRB 등록", description = "새로운 PRB 정보를 등록합니다.")
     @PostMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB', 'CREATE')")
     public ResponseEntity<ApiResponse<PrbResponseDto>> createPrb(
             @Valid @RequestBody PrbCreateRequestDto request) {
 
@@ -59,6 +60,7 @@ public class PrbController {
      */
     @Operation(summary = "PRB 상세 조회", description = "PRB ID로 상세 정보 및 비용 내역을 조회합니다.")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB', 'READ')")
     public ResponseEntity<ApiResponse<PrbResponseDto>> getPrbDetail(@PathVariable Long id) {
         PrbResponseDto response = prbService.getPrbDetail(id);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -71,6 +73,7 @@ public class PrbController {
      */
     @Operation(summary = "PRB 목록 조회", description = "페이징 처리된 PRB 목록을 최신순으로 조회합니다.")
     @GetMapping
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB', 'READ')")
     public ResponseEntity<ApiResponse<Page<PrbResponseDto>>> getPrbList(
             @PageableDefault(size = 10, sort = "createdAt",
                     direction = Sort.Direction.DESC) Pageable pageable) {
@@ -83,6 +86,7 @@ public class PrbController {
      */
     @Operation(summary = "PRB 정보 수정", description = "기존 PRB 정보를 수정하고 재계산된 결과를 반환합니다.")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB', 'UPDATE')")
     public ResponseEntity<ApiResponse<PrbResponseDto>> updatePrb(@PathVariable Long id,
                                                                  @Valid @RequestBody PrbUpdateRequestDto request) {
 
@@ -100,6 +104,7 @@ public class PrbController {
      */
     @Operation(summary = "PRB 삭제", description = "PRB 정보를 논리적(Soft)으로 삭제합니다.")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deletePrb(@PathVariable Long id) {
         prbService.deletePrb(id);
         return ResponseEntity.ok(ApiResponse.success(null));
