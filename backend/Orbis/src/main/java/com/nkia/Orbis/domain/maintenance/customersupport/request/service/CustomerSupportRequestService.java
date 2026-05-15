@@ -17,8 +17,12 @@ import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestCreateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestHistoryDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestHistoryListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.CustomerSupportRequest;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.entity.CustomerSupportRequestHistory;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.repository.CustomerSupportRequestHistoryRepository;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.repository.CustomerSupportRequestRepository;
 import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
@@ -35,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomerSupportRequestService {
 
     private final CustomerSupportRequestRepository requestRepository;
+    private final CustomerSupportRequestHistoryRepository historyRepository;
     private final UploadFileRepository uploadFileRepository;
     private final UserRepository userRepository;
     private final UploadFileService uploadFileService;
@@ -60,7 +65,8 @@ public class CustomerSupportRequestService {
 
         requestRepository.save(request);
 
-        // TODO: 등록 완료 후 권한 보유자(담당자/팀장 등)에게 알림(Notification) 전송 로직 호출
+        // 히스토리 생성 (등록 시점)
+        historyRepository.save(CustomerSupportRequestHistory.createSnapshot(request));
 
         return request.getId();
     }
@@ -81,11 +87,14 @@ public class CustomerSupportRequestService {
         request.update(dto, requester, supportManager, customerCompany);
         updateAttachedFiles(request, dto.getAttachedFileIds());
 
+        // 히스토리 생성 (수정 시점)
+        historyRepository.save(CustomerSupportRequestHistory.createSnapshot(request));
+
         return CustomerSupportRequestDetailResponse.from(request, getWorkflowId(request.getId()));
     }
 
     /**
-     * 요청 및 연관된 모든 첨부파일을 삭제
+     * 고객지원 요청 삭제
      */
     @Transactional
     public void deleteRequest(Long id) {
@@ -98,7 +107,7 @@ public class CustomerSupportRequestService {
     }
 
     /**
-     * 고객지원 요청 목록을 조회
+     * 고객지원 요청 목록 조회
      */
     public List<CustomerSupportRequestListResponse> getRequests() {
         List<CustomerSupportRequest> requests = requestRepository.findAllByOrderByIdDesc();
@@ -109,7 +118,7 @@ public class CustomerSupportRequestService {
     }
 
     /**
-     * 특정 고객지원 요청의 상세 정보 조회
+     * 고객지원 요청 상세 조회
      */
     public CustomerSupportRequestDetailResponse getRequestDetail(Long id) {
         CustomerSupportRequest request = requestRepository.findById(id)
@@ -118,10 +127,34 @@ public class CustomerSupportRequestService {
         return CustomerSupportRequestDetailResponse.from(request, getWorkflowId(request.getId()));
     }
 
+    /**
+     * 고객지원 요청 이력(히스토리) 목록 조회
+     */
+    public List<CustomerSupportRequestHistoryListResponse> getRequestHistories(Long id) {
+        List<CustomerSupportRequestHistory> histories = historyRepository.findByOriginalRequestIdOrderByCreatedAtDesc(id);
+        
+        return histories.stream()
+                .map(CustomerSupportRequestHistoryListResponse::from)
+                .toList();
+    }
+
+    /**
+     * 고객지원 요청 특정 이력(히스토리) 상세 조회
+     */
+    public CustomerSupportRequestHistoryDetailResponse getHistoryDetail(Long historyId) {
+        CustomerSupportRequestHistory history = historyRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.SUPPORT_REQUEST_NOT_FOUND));
+
+        return CustomerSupportRequestHistoryDetailResponse.from(history);
+    }
+
+    /**
+     * 고객지원 요청 엔티티 생성
+     */
     private CustomerSupportRequest createRequestEntity(CustomerSupportRequestCreateRequest dto,
-                                                       User requester, User registrant,
-                                                       User salesRep, User supportManager,
-                                                       Company customerCompany) {
+                                                        User requester, User registrant,
+                                                        User salesRep, User supportManager,
+                                                        Company customerCompany) {
         return CustomerSupportRequest.builder()
                 .customerCompany(customerCompany)
                 .requestStartDate(dto.getRequestStartDate())
@@ -135,6 +168,9 @@ public class CustomerSupportRequestService {
                 .build();
     }
 
+    /**
+     * 첨부파일 매핑
+     */
     private void mapAttachedFiles(CustomerSupportRequest request, List<Long> fileIds) {
         if (fileIds == null || fileIds.isEmpty()) {
             return;
@@ -143,6 +179,9 @@ public class CustomerSupportRequestService {
         files.forEach(request::addAttachedFile);
     }
 
+    /**
+     * 사용자 엔티티 조회
+     */
     private User getUserOrNull(UUID userId) {
         if (userId == null) {
             return null;
@@ -151,6 +190,9 @@ public class CustomerSupportRequestService {
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 
+    /**
+     * 첨부파일 업데이트
+     */
     private void updateAttachedFiles(CustomerSupportRequest request, List<Long> fileIds) {
         request.clearAttachedFiles();
         if (fileIds != null && !fileIds.isEmpty()) {
@@ -159,6 +201,9 @@ public class CustomerSupportRequestService {
         }
     }
 
+    /**
+     * 고객사 엔티티 조회
+     */
     private Company getCompanyOrNull(Long companyId) {
         if (companyId == null) {
             return null;
@@ -167,6 +212,9 @@ public class CustomerSupportRequestService {
                 .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
     }
 
+    /**
+     * 고객지원 요청 결재 상신
+     */
     @Transactional
     public void submitCustomerSupportRequest(
             Long customerSupportRequestId,
@@ -190,6 +238,9 @@ public class CustomerSupportRequestService {
         customerSupportRequest.submit();
     }
 
+    /**
+     * 결재 ID 조회
+     */
     private Long getWorkflowId(Long customerSupportRequestId) {
 
         return workflowRepository
