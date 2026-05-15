@@ -32,6 +32,9 @@ public class WorkflowTemplateInitializer implements CommandLineRunner {
         createTwoStepWorkflow(WorkflowDomain.PURCHASE_CONTRACT, "매입 계약 결재");
         createTwoStepWorkflow(WorkflowDomain.FREE_MAINTENANCE_CONTRACT, "무상유지보수 계약 결재");
         createTwoStepWorkflow(WorkflowDomain.PAID_MAINTENANCE_CONTRACT, "유상유지보수 계약 결재");
+        createTwoStepWorkflow(WorkflowDomain.PRB, "PRB 보고서 결재");
+        createTwoStepWorkflow(WorkflowDomain.PRB_RESULT, "PRB 결과 보고서 결재");
+        createTwoStepWorkflow(WorkflowDomain.BID_RESULT, "입찰 결과 결재");
 
         createThreeStepWorkflow(
                 WorkflowDomain.LICENSE,
