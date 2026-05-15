@@ -5,6 +5,8 @@ import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestCreateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.request.CustomerSupportRequestUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestHistoryDetailResponse;
+import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestHistoryListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.dto.response.CustomerSupportRequestListResponse;
 import com.nkia.Orbis.domain.maintenance.customersupport.request.service.CustomerSupportRequestService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +32,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerSupportRequestController {
     private final CustomerSupportRequestService customerSupportRequestService;
 
+    /**
+     * 고객지원 요청 생성
+     */
     @Operation(summary = "고객지원 요청 생성")
     @PostMapping
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'CREATE')")
@@ -87,16 +92,41 @@ public class CustomerSupportRequestController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    /**
+     * 고객지원 요청 이력(히스토리) 목록 조회
+     */
+    @Operation(summary = "고객지원 요청 이력(히스토리) 목록 조회")
+    @GetMapping("/{id}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'READ')")
+    public ResponseEntity<ApiResponse<List<CustomerSupportRequestHistoryListResponse>>> getRequestHistories(
+            @PathVariable Long id) {
+        List<CustomerSupportRequestHistoryListResponse> response = customerSupportRequestService.getRequestHistories(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 고객지원 요청 이력(히스토리) 상세 조회
+     */
+    @Operation(summary = "고객지원 요청 이력(히스토리) 상세 조회")
+    @GetMapping("/histories/{historyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'CUSTOMER_SUPPORT', 'READ')")
+    public ResponseEntity<ApiResponse<CustomerSupportRequestHistoryDetailResponse>> getHistoryDetail(
+            @PathVariable Long historyId) {
+        CustomerSupportRequestHistoryDetailResponse response = customerSupportRequestService.getHistoryDetail(historyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 고객지원 요청 결재 상신
+     */
     @Operation(summary = "고객지원 요청 결재 상신")
     @PostMapping("/submit/{csRequestId}")
     public ResponseEntity<ApiResponse<String>> submitCsRequest(
             @PathVariable("csRequestId") Long csRequestId,
-            @RequestBody SubmitRequest request
-    ) {
+            @RequestBody SubmitRequest request) {
         customerSupportRequestService.submitCustomerSupportRequest(
                 csRequestId,
-                request.getFirstApproverId()
-        );
+                request.getFirstApproverId());
 
         return ResponseEntity.ok(ApiResponse.success("고객지원 요청 결재 상신 완료"));
     }
