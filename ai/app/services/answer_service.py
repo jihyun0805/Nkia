@@ -897,42 +897,97 @@ def build_plan_summary(plan: QueryPlanView | None) -> str:
 
 def build_extractive_answer(*, query: str, plan: QueryPlanView | None, results: list[SearchResult]) -> str:
     if not results:
-        return "제공된 근거만으로는 확인하기 어렵습니다."
+        return build_plain_fallback_answer(
+            conclusion="제공된 근거만으로는 확인하기 어렵습니다.",
+            reasons=["현재 질문과 직접 연결되는 근거를 찾지 못했습니다."],
+            next_step="사업명, 고객사명, 기간 중 하나를 더 구체적으로 입력해 주세요.",
+        )
 
     top_results = results[:3]
     subject_names = [name for name in dict.fromkeys(extract_subject_name(result) for result in top_results) if name]
     source_labels = [label for label in dict.fromkeys(describe_source_type(result.sourceType) for result in top_results) if label]
+    reference_labels = build_reference_labels(top_results)
 
     if plan and plan.answerStyle == "timeline":
         if subject_names:
-            return (
-                f"확인된 근거 기준으로는 {', '.join(subject_names[:3])} 관련 이력이 우선 확인됩니다. "
-                "세부 시점과 순서는 아래 근거를 펼쳐서 확인해 주세요."
+            return build_plain_fallback_answer(
+                conclusion=f"확인된 근거 기준으로는 {', '.join(subject_names[:3])} 관련 이력이 우선 확인됩니다.",
+                reasons=[
+                    f"관련 근거가 총 {len(results)}건 확인되었습니다.",
+                    "질문이 이력 확인 성격이라 시간 흐름을 우선 보았습니다.",
+                ],
+                references=reference_labels,
+                next_step="아래 근거를 펼쳐 세부 날짜와 진행 순서를 확인해 주세요.",
             )
-        return "확인된 근거 기준으로 관련 이력이 일부 보입니다. 세부 시점과 순서는 아래 근거를 확인해 주세요."
+        return build_plain_fallback_answer(
+            conclusion="확인된 근거 기준으로 관련 이력이 일부 보입니다.",
+            reasons=[
+                f"관련 근거가 총 {len(results)}건 확인되었습니다.",
+                "다만 사업명이나 대상명이 명확하게 잡히지는 않았습니다.",
+            ],
+            references=reference_labels,
+            next_step="아래 근거를 펼쳐 세부 날짜와 진행 순서를 확인해 주세요.",
+        )
 
     if plan and plan.answerStyle == "bullet_summary":
         if subject_names:
-            return (
-                f"관련 근거 {len(results)}건 기준으로 이번 질문과 직접 연결되는 주요 대상은 "
-                f"{', '.join(subject_names[:3])}입니다. 세부 내용과 수치 해석은 아래 근거를 확인해 주세요."
+            return build_plain_fallback_answer(
+                conclusion=f"이번 질문과 직접 연결되는 주요 대상은 {', '.join(subject_names[:3])}입니다.",
+                reasons=[
+                    f"관련 근거가 총 {len(results)}건 확인되었습니다.",
+                    "요약 질문이라 가장 강하게 연결된 대상부터 추렸습니다.",
+                ],
+                references=reference_labels,
+                next_step="아래 근거에서 세부 내용과 수치를 확인해 주세요.",
             )
-        return f"관련 근거 {len(results)}건이 확인되었습니다. 세부 내용은 아래 근거를 확인해 주세요."
+        return build_plain_fallback_answer(
+            conclusion=f"관련 근거 {len(results)}건이 확인되었습니다.",
+            reasons=["질문과 연결되는 문서는 찾았지만, 대표 대상명은 뚜렷하지 않습니다."],
+            references=reference_labels,
+            next_step="아래 근거에서 세부 내용과 수치를 확인해 주세요.",
+        )
 
     if subject_names:
         source_text = f" {', '.join(source_labels[:2])} 기준으로" if source_labels else ""
-        return (
-            f"확인된 근거{source_text} 주요 관련 대상은 {', '.join(subject_names[:3])}입니다. "
-            "정확한 세부 내용은 아래 근거를 확인해 주세요."
+        reasons = [f"관련 근거가 총 {len(results)}건 확인되었습니다."]
+        if source_text:
+            reasons.append(f"주로 {', '.join(source_labels[:2])} 문서를 기준으로 보았습니다.")
+        return build_plain_fallback_answer(
+            conclusion=f"확인된 근거{source_text} 주요 관련 대상은 {', '.join(subject_names[:3])}입니다.",
+            reasons=reasons,
+            references=reference_labels,
+            next_step="아래 근거를 펼쳐 원문과 세부 수치를 확인해 주세요.",
         )
 
     if source_labels:
-        return (
-            f"관련 근거 {len(results)}건이 확인되었고, 주로 {', '.join(source_labels[:2])} 문서가 사용되었습니다. "
-            "정확한 세부 내용은 아래 근거를 확인해 주세요."
+        return build_plain_fallback_answer(
+            conclusion=f"관련 근거 {len(results)}건이 확인되었습니다.",
+            reasons=[f"주로 {', '.join(source_labels[:2])} 문서가 사용되었습니다."],
+            references=reference_labels,
+            next_step="아래 근거를 펼쳐 원문과 세부 수치를 확인해 주세요.",
         )
 
-    return f"관련 근거 {len(results)}건이 확인되었습니다. 세부 내용은 아래 근거를 확인해 주세요."
+    return build_plain_fallback_answer(
+        conclusion=f"관련 근거 {len(results)}건이 확인되었습니다.",
+        reasons=["질문과 연결되는 근거는 찾았지만, 대표 대상명은 뚜렷하지 않습니다."],
+        references=reference_labels,
+        next_step="아래 근거를 펼쳐 원문과 세부 수치를 확인해 주세요.",
+    )
+
+
+def build_plain_fallback_answer(
+    *,
+    conclusion: str,
+    reasons: list[str],
+    references: list[str] | None = None,
+    next_step: str,
+) -> str:
+    lines = [f"결론: {conclusion}", "", "왜냐하면:"]
+    lines.extend(f"- {reason}" for reason in reasons if reason)
+    if references:
+        lines.extend(["", "참고 문서:", *[f"- {reference}" for reference in references[:3]]])
+    lines.extend(["", f"다음에 볼 것: {next_step}"])
+    return "\n".join(lines)
 
 
 def extract_subject_name(result: SearchResult) -> str | None:
@@ -953,6 +1008,25 @@ def extract_subject_name(result: SearchResult) -> str | None:
             text = strip_file_extension(text)
         return text
     return None
+
+
+def build_reference_labels(results: list[SearchResult]) -> list[str]:
+    labels: list[str] = []
+    for result in results:
+        title = strip_file_extension(str(result.title or "").strip())
+        source_label = describe_source_type(result.sourceType)
+        code = str(result.sourceId or "").strip()
+        if title and code:
+            label = f"{title} ({source_label}, {code})"
+        elif title:
+            label = f"{title} ({source_label})"
+        elif code:
+            label = f"{source_label} {code}"
+        else:
+            label = source_label
+        if label and label not in labels:
+            labels.append(label)
+    return labels
 
 
 def strip_file_extension(text: str) -> str:

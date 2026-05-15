@@ -459,6 +459,9 @@ class TestBuildExtractiveAnswer:
     def test_returns_default_message_when_no_results(self):
         answer = build_extractive_answer(query="질의", plan=None, results=[])
         assert "확인하기 어렵습니다" in answer
+        assert "결론:" in answer
+        assert "왜냐하면:" in answer
+        assert "다음에 볼 것:" in answer
 
     def test_returns_answer_with_subject_name_from_metadata(self):
         result = _make_search_result_with_meta(
@@ -466,6 +469,7 @@ class TestBuildExtractiveAnswer:
         )
         answer = build_extractive_answer(query="사업 현황", plan=None, results=[result])
         assert "한국전력 통합관제" in answer
+        assert "참고 문서:" in answer
 
     def test_returns_answer_with_title_when_no_metadata_name(self):
         result = _make_search_result_with_meta(title="특정 사업 제목", metadata={})
