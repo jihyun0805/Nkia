@@ -10,6 +10,7 @@ import com.nkia.Orbis.domain.bid.prb.entity.Prb;
 import com.nkia.Orbis.domain.bid.rfpanalyzeresult.entity.RfpAnalyzeResult;
 import com.nkia.Orbis.domain.company.entity.Company;
 import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReport;
+import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -64,7 +65,7 @@ public class ProjectOpportunity extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sales_representative_id")
-    private User salesRepresentative;
+    private User salesRepresentative; // 영업 대표
 
     @Column(name = "expected_bid_date")
     private LocalDate expectedBidDate; // 입찰 or 계약 시점
@@ -89,28 +90,31 @@ public class ProjectOpportunity extends BaseEntity {
     private Company customerCompany; // 고객사
 
     @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProjectOpportunityPartnerCompany> partnerCompanies = new ArrayList<>();
+    private List<ProjectOpportunityPartnerCompany> partnerCompanies = new ArrayList<>(); // 협력사
 
     @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProjectOpportunityProductModule> productModules = new ArrayList<>();
+    private List<ProjectOpportunityProductModule> productModules = new ArrayList<>(); // 납품 모듈
 
     @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<SalesActivity> salesActivities = new ArrayList<>();
+    private List<SalesActivity> salesActivities = new ArrayList<>(); // 활동
 
     @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Quotation> quotations = new ArrayList<>();
+    private List<Quotation> quotations = new ArrayList<>(); // 견적서
 
     @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private RfpAnalyzeResult rfpAnalyzeResult;
+    private RfpAnalyzeResult rfpAnalyzeResult; // RFP 분석 결과
 
     @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private Prb prb;
+    private Prb prb; // PRB
 
     @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private BidResult bidResult;
+    private BidResult bidResult; // 입찰 결과
 
     @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private OrderReport orderReport;
+    private OrderReport orderReport; // 수주 보고서
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<UploadFile> rfpFiles = new ArrayList<>();
 
     // 안전한 객체 생성을 위한 생성자 레벨의 @Builder - 컬렉션(List) 필드는 제외하여 JPA가 초기화한 ArrayList 객체를 보호합니다.
     @Builder
@@ -178,5 +182,9 @@ public class ProjectOpportunity extends BaseEntity {
         if (orderReport != null && orderReport.getProjectOpportunity() != this) {
             orderReport.assignProjectOpportunity(this);
         }
+    }
+
+    public void addFile(UploadFile file) {
+        this.rfpFiles.add(file);
     }
 }
