@@ -45,13 +45,13 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
         {trigger || (
           <Button variant="outline" size="sm" className="gap-2">
             <Search className="w-4 h-4" />
-            사업 선택
+            수주보고서 선택
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>사업 선택</DialogTitle>
+          <DialogTitle>수주보고서 선택</DialogTitle>
         </DialogHeader>
         <div className="p-4 space-y-4 flex-1 overflow-hidden flex flex-col">
           <div className="relative">
@@ -71,7 +71,7 @@ export function OrderReportSelector({ onSelect, trigger }: OrderReportSelectorPr
                 <TableRow>
                   <TableHead>고객사</TableHead>
                   <TableHead>사업명</TableHead>
-                  <TableHead>영업대표</TableHead>
+                  <TableHead>PM</TableHead>
                   <TableHead>수주일</TableHead>
                   <TableHead>상태</TableHead>
                   <TableHead className="text-right">금액</TableHead>
