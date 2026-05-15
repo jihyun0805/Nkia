@@ -16,7 +16,7 @@ type PageResponse<T> = {
   content?: T[];
 };
 
-type UserSummaryResponse = {
+export type BackendUserSummary = {
   id?: string;
   employeeNumber?: string;
   name?: string;
@@ -59,6 +59,7 @@ type ProjectOpportunitySummaryResponse = {
   expectedBudget?: number | string;
   customerCompanyId?: number;
   customerCompanyName?: string;
+  salesRepresentativeId?: string;
   salesRepresentativeName?: string;
   createUserName?: string;
   description?: string;
@@ -432,13 +433,25 @@ async function loadCompanyManagers(companyId: number) {
 }
 
 async function loadUsers() {
-  const payload = await fetchList<PageResponse<UserSummaryResponse> | UserSummaryResponse[]>(`${getBackendApiBaseUrl()}/user`, "사용자 목록을 불러오지 못했습니다.");
+  const payload = await fetchList<PageResponse<BackendUserSummary> | BackendUserSummary[]>(`${getBackendApiBaseUrl()}/user`, "사용자 목록을 불러오지 못했습니다.");
 
   if (Array.isArray(payload)) {
     return payload;
   }
 
   return payload.content ?? [];
+}
+
+export async function loadBackendUsers() {
+  const users = await loadUsers();
+  return users
+    .filter((user): user is Required<Pick<BackendUserSummary, "id" | "name">> & BackendUserSummary => Boolean(user.id && user.name))
+    .map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email ?? "",
+      employeeNumber: user.employeeNumber ?? "",
+    }));
 }
 
 async function loadProjectOpportunities() {
@@ -487,6 +500,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       id: item.opportunityCode ?? String(item.id ?? `OPP-${index + 1}`),
       backendId: item.id,
       createdAt: "",
+      createUserName: item.createUserName ?? "-",
       customerCode: item.customerCompanyId != null ? buildCustomerRecordCode(customerLookup.get(item.customerCompanyId)) : "",
       partnerCode: "-",
       partnerCodes: [],
@@ -507,6 +521,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       partnerContact: "-",
       partnerPhone: "-",
       status: stageLabel(item.stage),
+      salesRepresentativeId: item.salesRepresentativeId ?? undefined,
       salesRep: item.salesRepresentativeName ?? item.createUserName ?? "-",
       rfpAttachments: [],
     };

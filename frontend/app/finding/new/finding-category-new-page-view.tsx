@@ -29,6 +29,7 @@ import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusiness
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { type StoredFileAttachment } from "@/lib/attachments"
+import { currentUser } from "@/lib/current-user"
 import { findingStatuses, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
@@ -37,9 +38,9 @@ import {
   createBackendCompanyManager,
   createBackendProjectOpportunity,
   loadBackendFindingData,
+  loadBackendUsers,
   mapCustomerSector,
   mapPartnerCategory,
-  resolveSalesRepresentativeId,
 } from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
@@ -64,6 +65,13 @@ type ContactDraft = {
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
 }
+
+type BackendUserOption = {
+  id: string
+  name: string
+  email: string
+}
+
 function createEmptyContactDraft(): ContactDraft {
   return {
     name: "",
@@ -277,13 +285,13 @@ export function FindingCategoryNewPageView({
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
-  const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
-  const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
+  const [opportunitySalesRepId, setOpportunitySalesRepId] = useState("")
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
   const [opportunityStatus, setOpportunityStatus] = useState("발굴")
+  const [salesRepOptions, setSalesRepOptions] = useState<BackendUserOption[]>([])
   const [customerRegistrationGuideOpen, setCustomerRegistrationGuideOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
@@ -300,14 +308,20 @@ export function FindingCategoryNewPageView({
     const sync = async () => {
       setLoadingBackend(true)
       try {
-        const data = await loadBackendFindingData()
+        const [data, users] = await Promise.all([loadBackendFindingData(), loadBackendUsers()])
         if (cancelled) return
         setBackendCustomers(data.customers)
         setBackendPartners(data.partners)
+        setSalesRepOptions(users)
+        const currentUserMatch = users.find((user) => user.email === currentUser.email || user.name === currentUser.name)
+        if (currentUserMatch) {
+          setOpportunitySalesRepId((prev) => prev || currentUserMatch.id)
+        }
       } catch {
         if (!cancelled) {
           setBackendCustomers([])
           setBackendPartners([])
+          setSalesRepOptions([])
         }
       } finally {
         if (!cancelled) {
@@ -860,11 +874,10 @@ export function FindingCategoryNewPageView({
 
       void (async () => {
         try {
-          const salesRepresentativeId = await resolveSalesRepresentativeId(opportunitySalesRep)
-          if (!salesRepresentativeId) {
+          if (!opportunitySalesRepId) {
             toast({
               title: "사업기회 등록 확인",
-              description: "영업대표를 사용자 목록에서 찾지 못했습니다.",
+              description: "영업대표를 선택해주십시오.",
             })
             return
           }
@@ -882,7 +895,7 @@ export function FindingCategoryNewPageView({
           const result = await createBackendProjectOpportunity({
             opportunityName: opportunityName.trim(),
             customerCompanyId,
-            salesRepresentativeId,
+            salesRepresentativeId: opportunitySalesRepId,
             projectType: businessType,
             expectedBidDate: expectedDate || undefined,
             expectedBudget: expectedAmount || undefined,
@@ -1016,11 +1029,22 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>등록자</Label>
-                        <Input value={opportunityRegistrant} onChange={(event) => setOpportunityRegistrant(event.target.value)} placeholder="등록자명을 입력하세요" />
+                        <Input value={currentUser.name} readOnly />
                       </div>
                       <div className="space-y-2">
                         <Label>영업대표</Label>
-                        <Input value={opportunitySalesRep} onChange={(event) => setOpportunitySalesRep(event.target.value)} placeholder="영업대표명을 입력하세요" />
+                        <Select value={opportunitySalesRepId} onValueChange={setOpportunitySalesRepId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="영업대표를 선택하세요" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {salesRepOptions.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label>예상 입찰 또는 계약 시점</Label>

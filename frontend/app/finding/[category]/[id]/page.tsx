@@ -414,7 +414,7 @@ export default function FindingDetailPage() {
                         </div>
                         <div className="space-y-2">
                           <Label>등록자</Label>
-                          <Input readOnly value={opportunityItem?.registrant ?? "-"} />
+                          <Input readOnly value={opportunityItem?.createUserName ?? opportunityItem?.registrant ?? "-"} />
                         </div>
                         <div className="space-y-2">
                           <Label>영업대표</Label>

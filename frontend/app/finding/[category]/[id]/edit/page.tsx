@@ -34,8 +34,8 @@ import {
   deleteBackendCompanyManager,
   loadBackendCompanyManagers,
   loadBackendFindingData,
+  loadBackendUsers,
   mapPartnerCategory,
-  resolveSalesRepresentativeId,
   updateBackendCompany,
   updateBackendCompanyManager,
   updateBackendProjectOpportunity,
@@ -63,6 +63,12 @@ type ContactDraft = {
 
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
+}
+
+type BackendUserOption = {
+  id: string
+  name: string
+  email: string
 }
 
 function createEmptyContactDraft(): ContactDraft {
@@ -290,7 +296,8 @@ export default function FindingEditPage() {
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
   const [customerGroup, setCustomerGroup] = useState("민간")
-  const [salesRep, setSalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
+  const [salesRepresentativeId, setSalesRepresentativeId] = useState("")
+  const [salesRepOptions, setSalesRepOptions] = useState<BackendUserOption[]>([])
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -317,21 +324,27 @@ export default function FindingEditPage() {
     const sync = async () => {
       setLoading(true)
       try {
-        const data = await loadBackendFindingData()
+        const [data, users] = await Promise.all([loadBackendFindingData(), loadBackendUsers()])
         if (cancelled) return
 
         setCustomers(data.customers)
         setPartners(data.partners)
+        setSalesRepOptions(users)
 
         if (category === "opportunities") {
           const opportunity = data.opportunities.find((current) => current.id === id) ?? null
           setItem(opportunity)
           if (opportunity) {
             const matchedCustomer = data.customers.find((customer) => customer.id === opportunity.customerCode) ?? null
+            const matchedSalesRep =
+              users.find((user) => user.id === opportunity.salesRepresentativeId) ??
+              users.find((user) => user.name === opportunity.salesRep) ??
+              users.find((user) => user.email === currentUser.email) ??
+              null
             setSelectedCustomer(matchedCustomer)
             setCustomerName(opportunity.customer)
             setOpportunityName(opportunity.name)
-            setRegistrant(opportunity.registrant)
+            setRegistrant(opportunity.createUserName ?? opportunity.registrant ?? currentUser.name)
             setPartnerNames(
               Array.isArray(opportunity.partners) && opportunity.partners.length > 0
                 ? opportunity.partners
@@ -342,7 +355,7 @@ export default function FindingEditPage() {
             setExpectedDate(opportunity.expectedDate === "-" ? "" : opportunity.expectedDate)
             setExpectedAmount(opportunity.expectedAmount === "-" ? "" : opportunity.expectedAmount)
             setCustomerGroup(opportunity.category)
-            setSalesRep(opportunity.salesRep)
+            setSalesRepresentativeId(opportunity.salesRepresentativeId ?? matchedSalesRep?.id ?? "")
             setBusinessType(opportunity.product)
             setModuleName(opportunity.module === "-" ? "" : opportunity.module)
             setIssue(opportunity.issue === "-" ? "" : opportunity.issue)
@@ -619,7 +632,7 @@ export default function FindingEditPage() {
       return
     }
 
-    const currentOpportunity = item as OpportunityRecord | null
+        const currentOpportunity = item as OpportunityRecord | null
     if (!currentOpportunity?.backendId) {
       toast({
         title: "사업기회 수정 실패",
@@ -631,11 +644,10 @@ export default function FindingEditPage() {
     setSubmitting(true)
     ;(async () => {
       try {
-        const salesRepresentativeId = await resolveSalesRepresentativeId(salesRep)
         if (!salesRepresentativeId) {
           toast({
             title: "사업기회 수정 확인",
-            description: "영업대표를 사용자 목록에서 찾지 못했습니다.",
+            description: "영업대표를 선택해주십시오.",
           })
           setSubmitting(false)
           return
@@ -1043,7 +1055,18 @@ export default function FindingEditPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>영업대표</Label>
-                      <Input value={salesRep} onChange={(event) => setSalesRep(event.target.value)} placeholder="영업대표명을 입력하세요" />
+                      <Select value={salesRepresentativeId} onValueChange={setSalesRepresentativeId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="영업대표를 선택하세요" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {salesRepOptions.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label>사업명 *</Label>

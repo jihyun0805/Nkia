@@ -63,6 +63,7 @@ export type OpportunityRecord = {
   id: string
   backendId?: number
   createdAt: string
+  createUserName?: string
   customerCode: string
   partnerCode: string
   partnerCodes?: string[]
@@ -83,6 +84,7 @@ export type OpportunityRecord = {
   partnerContact: string
   partnerPhone: string
   status: string
+  salesRepresentativeId?: string
   salesRep: string
   rfpAttachments?: OpportunityAttachment[]
 }
