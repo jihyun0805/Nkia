@@ -250,6 +250,11 @@ def answer_targeted_domain_query(
         billing_customer = extract_customer_name_for_billing(query=query)
         billing_code = extract_business_codes(query)
         opp_code_for_billing = billing_code[0] if billing_code else None
+        # entity scope guard: query 본문에 회사명/사업코드 명시 없으면 BILLING 전체 집계 분기 차단.
+        # follow-up ("그 사업 청구 현황") 처럼 직전 turn 의 entity 가 의도된 케이스는
+        # discovery (LLM grounded) 로 fall-through 시켜 history context + entity 일치 evidence 만 사용.
+        if not billing_customer and not opp_code_for_billing:
+            return None
         # 질문에서 상태 필터 추출 (비율 질문은 전체 모집단을 보아야 하므로 필터를 적용하지 않음)
         billing_statuses: list[str] | None = None
         is_ratio_query = "비율" in normalized_query or "퍼센트" in normalized_query or "%" in normalized_query
