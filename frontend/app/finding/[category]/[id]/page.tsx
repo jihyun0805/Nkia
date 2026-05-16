@@ -392,9 +392,8 @@ export default function FindingDetailPage() {
                       <h2 className="text-base font-semibold">등록정보</h2>
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <Label>고객사명 *</Label>
+                          <Label>고객사명</Label>
                           <Input readOnly value={opportunityItem?.customer ?? "-"} />
-                          <p className="text-xs text-muted-foreground">고객사 코드: {opportunityItem?.customerCode ?? "-"}</p>
                         </div>
                         <div className="space-y-2">
                           <Label>협력사명</Label>
@@ -409,7 +408,7 @@ export default function FindingDetailPage() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>사업명 *</Label>
+                          <Label>사업명</Label>
                           <Input readOnly value={opportunityItem?.name ?? "-"} />
                         </div>
                         <div className="space-y-2">
@@ -418,7 +417,7 @@ export default function FindingDetailPage() {
                         </div>
                         <div className="space-y-2">
                           <Label>등록자</Label>
-                          <Input readOnly value={opportunityItem?.registrant ?? "-"} />
+                          <Input readOnly value={opportunityItem?.createUserName ?? "-"} />
                         </div>
                         <div className="space-y-2">
                           <Label>영업대표</Label>
@@ -433,7 +432,7 @@ export default function FindingDetailPage() {
                           <Input readOnly value={opportunityItem?.expectedAmount ?? "-"} />
                         </div>
                         <div className="space-y-2">
-                          <Label>사업 구분 *</Label>
+                          <Label>사업 구분</Label>
                           <Input readOnly value={opportunityItem?.product ?? "-"} />
                         </div>
                         <div className="space-y-2">

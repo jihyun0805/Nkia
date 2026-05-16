@@ -48,7 +48,7 @@ export function UserPicker({
     const hits = fuzzyMatch(
       trimmed,
       users,
-      (u) => [u.name ?? "", u.employeeNumber ?? "", u.email ?? ""],
+      (u) => [u.name ?? "", u.employeeNumber ?? "", u.email ?? "", u.departmentName ?? ""],
       8,
     )
     return hits.map((h) => h.item)
@@ -102,6 +102,7 @@ export function UserPicker({
             <CommandGroup>
               {suggestions.map((user) => {
                 const subtitle = [user.position ? POSITION_LABEL[user.position] ?? user.position : null, user.employeeNumber, user.email]
+                  .concat(user.departmentName ? [user.departmentName] : [])
                   .filter(Boolean)
                   .join(" · ")
                 return (
