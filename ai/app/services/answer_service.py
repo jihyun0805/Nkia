@@ -1115,13 +1115,14 @@ def build_structured_answer_context(response: AnswerResponse) -> str:
 
 _SMALL_TALK_GREETINGS = (
     "안녕", "안녕하세요", "안녕!", "안녕요", "하이", "헬로", "hi", "hello", "반갑",
+    "잘 부탁", "잘부탁", "처음 뵙",
 )
 _SMALL_TALK_THANKS = (
     "고마", "감사", "땡큐", "thanks", "thank you", "수고",
 )
-_SMALL_TALK_FAREWELL = ("끝", "잘 가", "잘가", "bye", "끝났", "끝낼", "종료")
-_SMALL_TALK_WHO = ("너 누구", "당신은 누구", "넌 누구", "what are you", "who are you")
-_SMALL_TALK_HELP = ("도와줘", "도움말", "도움", "help", "사용법")
+_SMALL_TALK_FAREWELL = ("끝", "잘 가", "잘가", "bye", "끝났", "끝낼", "종료", "이만")
+_SMALL_TALK_WHO = ("너 누구", "당신은 누구", "넌 누구", "what are you", "who are you", "너는 누구")
+_SMALL_TALK_HELP = ("도와줘", "도움말", "도움", "help", "사용법", "어떻게 써", "어떻게 쓰")
 
 
 def _answer_small_talk(*, query: str, embedder: EmbeddingModel, thread_id: str | None) -> AnswerResponse | None:
@@ -1150,7 +1151,10 @@ def _answer_small_talk(*, query: str, embedder: EmbeddingModel, thread_id: str |
     elif has_any(_SMALL_TALK_THANKS):
         msg = "감사합니다! 다른 도움이 필요하시면 언제든 말씀해 주세요. 🙌"
     elif has_any(_SMALL_TALK_FAREWELL):
-        msg = "수고하셨습니다! 다음에 또 도와드릴게요. 👋"
+        msg = (
+            "수고하셨습니다! 다음에 또 도와드릴게요. 👋\n\n"
+            "필요하시면 언제든 사업기회·PRB·견적·청구 관련 질문 주세요."
+        )
     elif has_any(_SMALL_TALK_WHO):
         msg = (
             "저는 엔키아 영업관리 시스템의 사내 AI 어시스턴트입니다.\n"
