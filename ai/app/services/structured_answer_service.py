@@ -944,6 +944,13 @@ def answer_structured_query(
     if intent.intent_type == "period_summary" and intent.summary_domain == "billing":
         if user_context is not None and not user_context.is_unrestricted():
             return None
+        # entity scope guard: 단일 회사/사업기회 follow-up 에서 generic 전체 billing
+        # 집계가 leak (예: "그 사업 청구 현황 알려줘" → 53건 전체 집계) 되는 것을 차단.
+        # query 본문에 회사명/사업코드 명시 없으면 fall-through.
+        _bc = extract_customer_name_for_billing(query=query)
+        _bcode = extract_business_codes(query)
+        if not _bc and not _bcode:
+            return None
         try:
             rows = fetch_billing_rows(
                 start_at=intent.time_from,
