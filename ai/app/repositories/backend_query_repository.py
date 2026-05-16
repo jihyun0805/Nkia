@@ -36,6 +36,7 @@ _ATT  = _TABLE["attachments"]
 _ACT  = _TABLE["activities"]
 _PS   = _TABLE["post_sales"]
 _SAR  = _TABLE["activity_requests"]
+_BL   = _TABLE["billings"]
 
 
 def build_backend_database_url() -> str:
@@ -3342,4 +3343,69 @@ def fetch_module_quotation_revenue_rows(
                 return list(cur.fetchall())
     except psycopg.Error as exc:
         logger.warning("fetch_module_quotation_revenue_rows DB error: %s", exc)
+        return []
+
+
+def fetch_billing_rows(
+    *,
+    opportunity_code: str | None = None,
+    customer_name_term: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """청구(세금계산서) 목록 조회. opportunity_code 또는 고객사명 부분 일치로 필터링."""
+    opp_fk_expr = project_opportunity_fk_value_expr(table_name="order_report", table_alias="wr")
+    customer_fk_expr = _first_existing_column_expr(
+        table_name="order_report",
+        table_alias="wr",
+        candidates=("final_customer_company_id", "customer_company_id"),
+    )
+    customer_name_expr = company_name_select_expr(table_alias="c")
+
+    where_clauses = ["b.deleted = false"]
+    params: dict[str, Any] = {"limit": limit}
+
+    if opportunity_code:
+        where_clauses.append("o.opportunity_code = %(opportunity_code)s")
+        params["opportunity_code"] = opportunity_code
+
+    if customer_name_term:
+        cn_col = _first_existing_column_expr(
+            table_name="company", table_alias="c", candidates=("company_name", "name")
+        )
+        where_clauses.append(f"{cn_col} ILIKE %(customer_name_term)s")
+        params["customer_name_term"] = f"%{customer_name_term}%"
+
+    where_sql = " AND ".join(where_clauses)
+
+    try:
+        with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        b.id AS billing_id,
+                        b.billing_amount,
+                        b.status AS billing_status,
+                        b.requested_issue_date,
+                        b.issued_at,
+                        b.collected_at,
+                        b.remarks AS billing_remarks,
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        {customer_name_expr}
+                    FROM {_BL} b
+                    JOIN {_WR} wr ON wr.id = b.order_report_id
+                    JOIN {_OPP} o ON o.id = {opp_fk_expr}
+                    JOIN {_CO} c ON c.id = {customer_fk_expr}
+                    WHERE {where_sql}
+                    ORDER BY b.id DESC
+                    LIMIT %(limit)s
+                    """,
+                    params,
+                )
+                return list(cur.fetchall())
+    except psycopg.errors.UndefinedTable:
+        return []
+    except psycopg.Error as exc:
+        logger.warning("fetch_billing_rows DB error: %s", exc)
         return []
