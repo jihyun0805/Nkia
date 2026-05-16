@@ -31,7 +31,7 @@ public class ProjectResultReportController {
      */
     @Operation(summary = "사업 결과 보고 등록")
     @PostMapping("/register")
-    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_RESULT_REPORT', 'CREATE')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_RESULT', 'CREATE')")
     public ResponseEntity<ApiResponse<Long>> register(@Valid @RequestBody ProjectResultReportCreateRequest request) {
         Long reportId = reportService.registerResultReport(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -43,7 +43,7 @@ public class ProjectResultReportController {
      */
     @Operation(summary = "사업 결과 보고 삭제")
     @DeleteMapping("/{reportId}")
-    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_RESULT_REPORT', 'DELETE')")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_RESULT', 'DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteResultReport(@PathVariable Long reportId) {
         reportService.deleteReport(reportId);
         return ResponseEntity.ok(ApiResponse.success(null));
