@@ -26,6 +26,7 @@ import { ActivityFormFields } from "@/components/erp/searchable-activity-form-fi
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import {
@@ -38,10 +39,13 @@ import {
 import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
 import { X } from "lucide-react"
+import { currentUser } from "@/lib/current-user"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { createBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { createBackendQuotationRecord, getQuotationCreateBlockReason } from "@/lib/sales-quotation-backend"
+import { findUserByToken, formatUserDisplayName } from "@/lib/user-utils"
+import { useBackendUsers } from "@/lib/use-backend-users"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
 
@@ -103,6 +107,7 @@ function ActivityCategoryNewPageContent() {
   const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
   const [findingData, setFindingData] = useState<FindingBackendData>(emptyFindingData)
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
+  const backendUsers = useBackendUsers()
   const [activityForm, setActivityForm] = useState({
     date: "",
     activityMode: "",
@@ -116,7 +121,7 @@ function ActivityCategoryNewPageContent() {
   const [form, setForm] = useState({
     date: "",
     type: "",
-    requester: "",
+    requester: currentUser.name,
     receiver: "",
     customerCode: "",
     customer: "",
@@ -440,6 +445,9 @@ function ActivityCategoryNewPageContent() {
     setActivityOpportunityCode(suggestion.code || suggestion.id)
   }
 
+  const receiverUser = findUserByToken(backendUsers, form.receiver)
+  const receiverUserId = receiverUser?.id ?? ""
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -500,7 +508,7 @@ function ActivityCategoryNewPageContent() {
                   <>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>요청일 *</Label>
+                        <Label>요청일</Label>
                         <Input type="date" value={form.date} onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
@@ -521,26 +529,25 @@ function ActivityCategoryNewPageContent() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>요청자 *</Label>
-                        <Input
-                          value={form.requester}
-                          onChange={(event) => setForm((prev) => ({ ...prev, requester: event.target.value }))}
-                          placeholder="요청자 이름을 입력하세요"
-                        />
+                        <Label>요청자</Label>
+                        <Input value={currentUser.name} readOnly />
                       </div>
                       <div className="space-y-2">
                         <Label>담당자 *</Label>
-                        <Input
-                          value={form.receiver}
-                          onChange={(event) => setForm((prev) => ({ ...prev, receiver: event.target.value }))}
-                          placeholder="담당자 이름을 직접 입력하세요"
+                        <UserIdPicker
+                          value={receiverUserId}
+                          users={backendUsers}
+                          onValueChange={(value) => {
+                            const user = findUserByToken(backendUsers, value)
+                            setForm((prev) => ({ ...prev, receiver: formatUserDisplayName(user) }))
+                          }}
+                          placeholder="담당자를 선택하세요"
                         />
-                        <p className="text-sm text-muted-foreground">백엔드 사용자 이름과 일치해야 저장됩니다.</p>
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>고객사 *</Label>
+                        <Label>고객사</Label>
                         <CustomerAutocomplete
                           value={form.customer}
                           onValueChange={(value) => {
@@ -569,7 +576,7 @@ function ActivityCategoryNewPageContent() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>사업기회 *</Label>
+                        <Label>사업기회</Label>
                         <EntityAutocomplete
                           value={form.opportunity}
                           target="opportunities"
@@ -605,12 +612,12 @@ function ActivityCategoryNewPageContent() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>활동일 *</Label>
+                        <Label>활동일</Label>
                         <Input type="date" value={form.dueDate} onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))} />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>요청 내용 *</Label>
+                      <Label>요청 내용</Label>
                       <Textarea rows={4} value={form.content} onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))} />
                     </div>
                   </>

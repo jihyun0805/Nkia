@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { ActivityFormFields } from "@/components/erp/searchable-activity-form-fields"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { QuotationSheet, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import {
   AlertDialog,
@@ -42,7 +43,6 @@ import {
 } from "@/lib/activity-data"
 import { toast } from "@/hooks/use-toast"
 import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } from "@/lib/activity-request-workflow"
-import { getPresalesUsers } from "@/lib/admin-data"
 import { currentUser } from "@/lib/current-user"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
@@ -54,6 +54,8 @@ import {
   loadBackendQuotationRecords,
   updateBackendQuotationRecord,
 } from "@/lib/sales-quotation-backend"
+import { findUserByToken, formatUserDisplayName } from "@/lib/user-utils"
+import { useBackendUsers } from "@/lib/use-backend-users"
 
 const fullWidthFieldLabels = ["요청 내용"]
 
@@ -62,7 +64,7 @@ export default function ActivityEditPage() {
   const router = useRouter()
   const category = params.category
   const id = params.id
-  const presalesUsers = getPresalesUsers()
+  const backendUsers = useBackendUsers()
   const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
@@ -244,8 +246,8 @@ export default function ActivityEditPage() {
     setRequestForm({
       date: request.date,
       type: request.type,
-      requester: request.requester,
-      receiver: request.receiver,
+      requester: request.requestUserName ?? request.requester ?? currentUser.name,
+      receiver: request.targetUserName ?? request.receiver ?? "",
       customerCode: normalizedCustomer?.id ?? request.customerCode ?? "",
       customer: normalizedCustomer?.name ?? request.customer,
       opportunityCode: request.opportunityCode ?? "",
@@ -265,6 +267,8 @@ export default function ActivityEditPage() {
   const matchedCustomer = category === "requests" ? getCustomerByName(requestForm.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(requestForm.customer) : []
   const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
+  const receiverUser = findUserByToken(backendUsers, requestForm.receiver)
+  const receiverUserId = receiverUser?.id ?? ""
 
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
     setActivityCustomer(customer?.name ?? "")
@@ -487,14 +491,14 @@ export default function ActivityEditPage() {
                 ) : category === "requests" ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {[
-                      { label: "요청일 *", key: "date", type: "date" },
+                      { label: "요청일", key: "date", type: "date" },
                       { label: "요청 유형 *", key: "type" },
-                      { label: "요청자 *", key: "requester" },
+                      { label: "요청자", key: "requester" },
                       { label: "담당자 *", key: "receiver" },
-                      { label: "고객사 *", key: "customer" },
-                      { label: "사업기회 *", key: "opportunity" },
-                      { label: "활동일 *", key: "dueDate", type: "date" },
-                      { label: "요청 내용 *", key: "content" },
+                      { label: "고객사", key: "customer" },
+                      { label: "사업기회", key: "opportunity" },
+                      { label: "활동일", key: "dueDate", type: "date" },
+                      { label: "요청 내용", key: "content" },
                     ].map((field) => (
                       <div
                         key={field.key}
@@ -521,20 +525,17 @@ export default function ActivityEditPage() {
                             </SelectContent>
                           </Select>
                         ) : field.key === "requester" ? (
-                          <Input value={requestForm.requester} readOnly />
+                          <Input value={currentUser.name} readOnly />
                         ) : field.key === "receiver" ? (
-                          <Select value={requestForm.receiver} onValueChange={(value) => setRequestForm((prev) => ({ ...prev, receiver: value }))}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="담당자를 선택하세요" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {presalesUsers.map((user) => (
-                                <SelectItem key={user.id} value={user.name}>
-                                  {user.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <UserIdPicker
+                            value={receiverUserId}
+                            users={backendUsers}
+                            onValueChange={(value) => {
+                              const user = findUserByToken(backendUsers, value)
+                              setRequestForm((prev) => ({ ...prev, receiver: formatUserDisplayName(user) }))
+                            }}
+                            placeholder="담당자를 선택하세요"
+                          />
                         ) : field.key === "customer" ? (
                           <CustomerAutocomplete
                             value={requestForm.customer}

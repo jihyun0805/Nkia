@@ -2,10 +2,12 @@
 
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
+import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
 import { UserPicker } from "@/components/erp/user-picker"
 import { useBackendUsers } from "@/lib/use-backend-users"
 import { Button } from "@/components/ui/button"
@@ -43,6 +45,7 @@ import {
   updateBackendProjectOpportunity,
 } from "@/lib/finding-backend"
 import { currentUser, isSalesUser } from "@/lib/current-user"
+import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
@@ -123,6 +126,10 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   const trimmedNext = String(nextValue ?? "").trim()
   if (trimmedNext) return trimmedNext
   return currentValue ?? ""
+}
+
+function normalizeCompanyName(value: string) {
+  return value.replace(/[\s\u00A0]+/g, "").trim().toLowerCase()
 }
 
 function mapOpportunityProductClass(value: string) {
@@ -314,6 +321,29 @@ export default function FindingEditPage() {
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
+  const partnerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      partners.map((partner) => ({
+        id: partner.id,
+        label: partner.name,
+        subtitle: partner.type || undefined,
+      })),
+    [partners],
+  )
+  const partnerLocalSuggestions = useMemo<EntitySuggestion[]>(
+    () =>
+      partners.map((partner) => ({
+        type: "PARTNER" as const,
+        id: partner.id,
+        code: partner.id,
+        label: partner.name,
+        subtitle: partner.type || null,
+        score: 0,
+        matchedBy: "fuzzy" as const,
+        metadata: {},
+      })),
+    [partners],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -511,10 +541,10 @@ export default function FindingEditPage() {
       const filledContacts = contacts.filter(hasContactValue)
       const primaryContact = filledContacts[0]
 
-      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
+      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim()) {
         toast({
           title: "협력사 수정 확인",
-          description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
+          description: "협력사명, 유형, 담당자 1의 성명, 이메일을 모두 입력해주십시오.",
         })
         return
       }
@@ -528,11 +558,11 @@ export default function FindingEditPage() {
         return
       }
 
-      const duplicatePartner = partners.find((partner) => partner.id !== id && partner.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
+      const duplicatePartner = partners.find((partner) => partner.id !== id && normalizeCompanyName(partner.name) === normalizeCompanyName(normalizedName)) ?? null
       if (duplicatePartner) {
         toast({
-          title: "협력사 수정 확인",
-          description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
+          title: "협력사 중복 등록",
+          description: "이미 등록된 동일한 이름의 협력사가 있습니다.",
         })
         return
       }
@@ -749,7 +779,24 @@ export default function FindingEditPage() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>협력사명 *</Label>
-                        <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                        <EntityAutocomplete
+                          value={partnerName}
+                          target="partners"
+                          onValueChange={setPartnerName}
+                          onSelect={(suggestion) => {
+                            if (suggestion) setPartnerName(suggestion.label)
+                          }}
+                          allowCustomValue
+                          placeholder="협력사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
+                          emptyMessage="등록된 협력사가 없습니다."
+                          localCandidates={partnerLocalSuggestions}
+                        />
+                        <SimilarMatchHint
+                          query={partnerName}
+                          candidates={partnerSimilarCandidates}
+                          hintTitle="비슷한 협력사가 이미 등록되어 있어요"
+                          onPick={(candidate) => setPartnerName(candidate.label)}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>유형</Label>
@@ -895,7 +942,7 @@ export default function FindingEditPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호 *</Label>
+                              <Label>무선전화번호</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -1046,7 +1093,7 @@ export default function FindingEditPage() {
                       <Input value={registrant} readOnly />
                     </div>
                     <div className="space-y-2">
-                      <Label>영업대표</Label>
+                      <Label>영업대표 *</Label>
                       <UserPicker
                         value={salesRep}
                         users={editPageUsers}
@@ -1095,7 +1142,11 @@ export default function FindingEditPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>예상 입찰 또는 계약 시점</Label>
-                      <Input value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} placeholder="예: 2026년 3분기" />
+                      <Input
+                        type="date"
+                        value={expectedDate}
+                        onChange={(event) => setExpectedDate(event.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>예상 예산 또는 매출</Label>

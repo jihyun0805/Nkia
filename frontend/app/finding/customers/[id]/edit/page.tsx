@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
+import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -223,6 +224,16 @@ function CustomerEditPageContent() {
     () => customers.find((item) => item.id !== id && item.name.trim().toLowerCase() === customerName.trim().toLowerCase()) ?? null,
     [customers, customerName, id],
   )
+  const customerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      customers.map((customer) => ({
+        id: customer.id,
+        label: customer.name,
+        subtitle: customer.category || undefined,
+        keywords: customer.aliases ?? [],
+      })),
+    [customers],
+  )
 
   function syncBackendManagers(companyCode: string, companyId: number, filledContacts: ContactDraft[]) {
     const existing = [...existingManagers]
@@ -330,10 +341,10 @@ function CustomerEditPageContent() {
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !primaryContact?.name?.trim() || !primaryContact?.email?.trim() || !primaryContact?.mobilePhone?.trim()) {
+    if (!normalizedName || !primaryContact?.name?.trim() || !primaryContact?.email?.trim()) {
       toast({
         title: "고객사 수정 확인",
-        description: "고객사명, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 이메일을 모두 입력해주십시오.",
       })
       return
     }
@@ -463,7 +474,19 @@ function CustomerEditPageContent() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label>고객사명 *</Label>
-                      <CustomerAutocomplete value={customerName} onSelect={(nextCustomer) => setCustomerName(nextCustomer?.name ?? "")} onValueChange={setCustomerName} allowCustomValue placeholder="고객사명을 입력하세요" />
+                      <CustomerAutocomplete
+                        value={customerName}
+                        onSelect={(nextCustomer) => setCustomerName(nextCustomer?.name ?? "")}
+                        onValueChange={setCustomerName}
+                        allowCustomValue
+                        placeholder="고객사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
+                      />
+                      <SimilarMatchHint
+                        query={customerName}
+                        candidates={customerSimilarCandidates}
+                        hintTitle="비슷한 고객사가 이미 등록되어 있어요"
+                        onPick={(candidate) => setCustomerName(candidate.label)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>고객군</Label>
@@ -602,7 +625,7 @@ function CustomerEditPageContent() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호 *</Label>
+                            <Label>무선전화번호</Label>
                             <Input
                               inputMode="tel"
                               autoComplete="tel"

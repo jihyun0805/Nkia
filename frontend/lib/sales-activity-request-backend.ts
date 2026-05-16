@@ -11,6 +11,7 @@ import type {
   SalesActivityRequestResponse,
   SalesActivityRequestResponseActivityPurpose,
 } from "@/lib/api/generated/model"
+import { SalesActivityCreateRequestActivityType } from "@/lib/api/generated/model/salesActivityCreateRequestActivityType"
 
 type BackendRequestResponse = SalesActivityRequestResponse & {
   title?: string
@@ -44,6 +45,11 @@ type RequestCreateInput = {
   dueDate: string
   content: string
   attachments?: ActivityAttachment[]
+}
+
+type BackendSalesActivityRequestCreatePayload = SalesActivityRequestCreateRequest & {
+  title: string
+  activityType: typeof SalesActivityCreateRequestActivityType.EMAIL
 }
 
 const REQUESTS_STORAGE_KEY = "orbis.activityRequests"
@@ -259,9 +265,12 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
     throw new Error("입력한 담당자명을 백엔드 사용자에서 찾을 수 없습니다.")
   }
 
-  const payload: SalesActivityRequestCreateRequest = {
+  const title = `${input.customer} ${input.type}`.trim() || `${input.type} 요청`
+  const payload: BackendSalesActivityRequestCreatePayload = {
+    title,
     targetUserId,
     activityPurpose: activityPurposeEnum(input.type),
+    activityType: SalesActivityCreateRequestActivityType.EMAIL,
     activityDateTime: `${input.dueDate || input.date}T00:00:00`,
     requestContent: input.content,
   }

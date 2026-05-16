@@ -394,7 +394,6 @@ export default function FindingDetailPage() {
                         <div className="space-y-2">
                           <Label>고객사명 *</Label>
                           <Input readOnly value={opportunityItem?.customer ?? "-"} />
-                          <p className="text-xs text-muted-foreground">고객사 코드: {opportunityItem?.customerCode ?? "-"}</p>
                         </div>
                         <div className="space-y-2">
                           <Label>협력사명</Label>
