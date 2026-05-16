@@ -57,6 +57,7 @@ from app.repositories.backend_query_repository import (
     fetch_module_quotation_revenue_rows,
     fetch_entity_count,
     fetch_opportunity_list_rows,
+    fetch_billing_rows,
 )
 from app.schemas.answer import AnswerEvidence, AnswerResponse
 from app.services.metric_registry import get_metric_spec
@@ -167,6 +168,19 @@ def answer_targeted_domain_query(
             return None
         return build_maintenance_activity_rank_response(query=query, rows=rows[:3], limit=limit, embedder=embedder)
 
+    if is_billing_query(normalized_query):
+        billing_customer = extract_customer_name_for_billing(query=query)
+        billing_code = extract_business_codes(query)
+        opp_code_for_billing = billing_code[0] if billing_code else None
+        billing_rows = fetch_billing_rows(
+            opportunity_code=opp_code_for_billing,
+            customer_name_term=billing_customer,
+        )
+        if billing_rows:
+            return build_billing_summary_response(
+                query=query, rows=billing_rows, limit=limit, embedder=embedder
+            )
+
     if is_entity_count_query(normalized_query):
         if user_context is not None and not user_context.is_unrestricted():
             return None
@@ -179,16 +193,30 @@ def answer_targeted_domain_query(
                 )
 
     if is_opportunity_list_query(normalized_query):
-        rows = fetch_opportunity_list_rows(limit=50)
-        rows = filter_opportunity_list_rows_for_query(query=query, rows=rows)
-        rows = [
-            row for row in rows
+        all_opp_rows = fetch_opportunity_list_rows(limit=50)
+        filtered_opp_rows = filter_opportunity_list_rows_for_query(query=query, rows=all_opp_rows)
+        filtered_opp_rows = [
+            row for row in filtered_opp_rows
             if _can_access_opportunity_code(user_context, row.get("opportunity_code"))
         ]
-        if rows:
-            return build_opportunity_list_response(
-                query=query, rows=rows, limit=limit, embedder=embedder
+        if filtered_opp_rows:
+            specific_customer = extract_specific_customer_from_filtered(
+                query=query, all_rows=all_opp_rows, filtered_rows=filtered_opp_rows
             )
+            if specific_customer is not None:
+                if len(filtered_opp_rows) > 1:
+                    return build_opportunity_disambiguation_response(
+                        query=query, rows=filtered_opp_rows, customer_name=specific_customer, embedder=embedder
+                    )
+                if not is_status_query(normalized_query):
+                    return build_opportunity_list_response(
+                        query=query, rows=filtered_opp_rows, limit=limit, embedder=embedder
+                    )
+                # 단일 사업기회 + 상태 쿼리 → resolve_primary_opportunity 로 fall-through
+            else:
+                return build_opportunity_list_response(
+                    query=query, rows=filtered_opp_rows, limit=limit, embedder=embedder
+                )
 
     if is_module_revenue_query(normalized_query):
         if user_context is not None and not user_context.is_unrestricted():
@@ -876,6 +904,19 @@ def answer_graph_structured_extension(
 
     normalized_q = " ".join(query.lower().split())
 
+    if is_billing_query(normalized_q):
+        billing_customer = extract_customer_name_for_billing(query=query)
+        billing_code = extract_business_codes(query)
+        opp_code_for_billing = billing_code[0] if billing_code else None
+        billing_rows = fetch_billing_rows(
+            opportunity_code=opp_code_for_billing,
+            customer_name_term=billing_customer,
+        )
+        if billing_rows:
+            return build_billing_summary_response(
+                query=query, rows=billing_rows, limit=limit, embedder=embedder
+            )
+
     if is_entity_count_query(normalized_q):
         if user_context is not None and not user_context.is_unrestricted():
             return None
@@ -888,12 +929,19 @@ def answer_graph_structured_extension(
                 )
 
     if is_opportunity_list_query(normalized_q):
-        rows = fetch_opportunity_list_rows(limit=50)
-        rows = filter_opportunity_list_rows_for_query(query=query, rows=rows)
-        rows = [row for row in rows if _can_access_opportunity_code(user_context, row.get("opportunity_code"))]
-        if rows:
+        all_opp_rows = fetch_opportunity_list_rows(limit=50)
+        filtered_opp_rows = filter_opportunity_list_rows_for_query(query=query, rows=all_opp_rows)
+        filtered_opp_rows = [row for row in filtered_opp_rows if _can_access_opportunity_code(user_context, row.get("opportunity_code"))]
+        if filtered_opp_rows:
+            specific_customer = extract_specific_customer_from_filtered(
+                query=query, all_rows=all_opp_rows, filtered_rows=filtered_opp_rows
+            )
+            if specific_customer is not None and len(filtered_opp_rows) > 1:
+                return build_opportunity_disambiguation_response(
+                    query=query, rows=filtered_opp_rows, customer_name=specific_customer, embedder=embedder
+                )
             return build_opportunity_list_response(
-                query=query, rows=rows, limit=limit, embedder=embedder
+                query=query, rows=filtered_opp_rows, limit=limit, embedder=embedder
             )
 
     if is_module_revenue_query(normalized_q):
@@ -3140,7 +3188,31 @@ def filter_opportunity_list_rows_for_query(*, query: str, rows: list[dict[str, A
     if is_private_customer_query(normalized_query):
         return [row for row in rows if is_private_customer_row(row)]
 
+    # 특정 고객사 이름이 쿼리에 직접 언급된 경우 해당 고객사 사업기회만 반환
+    customer_filtered = [row for row in rows if _is_customer_name_in_query(row, query)]
+    if customer_filtered:
+        return customer_filtered
+
     return rows
+
+
+def _is_customer_name_in_query(row: dict[str, Any], query: str) -> bool:
+    customer_name = str(row.get("customer_name") or "").strip()
+    if not customer_name or len(customer_name) < 2:
+        return False
+    return customer_name in query
+
+
+def extract_specific_customer_from_filtered(*, query: str, all_rows: list[dict[str, Any]], filtered_rows: list[dict[str, Any]]) -> str | None:
+    """필터링 결과가 특정 고객사 이름으로 좁혀진 경우 그 고객사명 반환."""
+    if len(filtered_rows) == len(all_rows):
+        return None
+    customer_names = {str(row.get("customer_name") or "").strip() for row in filtered_rows}
+    if len(customer_names) == 1:
+        name = next(iter(customer_names))
+        if name and name in query:
+            return name
+    return None
 
 
 def is_public_customer_query(normalized_query: str) -> bool:
@@ -3193,6 +3265,33 @@ def build_opportunity_list_response(
             f" ({row.get('customer_name') or '미기재'} / {row.get('current_status') or '미기재'} / {amount})"
         )
     evidences = build_status_list_evidences(rows=rows[:limit])
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
+def build_opportunity_disambiguation_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    customer_name: str,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    lines = [f"{customer_name}의 사업기회가 {len(rows)}건 있습니다. 어떤 사업기회를 알고 싶으신가요?", ""]
+    for i, row in enumerate(rows, 1):
+        amount = format_number(row.get("expected_amount")) if row.get("expected_amount") else "금액 미기재"
+        lines.append(
+            f"{i}. [{row.get('opportunity_code') or '-'}] {row.get('opportunity_name') or '미기재'}"
+            f" ({row.get('current_status') or '미기재'} / {amount})"
+        )
+    lines.append("")
+    lines.append("사업코드나 사업명을 포함해서 다시 질문해 주세요.")
+    evidences = build_status_list_evidences(rows=rows)
     return AnswerResponse(
         query=query,
         answer="\n".join(lines),
@@ -4449,6 +4548,134 @@ def is_opportunity_list_query(normalized_query: str) -> bool:
         ]
     )
     return has_opp and has_list
+
+
+def is_billing_query(normalized_query: str) -> bool:
+    return any(kw in normalized_query for kw in (
+        "청구", "수금", "미수금", "세금계산서", "청구금액", "청구 금액",
+        "발행금액", "발행 금액", "수금현황", "수금 현황", "청구현황", "청구 현황",
+        "미수", "invoice",
+    ))
+
+
+def extract_customer_name_for_billing(*, query: str) -> str | None:
+    """쿼리에서 회사명으로 보이는 짧은 명사구를 추출 (2~10자, 조사 제외)."""
+    stop_words = {
+        "청구", "수금", "미수금", "세금계산서", "현황", "알려줘", "보여줘", "파악", "조회",
+        "금액", "발행", "총", "전체", "사업기회", "사업", "계약", "프로젝트",
+    }
+    tokens = re.findall(r"[가-힣A-Za-z0-9]+", query)
+    for token in tokens:
+        if 2 <= len(token) <= 10 and token not in stop_words:
+            return token
+    return None
+
+
+_BILLING_STATUS_LABEL: dict[str, str] = {
+    "REQUESTED": "발행 요청",
+    "APPROVED": "결재 완료",
+    "ISSUED": "발행 완료(미수금)",
+    "COLLECTED": "수금 완료",
+}
+
+
+def build_billing_summary_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    from collections import defaultdict
+
+    total_billed = sum(
+        int(r["billing_amount"] or 0)
+        for r in rows if r.get("billing_status") in ("ISSUED", "COLLECTED")
+    )
+    total_collected = sum(
+        int(r["billing_amount"] or 0)
+        for r in rows if r.get("billing_status") == "COLLECTED"
+    )
+    total_uncollected = sum(
+        int(r["billing_amount"] or 0)
+        for r in rows if r.get("billing_status") == "ISSUED"
+    )
+    total_pending = sum(
+        int(r["billing_amount"] or 0)
+        for r in rows if r.get("billing_status") in ("REQUESTED", "APPROVED")
+    )
+
+    # 사업 단위 집계
+    by_opp: dict[str, dict[str, Any]] = defaultdict(lambda: {
+        "opportunity_name": "", "customer_name": "",
+        "billed": 0, "collected": 0, "uncollected": 0, "pending": 0, "rows": 0,
+    })
+    for r in rows:
+        code = r.get("opportunity_code") or "미기재"
+        entry = by_opp[code]
+        entry["opportunity_name"] = r.get("opportunity_name") or ""
+        entry["customer_name"] = r.get("customer_name") or ""
+        entry["rows"] += 1
+        amount = int(r["billing_amount"] or 0)
+        status = r.get("billing_status")
+        if status == "COLLECTED":
+            entry["billed"] += amount
+            entry["collected"] += amount
+        elif status == "ISSUED":
+            entry["billed"] += amount
+            entry["uncollected"] += amount
+        elif status in ("REQUESTED", "APPROVED"):
+            entry["pending"] += amount
+
+    lines: list[str] = []
+    lines.append(f"청구/수금 현황 ({len(rows)}건)")
+    lines.append("")
+    lines.append(f"■ 총 청구(발행) 금액: {format_number(total_billed)}")
+    lines.append(f"■ 수금 완료: {format_number(total_collected)}")
+    lines.append(f"■ 미수금(발행 후 미수금): {format_number(total_uncollected)}")
+    if total_pending:
+        lines.append(f"■ 청구 예정(결재 진행 중): {format_number(total_pending)}")
+    lines.append("")
+    lines.append("── 사업별 상세 ──")
+    for code, entry in list(by_opp.items())[:limit]:
+        lines.append(
+            f"• [{code}] {entry['opportunity_name']} ({entry['customer_name']})"
+        )
+        if entry["billed"]:
+            lines.append(f"  청구 {format_number(entry['billed'])} / 수금 {format_number(entry['collected'])} / 미수금 {format_number(entry['uncollected'])}")
+        if entry["pending"]:
+            lines.append(f"  청구 예정 {format_number(entry['pending'])}")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="PROJECT_OPPORTUNITY",
+            sourceId=str(r.get("opportunity_code") or ""),
+            title=f"{r.get('opportunity_name') or '사업'} 청구 근거",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["structured_row"],
+            content=(
+                f"{r.get('opportunity_code')} / {r.get('customer_name')} / "
+                f"청구 {format_number(r.get('billing_amount'))} / "
+                f"상태: {_BILLING_STATUS_LABEL.get(r.get('billing_status') or '', r.get('billing_status') or '미기재')}"
+            ),
+            metadata={"opportunityCode": r.get("opportunity_code")},
+        )
+        for r in rows[:limit]
+    ]
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
 
 
 _COUNT_ENTITY_MAP: dict[str, str] = {

@@ -15,6 +15,8 @@ public class OrderReportResponse {
 
     private Long id;
 
+    private String vatType;
+
     private Long workflowId;
 
     private String status;
@@ -147,6 +149,7 @@ public class OrderReportResponse {
     public static OrderReportResponse from(OrderReport orderReport, Long workflowId) {
         return OrderReportResponse.builder()
                 .id(orderReport.getId())
+                .vatType(orderReport.getVatType().getDescription())
                 .workflowId(workflowId)
                 .status(orderReport.getStatus().getDescription())
                 .orderReportCode(orderReport.getOrderReportCode())
