@@ -70,7 +70,6 @@ export default function AdminDetailPage() {
     if (!data) return []
     if (category === "users") {
       return [
-        { label: "ID", value: data.id },
         { label: "사번", value: data.employeeNumber },
         { label: "이름", value: data.name },
         { label: "직급", value: data.position },
@@ -154,7 +153,7 @@ export default function AdminDetailPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{id}</BreadcrumbPage>
+                  <BreadcrumbPage>{data ? (data.name || data.productName || id) : id} {label} 상세</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
