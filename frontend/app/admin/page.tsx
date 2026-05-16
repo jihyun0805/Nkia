@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
@@ -17,7 +17,7 @@ import { adminApi, UserResponse, RoleListResponse, WorkflowTemplateListResponse,
 import { format } from "date-fns";
 import { toast } from "sonner";
 
-export default function AdminPage() {
+function AdminPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
@@ -439,5 +439,13 @@ export default function AdminPage() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageContent />
+    </Suspense>
   );
 }
