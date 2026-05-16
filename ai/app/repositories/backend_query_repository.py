@@ -3068,6 +3068,9 @@ def normalize_resolution_terms(query_terms: list[str]) -> list[str]:
         "결재", "결재자", "결재선", "결재라인", "상신", "상신자", "승인", "승인자", "반려",
         "라이선스", "라이센스", "계약", "계약서", "수주", "수주보고서", "보고서",
         "고객지원", "고객 지원",
+        # 회사 카테고리 일반 명사 — opportunity_name 부분 토큰 매칭 회피 (예: "베스핀글로벌 파트너" → KB파트너스 잘못 매칭 방지)
+        "파트너", "파트너스", "파트너사", "협력사", "벤더", "회사", "기업", "고객사", "솔루션",
+        "관련", "관련된", "포함된",
         "ITSM",
         "EMS",
         "AIOPS",
@@ -3387,6 +3390,29 @@ def fetch_module_quotation_revenue_rows(
     except psycopg.Error as exc:
         logger.warning("fetch_module_quotation_revenue_rows DB error: %s", exc)
         return []
+
+
+def fetch_rfp_to_won_conversion() -> dict[str, Any] | None:
+    """RFP 분석 완료한 사업기회 중 수주된 사업의 비율."""
+    db_url = build_backend_database_url()
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(DISTINCT r.project_opportunity_id) AS rfp_count,
+                        COUNT(DISTINCT CASE WHEN o.stage IN ('CONTRACT','PROJECT','MAINTENANCE','POST_SALES') THEN o.id END) AS won_count
+                    FROM public.rfp_analyze_result r
+                    JOIN public.project_opportunity o ON o.id = r.project_opportunity_id
+                    WHERE COALESCE(r.deleted, false) = false
+                      AND COALESCE(o.deleted, false) = false
+                    """
+                )
+                return cur.fetchone()
+    except psycopg.Error as exc:
+        logger.warning("fetch_rfp_to_won_conversion DB error: %s", exc)
+        return None
 
 
 def fetch_quarterly_won_trend(years_back: int = 2) -> list[dict[str, Any]]:

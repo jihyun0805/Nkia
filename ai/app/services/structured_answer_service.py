@@ -59,6 +59,7 @@ from app.repositories.backend_query_repository import (
     fetch_opportunity_list_rows,
     fetch_billing_rows,
     fetch_quarterly_won_trend,
+    fetch_rfp_to_won_conversion,
     fetch_segment_aggregate,
     fetch_won_with_outstanding_billing,
     fetch_people_for_customer,
@@ -222,6 +223,16 @@ def answer_targeted_domain_query(
         trend = fetch_quarterly_won_trend(years_back=2)
         if trend:
             return build_quarterly_trend_response(query=query, trend=trend, embedder=embedder)
+
+    # RFP→수주 전환율 — "RFP 분석 완료 후 수주된 사업 비율"
+    is_rfp_conversion = (
+        any(k in normalized_query for k in ("rfp 분석", "rfp분석", "rfp 후", "rfp 완료"))
+        and any(k in normalized_query for k in ("수주", "수주율", "전환", "비율", "확률"))
+    )
+    if is_rfp_conversion:
+        conv = fetch_rfp_to_won_conversion()
+        if conv:
+            return build_rfp_conversion_response(query=query, conv=conv, embedder=embedder)
 
     # segment 비교 (공공 vs 민간) — sector aggregate
     is_sector_compare = (
@@ -3486,6 +3497,46 @@ def build_opportunity_disambiguation_response(
         chatModel="structured-rule-engine",
         excludedSourceTypes=[],
         evidences=evidences,
+    )
+
+
+def build_rfp_conversion_response(
+    *,
+    query: str,
+    conv: dict[str, Any],
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """RFP 분석 완료 → 수주 전환율 응답."""
+    rfp_count = int(conv.get("rfp_count") or 0)
+    won_count = int(conv.get("won_count") or 0)
+    pct = f"{won_count*100/rfp_count:.1f}%" if rfp_count else "—"
+    lines = [
+        f"RFP 분석을 완료한 사업기회 중 수주 전환율은 **{pct}** 입니다.",
+        "",
+        f"- RFP 분석 완료: {rfp_count}건",
+        f"- 그 중 수주 완료(계약/프로젝트/유지보수/사후영업 단계 도달): {won_count}건",
+        "",
+    ]
+    if rfp_count:
+        try:
+            ratio = won_count / rfp_count
+            if ratio >= 0.5:
+                lines.append("→ RFP 분석 후 수주 가능성이 높은 편입니다.")
+            elif ratio >= 0.2:
+                lines.append("→ RFP 분석 단계에서 추가 검토·대응이 필요합니다.")
+            else:
+                lines.append("→ RFP 분석 완료 후 수주 전환이 낮으니 사유 분석이 필요합니다.")
+        except ZeroDivisionError:
+            pass
+    lines.append("\n다음에 볼 것: 실주 사례를 보려면 '실주한 사업 알려줘' 로 질문하세요.")
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=[],
     )
 
 
