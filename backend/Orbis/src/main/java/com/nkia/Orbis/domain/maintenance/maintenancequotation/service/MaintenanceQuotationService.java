@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.maintenance.maintenancequotation.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
@@ -27,8 +28,6 @@ import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
-import com.nkia.Orbis.domain.company.entity.Company;
-import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -45,7 +44,6 @@ public class MaintenanceQuotationService {
     private final WorkflowRepository workflowRepository;
     private final WorkflowService workflowService;
     private final UserRepository userRepository;
-    private final CompanyRepository companyRepository;
 
     /**
      * 유지보수 견적서 등록
@@ -57,7 +55,7 @@ public class MaintenanceQuotationService {
 
         mapSubEntities(dto, quotation);
 
-        User salesRep = getUserOrNull(dto.getCoverInfo().getSalesRepresentativeId());
+        User salesRep = getUser(dto.getCoverInfo().getSalesRepresentativeId());
 
         MaintenanceQuotationCover cover = MaintenanceQuotationCover.builder()
                 .quotation(quotation)
@@ -82,7 +80,7 @@ public class MaintenanceQuotationService {
         updateBasicInfo(quotation, dto);
         
         if (quotation.getCover() != null) {
-            User salesRep = getUserOrNull(dto.getCoverInfo().getSalesRepresentativeId());
+            User salesRep = getUser(dto.getCoverInfo().getSalesRepresentativeId());
 
             quotation.getCover().updateInfo(
                 dto.getCoverInfo().getProposalType(), 
@@ -148,20 +146,9 @@ public class MaintenanceQuotationService {
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
     }
 
-    private User getUserOrNull(UUID userId) {
-        if (userId == null) {
-            return null;
-        }
+    private User getUser(UUID userId) {
         return userRepository.findById(userId)
-                .orElse(null);
-    }
-
-    private Company getCompanyOrNull(Long companyId) {
-        if (companyId == null) {
-            return null;
-        }
-        return companyRepository.findById(companyId)
-                .orElse(null);
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 
     /**
