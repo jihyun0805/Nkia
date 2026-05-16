@@ -907,37 +907,41 @@ def fetch_prb_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
                     {customer_name_expr},
                     p.prb_code,
                     p.prb_date,
-                    p.sales_owner,
-                    p.department_owner,
                     p.bid_type,
-                    p.procurement_bid,
                     p.expected_win_rate,
                     p.estimated_revenue,
-                    p.estimated_profit,
-                    p.estimated_profit_rate,
-                    p.sales_opinion,
-                    p.risk_factors,
-                    pr.prb_result_code,
-                    pr.result_date,
-                    pr.risk_review,
-                    pr.final_opinion,
-                    pr.decision_status,
-                    b.bid_result_code,
-                    b.won,
-                    b.competitor_summary,
-                    b.win_loss_reason
+                    p.estimated_operating_profit       AS estimated_profit,
+                    p.estimated_profit_margin          AS estimated_profit_rate,
+                    p.sales_representative_opinion     AS sales_opinion,
+                    pr.comprehensive_opinion           AS risk_factors,
+                    pr.risk_factors                    AS prb_result_risk_factors,
+                    pr.prb_result_id::text             AS prb_result_code,
+                    pr.meeting_date_time::date         AS result_date,
+                    pr.comprehensive_opinion           AS risk_review,
+                    pr.comprehensive_opinion           AS final_opinion,
+                    pr.status                          AS decision_status,
+                    b.id::text                         AS bid_result_code,
+                    (b.bid_outcome = 'WIN')            AS won,
+                    NULL::text                         AS competitor_summary,
+                    NULL::text                         AS win_loss_reason
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
-                JOIN {_PRB} p ON p.opportunity_id = o.id
+                JOIN {_PRB} p ON p.project_opportunity_id = o.id
                 LEFT JOIN {_PRBR} pr ON pr.prb_id = p.id
-                LEFT JOIN {_BID} b ON b.opportunity_id = o.id
+                LEFT JOIN {_BID} b ON b.project_opportunity_id = o.id
                 WHERE o.opportunity_code = %(opportunity_code)s
+                  AND COALESCE(p.deleted, false) = false
                 ORDER BY p.prb_date DESC NULLS LAST, p.id DESC
                 LIMIT 1
                 """,
                 {"opportunity_code": opportunity_code},
             )
-            return cur.fetchone()
+            row = cur.fetchone()
+            if row:
+                # risk_factors 우선순위: prb_result.risk_factors → prb_result.comprehensive_opinion
+                if row.get("prb_result_risk_factors"):
+                    row["risk_factors"] = row["prb_result_risk_factors"]
+            return row
 
 
 def fetch_rfp_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
@@ -3059,6 +3063,11 @@ def normalize_resolution_terms(query_terms: list[str]) -> list[str]:
         "언제",
         "뭐",
         "무엇",
+        # 워크플로/도메인 noise — 사람 이름 + 도메인 단어 패턴이 잘못된 사업기회로 매칭되지 않도록
+        "청구", "청구서", "수금", "미수금", "세금계산서",
+        "결재", "결재자", "결재선", "결재라인", "상신", "상신자", "승인", "승인자", "반려",
+        "라이선스", "라이센스", "계약", "계약서", "수주", "수주보고서", "보고서",
+        "고객지원", "고객 지원",
         "ITSM",
         "EMS",
         "AIOPS",
@@ -3068,12 +3077,26 @@ def normalize_resolution_terms(query_terms: list[str]) -> list[str]:
         "ITO",
         "SLA",
     }
+    # 한국어 조사 제거 후 비교 (예: "안지수가" → "안지수")
+    josa_suffixes = ("이가", "께서", "에서", "에게", "에서는", "에게는", "한테", "라고", "이라고",
+                     "이", "가", "은", "는", "을", "를", "와", "과", "의", "에", "도", "만",
+                     "이라", "라", "이며", "며", "이고", "고", "야", "랑", "이랑")
+
+    def _strip_josa(text: str) -> str:
+        for suffix in sorted(josa_suffixes, key=len, reverse=True):
+            if len(text) > len(suffix) + 1 and text.endswith(suffix):
+                return text[: -len(suffix)]
+        return text
+
     for term in query_terms:
         candidate = term.strip()
-        if len(candidate) < 2 or candidate in ignored:
+        if len(candidate) < 2:
             continue
-        if candidate not in filtered:
-            filtered.append(candidate)
+        candidate_stripped = _strip_josa(candidate)
+        if candidate_stripped in ignored or candidate in ignored:
+            continue
+        if candidate_stripped and candidate_stripped not in filtered:
+            filtered.append(candidate_stripped)
     return filtered[:8]
 
 
@@ -3350,9 +3373,19 @@ def fetch_billing_rows(
     *,
     opportunity_code: str | None = None,
     customer_name_term: str | None = None,
+    start_at: str | None = None,
+    end_at: str | None = None,
+    statuses: list[str] | None = None,
+    min_amount: int | None = None,
+    max_amount: int | None = None,
     limit: int = 200,
 ) -> list[dict[str, Any]]:
-    """청구(세금계산서) 목록 조회. opportunity_code 또는 고객사명 부분 일치로 필터링."""
+    """청구(세금계산서) 목록 조회. opportunity_code 또는 고객사명 부분 일치로 필터링.
+
+    start_at/end_at: requested_issue_date 기준 시간 범위 (ISO 문자열).
+    statuses: ["REQUESTED","APPROVED","ISSUED","COLLECTED"] subset.
+    min_amount/max_amount: billing_amount 범위 필터 (원 단위).
+    """
     opp_fk_expr = project_opportunity_fk_value_expr(table_name="order_report", table_alias="wr")
     customer_fk_expr = _first_existing_column_expr(
         table_name="order_report",
@@ -3374,6 +3407,26 @@ def fetch_billing_rows(
         )
         where_clauses.append(f"{cn_col} ILIKE %(customer_name_term)s")
         params["customer_name_term"] = f"%{customer_name_term}%"
+
+    if start_at:
+        where_clauses.append("b.requested_issue_date >= %(start_at)s")
+        params["start_at"] = start_at
+    if end_at:
+        where_clauses.append("b.requested_issue_date <= %(end_at)s")
+        params["end_at"] = end_at
+
+    if statuses:
+        placeholders = ", ".join(f"%(status_{i})s" for i, _ in enumerate(statuses))
+        where_clauses.append(f"b.status IN ({placeholders})")
+        for i, s in enumerate(statuses):
+            params[f"status_{i}"] = s
+
+    if min_amount is not None:
+        where_clauses.append("b.billing_amount >= %(min_amount)s")
+        params["min_amount"] = min_amount
+    if max_amount is not None:
+        where_clauses.append("b.billing_amount <= %(max_amount)s")
+        params["max_amount"] = max_amount
 
     where_sql = " AND ".join(where_clauses)
 
@@ -3409,3 +3462,135 @@ def fetch_billing_rows(
     except psycopg.Error as exc:
         logger.warning("fetch_billing_rows DB error: %s", exc)
         return []
+
+
+# ──────────────────────────────────────────────────────────────────
+# 사람 메타 조회 — "X 담당자/영업대표 누구?" / "활동 참석자" 등 사람-중심 질문용
+# ──────────────────────────────────────────────────────────────────
+
+def fetch_people_for_customer(*, customer_name_term: str, limit: int = 50) -> list[dict[str, Any]]:
+    """고객사명 부분일치로 사업기회들 + 각 사업기회의 영업담당자(이름/이메일/부서) 조회.
+
+    답변 빌더가 이걸로 "X 담당자/영업대표 누구?" 류 질문에 답변 가능.
+    """
+    customer_name_expr = company_name_select_expr()
+    try:
+        with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        {customer_name_expr},
+                        {opportunity_status_value_expr()} AS current_status,
+                        u.id::text AS sales_rep_id,
+                        u.name AS sales_rep_name,
+                        u.email AS sales_rep_email,
+                        u.phone AS sales_rep_phone,
+                        u.position AS sales_rep_position,
+                        d.headquarters AS sales_rep_headquarters,
+                        d.team AS sales_rep_team
+                    FROM {_OPP} o
+                    JOIN {_CO} c ON c.id = o.customer_company_id
+                    LEFT JOIN users u ON u.id = o.sales_representative_id
+                    LEFT JOIN department d ON d.id = u.department_id
+                    WHERE o.deleted = false
+                      AND ({customer_name_expr.split(' AS ')[0]}) ILIKE %(term)s
+                    ORDER BY o.id DESC
+                    LIMIT %(limit)s
+                    """,
+                    {"term": f"%{customer_name_term}%", "limit": limit},
+                )
+                return list(cur.fetchall())
+    except psycopg.errors.UndefinedTable:
+        return []
+    except psycopg.Error as exc:
+        logger.warning("fetch_people_for_customer DB error: %s", exc)
+        return []
+
+
+def fetch_attendees_for_opportunity(*, opportunity_code: str, limit_activities: int = 20) -> list[dict[str, Any]]:
+    """사업기회의 최근 활동들과 각 활동의 참석자(자사 유저) 이름 목록.
+
+    반환 row: activity_id, activity_datetime, activity_type, activity_purpose,
+              activity_content, attendee_names (list[str])
+    """
+    try:
+        with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        s.id AS activity_id,
+                        s.activity_date_time AS activity_datetime,
+                        s.activity_type,
+                        s.activity_purpose,
+                        s.activity_content,
+                        s.location,
+                        s.status AS activity_status,
+                        COALESCE(
+                            (
+                                SELECT array_agg(DISTINCT u.name ORDER BY u.name)
+                                FROM sales_activity_attendee a
+                                JOIN users u ON u.id = a.user_id
+                                WHERE a.sales_activity_id = s.id
+                                  AND COALESCE(a.deleted, false) = false
+                            ),
+                            ARRAY[]::varchar[]
+                        ) AS attendee_names
+                    FROM {_ACT} s
+                    JOIN {_OPP} o ON o.id = s.project_opportunity_id
+                    WHERE s.deleted = false
+                      AND o.opportunity_code = %(opportunity_code)s
+                    ORDER BY s.activity_date_time DESC NULLS LAST, s.id DESC
+                    LIMIT %(limit)s
+                    """,
+                    {"opportunity_code": opportunity_code, "limit": limit_activities},
+                )
+                return list(cur.fetchall())
+    except psycopg.errors.UndefinedTable:
+        return []
+    except psycopg.Error as exc:
+        logger.warning("fetch_attendees_for_opportunity DB error: %s", exc)
+        return []
+
+
+def fetch_opportunity_people_meta(*, opportunity_code: str) -> dict[str, Any] | None:
+    """단일 사업기회의 사람 메타 정보 (영업대표 + 그 부서).
+
+    build_people_response_single_opportunity 에서 사용.
+    """
+    customer_name_expr = company_name_select_expr()
+    try:
+        with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        {customer_name_expr},
+                        {opportunity_status_value_expr()} AS current_status,
+                        u.id::text AS sales_rep_id,
+                        u.name AS sales_rep_name,
+                        u.email AS sales_rep_email,
+                        u.phone AS sales_rep_phone,
+                        u.position AS sales_rep_position,
+                        d.headquarters AS sales_rep_headquarters,
+                        d.team AS sales_rep_team
+                    FROM {_OPP} o
+                    JOIN {_CO} c ON c.id = o.customer_company_id
+                    LEFT JOIN users u ON u.id = o.sales_representative_id
+                    LEFT JOIN department d ON d.id = u.department_id
+                    WHERE o.opportunity_code = %(code)s
+                    LIMIT 1
+                    """,
+                    {"code": opportunity_code},
+                )
+                return cur.fetchone()
+    except psycopg.errors.UndefinedTable:
+        return None
+    except psycopg.Error as exc:
+        logger.warning("fetch_opportunity_people_meta DB error: %s", exc)
+        return None
