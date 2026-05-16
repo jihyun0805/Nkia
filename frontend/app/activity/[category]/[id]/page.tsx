@@ -451,6 +451,8 @@ export default function ActivityDetailPage() {
     return null
   }
 
+  const quotationBreadcrumbValue = quotationItem?.refNumber?.trim() || quotationItem?.quotationCode?.trim() || item.id
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -472,7 +474,7 @@ export default function ActivityDetailPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{item.id}</BreadcrumbPage>
+                  <BreadcrumbPage>{isQuotation ? quotationBreadcrumbValue : item.id}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>

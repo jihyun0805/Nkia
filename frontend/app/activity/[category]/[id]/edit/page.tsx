@@ -98,6 +98,7 @@ export default function ActivityEditPage() {
     dueDate: "",
     content: "",
   })
+  const quotationDisplayRef = quotationForm?.refNumber?.trim() || "Ref No"
 
   const scrollToTop = () => {
     window.scrollTo(0, 0)
@@ -457,7 +458,7 @@ export default function ActivityEditPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{id}</BreadcrumbPage>
+                  <BreadcrumbPage>{category === "quotations" ? quotationDisplayRef : id}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
@@ -593,12 +594,12 @@ export default function ActivityEditPage() {
                     ))}
                   </div>
                 ) : quotationForm ? (
-                  <QuotationSheet
-                    mode="edit"
-                    form={quotationForm}
-                    referenceId={id}
-                    onChange={(updater) => setQuotationForm((prev) => (prev ? updater(prev) : prev))}
-                  />
+                <QuotationSheet
+                  mode="edit"
+                  form={quotationForm}
+                  referenceId={quotationForm?.refNumber?.trim() ?? ""}
+                  onChange={(updater) => setQuotationForm((prev) => (prev ? updater(prev) : prev))}
+                />
                 ) : null}
 
                 <div className="flex justify-end gap-2 border-t pt-6">

@@ -88,8 +88,8 @@ const LABOR_LABELS: Record<string, string> = {
   HIGH: "인건비 (고급)",
   MIDDLE: "인건비 (중급)",
   LOW: "인건비 (초급)",
-  EXPENSE: "제경비",
-  TECH_FEE: "기술료",
+  EXPENSE: "제 경 비",
+  TECH_FEE: "기 술 료",
 }
 
 const LABOR_TYPE_ALIASES: Record<string, string> = {
@@ -562,6 +562,7 @@ function buildQuotationPayload(input: QuotationCreateInput, projectOpportunityId
     .map((row): LaborItemCreateRequest | null => {
       const laborType = inferLaborType(row.item || row.laborRate)
       if (!laborType) return null
+      if (laborType === "EXPENSE" || laborType === "TECH_FEE") return null
 
       return {
         laborType: laborType as LaborItemCreateRequest["laborType"],
@@ -646,6 +647,54 @@ export async function createBackendQuotationRecord(input: QuotationCreateInput) 
 
   const saved = await parseApiResponse<BackendQuotationResponse>(response, "견적서를 저장하지 못했습니다.")
   const localIndex = loadLocalQuotationIndex()
+  const localFallback: QuotationRecord = {
+    ...input,
+    id: String(saved.id ?? `${Date.now()}`),
+    workflowId: saved.workflowId,
+    refNumber: saved.refNo ?? input.refNumber,
+    customerCode: input.customerCode,
+    opportunityCode: input.opportunityCode,
+    customer: input.customer,
+    opportunity: input.opportunity,
+    proposalType: input.proposalType,
+    productGroup: input.productGroup,
+    salesRep: input.salesRep,
+    paymentTerms: input.paymentTerms,
+    contactName: input.contactName,
+    items: input.items.map((entry) => ({ ...entry })),
+    solutionSectionTitle: input.solutionSectionTitle,
+    solutionRows: input.solutionRows?.map((entry) => ({ ...entry })) ?? [],
+    customizingSectionTitle: input.customizingSectionTitle,
+    customizingRows: input.customizingRows?.map((entry) => ({ ...entry })) ?? [],
+    templateText: input.templateText ? { ...input.templateText } : undefined,
+    approvalFlow: input.approvalFlow ? { ...input.approvalFlow } : undefined,
+    approvalProcess: input.approvalProcess
+      ? {
+          ...input.approvalProcess,
+          steps: input.approvalProcess.steps.map((step) => ({ ...step })),
+        }
+      : undefined,
+    deletedAt: undefined,
+    deletedBy: undefined,
+    deletedVersions: input.deletedVersions?.slice() ?? [],
+    changeHistory: input.changeHistory?.map((entry) => ({ ...entry })) ?? [],
+    versionSnapshots: input.versionSnapshots?.map((entry) => ({
+      ...entry,
+      form: {
+        ...entry.form,
+        items: entry.form.items.map((item) => ({ ...item })),
+        solutionRows: entry.form.solutionRows?.map((row) => ({ ...row })) ?? [],
+        customizingRows: entry.form.customizingRows?.map((row) => ({ ...row })) ?? [],
+        approvalFlow: entry.form.approvalFlow ? { ...entry.form.approvalFlow } : undefined,
+      },
+    })) ?? [],
+    remarks: input.remarks,
+    amount: input.amount,
+    validity: input.validity,
+    status: input.status,
+  }
+  const mergedLocalIndex = new Map(localIndex)
+  mergedLocalIndex.set(String(saved.id ?? localFallback.id), localFallback)
   const merged = mergeAndSaveQuotation(
     {
       id: saved.id,
@@ -665,7 +714,7 @@ export async function createBackendQuotationRecord(input: QuotationCreateInput) 
       companyName: saved.companyName,
       projectOpportunityName: saved.projectOpportunityName,
     },
-    localIndex,
+    mergedLocalIndex,
   )
 
   return merged
@@ -701,6 +750,49 @@ export async function updateBackendQuotationRecord(id: string, input: QuotationC
 
   const saved = await parseApiResponse<BackendQuotationResponse>(response, "견적서를 수정하지 못했습니다.")
   const localIndex = loadLocalQuotationIndex()
+  const localFallback: QuotationRecord = {
+    ...input,
+    id: String(saved.id ?? id),
+    workflowId: saved.workflowId,
+    refNumber: saved.refNo ?? input.refNumber,
+    customerCode: input.customerCode,
+    opportunityCode: input.opportunityCode,
+    customer: input.customer,
+    opportunity: input.opportunity,
+    proposalType: input.proposalType,
+    productGroup: input.productGroup,
+    salesRep: input.salesRep,
+    paymentTerms: input.paymentTerms,
+    contactName: input.contactName,
+    items: input.items.map((entry) => ({ ...entry })),
+    solutionSectionTitle: input.solutionSectionTitle,
+    solutionRows: input.solutionRows?.map((entry) => ({ ...entry })) ?? [],
+    customizingSectionTitle: input.customizingSectionTitle,
+    customizingRows: input.customizingRows?.map((entry) => ({ ...entry })) ?? [],
+    templateText: input.templateText ? { ...input.templateText } : undefined,
+    approvalFlow: input.approvalFlow ? { ...input.approvalFlow } : undefined,
+    approvalProcess: createDefaultApprovalProcess(input.salesRep),
+    deletedAt: undefined,
+    deletedBy: undefined,
+    deletedVersions: input.deletedVersions?.slice() ?? [],
+    changeHistory: input.changeHistory?.map((entry) => ({ ...entry })) ?? [],
+    versionSnapshots: input.versionSnapshots?.map((entry) => ({
+      ...entry,
+      form: {
+        ...entry.form,
+        items: entry.form.items.map((item) => ({ ...item })),
+        solutionRows: entry.form.solutionRows?.map((row) => ({ ...row })) ?? [],
+        customizingRows: entry.form.customizingRows?.map((row) => ({ ...row })) ?? [],
+        approvalFlow: entry.form.approvalFlow ? { ...entry.form.approvalFlow } : undefined,
+      },
+    })) ?? [],
+    remarks: input.remarks,
+    amount: input.amount,
+    validity: input.validity,
+    status: "검토중",
+  }
+  const mergedLocalIndex = new Map(localIndex)
+  mergedLocalIndex.set(String(saved.id ?? id), localFallback)
   return mergeAndSaveQuotation(
     {
       id: saved.id,
@@ -720,7 +812,7 @@ export async function updateBackendQuotationRecord(id: string, input: QuotationC
       companyName: saved.companyName,
       projectOpportunityName: saved.projectOpportunityName,
     },
-    localIndex,
+    mergedLocalIndex,
   )
 }
 

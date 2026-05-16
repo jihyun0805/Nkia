@@ -4,7 +4,6 @@ import { Fragment } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { currentUser } from "@/lib/current-user"
@@ -207,16 +206,28 @@ function baseCustomizingRows() {
   return Array.from({ length: 6 }, (_, index) => ({
     id: `CUSTOM-${index + 1}`,
     rowNo: String(index + 1),
-    item: "",
+    item: getFixedCustomizingItem(index),
     laborRate: "",
     manMonth: "",
     supplyAmount: "",
   }))
 }
 
-const customizingItemOptions = ["인건비 (특급)", "인건비 (고급)", "인건비 (중급)", "인건비 (초급)", "제 경 비", "기 술 료"] as const
 const fixedExecutiveName = "이선우"
 const fixedContactName = "진원경"
+
+const customizingItemLabels = [
+  "인건비 (특급)",
+  "인건비 (고급)",
+  "인건비 (중급)",
+  "인건비 (초급)",
+  "제 경 비",
+  "기 술 료",
+] as const
+
+function getFixedCustomizingItem(index: number) {
+  return customizingItemLabels[index] ?? ""
+}
 
 function normalizeCustomizingRows(rows: QuotationFormState["customizingRows"] | undefined) {
   return Array.from({ length: 6 }, (_, index) => {
@@ -224,7 +235,7 @@ function normalizeCustomizingRows(rows: QuotationFormState["customizingRows"] | 
     return {
       id: row?.id ?? `CUSTOM-${index + 1}`,
       rowNo: String(index + 1),
-      item: row?.item ?? "",
+      item: row?.item?.trim() || getFixedCustomizingItem(index),
       laborRate: row?.laborRate ?? "",
       manMonth: row?.manMonth ?? "",
       supplyAmount: row?.supplyAmount ?? "",
@@ -902,30 +913,9 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                       {readOnly ? (
                         <div className={`${readOnlyTableCellClass}`}>{row.item || "-"}</div>
                       ) : (
-                        <Select
-                          value={row.item || ""}
-                          onValueChange={(value) =>
-                            updateForm((prev) => ({
-                              ...prev,
-                              customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                                entryIndex === index ? { ...entry, item: value } : entry,
-                              ),
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="h-8 rounded-none border-0 px-1 text-[12px] shadow-none focus:ring-0">
-                            <SelectValue placeholder="선택하세요" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {customizingItemOptions.map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </td>
+                        <div className="px-1 py-1 text-[12px]">{row.item || getFixedCustomizingItem(index) || "-"}</div>
+                        )}
+                      </td>
                     <td className="border-b border-r border-black px-1 py-1">
                       {readOnly ? (
                         <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.laborRate)}</div>
@@ -1189,28 +1179,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                     {readOnly ? (
                       <div className={readOnlyTableCellClass}>{row.item || "-"}</div>
                     ) : (
-                      <Select
-                        value={row.item || ""}
-                        onValueChange={(value) =>
-                          updateForm((prev) => ({
-                            ...prev,
-                            customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                              entryIndex === index ? { ...entry, item: value } : entry,
-                            ),
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="h-8 rounded-none border-0 px-1 text-[12px] shadow-none focus:ring-0">
-                          <SelectValue placeholder="선택하세요" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customizingItemOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="px-1 py-1 text-[12px]">{row.item || getFixedCustomizingItem(index) || "-"}</div>
                     )}
                   </td>
                   <td className="border-b border-r border-black px-1 py-1">
