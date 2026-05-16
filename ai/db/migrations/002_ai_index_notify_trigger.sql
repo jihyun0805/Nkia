@@ -7,17 +7,34 @@
 -- ============================================================
 
 -- 트리거 함수: INSERT/UPDATE/DELETE 후 pg_notify 발행
+--
+-- 테이블별 PK 컬럼명이 다양 (id / prb_result_id / won_report_code 등) 하므로
+-- row_to_json + 동적 컬럼 lookup 으로 안전하게 추출.
+-- 우선순위: id → <table>_id → null
 CREATE OR REPLACE FUNCTION public.notify_ai_index_change()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  row_data jsonb;
+  row_id   text;
 BEGIN
+  IF TG_OP = 'DELETE' THEN
+    row_data := to_jsonb(OLD);
+  ELSE
+    row_data := to_jsonb(NEW);
+  END IF;
+  row_id := COALESCE(
+    row_data ->> 'id',
+    row_data ->> (TG_TABLE_NAME || '_id'),
+    NULL
+  );
   PERFORM pg_notify(
     'ai_index_change',
     json_build_object(
       'table', TG_TABLE_NAME,
       'op',    TG_OP,
-      'id',    CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,
+      'id',    row_id,
       'eventAt', clock_timestamp()
     )::text
   );
