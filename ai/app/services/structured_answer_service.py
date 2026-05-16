@@ -2227,16 +2227,31 @@ def build_opportunity_status_response(
     embedder: EmbeddingModel,
 ) -> AnswerResponse:
     canonical = adapt_opportunity_snapshot(snapshot)
+    # 상태별 한글 라벨로 풀어 자연스럽게
+    stage_label_map = {
+        "FINDING": "발굴", "ACTIVITY": "영업활동", "BID": "입찰 진행",
+        "CONTRACT": "계약 진행", "PROJECT": "프로젝트 수행", "MAINTENANCE": "유지보수",
+        "POST_SALES": "사후영업", "WON": "수주 완료", "LOST": "실주",
+    }
+    stage = canonical.currentStatus or ""
+    stage_kor = stage_label_map.get(stage.upper(), stage or "미기재")
+    intro = (
+        f"{canonical.opportunityName}은(는) 현재 **{stage_kor}** 단계예요."
+        if stage else
+        f"{canonical.opportunityName}의 현재 단계는 확인되지 않았어요."
+    )
     answer = "\n".join(
         [
-            f"핵심 결론: {canonical.opportunityName}의 현재 상태는 {canonical.currentStatus or '미기재'}입니다.",
+            intro,
             "",
-            f"고객사: {canonical.customerName or '미기재'}",
-            f"사업유형: {canonical.businessType or '미기재'}",
-            f"예상 사업비: {format_number(canonical.expectedAmount)}",
-            f"주요 내용: {canonical.mainContent or '미기재'}",
-            f"이슈: {canonical.issueContent or '미기재'}",
-            f"경쟁 상황: {canonical.competitorStatus or '미기재'}",
+            f"• 고객사: {canonical.customerName or '미기재'}",
+            f"• 사업 유형: {canonical.businessType or '미기재'}",
+            f"• 예상 사업비: {format_number(canonical.expectedAmount)}",
+            f"• 주요 내용: {canonical.mainContent or '미기재'}",
+            f"• 이슈: {canonical.issueContent or '특이 이슈 없음'}",
+            f"• 경쟁 상황: {canonical.competitorStatus or '미기재'}",
+            "",
+            "더 자세히 보려면 사용 근거의 사업기회 화면을 열어보세요.",
         ]
     )
     evidences = build_snapshot_evidences(
