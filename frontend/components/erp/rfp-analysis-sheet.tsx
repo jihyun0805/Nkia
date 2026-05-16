@@ -32,6 +32,7 @@ import { getActivityRequests, notifyRfpAnalysisCompleted } from "@/lib/activity-
 import { getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName, type CustomerRecord } from "@/lib/finding-data"
 import { createBackendRfpAnalysis, deleteBackendRfpAnalysis, loadBackendRfpAnalyses, updateBackendRfpAnalysis } from "@/lib/rfp-analysis-backend"
 import { toast } from "@/hooks/use-toast"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 
 type RfpAnalysisSheetProps = {
   requestId?: string
@@ -431,6 +432,57 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
       : buildDefaultRequirementRows(),
   )
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+
+  // 챗봇 create_draft (rfp_analysis) prefill — requestItem (= 기존 데이터 로드) 가 없을 때만 적용
+  const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!hasChatbotPrefill || prefillAppliedRef.current) return
+    if (requestItem) return  // 기존 RFP 로드된 경우 prefill 비활성
+    prefillAppliedRef.current = true
+    const slot = chatbotPrefill
+    if (slot.customer_name) setSelectedCustomerName(slot.customer_name)
+    if (slot.opportunity_code) setSelectedOpportunityCode(slot.opportunity_code)
+    if (slot.business_division) setBusinessType(slot.business_division)
+    if (slot.proposal_type) setProposalType(slot.proposal_type as typeof proposalType)
+    if (slot.delivery_module) setDeliveryModule(slot.delivery_module)
+    if (slot.hardware_provider) setHardwareOwner(slot.hardware_provider)
+    if (slot.business_overview) setMajorContent(slot.business_overview)
+    if (slot.budget_size) setAmountScale(slot.budget_size)
+    if (slot.expected_period) setProjectPeriod(slot.expected_period)
+    if (slot.business_location) setBusinessPlace(slot.business_location)
+    if (slot.submission_deadline) setProposalDeadline(slot.submission_deadline)
+    if (slot.sales_representative) setRequesterName(slot.sales_representative)
+    if (slot.manager) setAnalystName(slot.manager)
+    if (slot.requested_at) setRequestDate(slot.requested_at)
+    // requirements 는 JSON 으로 들어올 수 있음
+    if (slot.requirements) {
+      try {
+        const arr = JSON.parse(slot.requirements)
+        if (Array.isArray(arr) && arr.length > 0) {
+          setRequirements(arr.map((row): RequirementRow => ({
+            category: row.category || "",
+            requirementCode: row.requirement_no || row.requirement_code || row.requirementCode || "",
+            requirementTitle: row.requirement_name || row.requirement_title || row.requirementTitle || "",
+            requirementContent: row.requirement_detail || row.requirement_content || row.requirementContent || "",
+            supportStatus: (row.support_status || row.supportStatus || "O") as RequirementRow["supportStatus"],
+            reviewNote: row.review_note || row.reviewNote || "",
+            effort: row.effort || row.mandays || "",
+          })))
+        }
+      } catch {
+        // JSON 파싱 실패 — 무시
+      }
+    }
+    const applied = Object.keys(slot).length
+    if (applied > 0) {
+      toast({ title: "챗봇이 RFP 분석 초안 prefill", description: `${applied}개 슬롯 반영 — 확인 후 저장하세요.` })
+    }
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill, requestItem])
+
   const requestSyncSignature = requestItem
     ? [
         requestItem.id ?? "",

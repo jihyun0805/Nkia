@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -167,6 +168,44 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
   const [validationMessage, setValidationMessage] = useState("")
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [existingResult, setExistingResult] = useState<PrbResultRecord | null>(null)
+
+  // 챗봇 create_draft (prb_result) prefill
+  const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!hasChatbotPrefill || prefillAppliedRef.current) return
+    if (prbResultId) return
+    prefillAppliedRef.current = true
+    const slot = chatbotPrefill
+    setForm((cur) => {
+      const next: FormState = { ...cur, attendeeOpinions: [...cur.attendeeOpinions] }
+      if (slot.result_meeting_date) next.meetingDate = slot.result_meeting_date
+      if (slot.result_meeting_location) next.location = slot.result_meeting_location
+      if (slot.result_summary) next.overallOpinion = slot.result_summary
+      // participants: 콤마/세미콜론 분리해서 attendeeOpinions 의 participant 채움
+      if (slot.participants) {
+        const names = slot.participants
+          .split(/[,;]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+        next.attendeeOpinions = next.attendeeOpinions.map((item, idx) => ({
+          ...item,
+          participant: names[idx] || item.participant,
+        }))
+      }
+      return next
+    })
+    if (slot.prb_report_reference) {
+      setSelectionValue(slot.prb_report_reference)
+    }
+    const applied = Object.keys(slot).length
+    if (applied > 0) {
+      toast({ title: "챗봇이 PRB 결과 초안 prefill", description: `${applied}개 슬롯 반영 — 확인 후 저장하세요.` })
+    }
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill])
 
   useEffect(() => {
     let cancelled = false

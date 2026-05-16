@@ -235,12 +235,13 @@ def build_preflight_graph_state(
     graph_state.searchMode = search_mode_decision.search_mode
     graph_state.confidenceReasons.extend(reason for reason in search_mode_decision.reasons if reason not in graph_state.confidenceReasons)
 
-    if settings.ai_enable_draft_actions:
-        draft_intent = detect_draft_intent(working_query)
-        if draft_intent is not None:
-            graph_state.draftIntent = draft_intent
-            if "draft_intent_detected" not in graph_state.confidenceReasons:
-                graph_state.confidenceReasons.append("draft_intent_detected")
+    # draft intent 감지는 항상 시도 (저장 안 하고 폼 prefill 만 하는 기능이므로 안전).
+    # settings.ai_enable_draft_actions 는 추후 LLM 슬롯 채우기 비활성화 등 fine control 용.
+    draft_intent = detect_draft_intent(working_query)
+    if draft_intent is not None:
+        graph_state.draftIntent = draft_intent
+        if "draft_intent_detected" not in graph_state.confidenceReasons:
+            graph_state.confidenceReasons.append("draft_intent_detected")
 
     return graph_state
 

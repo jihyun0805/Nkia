@@ -128,8 +128,57 @@ TARGET_HINTS: tuple[tuple[str, str, list[str]], ...] = (
     ("모듈", "general", ["MODULE", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
     ("사업", "opportunity", ["PROJECT_OPPORTUNITY", "SALES_ACTIVITY", "RFP", "RFP_ANALYSIS", "PRB", "PROPOSAL", "ATTACHMENT"]),
     ("프로젝트", "project", ["PROJECT", "PROJECT_RESULT_REPORT", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    # 견적 — QUOTATION/MAINTENANCE_QUOTE chunk 에 workflow_summary 가 있어 결재 질의 대응
     ("견적", "document", ["QUOTATION", "MAINTENANCE_QUOTE", "ATTACHMENT"]),
     ("제안", "document", ["PROPOSAL", "RFP", "RFP_ANALYSIS", "PRB", "PRB_RESULT", "ATTACHMENT"]),
+    # 청구/수금/세금계산서 → BILLING + ORDER_REPORT (사업기회 청구 컨텍스트)
+    ("청구", "billing", ["BILLING", "ORDER_REPORT", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    ("청구서", "billing", ["BILLING", "ORDER_REPORT", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    ("수금", "billing", ["BILLING", "ORDER_REPORT", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    ("미수금", "billing", ["BILLING", "ORDER_REPORT", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    ("세금계산서", "billing", ["BILLING", "ORDER_REPORT", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    # 라이선스 → LICENSE 도메인
+    ("라이선스", "license", ["LICENSE", "ORDER_REPORT", "MODULE", "ATTACHMENT"]),
+    ("라이센스", "license", ["LICENSE", "ORDER_REPORT", "MODULE", "ATTACHMENT"]),
+    # 고객지원/CS → CUSTOMER_SUPPORT
+    ("고객지원", "customer_support", ["CUSTOMER_SUPPORT", "MAINTENANCE", "ATTACHMENT"]),
+    ("고객 지원", "customer_support", ["CUSTOMER_SUPPORT", "MAINTENANCE", "ATTACHMENT"]),
+    # 결재/상신/승인 — 어떤 도메인인지 명확하지 않을 때 워크플로 가능 도메인 모두 후보에
+    ("결재선", "general", ["BILLING", "CONTRACT", "QUOTATION", "ORDER_REPORT", "LICENSE",
+                          "CUSTOMER_SUPPORT", "MAINTENANCE_QUOTE", "ATTACHMENT"]),
+    ("결재라인", "general", ["BILLING", "CONTRACT", "QUOTATION", "ORDER_REPORT", "LICENSE",
+                            "CUSTOMER_SUPPORT", "MAINTENANCE_QUOTE", "ATTACHMENT"]),
+    ("상신", "general", ["BILLING", "CONTRACT", "QUOTATION", "ORDER_REPORT", "LICENSE",
+                        "CUSTOMER_SUPPORT", "MAINTENANCE_QUOTE", "ATTACHMENT"]),
+    ("결재 진행", "general", ["BILLING", "CONTRACT", "QUOTATION", "ORDER_REPORT", "LICENSE",
+                              "CUSTOMER_SUPPORT", "MAINTENANCE_QUOTE", "ATTACHMENT"]),
+    ("결재 완료", "general", ["BILLING", "CONTRACT", "QUOTATION", "ORDER_REPORT", "LICENSE",
+                              "CUSTOMER_SUPPORT", "MAINTENANCE_QUOTE", "ATTACHMENT"]),
+    ("결재 대기", "general", ["BILLING", "CONTRACT", "QUOTATION", "ORDER_REPORT", "LICENSE",
+                              "CUSTOMER_SUPPORT", "MAINTENANCE_QUOTE", "ATTACHMENT"]),
+    # 위험요인/리스크 — PRB 가 위험요인 enrichment 한 도메인 (opp_code + risk 짝 케이스 대응)
+    ("위험요인", "general", ["PRB", "PRB_RESULT", "PROJECT_OPPORTUNITY", "RFP_ANALYSIS", "ATTACHMENT"]),
+    ("위험 요인", "general", ["PRB", "PRB_RESULT", "PROJECT_OPPORTUNITY", "RFP_ANALYSIS", "ATTACHMENT"]),
+    ("리스크", "general", ["PRB", "PRB_RESULT", "PROJECT_OPPORTUNITY", "RFP_ANALYSIS", "ATTACHMENT"]),
+    # 회사/파트너 — COMPANY chunk
+    ("파트너", "general", ["COMPANY", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    ("협력사", "general", ["COMPANY", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    ("벤더", "general", ["COMPANY", "ATTACHMENT"]),
+    ("파트너사", "general", ["COMPANY", "PROJECT_OPPORTUNITY", "ATTACHMENT"]),
+    # 사업 단계/현재 단계/현황 — PROJECT_OPPORTUNITY 가 stage 정보 포함
+    ("현재 단계", "opportunity", ["PROJECT_OPPORTUNITY", "PROJECT", "MAINTENANCE", "ATTACHMENT"]),
+    ("진행 단계", "opportunity", ["PROJECT_OPPORTUNITY", "PROJECT", "MAINTENANCE", "ATTACHMENT"]),
+    ("진행상황", "opportunity", ["PROJECT_OPPORTUNITY", "PROJECT", "MAINTENANCE", "SALES_ACTIVITY", "ATTACHMENT"]),
+    ("진행 상황", "opportunity", ["PROJECT_OPPORTUNITY", "PROJECT", "MAINTENANCE", "SALES_ACTIVITY", "ATTACHMENT"]),
+    # 라이프사이클 — 모든 도메인
+    ("라이프사이클", "opportunity", [
+        "PROJECT_OPPORTUNITY", "RFP", "PRB", "PRB_RESULT", "PROPOSAL", "BID_RESULT",
+        "ORDER_REPORT", "CONTRACT", "PROJECT", "MAINTENANCE", "BILLING", "ATTACHMENT",
+    ]),
+    ("전체 라이프사이클", "opportunity", [
+        "PROJECT_OPPORTUNITY", "RFP", "PRB", "PRB_RESULT", "PROPOSAL", "BID_RESULT",
+        "ORDER_REPORT", "CONTRACT", "PROJECT", "MAINTENANCE", "BILLING", "ATTACHMENT",
+    ]),
 )
 
 
@@ -181,10 +230,23 @@ def summarize_normalization(normalization: QueryNormalization) -> str:
 
 
 def infer_target_hints(query: str) -> tuple[str, list[str]]:
+    """질문에 매칭되는 모든 hint 의 source_types 를 결합해 반환.
+
+    - target_hint 는 첫 번째로 매칭된 keyword 의 것을 사용 (호환성)
+    - source_types 는 모든 매칭된 keyword 의 것을 OR 결합 (cross-domain 질의 대응)
+    """
+    primary_target: str | None = None
+    combined_source_types: list[str] = []
     for keyword, target, source_types in TARGET_HINTS:
         if keyword in query:
-            return target, source_types
-    return "general", []
+            if primary_target is None:
+                primary_target = target
+            for st in source_types:
+                if st not in combined_source_types:
+                    combined_source_types.append(st)
+    if primary_target is None:
+        return "general", []
+    return primary_target, combined_source_types
 
 
 def extract_entity_terms(query: str) -> list[str]:
@@ -254,6 +316,13 @@ def has_metric_hint(normalized_query: str) -> bool:
         "기대 수주율",
         "예상 수주율",
         "리스크",
+        "위험",
+        "위험요인",
+        "급한",
+        "급해",
+        "긴급",
+        "우선",
+        "최신",
         "기간",
         "최근",
         "오래된",

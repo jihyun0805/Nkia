@@ -24,6 +24,7 @@ from app.langgraph import (
 from app.langgraph.draft_compose import (
     annotate_answer_with_draft_hint,
     attach_draft_action_to_response,
+    attach_edit_field_action_to_response,
 )
 from app.services.recommendation_service import (
     build_opportunity_recommendations,
@@ -593,9 +594,8 @@ def _build_answer_node(*, callbacks: OrbisGraphCallbacks):
 
 def _build_draft_compose_node(*, embedder: EmbeddingModel):
     def node(state: OrbisAgentState) -> dict[str, Any]:
-        if not settings.ai_enable_draft_actions:
-            return {}
-
+        # NOTE: ai_enable_draft_actions 가 False 여도 edit_field action 은 시도.
+        # (edit_field 는 페이지 navigate + prefill 만 하므로 안전)
         response_payload = state.get("response")
         if not isinstance(response_payload, dict):
             return {}
@@ -606,12 +606,19 @@ def _build_draft_compose_node(*, embedder: EmbeddingModel):
             if isinstance(graph_state_payload, dict)
             else None
         )
-        if graph_state is None or graph_state.draftIntent is None:
+        # edit_field action 은 draftIntent 없어도 동작하므로 query 만 있으면 진입
+        if graph_state is None:
             return {}
 
         try:
             response = AnswerResponse.model_validate(response_payload)
         except Exception:
+            return {}
+
+        has_draft_intent = graph_state.draftIntent is not None
+        has_edit_intent = bool(state.get("query"))  # query 있으면 edit_intent 확인 시도
+
+        if not has_draft_intent and not has_edit_intent:
             return {}
 
         history = deserialize_history(state.get("conversation_history"))
@@ -622,14 +629,29 @@ def _build_draft_compose_node(*, embedder: EmbeddingModel):
             else None
         )
 
+        # draft action 은 사용자가 명시적으로 "작성해줘/만들어줘/초안" 같은 trigger 를
+        # 발화했을 때만 detect_draft_intent 가 None 이 아니다. 발화 의도가 명확하므로
+        # settings.ai_enable_draft_actions 무시하고 항상 시도 (저장 안 함, 폼 prefill 만).
+        if has_draft_intent:
+            try:
+                response = attach_draft_action_to_response(
+                    response=response,
+                    graph_state=graph_state,
+                    history=history,
+                    user_context=user_context,
+                    embedder=embedder,
+                )
+            except Exception:
+                pass
+        if has_edit_intent:
+            try:
+                response = attach_edit_field_action_to_response(
+                    response=response,
+                    graph_state=graph_state,
+                )
+            except Exception:
+                pass
         try:
-            response = attach_draft_action_to_response(
-                response=response,
-                graph_state=graph_state,
-                history=history,
-                user_context=user_context,
-                embedder=embedder,
-            )
             if response.actions:
                 response = annotate_answer_with_draft_hint(response=response)
         except Exception:

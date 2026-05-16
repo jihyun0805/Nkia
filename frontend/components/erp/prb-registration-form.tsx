@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -36,6 +36,7 @@ import {
 import { currentUser } from "@/lib/current-user"
 import { getCustomers, getOpportunities } from "@/lib/finding-data"
 import { deleteBackendPrb, loadBackendPrbs, saveBackendPrb } from "@/lib/prb-backend"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 
 type PrbRegistrationFormProps = {
   prbId?: string
@@ -261,6 +262,71 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     void loadBackendPrbs().catch(() => undefined)
     return subscribePrbUpdates(sync)
   }, [cloneFromId, prbId])
+
+  // 챗봇 create_draft action (예: "X 사업기회 견적서랑 RFP 분석으로 PRB 보고서 작성해줘")
+  // 으로 페이지가 열렸을 때 query param 의 chatbotPrefill_<slot> 값을 폼에 자동 반영.
+  const { values: chatbotPrefillValues, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+
+  useEffect(() => {
+    if (!hasChatbotPrefill) return
+    if (prefillAppliedRef.current) return
+    if (prbId || cloneFromId) return  // 기존 PRB 로드 시 prefill 비활성
+    prefillAppliedRef.current = true
+
+    const slot = chatbotPrefillValues
+    const summary: string[] = []
+    const safeSet = (label: string, key: string, mapper?: (v: string) => void) => {
+      if (!slot[key]) return
+      if (mapper) mapper(slot[key])
+      summary.push(`${label}: ${slot[key].slice(0, 30)}`)
+    }
+
+    // top-level 필드
+    setForm((current) => {
+      const next = { ...current, formData: { ...current.formData } }
+      if (slot.customer_name) {
+        next.customer = slot.customer_name
+      }
+      if (slot.opportunity_code) {
+        next.opportunityCode = slot.opportunity_code
+      }
+      if (slot.opportunity_name) {
+        next.opportunity = slot.opportunity_name
+      }
+      if (slot.submission_deadline) {
+        next.proposalDeadline = slot.submission_deadline
+        next.formData.proposalDeadlineDate = slot.submission_deadline
+      }
+      // formData 필드들
+      if (slot.title) next.formData.projectName = slot.title
+      if (slot.background) next.formData.businessOverview = slot.background
+      if (slot.expected_win_rate) next.formData.expectedOrderRate = slot.expected_win_rate
+      if (slot.sales_representative) next.formData.salesLeader = slot.sales_representative
+      if (slot.decision_target) next.formData.decisionTarget = slot.decision_target
+      if (slot.risk_summary) next.formData.riskSummary = slot.risk_summary
+      if (slot.recommendation) next.formData.recommendation = slot.recommendation
+      if (slot.decision_options) next.formData.decisionOptions = slot.decision_options
+      if (slot.estimated_revenue) next.formData.estimatedRevenue = slot.estimated_revenue
+      if (slot.estimated_profit_rate) next.formData.estimatedProfitRate = slot.estimated_profit_rate
+      return next
+    })
+
+    // 슬롯 키별 요약
+    for (const [k, v] of Object.entries(slot)) {
+      if (v) summary.push(`${k}: ${String(v).slice(0, 20)}`)
+    }
+
+    if (summary.length > 0) {
+      toast({
+        title: "챗봇이 PRB 보고서 초안 슬롯 prefill",
+        description: `${summary.slice(0, 6).join(" / ")}${summary.length > 6 ? " 외 " + (summary.length - 6) + "개" : ""} — 확인 후 저장하세요.`,
+      })
+    }
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill])
 
   const availableRfpAnalyses = rfpAnalyses.filter(
     (item) =>

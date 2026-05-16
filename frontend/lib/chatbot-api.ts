@@ -24,16 +24,53 @@ export type ChatbotDraftPayload = {
   notes?: string[]
 }
 
-export type ChatbotDraftAction = {
-  type: "create_draft"
+/** 기존 entity 의 특정 필드 수정 액션 (예: "X 사업 담당자 Y로 수정해줘"). */
+export type ChatbotEditFieldPayload = {
+  entity_type: string
+  entity_id: string
+  entity_route: string
+  field_updates: Record<string, unknown>
+  summary?: string | null
+  references?: string[]
+}
+
+/** 단순 페이지 이동 액션. */
+export type ChatbotNavigatePayload = {
+  href: string
+  entity_type?: string | null
+  entity_id?: string | null
+  summary?: string | null
+}
+
+type ChatbotDraftActionBase = {
   label: string
   button_label: string
-  document_type: string
-  payload: ChatbotDraftPayload
+  document_type?: string
   evidence_ids?: string[]
   confidence?: number
   reasons?: string[]
 }
+
+export type ChatbotCreateDraftAction = ChatbotDraftActionBase & {
+  type: "create_draft"
+  document_type: string
+  payload: ChatbotDraftPayload
+}
+
+export type ChatbotEditFieldAction = ChatbotDraftActionBase & {
+  type: "edit_field"
+  payload: ChatbotEditFieldPayload
+}
+
+export type ChatbotNavigateAction = ChatbotDraftActionBase & {
+  type: "navigate"
+  payload: ChatbotNavigatePayload
+}
+
+export type ChatbotDraftAction =
+  | ChatbotCreateDraftAction
+  | ChatbotEditFieldAction
+  | ChatbotNavigateAction
 
 export type ChatbotAnswerRequest = {
   query: string
