@@ -1,9 +1,10 @@
 "use client"
 
-import { Pencil, FileText, ArrowRight } from "lucide-react"
+import { Pencil, FileText, ArrowRight, ClipboardEdit } from "lucide-react"
 import { useRouter } from "next/navigation"
 import type {
   ChatbotDraftAction,
+  ChatbotDraftPayload,
   ChatbotEditFieldPayload,
   ChatbotNavigatePayload,
 } from "@/lib/chatbot-api"
@@ -39,17 +40,32 @@ export function ChatActions({ actions }: ChatActionsProps) {
       router.push(payload.href)
       return
     }
-    // create_draft: 추후 별도 모달/사이드패널로 처리. 우선은 콘솔로 노출만.
-    if (typeof window !== "undefined") {
-      // eslint-disable-next-line no-console
-      console.info("[ChatActions] create_draft (UI 미구현)", action)
+    if (action.type === "create_draft") {
+      const payload = action.payload as ChatbotDraftPayload
+      const route = buildDraftCreateRoute(action.document_type, payload)
+      if (!route) {
+        if (typeof window !== "undefined") {
+          // eslint-disable-next-line no-console
+          console.warn("[ChatActions] create_draft 지원 안 되는 도메인", action.document_type)
+        }
+        return
+      }
+      router.push(route)
+      return
     }
   }
 
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {actions.map((action, idx) => {
-        const Icon = action.type === "edit_field" ? Pencil : action.type === "navigate" ? ArrowRight : FileText
+        const Icon =
+          action.type === "edit_field"
+            ? Pencil
+            : action.type === "create_draft"
+              ? ClipboardEdit
+              : action.type === "navigate"
+                ? ArrowRight
+                : FileText
         return (
           <button
             key={`${action.type}-${idx}`}
@@ -77,7 +93,35 @@ function summaryText(action: ChatbotDraftAction): string {
     const payload = action.payload as ChatbotNavigatePayload
     return payload.summary ?? `${payload.href} 로 이동`
   }
-  return action.label
+  if (action.type === "create_draft") {
+    const payload = action.payload as ChatbotDraftPayload
+    return payload.summary ?? `${action.label} 초안 작성`
+  }
+  // unreachable — exhaustive
+  return ""
+}
+
+// document_type → 폼 등록 페이지 경로 매핑.
+// 챗봇이 채운 슬롯(payload.slots)을 chatbotPrefill_<slot> query param 으로 전달.
+const DRAFT_DOCUMENT_ROUTES: Record<string, string> = {
+  prb_report: "/bid/new/prb?tab=prb",
+  prb_result: "/bid/new/prb-result?tab=prb-result",
+  rfp_analysis: "/bid/new/rfp?tab=rfp",
+  proposal: "/bid/new/proposal?tab=proposal",
+  bid_result: "/bid/new/result?tab=result",
+  quotation: "/activity/quotations/new?tab=quotations",
+  sales_activity: "/activity/activities/new?tab=activities",
+  project_result_report: "/project?tab=results",
+}
+
+function buildDraftCreateRoute(
+  documentType: string,
+  payload: ChatbotDraftPayload,
+): string | null {
+  const baseRoute = DRAFT_DOCUMENT_ROUTES[documentType]
+  if (!baseRoute) return null
+  const slots = payload.slots ?? {}
+  return appendPrefillParams(baseRoute, slots as Record<string, unknown>)
 }
 
 function appendPrefillParams(
