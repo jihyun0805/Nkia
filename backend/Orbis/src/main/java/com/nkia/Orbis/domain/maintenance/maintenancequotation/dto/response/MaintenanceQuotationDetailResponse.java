@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.Maintenance
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -26,6 +27,8 @@ public class MaintenanceQuotationDetailResponse {
     private Long monthlySupplyPrice;
     private Long totalQuotationAmount;
     private String specialNotes;
+
+    private CoverInfoResponse coverInfo;
 
     private List<PackageCostResponse> packageCosts;
     private List<ServiceInfoResponse> serviceInfos;
@@ -55,7 +58,42 @@ public class MaintenanceQuotationDetailResponse {
                         .collect(Collectors.toList()))
                 .status(entity.getStatus())
                 .workflowId(workflowId)
+                .coverInfo(entity.getCover() != null ? CoverInfoResponse.from(entity.getCover()) : null)
                 .build();
+    }
+
+    @Getter
+    @Builder
+    public static class CoverInfoResponse {
+        private String customerName;
+        private String projectName;
+        private String proposalType;
+        private String productFamily;
+        private Long totalQuotationAmount;
+        private LocalDate quotationDate;
+        private String salesRepresentative;
+
+        public static CoverInfoResponse from(
+                com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotationCover entity) {
+            String customerName = null;
+            if (entity.getQuotation().getProject() != null && 
+                entity.getQuotation().getProject().getOrderReport() != null && 
+                entity.getQuotation().getProject().getOrderReport().getFinalCustomerCompany() != null) {
+                customerName = entity.getQuotation().getProject().getOrderReport().getFinalCustomerCompany().getName();
+            }
+
+            return CoverInfoResponse.builder()
+                    .customerName(customerName)
+                    .projectName(entity.getQuotation().getProject().getPjtName())
+                    .proposalType(entity.getProposalType() != null ? entity.getProposalType().getDescription() : null)
+                    .productFamily(
+                            entity.getProductFamily() != null ? entity.getProductFamily().getDescription() : null)
+                    .totalQuotationAmount(entity.getQuotation().getTotalQuotationAmount())
+                    .quotationDate(entity.getQuotation().getQuotationDate())
+                    .salesRepresentative(
+                            entity.getSalesRepresentative() != null ? entity.getSalesRepresentative().getName() : null)
+                    .build();
+        }
     }
 
     @Getter
