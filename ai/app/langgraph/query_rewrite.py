@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 from app.repositories.backend_query_repository import resolve_primary_opportunity
@@ -95,11 +96,39 @@ def has_followup_reference(query: str) -> bool:
     # 1) 명시적 지시 표현 매치
     if any(keyword in normalized for keyword in FOLLOWUP_KEYWORDS):
         return True
-    # 2) 짧은 self-contained follow-up — 사업코드/회사명 없는 짧은 도메인 질문
+    # 2) query 에 새 entity (회사명 후보 / 다른 사업기회 코드) 가 명시되면
+    #    follow-up 이 아니라 새 topic — 직전 disambig 후보로 lock 되는 leak 차단.
+    if contains_entity_reference(query):
+        return False
+    # 3) 짧은 self-contained follow-up — 사업코드/회사명 없는 짧은 도메인 질문
     if len(normalized) <= 30 and not extract_business_codes_from_text(normalized):
         for pat in SHORT_FOLLOWUP_PATTERNS:
             if pat in normalized:
                 return True
+    return False
+
+
+_COMPANY_SUFFIX_PATTERN = re.compile(
+    r"[가-힣A-Za-z0-9]{1,}("
+    r"증권|카드|은행|보험|화재|생명|"
+    r"전자|화학|통신|텔레콤|네트웍스|네트워크|시스템즈|솔루션|"
+    r"건설|중공업|바이오|제약|에너지|디스플레이|모비스|모바일|"
+    r"항공|해운|로지스틱스|상사|코스메틱|글로벌|홀딩스|코퍼레이션|"
+    r"하이테크|인더스트리"
+    r")"
+)
+
+
+def contains_entity_reference(query: str) -> bool:
+    """query 자체에 회사명 후보 또는 다른 사업기회 코드가 명시되어 있으면 True.
+
+    True 면 '새 topic 신호' — has_followup_reference 가 직전 turn 의 사업 컨텍스트로
+    lock 되는 follow-up 처리를 건너뛰어야 함.
+    """
+    if extract_business_codes_from_text(query):
+        return True
+    if _COMPANY_SUFFIX_PATTERN.search(query):
+        return True
     return False
 
 
