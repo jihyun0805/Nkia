@@ -4767,6 +4767,10 @@ def resolve_primary_opportunity_with_fallback(
     scored.sort(key=lambda item: (-item[0], str(item[1].get("opportunity_code") or "")))
     if not scored:
         return None
+    # entity hint 가 약한 query (예: "진행 단계 알려줘") 는 random match 차단.
+    # 회사명 직접 매치(12점) 이상만 신뢰 — 토큰 점수(3점)만으로는 임의 사업 lock 위험.
+    if scored[0][0] < 12:
+        return None
     if len(scored) == 1 or scored[0][0] >= scored[1][0] + 3:
         return scored[0][1]
     return None
