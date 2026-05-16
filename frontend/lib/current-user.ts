@@ -1,3 +1,5 @@
+import { loadAuthSession } from "@/lib/auth-session"
+
 export type CurrentUser = {
   id: string
   name: string
@@ -8,8 +10,14 @@ export type CurrentUser = {
 
 export const currentUser: CurrentUser = {
   id: "USR-001",
-  name: "김영업",
-  email: "kim.sales@Nkia.com",
+  get name() {
+    const session = loadAuthSession()
+    return session?.name || session?.email?.split("@")[0] || "사용자"
+  },
+  get email() {
+    const session = loadAuthSession()
+    return session?.email || "member@orbis.local"
+  },
   department: "영업본부",
   role: "영업대표",
 }

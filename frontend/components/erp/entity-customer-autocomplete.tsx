@@ -18,6 +18,7 @@ type CustomerAutocompleteProps = {
   disabled?: boolean
   onUnregisteredAttempt?: () => void
   allowCustomValue?: boolean
+  inputClassName?: string
 }
 
 export function CustomerAutocomplete({
@@ -28,6 +29,7 @@ export function CustomerAutocomplete({
   disabled = false,
   onUnregisteredAttempt,
   allowCustomValue = false,
+  inputClassName,
 }: CustomerAutocompleteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
@@ -39,13 +41,19 @@ export function CustomerAutocomplete({
 
   useEffect(() => {
     const trimmedQuery = query.trim()
-    if (!trimmedQuery) {
-      setDbSuggestions([])
-      return
-    }
-
     const abortController = new AbortController()
     const timeoutId = window.setTimeout(() => {
+      if (!trimmedQuery) {
+        loadBackendFindingData()
+          .then((data) => {
+            setDbSuggestions(data.customers.slice(0, 8))
+          })
+          .catch(() => {
+            setDbSuggestions([])
+          })
+        return
+      }
+
       getEntitySuggestions({
         query: trimmedQuery,
         target: "customers",
@@ -127,6 +135,7 @@ export function CustomerAutocomplete({
           value={query}
           disabled={disabled}
           placeholder={placeholder}
+          className={inputClassName}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
             const nextValue = event.target.value
