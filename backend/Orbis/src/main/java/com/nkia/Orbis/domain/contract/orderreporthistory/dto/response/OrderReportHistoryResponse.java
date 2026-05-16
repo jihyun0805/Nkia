@@ -15,6 +15,8 @@ public class OrderReportHistoryResponse {
 
     private Long id;
 
+    private String vatType;
+
     private LocalDateTime orderReportDate;
 
     private Integer version;
@@ -55,8 +57,9 @@ public class OrderReportHistoryResponse {
 
     private String remarks;
 
-    // TODO: 사업 기회 구현 후 형식에 맞게 반환(사업명)
     private ProjectOpportunity projectOpportunity;
+
+    private String projectName;
 
     private UUID pmId;
 
@@ -70,6 +73,8 @@ public class OrderReportHistoryResponse {
 
     private String contractCounterpartManagerName;
 
+    private String contractCounterpartPhone;
+
     private Long finalCustomerCompanyId;
 
     private String finalCustomerCompanyName;
@@ -77,6 +82,8 @@ public class OrderReportHistoryResponse {
     private Long finalCustomerManagerId;
 
     private String finalCustomerManagerName;
+
+    private String finalCustomerPhone;
 
     private List<OrderReportMaintenanceHistoryResponse> maintenances;
 
@@ -139,10 +146,10 @@ public class OrderReportHistoryResponse {
     // OrderReportLicense 중 ProductClass가 앞의 분류에 해당하지 않는것들의 totalPrice들의 총합
     private Long otherSummary;
 
-    // Todo: Company, CompanyManager 구현후 연동 예정
     public static OrderReportHistoryResponse from(OrderReportHistory orderReport) {
         return OrderReportHistoryResponse.builder()
                 .id(orderReport.getId())
+                .vatType(orderReport.getVatType().getDescription())
                 .orderReportDate(orderReport.getOrderReportDate())
                 .version(orderReport.getVersion())
                 .orderReportCode(orderReport.getOrderReportCode())
@@ -165,44 +172,39 @@ public class OrderReportHistoryResponse {
                 .remarks(orderReport.getRemarks())
 
                 .projectOpportunity(orderReport.getProjectOpportunity())
+                .projectName(orderReport.getProjectOpportunity().getOpportunityName())
 
                 .pmId(orderReport.getPm() != null ? orderReport.getPm().getId() : null)
                 .pmName(orderReport.getPm() != null ? orderReport.getPm().getName() : null)
 
-//                .contractCounterpartCompanyId(orderReport.getContractCounterpartCompany() != null
-//                        ? orderReport.getContractCounterpartCompany().getId() : null)
-//                .contractCounterpartCompanyName(orderReport.getContractCounterpartCompany() != null
-//                        ? orderReport.getContractCounterpartCompany().getCompanyName() : null)
-//
-//                .contractCounterpartManagerId(orderReport.getContractCounterpartManager() != null
-//                        ? orderReport.getContractCounterpartManager().getId() : null)
-//                .contractCounterpartManagerName(orderReport.getContractCounterpartManager() != null
-//                        ? orderReport.getContractCounterpartManager().getName() : null)
-//
-//                .finalCustomerCompanyId(
-//                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany().getId()
-//                                : null)
-//                .finalCustomerCompanyName(
-//                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany()
-//                                .getCompanyName() : null)
-                .contractCounterpartCompanyId(null)
-                .contractCounterpartCompanyName(null)
+                .contractCounterpartCompanyId(orderReport.getContractCounterpartCompany() != null
+                        ? orderReport.getContractCounterpartCompany().getId() : null)
+                .contractCounterpartCompanyName(orderReport.getContractCounterpartCompany() != null
+                        ? orderReport.getContractCounterpartCompany().getName() : null)
 
-                .contractCounterpartManagerId(null)
-                .contractCounterpartManagerName(null)
+                .contractCounterpartManagerId(orderReport.getContractCounterpartManager() != null
+                        ? orderReport.getContractCounterpartManager().getId() : null)
+                .contractCounterpartManagerName(orderReport.getContractCounterpartManager() != null
+                        ? orderReport.getContractCounterpartManager().getName() : null)
+                .contractCounterpartPhone(orderReport.getContractCounterpartManager() != null
+                        ? orderReport.getContractCounterpartManager().getMobilePhone() : null)
 
-                .finalCustomerCompanyId(null)
-                .finalCustomerCompanyName(null)
-
-                .finalCustomerManagerId(null)
-                .finalCustomerManagerName(null)
-
-//                .finalCustomerManagerId(
-//                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getId()
-//                                : null)
-//                .finalCustomerManagerName(
-//                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getName()
-//                                : null)
+                .finalCustomerCompanyId(
+                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany().getId()
+                                : null)
+                .finalCustomerCompanyName(
+                        orderReport.getFinalCustomerCompany() != null ? orderReport.getFinalCustomerCompany()
+                                .getName() : null)
+                .finalCustomerManagerId(
+                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getId()
+                                : null)
+                .finalCustomerManagerName(
+                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager().getName()
+                                : null)
+                .finalCustomerPhone(
+                        orderReport.getFinalCustomerManager() != null ? orderReport.getFinalCustomerManager()
+                                .getMobilePhone()
+                                : null)
 
                 .maintenances(orderReport.getMaintenances().stream()
                         .map(OrderReportMaintenanceHistoryResponse::from)
