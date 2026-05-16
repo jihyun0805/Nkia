@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "@/hooks/use-toast"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +86,35 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
   const [form, setForm] = useState<FormState>(emptyForm)
   const [validationMessage, setValidationMessage] = useState("")
   const [proposalDetail, setProposalDetail] = useState<ProposalBackendDetail | null>(null)
+
+  // 챗봇 create_draft 액션 prefill
+  const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!hasChatbotPrefill || prefillAppliedRef.current) return
+    if (proposalId || initialRequestId) return  // 기존 데이터 로드 시 prefill 비활성
+    prefillAppliedRef.current = true
+    setForm((cur) => ({
+      ...cur,
+      customerCode: chatbotPrefill.customer_code || cur.customerCode,
+      customerName: chatbotPrefill.customer_name || cur.customerName,
+      opportunityCode: chatbotPrefill.opportunity_code || cur.opportunityCode,
+      opportunityName: chatbotPrefill.opportunity_name || cur.opportunityName,
+      proposalType: (chatbotPrefill.proposal_type as ProposalType) || cur.proposalType,
+      productGroup: (chatbotPrefill.product_family as ProposalProductGroup) || cur.productGroup,
+      requestDate: chatbotPrefill.requested_at || cur.requestDate,
+      proposalDeadline: chatbotPrefill.submission_deadline || cur.proposalDeadline,
+      salesRep: chatbotPrefill.sales_representative || cur.salesRep,
+      contactName: chatbotPrefill.manager || cur.contactName,
+    }))
+    const applied = Object.keys(chatbotPrefill).length
+    if (applied > 0) {
+      toast({ title: "챗봇이 제안서 초안 prefill", description: `${applied}개 슬롯 반영 — 확인 후 저장하세요.` })
+    }
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill])
 
   useEffect(() => {
     let cancelled = false

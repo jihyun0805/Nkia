@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,28 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
       salesRep: currentSalesRep,
     },
   });
+
+  // 챗봇 create_draft (project_result_report) prefill
+  const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill();
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!hasChatbotPrefill || prefillAppliedRef.current) return;
+    if (inheritedData) return;  // 상속된 데이터 있으면 prefill 비활성
+    prefillAppliedRef.current = true;
+    const slot = chatbotPrefill;
+    if (slot.customer_name) setValue("customerName", slot.customer_name);
+    if (slot.title || slot.opportunity_name) setValue("projectName", slot.title || slot.opportunity_name);
+    if (slot.completed_at) setValue("endDate", slot.completed_at);
+    // results_summary, achievements, issues, lessons_learned 는 폼에 직접 필드가 없으나
+    // 사용자가 별도 영역에 채울 수 있도록 toast 로 안내만
+    const applied = Object.keys(slot).length;
+    if (applied > 0) {
+      const id = window.setTimeout(() => clearChatbotPrefill(), 100);
+      return () => window.clearTimeout(id);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill]);
 
   // 선택 시 폼 업데이트
   const handleSelectReport = async (report: OrderReportListResponse) => {
