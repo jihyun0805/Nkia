@@ -153,7 +153,7 @@ public class CustomerSupportActivityService {
      */
     public CustomerSupportHistoryDetailResponse getActivityHistoryDetail(Long historyId) {
         CustomerSupportHistory history = historyRepository.findById(historyId)
-                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.ACTIVITY_HISTORY_NOT_FOUND));
 
         return CustomerSupportHistoryDetailResponse.from(history);
     }
