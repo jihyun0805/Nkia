@@ -531,7 +531,7 @@ function buildQuotationPayload(input: QuotationCreateInput, projectOpportunityId
     projectOpportunityId,
     quotationDate: input.date,
     paymentCondition: input.paymentTerms,
-    note: input.remarks,
+    note: input.remarks.trim(),
     quotationSolutionItems,
     quotationLaborItems,
   }

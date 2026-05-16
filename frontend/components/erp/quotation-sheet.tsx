@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { currentUser } from "@/lib/current-user"
 import { type QuotationRecord } from "@/lib/activity-data"
 import { getCustomerByName } from "@/lib/finding-data"
@@ -209,7 +210,6 @@ function baseCustomizingRows() {
 }
 
 const proposalTypeOptions = ["자체 제안", "SI 제안"] as const
-const productGroupOptions = ["EMS", "ITSM", "Automation", "WSS"] as const
 
 function defaultTemplateText() {
   return {
@@ -285,8 +285,7 @@ export function createEmptyQuotationForm(): QuotationFormState {
       ],
     },
     changeHistory: [],
-    remarks:
-      "1. 무상유지보수 기간은 1년이며, 무상유지보수 기간 종료 후 유지보수 요율은 12%입니다.\n2. 무상유지보수 활동에는 하자보수와 장애처리가 포함되며, 정기점검은 포함되어 있지 않습니다.",
+    remarks: "",
     amount: "0",
     validity: "",
     status: "검토중",
@@ -412,7 +411,7 @@ export function normalizeQuotationForm(form: QuotationFormState): QuotationFormS
         ],
       },
     changeHistory: form.changeHistory ?? [],
-    remarks: form.remarks?.trim() || "",
+    remarks: form.remarks ?? "",
     amount: String(totalAmount),
     validity: form.validity || addDays(form.date, 30),
   }
@@ -479,7 +478,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
     updateForm((prev) => ({
       ...prev,
       customer: value,
-      customerCode: customer?.id ?? "",
+      customerCode: customer?.id ?? prev.customerCode,
       opportunity: customer && prev.customer !== value ? "" : prev.opportunity,
       opportunityCode: customer && prev.customer !== value ? "" : prev.opportunityCode,
     }))
@@ -524,10 +523,20 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   {readOnly ? (
                     <span className="min-w-[160px] break-words">{form.customer || ""}</span>
                   ) : (
-                    <Input
+                    <CustomerAutocomplete
                       value={form.customer}
-                      onChange={(event) => handleCustomerChange(event.target.value)}
-                      className={`${inlineLineInputClass} min-w-[160px] flex-1 text-[22px] font-bold`}
+                      onSelect={(customer) =>
+                        updateForm((prev) => ({
+                          ...prev,
+                          customer: customer?.name ?? "",
+                          customerCode: customer?.id ?? "",
+                          opportunity: customer && prev.customer !== customer.name ? "" : prev.opportunity,
+                          opportunityCode: customer && prev.customer !== customer.name ? "" : prev.opportunityCode,
+                        }))
+                      }
+                      onValueChange={handleCustomerChange}
+                      placeholder="고객사를 선택하세요"
+                      inputClassName={`${inlineLineInputClass} min-w-[160px] flex-1 text-[22px] font-bold`}
                     />
                   )}
                   {readOnly ? (
@@ -605,33 +614,6 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                       </SelectTrigger>
                       <SelectContent>
                         {proposalTypeOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>제품군:</span>
-                  {readOnly ? (
-                    <span>{form.productGroup || "-"}</span>
-                  ) : (
-                    <Select
-                      value={form.productGroup}
-                      onValueChange={(value) =>
-                        updateForm((prev) => ({
-                          ...prev,
-                          productGroup: value as QuotationFormState["productGroup"],
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="h-8 w-[140px] rounded-none border-0 px-0 text-[16px] shadow-none focus:ring-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {productGroupOptions.map((option) => (
                           <SelectItem key={option} value={option}>
                             {option}
                           </SelectItem>
@@ -799,11 +781,18 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 className={`${inputClass} w-[160px] text-[24px] font-bold`}
               />
             )}
-            {readOnly ? (
-              <div className="mt-2 whitespace-pre-line text-[16px] leading-9">{form.remarks || "-"}</div>
-            ) : (
-              <Textarea rows={4} value={form.remarks ?? ""} onChange={(event) => updateForm((prev) => ({ ...prev, remarks: event.target.value }))} className="mt-2 min-h-[110px] rounded-none border-0 px-0 text-[16px] leading-9 shadow-none focus-visible:ring-0" />
-            )}
+            <div className="mt-2 border border-black px-4 py-3">
+              {readOnly ? (
+                <div className="min-h-[110px] whitespace-pre-wrap break-words text-[16px] leading-9">{form.remarks || "-"}</div>
+              ) : (
+                <textarea
+                  rows={6}
+                  value={form.remarks ?? ""}
+                  onChange={(event) => updateForm((prev) => ({ ...prev, remarks: event.target.value }))}
+                  className="min-h-[160px] w-full resize-y rounded-none border-0 bg-transparent px-0 py-0 text-[16px] leading-9 shadow-none outline-none"
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>

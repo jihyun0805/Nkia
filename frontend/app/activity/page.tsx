@@ -384,7 +384,6 @@ export default function ActivityPage() {
                 {activeTab === "quotations" && (
                   <Button asChild className="bg-primary hover:bg-primary/90">
                     <Link href="/admin?tab=products">
-                      <Plus className="mr-2 w-4 h-4" />
                       표준가격표
                     </Link>
                   </Button>
