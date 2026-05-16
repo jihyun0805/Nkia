@@ -210,9 +210,6 @@ export default function AdminPage() {
                           <TableHead>직급</TableHead>
                           <TableHead>이메일</TableHead>
                           <TableHead>부서</TableHead>
-                          <TableHead>역할</TableHead>
-                          <TableHead>프리세일즈</TableHead>
-                          <TableHead>권한</TableHead>
                           <TableHead>상태</TableHead>
                           <TableHead>등록일</TableHead>
                         </TableRow>
@@ -225,9 +222,6 @@ export default function AdminPage() {
                             <TableCell>{user.position}</TableCell>
                             <TableCell>{user.email}</TableCell>
                             <TableCell>{user.department}</TableCell>
-                            <TableCell>{user.role}</TableCell>
-                            <TableCell>{user.isPresales ? "지정" : "-"}</TableCell>
-                            <TableCell>{user.permissions && user.permissions.length > 0 ? user.permissions.join(", ") : "-"}</TableCell>
                             <TableCell>{user.status}</TableCell>
                             <TableCell>{user.lastLogin}</TableCell>
                           </TableRow>
