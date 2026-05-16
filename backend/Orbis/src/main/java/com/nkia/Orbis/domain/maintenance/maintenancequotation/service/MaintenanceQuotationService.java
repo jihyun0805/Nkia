@@ -55,14 +55,7 @@ public class MaintenanceQuotationService {
 
         mapSubEntities(dto, quotation);
 
-        User salesRep = getUser(dto.getCoverInfo().getSalesRepresentativeId());
-
-        MaintenanceQuotationCover cover = MaintenanceQuotationCover.builder()
-                .quotation(quotation)
-                .proposalType(dto.getCoverInfo().getProposalType())
-                .productFamily(dto.getCoverInfo().getProductFamily())
-                .salesRepresentative(salesRep)
-                .build();
+        MaintenanceQuotationCover cover = createCoverEntity(quotation, dto.getCoverInfo());
         quotation.setCover(cover);
 
         MaintenanceQuotation saved = quotationRepository.save(quotation);
@@ -79,15 +72,7 @@ public class MaintenanceQuotationService {
 
         updateBasicInfo(quotation, dto);
         
-        if (quotation.getCover() != null) {
-            User salesRep = getUser(dto.getCoverInfo().getSalesRepresentativeId());
-
-            quotation.getCover().updateInfo(
-                dto.getCoverInfo().getProposalType(), 
-                dto.getCoverInfo().getProductFamily(), 
-                salesRep
-            );
-        }
+        updateCoverEntity(quotation, dto.getCoverInfo());
 
         refreshChildEntities(quotation, dto);
 
@@ -127,6 +112,17 @@ public class MaintenanceQuotationService {
                 .monthlySupplyPrice(dto.getMonthlySupplyPrice())
                 .totalQuotationAmount(dto.getTotalQuotationAmount())
                 .specialNotes(dto.getSpecialNotes())
+                .build();
+    }
+
+    private MaintenanceQuotationCover createCoverEntity(MaintenanceQuotation quotation, MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
+        User salesRep = getUser(coverInfo.getSalesRepresentativeId());
+
+        return MaintenanceQuotationCover.builder()
+                .quotation(quotation)
+                .proposalType(coverInfo.getProposalType())
+                .productFamily(coverInfo.getProductFamily())
+                .salesRepresentative(salesRep)
                 .build();
     }
 
@@ -195,6 +191,17 @@ public class MaintenanceQuotationService {
                 dto.getStartDate(), dto.getEndDate(),
                 dto.getMonthlySupplyPrice(), dto.getTotalQuotationAmount(),
                 dto.getSpecialNotes());
+    }
+
+    private void updateCoverEntity(MaintenanceQuotation quotation, MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
+        if (quotation.getCover() != null && coverInfo != null) {
+            User salesRep = getUser(coverInfo.getSalesRepresentativeId());
+            quotation.getCover().updateInfo(
+                    coverInfo.getProposalType(),
+                    coverInfo.getProductFamily(),
+                    salesRep
+            );
+        }
     }
 
     private void refreshChildEntities(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {
