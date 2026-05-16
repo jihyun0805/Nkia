@@ -42,6 +42,8 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "main_content", "issue_content", "competitor_status",
             "decision_structure", "contact_line",
             "recent_activity_summary",
+            "billing_summary", "prb_comprehensive_opinion",
+            "sales_representative_name",
         ),
         payload_aliases={
             "opportunityId": ("id",),
@@ -65,6 +67,7 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "activity_date_time",
             "activity_type", "activity_purpose", "activity_content",
             "customer_interest", "issue", "next_activity",
+            "attendee_names",
         ),
         payload_aliases={
             "activityAt": ("activity_date_time",),
@@ -84,7 +87,10 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.QUOTATION,
         id_fields=("quotation_code", "quoteCode", "id"),
         title_fields=("quotation_code", "id"),
-        content_fields=("payment_condition", "total_price", "consumer_total_price", "note"),
+        content_fields=(
+            "payment_condition", "total_price", "consumer_total_price", "note",
+            "opportunity_name", "customer_name", "workflow_summary",
+        ),
         payload_aliases={
             "quoteCode": ("quotation_code",),
             "quoteDate": ("quotation_date",),
@@ -119,11 +125,14 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         table="prb",
         source_type=SourceType.PRB,
         id_fields=("prbCode", "prb_code", "id"),
-        title_fields=("prbCode", "prb_code", "id"),
+        title_fields=("display_title", "prbCode", "prb_code", "id"),
         content_fields=(
             "prb_date", "expected_win_rate", "estimated_revenue",
-            "estimated_profit_rate", "business_overview",
-            "risk_factors", "competitor_status", "prb_opinion",
+            "estimated_profit_margin", "maintenance_description",
+            "sales_representative_opinion", "indirect_rate",
+            "opportunity_name", "customer_name",
+            "estimated_operating_profit",
+            "risk_factors_text", "prb_result_opinion_text",
         ),
         payload_aliases={
             "opportunityId": ("project_opportunity_id",),
@@ -132,17 +141,20 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "expectedWinRate": ("expected_win_rate",),
             "estimatedRevenue": ("estimated_revenue",),
             "estimatedProfitRate": ("estimated_profit_rate",),
-            "riskFactors": ("risk_factors",),
+            "riskFactors": ("risk_factors_text",),
         },
     ),
     DocumentConfig(
         table="prb_result",
         source_type=SourceType.PRB_RESULT,
-        id_fields=("prbResultCode", "prb_result_code", "id"),
-        title_fields=("prbResultCode", "prb_result_code", "id"),
+        id_fields=("prbResultCode", "prb_result_code", "prb_result_id", "id"),
+        title_fields=("prbResultCode", "prb_result_code", "prb_result_id", "id"),
         content_fields=(
             "decision_status", "result_date",
             "risk_review", "final_opinion", "attendee_opinions",
+            "risk_factors", "comprehensive_opinion",
+            "meeting_location", "meeting_date_time",
+            "opportunity_name", "customer_name", "attendee_opinions_text",
         ),
         payload_aliases={
             "prbResultCode": ("id",),
@@ -157,8 +169,11 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         table="proposal",
         source_type=SourceType.PROPOSAL,
         id_fields=("proposalCode", "proposal_code", "id"),
-        title_fields=("proposalName", "proposal_name", "proposalCode", "proposal_code", "id"),
-        content_fields=("proposal_summary", "strategy_summary", "key_proposal_points"),
+        title_fields=("display_title", "proposalName", "proposal_name", "proposalCode", "proposal_code", "id"),
+        content_fields=(
+            "status", "proposal_summary", "strategy_summary", "key_proposal_points",
+            "opportunity_name", "customer_name",
+        ),
         payload_aliases={
             "proposalCode": ("id",),
             "proposalSummary": ("proposal_summary",),
@@ -190,6 +205,7 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         content_fields=(
             "contract_date", "contract_amount", "business_scope",
             "special_notes", "outcome_summary",
+            "opportunity_name", "customer_name", "workflow_summary",
         ),
         payload_aliases={
             "wonReportCode": ("id",),
@@ -204,7 +220,10 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.CONTRACT,
         id_fields=("contractCode", "contract_code", "id"),
         title_fields=("contractCode", "contract_code", "id"),
-        content_fields=("contract_status", "start_date", "end_date", "memo"),
+        content_fields=(
+            "contract_status", "start_date", "end_date", "memo",
+            "opportunity_name", "customer_name", "workflow_summary",
+        ),
         payload_aliases={
             "contractCode": ("id",),
             "orderReportId": ("order_report_id",),
@@ -214,11 +233,16 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
     DocumentConfig(
         table="project",
         source_type=SourceType.PROJECT,
-        id_fields=("code", "projectCode", "project_code", "id"),
-        title_fields=("code", "pjt_number", "id"),
-        content_fields=("type", "end_date", "project_overview", "team_name"),
+        id_fields=("pjt_number", "code", "projectCode", "project_code", "id"),
+        title_fields=("display_title", "pjt_name", "pjt_number", "id"),
+        content_fields=(
+            "type", "code", "pjt_name", "pjt_number",
+            "start_date", "end_date", "total_amount",
+            "opportunity_name", "customer_name",
+        ),
         payload_aliases={
-            "projectCode": ("code",),
+            "projectCode": ("pjt_number", "code"),
+            "projectName": ("pjt_name",),
             "deliveryDate": ("end_date",),
             "projectOwner": ("manager_id",),
             "projectStatus": ("type",),
@@ -254,6 +278,7 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "total_amount", "start_date", "end_date",
             "sp_maintenance_cost", "monthly_supply_price",
             "total_quotation_amount", "special_notes",
+            "opportunity_name", "customer_name", "workflow_summary",
         ),
         payload_aliases={
             "maintenanceQuoteCode": ("id",),
@@ -272,6 +297,10 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.CUSTOMER_SUPPORT,
         id_fields=("supportCode", "support_code", "id"),
         title_fields=("supportCode", "support_code", "id"),
+        content_fields=(
+            "activity_type", "activity_content", "remarks",
+            "customer_name", "workflow_summary",
+        ),
         payload_aliases={
             "supportCode": ("id",),
             "maintenanceId": ("maintenance_id",),
@@ -280,11 +309,15 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
     DocumentConfig(
         table="company",
         source_type=SourceType.COMPANY,
-        id_fields=("companyCode", "company_code", "id"),
-        title_fields=("companyName", "company_name", "id"),
+        id_fields=("companyCode", "company_code", "code", "id"),
+        title_fields=("name", "companyName", "company_name", "id"),
+        content_fields=(
+            "name", "company_type", "sector", "category",
+            "address", "business_registration_number",
+        ),
         payload_aliases={
-            "companyCode": ("id",),
-            "companyName": ("id",),
+            "companyCode": ("code", "id"),
+            "companyName": ("name",),
             "customerType": ("company_type",),
         },
     ),
@@ -293,6 +326,12 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.LICENSE,
         id_fields=("licenseCode", "license_code", "id"),
         title_fields=("licenseCode", "license_code", "id"),
+        content_fields=(
+            "status", "license_status", "license_type",
+            "product_class", "product_group", "product_name",
+            "start_date", "end_date", "quantity", "total_price",
+            "opportunity_name", "customer_name", "workflow_summary",
+        ),
         payload_aliases={
             "licenseCode": ("id",),
             "orderReportId": ("order_report_id",),
@@ -303,10 +342,17 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         table="billing",
         source_type=SourceType.BILLING,
         id_fields=("billingCode", "billing_code", "id"),
-        title_fields=("billingCode", "billing_code", "id"),
+        title_fields=("display_title", "billingCode", "billing_code", "id"),
+        content_fields=(
+            "status", "billing_amount", "requested_issue_date", "issued_at",
+            "remarks", "opportunity_name", "customer_name",
+            "workflow_summary",
+        ),
         payload_aliases={
             "billingCode": ("id",),
             "projectId": ("project_id",),
+            "requesterName": ("workflow_requester_name",),
+            "approverNames": ("workflow_approver_names",),
         },
     ),
     DocumentConfig(
@@ -458,6 +504,17 @@ def build_documents(
                 documents.extend(build_current_project_documents(row, conn=conn))
             elif config.table == "maintenance":
                 documents.extend(build_current_maintenance_documents(row, conn=conn))
+            elif config.table == "prb":
+                documents.extend(build_current_prb_documents(row, conn=conn))
+            elif config.table == "prb_result":
+                documents.extend(build_current_prb_result_documents(row, conn=conn))
+            elif config.table == "billing":
+                documents.extend(build_current_billing_documents(row, conn=conn))
+            elif config.table == "proposal":
+                documents.extend(build_current_proposal_documents(row, conn=conn))
+            elif config.table in _TABLE_TO_WORKFLOW_DOMAIN:
+                # workflow_summary 만 enrich 하는 경량 builder
+                documents.extend(_build_with_workflow_enrich(config=config, row=row, conn=conn))
             else:
                 document = build_document(config=config, row=row)
                 if document is not None:
@@ -589,6 +646,78 @@ def build_current_opportunity_documents(
     if activity_summary:
         enriched_row["recent_activity_summary"] = activity_summary
 
+    # === 빌링/계약 요약 enrichment — billing query 가 사업기회 chunk 에서 hit 되도록 ===
+    if opp_id is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SAVEPOINT enrich_opp_bill")
+                try:
+                    cur.execute(
+                        """
+                        SELECT
+                            COUNT(b.*) FILTER (WHERE b.status IN ('ISSUED','COLLECTED')) AS billed_cnt,
+                            COALESCE(SUM(b.billing_amount) FILTER (WHERE b.status IN ('ISSUED','COLLECTED')), 0) AS billed_total,
+                            COUNT(b.*) FILTER (WHERE b.status = 'COLLECTED') AS collected_cnt,
+                            COALESCE(SUM(b.billing_amount) FILTER (WHERE b.status = 'COLLECTED'), 0) AS collected_total,
+                            COUNT(b.*) FILTER (WHERE b.status = 'ISSUED') AS uncollected_cnt,
+                            COALESCE(SUM(b.billing_amount) FILTER (WHERE b.status = 'ISSUED'), 0) AS uncollected_total,
+                            COUNT(b.*) FILTER (WHERE b.status IN ('REQUESTED','APPROVED')) AS pending_cnt,
+                            COALESCE(SUM(b.billing_amount) FILTER (WHERE b.status IN ('REQUESTED','APPROVED')), 0) AS pending_total
+                        FROM billing b
+                        JOIN order_report wr ON wr.id = b.order_report_id
+                        WHERE wr.project_opportunity_id = %s AND b.deleted = false
+                        """,
+                        (opp_id,),
+                    )
+                    bill_row = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_opp_bill")
+                    if bill_row and (bill_row.get("billed_cnt") or bill_row.get("pending_cnt")):
+                        parts: list[str] = []
+                        if bill_row.get("billed_cnt"):
+                            parts.append(f"청구·발행 {bill_row['billed_cnt']}건 합계 {int(bill_row['billed_total']):,}원")
+                        if bill_row.get("collected_cnt"):
+                            parts.append(f"수금 완료 {bill_row['collected_cnt']}건 {int(bill_row['collected_total']):,}원")
+                        if bill_row.get("uncollected_cnt"):
+                            parts.append(f"미수금 {bill_row['uncollected_cnt']}건 {int(bill_row['uncollected_total']):,}원")
+                        if bill_row.get("pending_cnt"):
+                            parts.append(f"결재 대기 청구 {bill_row['pending_cnt']}건 {int(bill_row['pending_total']):,}원")
+                        if parts:
+                            enriched_row["billing_summary"] = "청구·수금: " + " / ".join(parts)
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_opp_bill")
+        except Exception:
+            pass
+
+    # PRB 종합의견 enrichment — "본부장 결재 권고" 같은 키워드가 사업기회 chunk 에 들어가도록
+    if opp_id is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SAVEPOINT enrich_opp_prb")
+                try:
+                    cur.execute(
+                        """
+                        SELECT pr.comprehensive_opinion, pr.decision_status
+                        FROM prb p
+                        JOIN prb_result pr ON pr.prb_id = p.id
+                        WHERE p.project_opportunity_id = %s
+                          AND p.deleted = false
+                        ORDER BY pr.id DESC
+                        LIMIT 1
+                        """,
+                        (opp_id,),
+                    )
+                    prb_row = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_opp_prb")
+                    if prb_row and prb_row.get("comprehensive_opinion"):
+                        decision = prb_row.get("decision_status") or ""
+                        enriched_row["prb_comprehensive_opinion"] = (
+                            f"PRB 결정: {decision}. 종합의견: {prb_row['comprehensive_opinion']}"
+                        )
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_opp_prb")
+        except Exception:
+            pass
+
     document = build_document(config=config, row=enriched_row)
     return [document] if document is not None else []
 
@@ -667,6 +796,39 @@ def build_current_activity_documents(
         actor_label = _format_user_label(_fetch_user_display(conn, actor_id))
         if actor_label:
             enriched_row["actor_name"] = actor_label
+
+    # 참석자 이름 (자사 유저) 조회 — content_fields 에 포함되어 색인 + 답변에 노출됨
+    activity_id = row.get("id")
+    if conn is not None and activity_id is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SAVEPOINT enrich_attendees")
+                try:
+                    cur.execute(
+                        """
+                        SELECT array_agg(DISTINCT u.name ORDER BY u.name) AS names
+                        FROM sales_activity_attendee a
+                        JOIN users u ON u.id = a.user_id
+                        WHERE a.sales_activity_id = %s
+                          AND COALESCE(a.deleted, false) = false
+                        """,
+                        (activity_id,),
+                    )
+                    rs = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_attendees")
+                    # dict_row / tuple row 모두 대응
+                    if isinstance(rs, dict):
+                        attendees = rs.get("names")
+                    elif rs:
+                        attendees = rs[0]
+                    else:
+                        attendees = None
+                    if attendees:
+                        enriched_row["attendee_names"] = "참석자: " + ", ".join(attendees)
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_attendees")
+        except Exception:
+            pass
 
     document = build_document(config=config, row=enriched_row, override_source_type=source_type)
     return [document] if document is not None else []
@@ -812,6 +974,461 @@ def build_current_bid_result_documents(
     return documents
 
 
+_TABLE_TO_WORKFLOW_DOMAIN: dict[str, str] = {
+    "quotation": "QUOTATION",
+    "maintenance_quotation": "MAINTENANCE_QUOTATION",
+    "license": "LICENSE",
+    "customer_support": "CUSTOMER_SUPPORT",
+}
+
+
+def _build_with_workflow_enrich(
+    *,
+    config: "DocumentConfig",
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None,
+) -> list[dict[str, Any]]:
+    """workflow_summary 와 (가능 시) opportunity 컨텍스트만 추가하는 경량 enrichment."""
+    enriched = dict(row)
+    workflow_domain = _TABLE_TO_WORKFLOW_DOMAIN.get(config.table)
+    if conn is not None:
+        # opportunity 컨텍스트 — 가능한 FK 후보 순서대로 시도
+        opp_id = row.get("project_opportunity_id")
+        order_report_id = row.get("order_report_id")
+        project_id = row.get("project_id")
+        summary = None
+        if opp_id is not None:
+            summary = _fetch_opportunity_summary(conn, opp_id)
+        elif order_report_id is not None:
+            summary = _fetch_order_report_opp(conn, order_report_id)
+        elif project_id is not None:
+            summary = _fetch_project_opp_summary(conn, project_id)
+        if summary:
+            if summary.get("opportunity_code"):
+                enriched["opportunity_code"] = summary["opportunity_code"]
+            if summary.get("opportunity_name"):
+                enriched["opportunity_name"] = summary["opportunity_name"]
+            if summary.get("customer_name"):
+                enriched["customer_name"] = summary["customer_name"]
+        # 회사 직접 lookup (customer_support 등 opportunity 없는 케이스)
+        if not enriched.get("customer_name") and row.get("customer_company_id") is not None:
+            customer_name = _fetch_company_name(conn, row.get("customer_company_id"))
+            if customer_name:
+                enriched["customer_name"] = customer_name
+        # workflow_summary
+        if workflow_domain:
+            wf_summary = _fetch_workflow_summary(
+                conn, target_id=row.get("id"), workflow_domain=workflow_domain
+            )
+            if wf_summary:
+                enriched["workflow_summary"] = wf_summary
+    document = build_document(config=config, row=enriched)
+    return [document] if document is not None else []
+
+
+def _fetch_project_opp_summary(
+    conn: psycopg.Connection[Any],
+    project_id: Any,
+) -> dict[str, Any] | None:
+    """project → order_report → opportunity 역추적."""
+    if project_id is None:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT enrich_proj_opp")
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        c.name AS customer_name
+                    FROM project p
+                    LEFT JOIN order_report orr ON orr.id = p.order_report_id
+                    LEFT JOIN project_opportunity o ON o.id = orr.project_opportunity_id
+                    LEFT JOIN company c ON c.id = o.customer_company_id
+                    WHERE p.id = %s
+                    """,
+                    (project_id,),
+                )
+                row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT enrich_proj_opp")
+                return row
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT enrich_proj_opp")
+                return None
+    except Exception:
+        return None
+
+
+def _fetch_company_name(
+    conn: psycopg.Connection[Any],
+    company_id: Any,
+) -> str | None:
+    if company_id is None:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT enrich_company")
+            try:
+                cur.execute("SELECT name FROM company WHERE id = %s", (company_id,))
+                row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT enrich_company")
+                return row.get("name") if row else None
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT enrich_company")
+                return None
+    except Exception:
+        return None
+
+
+def _fetch_workflow_summary(
+    conn: psycopg.Connection[Any],
+    *,
+    target_id: Any,
+    workflow_domain: str,
+) -> str | None:
+    """workflow + workflow_line + users 를 join 해 "상신자/결재선/결재 상태" 요약 텍스트를 만든다."""
+    if target_id is None:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT enrich_wf_summary")
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        wf.id              AS workflow_id,
+                        wf.status          AS workflow_status,
+                        ur.name            AS requester_name,
+                        ur.position        AS requester_position,
+                        dept.headquarters  AS requester_hq,
+                        dept.team          AS requester_team
+                    FROM workflow wf
+                    LEFT JOIN users ur ON ur.id = wf.requester_id
+                    LEFT JOIN department dept ON dept.id = ur.department_id
+                    WHERE wf.target_id = %s
+                      AND wf.workflow_domain = %s
+                      AND COALESCE(wf.deleted, false) = false
+                    ORDER BY wf.id DESC
+                    LIMIT 1
+                    """,
+                    (target_id, workflow_domain),
+                )
+                wf_row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT enrich_wf_summary")
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT enrich_wf_summary")
+                return None
+    except Exception:
+        return None
+
+    if not wf_row or not wf_row.get("workflow_id"):
+        return None
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT enrich_wf_lines")
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        wl.step_order,
+                        wl.status,
+                        ua.name     AS approver_name,
+                        ua.position AS approver_position
+                    FROM workflow_line wl
+                    LEFT JOIN users ua ON ua.id = wl.approver_id
+                    WHERE wl.workflow_id = %s
+                      AND COALESCE(wl.deleted, false) = false
+                    ORDER BY wl.step_order
+                    """,
+                    (wf_row["workflow_id"],),
+                )
+                lines = cur.fetchall() or []
+                cur.execute("RELEASE SAVEPOINT enrich_wf_lines")
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT enrich_wf_lines")
+                lines = []
+    except Exception:
+        lines = []
+
+    requester_label = wf_row.get("requester_name") or "미기재"
+    if wf_row.get("requester_position"):
+        requester_label = f"{requester_label}({wf_row['requester_position']})"
+    dept_parts = [p for p in (wf_row.get("requester_hq"), wf_row.get("requester_team")) if p]
+    if dept_parts:
+        requester_label = f"{requester_label} · {'/'.join(dept_parts)}"
+
+    approver_summary: list[str] = []
+    for line in lines:
+        name = line.get("approver_name") or "미기재"
+        pos = line.get("approver_position") or ""
+        status = line.get("status") or ""
+        status_label = {
+            "APPROVED": "승인", "REJECTED": "반려", "PENDING": "대기",
+            "WAITING": "대기", "SKIPPED": "스킵",
+        }.get(str(status).upper(), status)
+        step = line.get("step_order")
+        piece = f"{step}단계 {name}({pos}) → {status_label}" if pos else f"{step}단계 {name} → {status_label}"
+        approver_summary.append(piece)
+
+    wf_status = wf_row.get("workflow_status") or ""
+    wf_status_label = {
+        "IN_PROGRESS": "결재 진행 중", "APPROVED": "결재 완료",
+        "REJECTED": "반려", "CANCELED": "취소",
+    }.get(str(wf_status).upper(), wf_status)
+
+    summary_lines = [f"상신자: {requester_label}", f"결재 상태: {wf_status_label}"]
+    if approver_summary:
+        summary_lines.append("결재선: " + " / ".join(approver_summary))
+    return "\n".join(summary_lines)
+
+
+def build_current_proposal_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """PROPOSAL 도메인 인덱싱 — opportunity 컨텍스트 + descriptive title."""
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "proposal")
+    enriched = dict(row)
+    if conn is not None:
+        opp_id = row.get("project_opportunity_id")
+        if opp_id is not None:
+            summary = _fetch_opportunity_summary(conn, opp_id)
+            if summary:
+                if summary.get("opportunity_code"):
+                    enriched["opportunity_code"] = summary["opportunity_code"]
+                if summary.get("opportunity_name"):
+                    enriched["opportunity_name"] = summary["opportunity_name"]
+                if summary.get("customer_name"):
+                    enriched["customer_name"] = summary["customer_name"]
+
+    status_label = {
+        "IN_PROGRESS": "작성 중", "COMPLETED": "완료",
+    }.get(str(row.get("status") or "").upper(), row.get("status") or "")
+    enriched["display_title"] = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix=f"제안서·{status_label}" if status_label else "제안서",
+        fallback_code=enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+    document = build_document(config=config, row=enriched)
+    return [document] if document is not None else []
+
+
+def build_current_billing_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """BILLING 도메인 인덱싱 — workflow 상신자/결재선 + opportunity 컨텍스트 enrichment."""
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "billing")
+    enriched = dict(row)
+    billing_id = row.get("id")
+    order_report_id = row.get("order_report_id")
+
+    # order_report → project_opportunity → company
+    if conn is not None and order_report_id is not None:
+        opp_summary = _fetch_order_report_opp(conn, order_report_id)
+        if opp_summary:
+            if opp_summary.get("opportunity_code"):
+                enriched["opportunity_code"] = opp_summary["opportunity_code"]
+            if opp_summary.get("opportunity_name"):
+                enriched["opportunity_name"] = opp_summary["opportunity_name"]
+            if opp_summary.get("customer_name"):
+                enriched["customer_name"] = opp_summary["customer_name"]
+
+    # workflow summary
+    if conn is not None and billing_id is not None:
+        wf_summary = _fetch_workflow_summary(conn, target_id=billing_id, workflow_domain="BILLING")
+        if wf_summary:
+            enriched["workflow_summary"] = wf_summary
+
+    # title
+    amount = row.get("billing_amount")
+    amount_label = f"{int(amount):,}원" if amount else None
+    status_label = {
+        "REQUESTED": "결재요청", "APPROVED": "결재완료", "ISSUED": "발행",
+        "COLLECTED": "수금완료", "CANCELED": "취소",
+    }.get(str(row.get("status") or "").upper(), row.get("status") or "")
+    suffix_pieces = ["청구"]
+    if status_label:
+        suffix_pieces.append(status_label)
+    if amount_label:
+        suffix_pieces.append(amount_label)
+    enriched["display_title"] = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="·".join(suffix_pieces),
+        fallback_code=enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+
+    document = build_document(config=config, row=enriched)
+    return [document] if document is not None else []
+
+
+def build_current_prb_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """PRB 도메인 인덱싱 — prb_result 위험요인/종합의견을 join 해서 PRB chunk 안에 노출."""
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "prb")
+    enriched = dict(row)
+
+    if conn is not None:
+        opp_id = row.get("project_opportunity_id")
+        if opp_id is not None:
+            summary = _fetch_opportunity_summary(conn, opp_id)
+            if summary:
+                enriched.setdefault("opportunity_code", summary.get("opportunity_code"))
+                enriched.setdefault("opportunity_name", summary.get("opportunity_name"))
+                enriched.setdefault("customer_name", summary.get("customer_name"))
+
+        prb_id = row.get("id")
+        if prb_id is not None:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SAVEPOINT enrich_prb_result_join")
+                    try:
+                        cur.execute(
+                            """
+                            SELECT pr.risk_factors,
+                                   pr.comprehensive_opinion,
+                                   pr.status AS decision_status
+                            FROM prb_result pr
+                            WHERE pr.prb_id = %s
+                              AND COALESCE(pr.deleted, false) = false
+                            ORDER BY pr.prb_result_id DESC
+                            LIMIT 1
+                            """,
+                            (prb_id,),
+                        )
+                        pr_row = cur.fetchone()
+                        cur.execute("RELEASE SAVEPOINT enrich_prb_result_join")
+                        if pr_row:
+                            risks = pr_row.get("risk_factors")
+                            if risks:
+                                enriched["risk_factors_text"] = f"위험요인: {risks}"
+                            opinion = pr_row.get("comprehensive_opinion")
+                            decision = pr_row.get("decision_status") or ""
+                            if opinion:
+                                decision_label = {
+                                    "APPROVED": "승인", "REJECTED": "부결", "CONDITIONAL": "조건부",
+                                    "PENDING": "대기", "HOLD": "보류", "DRAFT": "초안", "CANCELED": "취소",
+                                }.get(str(decision).upper(), decision)
+                                prefix = f"PRB 결과 ({decision_label})" if decision_label else "PRB 결과"
+                                enriched["prb_result_opinion_text"] = f"{prefix}: {opinion}"
+                    except Exception:
+                        cur.execute("ROLLBACK TO SAVEPOINT enrich_prb_result_join")
+            except Exception:
+                pass
+
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="PRB",
+        fallback_code=enriched.get("opportunity_code"),
+        raw_id=row.get("prb_code") or row.get("id"),
+    )
+    enriched["display_title"] = nice_title
+
+    document = build_document(config=config, row=enriched)
+    return [document] if document is not None else []
+
+
+def build_current_prb_result_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """PRB Result 도메인 인덱싱 (회의록·종합의견·참석자 의견)."""
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "prb_result")
+    enriched = dict(row)
+    if conn is not None:
+        # PRB → opportunity 역추적
+        prb_id = row.get("prb_id")
+        if prb_id is not None:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SAVEPOINT enrich_prb_result_opp")
+                    try:
+                        cur.execute(
+                            """
+                            SELECT po.opportunity_code, po.opportunity_name, c.name AS customer_name
+                            FROM prb p
+                            JOIN project_opportunity po ON po.id = p.project_opportunity_id
+                            LEFT JOIN company c ON c.id = po.customer_company_id
+                            WHERE p.id = %s
+                            """,
+                            (prb_id,),
+                        )
+                        opp_row = cur.fetchone()
+                        cur.execute("RELEASE SAVEPOINT enrich_prb_result_opp")
+                        if opp_row:
+                            enriched["opportunity_code"] = opp_row.get("opportunity_code")
+                            enriched["opportunity_name"] = opp_row.get("opportunity_name")
+                            enriched["customer_name"] = opp_row.get("customer_name")
+                    except Exception:
+                        cur.execute("ROLLBACK TO SAVEPOINT enrich_prb_result_opp")
+            except Exception:
+                pass
+        # 참석자 의견 join
+        prb_result_id = row.get("prb_result_id") or row.get("id")
+        if prb_result_id is not None:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SAVEPOINT enrich_prb_result_attendees")
+                    try:
+                        cur.execute(
+                            """
+                            SELECT u.name AS attendee_name, ao.opinion, ao.approval_status
+                            FROM prb_result_attendee_opinion ao
+                            LEFT JOIN users u ON u.id = ao.attendee_user_id
+                            WHERE ao.prb_result_id = %s
+                            ORDER BY ao.id
+                            """,
+                            (prb_result_id,),
+                        )
+                        attendee_rows = cur.fetchall() or []
+                        cur.execute("RELEASE SAVEPOINT enrich_prb_result_attendees")
+                        if attendee_rows:
+                            names = [r.get("attendee_name") for r in attendee_rows if r.get("attendee_name")]
+                            enriched["attendee_names"] = ", ".join(names)
+                            lines = []
+                            for r in attendee_rows:
+                                line = f"- {r.get('attendee_name') or '익명'}({r.get('approval_status') or ''}): {r.get('opinion') or ''}"
+                                lines.append(line)
+                            enriched["attendee_opinions_text"] = "참석자 의견:\n" + "\n".join(lines)
+                    except Exception:
+                        cur.execute("ROLLBACK TO SAVEPOINT enrich_prb_result_attendees")
+            except Exception:
+                pass
+
+    decision = (enriched.get("decision_status") or "").upper()
+    decision_label = {
+        "APPROVED": "승인", "REJECTED": "부결", "CONDITIONAL": "조건부",
+        "PENDING": "대기", "HOLD": "보류",
+    }.get(decision, decision)
+    enriched["decision_label"] = decision_label
+
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix=f"PRB결과·{decision_label}" if decision_label else "PRB결과",
+        fallback_code=enriched.get("opportunity_code"),
+        raw_id=row.get("prb_result_id") or row.get("id"),
+    )
+    enriched["display_title"] = nice_title
+
+    document = build_document(
+        config=config,
+        row=enriched,
+        override_title_fields=("display_title", "prb_result_id", "id"),
+    )
+    return [document] if document is not None else []
+
+
 def _fetch_opportunity_summary(
     conn: psycopg.Connection[Any],
     opp_id: Any,
@@ -862,7 +1479,7 @@ def _fetch_order_report_opp(
                         o.opportunity_name,
                         c.name AS customer_name,
                         orr.contract_date,
-                        orr.contract_amount
+                        orr.total_amount AS contract_amount
                     FROM order_report orr
                     LEFT JOIN project_opportunity o ON o.id = orr.project_opportunity_id
                     LEFT JOIN company c ON c.id = o.customer_company_id
@@ -919,6 +1536,9 @@ def build_current_order_report_documents(
         pm_label = _format_user_label(_fetch_user_display(conn, row.get("pm_user_id")))
         if pm_label:
             enriched["pm_name"] = pm_label
+        wf_summary = _fetch_workflow_summary(conn, target_id=row.get("id"), workflow_domain="ORDER_REPORT")
+        if wf_summary:
+            enriched["workflow_summary"] = wf_summary
     nice_title = _build_descriptive_title(
         customer_name=enriched.get("customer_name"),
         opportunity_name=enriched.get("opportunity_name"),
@@ -969,6 +1589,9 @@ def build_current_contract_documents(
         sales_rep_label = _format_user_label(_fetch_user_display(conn, row.get("sales_representative_id")))
         if sales_rep_label:
             enriched["sales_representative_name"] = sales_rep_label
+        wf_summary = _fetch_workflow_summary(conn, target_id=row.get("id"), workflow_domain="CONTRACT")
+        if wf_summary:
+            enriched["workflow_summary"] = wf_summary
     nice_title = _build_descriptive_title(
         customer_name=enriched.get("customer_name"),
         opportunity_name=enriched.get("opportunity_name"),
@@ -1116,6 +1739,7 @@ def build_document(
     source_path = first_string(payload, config.source_path_fields)
     occurred_at = first_value(payload, ("updated_at", "updatedAt", "created_at", "createdAt"))
 
+    import time as _time
     return {
         "sourceType": source_type,
         "sourceId": source_id,
@@ -1125,7 +1749,9 @@ def build_document(
         "content": content,
         "payload": payload,
         "metadata": build_metadata(payload=payload, source_type=source_type, source_table=config.table),
-        "eventId": f"seed:{config.table}:{source_type}:{source_id}",
+        # eventId 에 timestamp 를 포함해 SKIPPED_DUPLICATE 우회. 매 reindex 마다 새 이벤트로 인식되어
+        # 본문이 실제로 변경됐을 경우만 chunks 재생성. 본문이 같으면 그래도 SKIPPED_UNCHANGED.
+        "eventId": f"reindex:{config.table}:{source_type}:{source_id}:{int(_time.time())}",
         "occurredAt": occurred_at,
     }
 
