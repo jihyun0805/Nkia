@@ -3389,6 +3389,37 @@ def fetch_module_quotation_revenue_rows(
         return []
 
 
+def fetch_quarterly_won_trend(years_back: int = 2) -> list[dict[str, Any]]:
+    """최근 N년간 분기별 수주(WIN) 사업기회 + 계약 합계 집계."""
+    db_url = build_backend_database_url()
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        EXTRACT(YEAR FROM wr.contract_date)::int AS year,
+                        EXTRACT(QUARTER FROM wr.contract_date)::int AS quarter,
+                        COUNT(DISTINCT o.id) AS won_count,
+                        COALESCE(SUM(wr.total_amount), 0) AS contract_total
+                    FROM public.project_opportunity o
+                    JOIN public.order_report wr ON wr.project_opportunity_id = o.id
+                    WHERE COALESCE(o.deleted, false) = false
+                      AND COALESCE(wr.deleted, false) = false
+                      AND wr.contract_date IS NOT NULL
+                      AND wr.contract_date >= (CURRENT_DATE - INTERVAL '%(years)s years')
+                    GROUP BY EXTRACT(YEAR FROM wr.contract_date),
+                             EXTRACT(QUARTER FROM wr.contract_date)
+                    ORDER BY year, quarter
+                    """,
+                    {"years": years_back},
+                )
+                return list(cur.fetchall())
+    except psycopg.Error as exc:
+        logger.warning("fetch_quarterly_won_trend DB error: %s", exc)
+        return []
+
+
 def fetch_segment_aggregate(segment: str = "sector") -> dict[str, Any] | None:
     """공공/민간 등 고객사 segment 별 사업기회 + 수주 집계.
 

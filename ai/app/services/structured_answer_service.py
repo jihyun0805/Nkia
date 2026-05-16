@@ -58,6 +58,7 @@ from app.repositories.backend_query_repository import (
     fetch_entity_count,
     fetch_opportunity_list_rows,
     fetch_billing_rows,
+    fetch_quarterly_won_trend,
     fetch_segment_aggregate,
     fetch_won_with_outstanding_billing,
     fetch_people_for_customer,
@@ -143,6 +144,19 @@ def answer_targeted_domain_query(
     risk_focused = is_entity_risk_focus_query(normalized_query, graph_state)
     skip_exact_snapshot = risk_focused and any(c.startswith("AUTO-OPP-") or c.startswith("OPP-") for c in exact_codes)
 
+    # 도메인 키워드 명시된 query 도 generic snapshot 우회 (멀티턴 followup 포함)
+    _early_domain_kws = (
+        "결재선", "상신자", "결재 상태", "결재상태", "결재자",
+        "견적", "유지보수 활동", "유지보수 이력", "유지보수 내역",
+        "회의", "미팅", "활동",
+        "rfp 분석", "rfp 결과", "prb 결과", "prb 의견",
+        "입찰결과", "수주 결과", "라이선스",
+        "고객지원", "청구", "수금", "미수금",
+        "라이프사이클", "결재 진행", "결재 완료", "결재 대기",
+    )
+    if any(kw in normalized_query for kw in _early_domain_kws):
+        skip_exact_snapshot = True
+
     if not skip_exact_snapshot:
         exact_snapshot_response = answer_exact_code_snapshot_query(
             query=query,
@@ -198,6 +212,16 @@ def answer_targeted_domain_query(
         rows = fetch_won_with_outstanding_billing(limit=20)
         if rows:
             return build_won_outstanding_response(query=query, rows=rows, embedder=embedder)
+
+    # 분기별 추이 — "분기별 수주 추이" / "분기 매출 추이" 등
+    is_quarterly_trend = (
+        ("분기" in normalized_query and any(k in normalized_query for k in ("추이", "변화", "흐름", "트렌드")))
+        or ("분기별" in normalized_query and any(k in normalized_query for k in ("수주", "매출", "실적", "계약")))
+    )
+    if is_quarterly_trend:
+        trend = fetch_quarterly_won_trend(years_back=2)
+        if trend:
+            return build_quarterly_trend_response(query=query, trend=trend, embedder=embedder)
 
     # segment 비교 (공공 vs 민간) — sector aggregate
     is_sector_compare = (
@@ -619,6 +643,27 @@ def answer_targeted_domain_query(
                 embedder=embedder,
             )
 
+    # 도메인 키워드가 명시된 질의는 generic opportunity_status 응답으로 떨어뜨리지 않고
+    # discovery 라우팅(LLM)에게 양보 — generic snapshot 은 PRB/견적/유지보수 디테일을 안 담음
+    # status_query check 보다 먼저 평가 (멀티턴 followup query 도 여기서 잡힘)
+    domain_specific_keywords = (
+        "견적", "프로포잘", "제안서",
+        "유지보수 활동", "유지보수 이력", "유지보수 내역", "유지보수",
+        "활동", "회의", "미팅",
+        "결재선", "상신자", "결재 상태", "결재상태", "결재자",
+        "rfp 분석", "rfp 결과",
+        "prb 결과", "prb 의견", "prb 종합",
+        "입찰결과", "입찰 결과", "수주 결과", "수주결과",
+        "라이선스", "라이센스",
+        "고객지원", "고객 지원",
+        "청구", "수금", "미수금", "세금계산서",
+        "라이프사이클", "전체 라이프사이클",
+        "결재 진행", "결재 완료", "결재 대기",
+        "위험요인", "리스크", "이슈",
+    )
+    if any(kw in normalized_query for kw in domain_specific_keywords):
+        return None  # discovery 가 PRB/QUOTATION/CUSTOMER_SUPPORT chunk 활용해서 답변
+
     if is_status_query(normalized_query):
         snapshot = fetch_opportunity_snapshot(opportunity_code=opportunity_code)
         if snapshot is not None:
@@ -628,25 +673,6 @@ def answer_targeted_domain_query(
                 limit=limit,
                 embedder=embedder,
             )
-
-    # 도메인 키워드가 명시된 질의는 generic opportunity_status 응답으로 떨어뜨리지 않고
-    # discovery 라우팅(LLM)에게 양보 — generic snapshot 은 PRB/견적/유지보수 디테일을 안 담음
-    domain_specific_keywords = (
-        "견적", "프로포잘", "제안서",
-        "유지보수 활동", "유지보수 이력", "유지보수 내역", "유지보수",
-        "활동", "회의", "미팅",
-        "결재선", "상신자", "결재 상태", "결재상태",
-        "rfp 분석", "rfp 결과",
-        "prb 결과", "prb 의견", "prb 종합",
-        "입찰결과", "입찰 결과", "수주 결과", "수주결과",
-        "라이선스", "라이센스",
-        "고객지원", "고객 지원",
-        "청구", "수금", "미수금", "세금계산서",
-        "라이프사이클", "전체 라이프사이클",
-        "결재 진행", "결재 완료", "결재 대기",
-    )
-    if any(kw in normalized_query for kw in domain_specific_keywords):
-        return None  # discovery 가 PRB/QUOTATION/CUSTOMER_SUPPORT chunk 활용해서 답변
 
     snapshot = fetch_opportunity_snapshot(opportunity_code=opportunity_code)
     if snapshot is not None:
@@ -3453,6 +3479,82 @@ def build_opportunity_disambiguation_response(
     lines.append("")
     lines.append("사업코드나 사업명을 포함해서 다시 질문해 주세요.")
     evidences = build_status_list_evidences(rows=rows)
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
+def build_quarterly_trend_response(
+    *,
+    query: str,
+    trend: list[dict[str, Any]],
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """분기별 수주 추이 응답."""
+    if not trend:
+        return AnswerResponse(
+            query=query,
+            answer="최근 2년간 수주 데이터가 충분하지 않아 추이를 보여드릴 수 없어요.",
+            embeddingModel=embedder.config.model_name,
+            chatModel="structured-rule-engine",
+            excludedSourceTypes=[],
+            evidences=[],
+        )
+
+    # 분기별 출력
+    lines = ["분기별 수주 추이는 다음과 같아요.\n"]
+    lines.append("| 분기      | 수주 건수 | 계약 합계      |")
+    lines.append("|-----------|-----------|----------------|")
+    prev_count = None
+    for row in trend:
+        year = int(row.get("year") or 0)
+        quarter = int(row.get("quarter") or 0)
+        count = int(row.get("won_count") or 0)
+        amount = int(row.get("contract_total") or 0)
+        direction = ""
+        if prev_count is not None:
+            if count > prev_count:
+                direction = " ↑"
+            elif count < prev_count:
+                direction = " ↓"
+        lines.append(f"| {year}년 {quarter}Q | {count:>9,}{direction} | {format_number(amount):>14} |")
+        prev_count = count
+
+    # 추세 한 줄
+    if len(trend) >= 2:
+        first = int(trend[0].get("won_count") or 0)
+        last = int(trend[-1].get("won_count") or 0)
+        if last > first:
+            trend_msg = "전반적으로 증가 추세입니다."
+        elif last < first:
+            trend_msg = "전반적으로 감소 추세입니다."
+        else:
+            trend_msg = "전반적으로 안정 추세입니다."
+        lines.append(f"\n→ {trend_msg}")
+    lines.append("\n다음에 볼 것: 특정 분기 사업기회를 보려면 '2026년 1분기 수주 사업' 으로 질문하세요.")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="ORDER_REPORT",
+            sourceId=f"{int(row['year'])}-Q{int(row['quarter'])}",
+            title=f"{int(row['year'])}년 {int(row['quarter'])}분기 수주",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["quarterly_aggregate"],
+            content=f"won={row['won_count']} total={row['contract_total']}",
+            metadata={"aggregateType": "quarterly"},
+        )
+        for row in trend[-4:]
+    ]
     return AnswerResponse(
         query=query,
         answer="\n".join(lines),

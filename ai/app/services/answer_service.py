@@ -1123,12 +1123,20 @@ _SMALL_TALK_THANKS = (
 _SMALL_TALK_FAREWELL = ("끝", "잘 가", "잘가", "bye", "끝났", "끝낼", "종료", "이만")
 _SMALL_TALK_WHO = ("너 누구", "당신은 누구", "넌 누구", "what are you", "who are you", "너는 누구")
 _SMALL_TALK_HELP = ("도와줘", "도움말", "도움", "help", "사용법", "어떻게 써", "어떻게 쓰")
+_SMALL_TALK_META = (
+    "어떤 정보", "어떤 데이터", "어떤 종류 데이터", "사용 가능한 도메인",
+    "도메인 목록", "data 종류", "정보 종류", "기능 목록", "할 수 있는",
+)
+_SMALL_TALK_INDEX = (
+    "색인된 데이터 기준일", "데이터 기준일", "데이터 업데이트", "마지막 업데이트",
+    "최신 색인",
+)
 
 
 def _answer_small_talk(*, query: str, embedder: EmbeddingModel, thread_id: str | None) -> AnswerResponse | None:
     """짧은 인사/감사/잡담 query 에 자연스러운 친근한 답변. None 이면 일반 처리."""
     text = (query or "").strip()
-    if not text or len(text) > 30:
+    if not text or len(text) > 50:
         return None
     low = text.lower()
     compact = "".join(low.split())
@@ -1169,6 +1177,26 @@ def _answer_small_talk(*, query: str, embedder: EmbeddingModel, thread_id: str |
             "✏️  수정: \"AUTO-OPP-2026-101 담당자 김철수로 수정해줘\"\n"
             "📝 작성: \"신한은행 RFP·견적 기반 PRB 보고서 작성해줘\"\n\n"
             "사업명·고객사명·사업코드를 명시하면 더 정확합니다."
+        )
+    elif has_any(_SMALL_TALK_META):
+        msg = (
+            "다음 도메인 데이터를 다룹니다:\n\n"
+            "🏢 **회사·관계자**: 고객사, 협력사(파트너), 담당자\n"
+            "📋 **영업기회**: 사업기회 (PROJECT_OPPORTUNITY), 영업활동, 사후영업\n"
+            "📑 **입찰**: RFP·RFP 분석, PRB·PRB 결과, 제안서, 입찰 결과(수주/실주)\n"
+            "📝 **수주·계약**: 수주보고서, 계약서, 라이선스\n"
+            "🛠️  **사업 수행**: 프로젝트, 유지보수, 유지보수 견적, 고객지원\n"
+            "💰 **청구·수금**: 청구, 세금계산서\n"
+            "📂 **첨부**: 사업기회별 첨부파일, 결재 메모\n\n"
+            "조회·집계·분석·수정·초안 작성 모두 가능합니다."
+        )
+    elif has_any(_SMALL_TALK_INDEX):
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        msg = (
+            f"색인된 데이터는 실시간으로 백엔드 DB 와 동기화됩니다 (오늘: {today}).\n\n"
+            "사업기회·견적·청구 등 운영 데이터 변경 시 챗봇 응답에 즉시 반영돼요.\n"
+            "RFP·계약 첨부파일 등은 업로드/색인 작업 후 약 1-2분 내 반영됩니다."
         )
 
     if msg is None:
