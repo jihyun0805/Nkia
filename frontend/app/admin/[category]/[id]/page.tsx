@@ -77,7 +77,7 @@ export default function AdminDetailPage() {
         { label: "전화번호", value: data.phone || "-" },
         { label: "부서", value: data.departmentName },
         { label: "상태", value: data.status },
-        { label: "역할", value: data.roles?.join(", ") || "-" },
+        { label: "권한", value: data.roles?.join(", ") || "-" },
         { label: "생성일", value: data.createdAt ? format(new Date(data.createdAt), "yyyy-MM-dd HH:mm") : "-" },
       ]
     }
