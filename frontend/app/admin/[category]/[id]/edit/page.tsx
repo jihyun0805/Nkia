@@ -149,7 +149,7 @@ export default function AdminEditPage() {
         })
       }
       toast.success(`${label} 수정이 완료되었습니다.`)
-      router.push(`/admin/${category}/${id}`)
+      router.push(category === "departments" ? "/admin" : `/admin/${category}/${id}`)
     } catch (e: any) {
       console.error(e)
       toast.error(`${label} 수정에 실패했습니다.`)
@@ -174,9 +174,13 @@ export default function AdminEditPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link href={`/admin/${category}/${id}`}>{id}</Link>
-                  </BreadcrumbLink>
+                  {category === "departments" ? (
+                    <span className="text-muted-foreground">{id}</span>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <Link href={`/admin/${category}/${id}`}>{id}</Link>
+                    </BreadcrumbLink>
+                  )}
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
@@ -277,7 +281,7 @@ export default function AdminEditPage() {
 
                     <div className="flex justify-end gap-2 border-t pt-6">
                       <Button variant="outline" asChild>
-                        <Link href={`/admin/${category}/${id}`}>취소</Link>
+                        <Link href={category === "departments" ? "/admin" : `/admin/${category}/${id}`}>취소</Link>
                       </Button>
                       <Button onClick={handleSubmit} disabled={submitting}>
                         {submitting ? "수정 중..." : "수정"}
