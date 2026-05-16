@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-DraftActionType = Literal["create_draft"]
+DraftActionType = Literal["create_draft", "edit_field", "navigate"]
 
 
 class DocumentDraftSpec(BaseModel):
@@ -76,14 +76,46 @@ class DraftPayload(BaseModel):
     )
 
 
+class EditFieldPayload(BaseModel):
+    """기존 entity 의 특정 필드 수정 액션 payload.
+
+    FE는 entity_route 로 navigate 한 뒤 field_updates 를 폼에 prefill 한다.
+    """
+
+    entity_type: str = Field(..., description="대상 도메인 (예: opportunity, contract, billing, license)")
+    entity_id: str = Field(..., description="대상 entity 코드 (예: AUTO-OPP-2026-101)")
+    entity_route: str = Field(..., description="FE 라우팅 path (예: /finding/opportunities/AUTO-OPP-2026-101?tab=opportunities)")
+    field_updates: dict[str, Any] = Field(
+        default_factory=dict,
+        description="폼 필드명 → 변경할 값 매핑 (예: {'sales_representative_name': '김철수'})",
+    )
+    summary: str | None = Field(default=None, description="사용자에게 보여줄 한 두 문장 요약")
+    references: list[str] = Field(
+        default_factory=list,
+        description="이 액션의 근거 evidence sourceId 목록",
+    )
+
+
+class NavigatePayload(BaseModel):
+    """단순 페이지 이동 액션 payload."""
+
+    href: str = Field(..., description="FE 라우팅 path")
+    entity_type: str | None = Field(default=None, description="대상 도메인")
+    entity_id: str | None = Field(default=None, description="대상 entity 코드")
+    summary: str | None = Field(default=None, description="이동 사유 한 줄 설명")
+
+
 class DraftAction(BaseModel):
     """챗봇 응답에 부착되는 액션. BE는 이를 그대로 FE에 패스스루한다."""
 
     type: DraftActionType = "create_draft"
     label: str = Field(..., description="응답 본문/버튼에 노출할 라벨")
     button_label: str = Field(..., description="UI 버튼 텍스트")
-    document_type: str = Field(..., description="DocumentDraftSpec.type")
-    payload: DraftPayload
+    document_type: str = Field(
+        default="",
+        description="DocumentDraftSpec.type (create_draft 시 필수). edit_field/navigate 시 비워둘 수 있음.",
+    )
+    payload: DraftPayload | EditFieldPayload | NavigatePayload | None = None
     evidence_ids: list[str] = Field(
         default_factory=list,
         description="DraftPayload.references 와 동일하나, 응답 일관성을 위해 함께 노출",

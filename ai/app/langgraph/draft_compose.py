@@ -4,8 +4,11 @@ import re
 from typing import Any
 
 from app.langgraph.state import GraphState
+from app.langgraph.edit_intent import EditFieldIntent, detect_edit_field_intent
+from app.models.draft import DraftAction, EditFieldPayload
 from app.models.draft_registry import has_draft_reference_intent
 from app.models.user_context import UserContext
+from app.repositories.backend_query_repository import resolve_primary_opportunity
 from app.schemas.answer import AnswerEvidence, AnswerResponse
 from app.services.draft_service import compose_draft_action
 
@@ -79,6 +82,83 @@ def attach_draft_action_to_response(
 
     response.actions = [*response.actions, action]
     return response
+
+
+# === edit_field action ===
+def attach_edit_field_action_to_response(
+    *,
+    response: AnswerResponse,
+    graph_state: GraphState | None,
+) -> AnswerResponse:
+    """사용자가 '...수정해줘' 같은 발화를 하면 edit_field action 을 첨부.
+
+    answerStatus 가 clarification 이어도 edit_intent 가 명확하면 action 첨부 시도.
+    """
+    query = response.query or ""
+    intent = detect_edit_field_intent(query)
+    if intent is None:
+        return response
+
+    entity_code = intent.entity_code
+    if entity_code is None:
+        # entity_hint → opportunity_code 해석 (opportunity 만 우선 지원)
+        if intent.entity_type == "opportunity" and intent.entity_hint:
+            try:
+                entity = resolve_primary_opportunity(
+                    query_terms=[intent.entity_hint],
+                    exact_codes=[],
+                )
+            except Exception:
+                entity = None
+            if entity:
+                entity_code = entity.get("opportunity_code")
+        if entity_code is None:
+            return response  # entity 미식별 → 액션 첨부 안함
+
+    entity_route = _build_entity_route(intent.entity_type, entity_code)
+    if not entity_route:
+        return response
+
+    field_updates = {intent.field_name: intent.new_value}
+    payload = EditFieldPayload(
+        entity_type=intent.entity_type,
+        entity_id=entity_code,
+        entity_route=entity_route,
+        field_updates=field_updates,
+        summary=(
+            f"{entity_code} 의 {intent.field_label}을(를) '{intent.new_value}' 로 변경하시려면 "
+            f"버튼을 눌러 해당 페이지로 이동 후 적용하세요."
+        ),
+        references=[ev.sourceId for ev in (response.evidences or [])[:5]],
+    )
+    action = DraftAction(
+        type="edit_field",
+        label=f"{intent.field_label} 수정",
+        button_label=f"{entity_code} 화면 열어 {intent.field_label} 수정",
+        document_type=intent.entity_type,
+        payload=payload,
+        evidence_ids=payload.references,
+        confidence=intent.confidence,
+        reasons=["explicit_edit_intent", f"matched_verb:{intent.matched_verbs[0]}"],
+    )
+    response.actions = [*response.actions, action]
+    return response
+
+
+_EDIT_ENTITY_ROUTE_TEMPLATES: dict[str, str] = {
+    "opportunity": "/finding/opportunities/{id}?tab=opportunities",
+    "contract": "/contract/contracts/{id}?tab=contracts",
+    "billing": "/project/billingAndCollection/{id}?tab=billingAndCollection",
+    "license": "/contract/licenses/{id}?tab=licenses",
+    "project": "/project/results/{id}?tab=results",
+}
+
+
+def _build_entity_route(entity_type: str, entity_id: str) -> str | None:
+    template = _EDIT_ENTITY_ROUTE_TEMPLATES.get(entity_type)
+    if not template:
+        return None
+    return template.format(id=entity_id)
 
 
 def _parse_years_back(query: str) -> int | None:
