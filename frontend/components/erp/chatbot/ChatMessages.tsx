@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { LoaderCircle, Sparkles } from "lucide-react"
 import type { ChatbotEvidence } from "@/lib/chatbot-api"
 import type { ChatMessage, ChatSession } from "./types"
+import { ChatActions } from "./ChatActions"
 import { ChatEvidence } from "./ChatEvidence"
 
 type ChatMessagesProps = {
@@ -119,15 +120,18 @@ export function ChatMessages({
             )}
 
             {message.role === "assistant" && !message.isStreaming && (
-              <ChatEvidence
-                message={message}
-                openEvidenceMessageIds={openEvidenceMessageIds}
-                openEvidenceItemKeys={openEvidenceItemKeys}
-                onToggleEvidence={onToggleEvidence}
-                onToggleEvidenceItem={onToggleEvidenceItem}
-                onUseAsFollowUp={onUseAsFollowUp}
-                getEvidenceReference={getEvidenceReference}
-              />
+              <>
+                <ChatActions actions={message.actions} />
+                <ChatEvidence
+                  message={message}
+                  openEvidenceMessageIds={openEvidenceMessageIds}
+                  openEvidenceItemKeys={openEvidenceItemKeys}
+                  onToggleEvidence={onToggleEvidence}
+                  onToggleEvidenceItem={onToggleEvidenceItem}
+                  onUseAsFollowUp={onUseAsFollowUp}
+                  getEvidenceReference={getEvidenceReference}
+                />
+              </>
             )}
           </div>
         </div>

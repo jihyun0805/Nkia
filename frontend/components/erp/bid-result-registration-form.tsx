@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "@/hooks/use-toast"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -270,6 +272,32 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
   const [form, setForm] = useState<FormState>(emptyForm)
   const [validationMessage, setValidationMessage] = useState("")
   const [existingResult, setExistingResult] = useState<BidResultRecord | null>(null)
+
+  // 챗봇 create_draft (bid_result) prefill
+  const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!hasChatbotPrefill || prefillAppliedRef.current) return
+    if (bidResultId || proposalId) return
+    prefillAppliedRef.current = true
+    const slot = chatbotPrefill
+    setForm((cur) => ({
+      ...cur,
+      customerCode: slot.customer_name || cur.customerCode,  // 코드가 따로 없으면 name 입력
+      opportunityCode: slot.opportunity_code || cur.opportunityCode,
+      bidDate: slot.submission_deadline || cur.bidDate,
+      result: (slot.result_status as BidOutcome) || cur.result,
+      amount: slot.result_amount || cur.amount,
+      reason: slot.lessons_learned || slot.result_summary || cur.reason,
+    }))
+    const applied = Object.keys(slot).length
+    if (applied > 0) {
+      toast({ title: "챗봇이 입찰결과 초안 prefill", description: `${applied}개 슬롯 반영 — 확인 후 저장하세요.` })
+    }
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill])
 
   useEffect(() => {
     setProposals([])

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,7 @@ import {
 } from "@/lib/finding-data"
 import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { X } from "lucide-react"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { createBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
@@ -125,6 +126,74 @@ function ActivityCategoryNewPageContent() {
     dueDate: "",
     content: "",
   })
+
+  // 챗봇 create_draft (sales_activity / quotation) prefill — category 별로 다르게 매핑
+  const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!hasChatbotPrefill || prefillAppliedRef.current) return
+    if (linkedRequestId) return  // 기존 request 연결된 경우 prefill 비활성
+    prefillAppliedRef.current = true
+    const slot = chatbotPrefill
+
+    // 공통 entity 슬롯 (모든 카테고리)
+    if (slot.customer_name) setActivityCustomer(slot.customer_name)
+    if (slot.customer_code) setActivityCustomerCode(slot.customer_code)
+    if (slot.opportunity_code) setActivityOpportunityCode(slot.opportunity_code)
+    if (slot.opportunity_name) setActivityOpportunity(slot.opportunity_name)
+    if (slot.requested_by) setActivityRequester(slot.requested_by)
+    if (slot.registered_by) setActivityRegistrant(slot.registered_by)
+
+    if (category === "activities") {
+      setActivityForm((prev) => ({
+        ...prev,
+        date: slot.activity_date || prev.date,
+        activityMode: slot.activity_form || prev.activityMode,
+        activityContent: slot.activity_content || prev.activityContent,
+        location: slot.activity_location || prev.location,
+        attendees: slot.participants || prev.attendees,
+        content: slot.summary || prev.content,
+        issues: slot.issues || prev.issues,
+        nextAction: slot.next_action || prev.nextAction,
+      }))
+    } else if (category === "quotations") {
+      setQuotationForm((prev) => ({
+        ...prev,
+        customer: slot.customer_name || prev.customer,
+        customerCode: slot.customer_code || prev.customerCode,
+        opportunityCode: slot.opportunity_code || prev.opportunityCode,
+        opportunity: slot.opportunity_name || prev.opportunity,
+        date: slot.quote_date || prev.date,
+        proposalType: (slot.proposal_type as typeof prev.proposalType) || prev.proposalType,
+        productGroup: (slot.product_family as typeof prev.productGroup) || prev.productGroup,
+        salesRep: slot.sales_representative || prev.salesRep,
+      }))
+    } else {
+      // 활동요청 (form)
+      setForm((prev) => ({
+        ...prev,
+        customerCode: slot.customer_code || prev.customerCode,
+        customer: slot.customer_name || prev.customer,
+        opportunityCode: slot.opportunity_code || prev.opportunityCode,
+        opportunity: slot.opportunity_name || prev.opportunity,
+        requester: slot.requested_by || prev.requester,
+        content: slot.summary || prev.content,
+      }))
+    }
+
+    const applied = Object.keys(slot).length
+    if (applied > 0) {
+      const labelByCategory: Record<string, string> = {
+        activities: "활동",
+        quotations: "견적서",
+      }
+      const label = labelByCategory[category] || "활동요청"
+      toast({ title: `챗봇이 ${label} 초안 prefill`, description: `${applied}개 슬롯 반영 — 확인 후 저장하세요.` })
+    }
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill, category, linkedRequestId])
 
   useEffect(() => {
     let cancelled = false

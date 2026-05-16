@@ -35,7 +35,7 @@ COPY scripts ./scripts
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-RUN chmod +x ./scripts/start-ai.sh ./db/migrate_existing_db.sh
+RUN chmod +x ./scripts/start-ai.sh ./db/migrate_existing_db.sh ./db/apply_ai_index_notify_trigger.sh
 
 EXPOSE 8000
 
