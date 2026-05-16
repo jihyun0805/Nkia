@@ -160,7 +160,7 @@ public class ProjectService {
      */
     public ProjectHistoryDetailResponse getProjectHistoryDetail(Long historyId) {
         ProjectHistory history = projectHistoryRepository.findById(historyId)
-                .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_HISTORY_NOT_FOUND)); // TODO: Create specific error code if needed
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_HISTORY_NOT_FOUND));
 
         return ProjectHistoryDetailResponse.from(history);
     }
