@@ -58,6 +58,8 @@ from app.repositories.backend_query_repository import (
     fetch_entity_count,
     fetch_opportunity_list_rows,
     fetch_billing_rows,
+    fetch_segment_aggregate,
+    fetch_won_with_outstanding_billing,
     fetch_people_for_customer,
     fetch_attendees_for_opportunity,
     fetch_opportunity_people_meta,
@@ -186,6 +188,28 @@ def answer_targeted_domain_query(
     )
     if people_response is not None:
         return people_response
+
+    # cross-domain: 수주 후 미수금 — order_report ⨝ billing 명시적 join
+    is_won_outstanding_query = (
+        any(kw in normalized_query for kw in ("수주 완료", "수주완료", "수주된", "수주한", "수주"))
+        and any(kw in normalized_query for kw in ("미수금", "미수 금", "수금 안", "수금안 ", "회수 안", "회수안 "))
+    )
+    if is_won_outstanding_query:
+        rows = fetch_won_with_outstanding_billing(limit=20)
+        if rows:
+            return build_won_outstanding_response(query=query, rows=rows, embedder=embedder)
+
+    # segment 비교 (공공 vs 민간) — sector aggregate
+    is_sector_compare = (
+        ("공공" in normalized_query and "민간" in normalized_query)
+        or "공공 vs 민간" in normalized_query
+        or "민간 vs 공공" in normalized_query
+        or ("공공" in normalized_query and ("수주" in normalized_query or "비율" in normalized_query) and any(c in normalized_query for c in ("비교", "vs", "차이")))
+    )
+    if is_sector_compare:
+        agg = fetch_segment_aggregate(segment="sector")
+        if agg and agg.get("by_sector"):
+            return build_segment_compare_response(query=query, agg=agg, embedder=embedder)
 
     if is_billing_query(normalized_query):
         billing_customer = extract_customer_name_for_billing(query=query)
@@ -2090,7 +2114,15 @@ def build_detail_line(*, intent: StructuredQueryIntent, row: dict[str, Any]) -> 
 def build_empty_structured_response(*, query: str, embedder: EmbeddingModel) -> AnswerResponse:
     return AnswerResponse(
         query=query,
-        answer="조건에 맞는 정형 데이터가 없어 답변을 구성하지 못했습니다.",
+        answer=(
+            "조건에 맞는 정형 데이터를 바로 집계하지 못했어요. 😅\n\n"
+            "이렇게 시도해 보세요:\n"
+            "- 사업명/고객사명/사업 코드를 함께 적으면 더 정확합니다 (예: 'AUTO-OPP-2026-101')\n"
+            "- 기간을 명시하면 좋습니다 (예: '이번 달', '2026년 상반기')\n"
+            "- 분석/조언 질문은 '신한은행 PRB 위험요인 알려줘' 처럼 구체 도메인을 함께 적어주세요\n"
+            "- 액션이 필요하면 'X 담당자 Y로 수정해줘' 또는 'X 사업 PRB 보고서 작성해줘' 처럼 명령형으로\n\n"
+            "다시 질문해 주시면 도와드릴게요. 🙌"
+        ),
         embeddingModel=embedder.config.model_name,
         chatModel="structured-rule-engine",
         answerStatus="insufficient_evidence",
@@ -3416,6 +3448,144 @@ def build_opportunity_disambiguation_response(
     )
 
 
+def build_segment_compare_response(
+    *,
+    query: str,
+    agg: dict[str, Any],
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """공공 vs 민간 segment 비교 응답."""
+    rows = agg.get("by_sector") or []
+    by_sector: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        sector = (row.get("sector") or "").upper()
+        if sector in ("PUBLIC", "PRIVATE"):
+            by_sector[sector] = row
+    public = by_sector.get("PUBLIC", {})
+    private = by_sector.get("PRIVATE", {})
+
+    pub_total = int(public.get("contract_total") or 0)
+    pri_total = int(private.get("contract_total") or 0)
+    total = pub_total + pri_total
+    pub_pct = f"{pub_total*100/total:.1f}%" if total else "—"
+    pri_pct = f"{pri_total*100/total:.1f}%" if total else "—"
+
+    pub_opp = int(public.get("opportunity_count") or 0)
+    pri_opp = int(private.get("opportunity_count") or 0)
+    pub_won = int(public.get("won_count") or 0)
+    pri_won = int(private.get("won_count") or 0)
+    pub_orders = int(public.get("order_count") or 0)
+    pri_orders = int(private.get("order_count") or 0)
+
+    lines = [
+        f"결론: 공공 부문 계약 합계 {format_number(pub_total)} ({pub_pct}) vs "
+        f"민간 부문 {format_number(pri_total)} ({pri_pct}).",
+        "",
+        "── 부문별 상세 비교 ──",
+        f"| 지표        | 공공 (PUBLIC) | 민간 (PRIVATE) |",
+        f"|-------------|---------------|----------------|",
+        f"| 사업기회 수 | {pub_opp:>13,} | {pri_opp:>13,} |",
+        f"| 수주(완료/진행) 사업기회 | {pub_won:>4,} | {pri_won:>4,} |",
+        f"| 수주보고서 건수 | {pub_orders:>11,} | {pri_orders:>11,} |",
+        f"| 계약 합계 금액 | {format_number(pub_total):>14} | {format_number(pri_total):>14} |",
+        f"| 계약 합계 비율 | {pub_pct:>13} | {pri_pct:>13} |",
+        "",
+    ]
+    if pub_total > pri_total:
+        lines.append("→ 공공 부문 계약 규모가 더 큽니다.")
+    elif pri_total > pub_total:
+        lines.append("→ 민간 부문 계약 규모가 더 큽니다.")
+    else:
+        lines.append("→ 두 부문 계약 규모가 비슷합니다.")
+    lines.append("\n다음에 볼 것: 특정 부문 사업기회 목록을 보려면 '공공 고객사 사업기회' 등으로 질문하세요.")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="COMPANY",
+            sourceId=f"sector:{sector}",
+            title=f"{sector} 부문 집계",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["sector_aggregate"],
+            content=f"opportunity={row.get('opportunity_count')} won={row.get('won_count')} contract_total={row.get('contract_total')}",
+            metadata={"snapshotBased": True, "aggregateType": "sector"},
+        )
+        for sector, row in by_sector.items()
+    ]
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
+def build_won_outstanding_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """수주 후 미수금 사업기회 응답."""
+    total_outstanding = sum(int(r.get("outstanding_total") or 0) for r in rows)
+    total_count = len(rows)
+    total_billing_count = sum(int(r.get("outstanding_count") or 0) for r in rows)
+    lines: list[str] = []
+    lines.append(f"결론: 수주 후 미수금이 남은 사업기회는 총 {total_count}건, 미수금 합계 {format_number(total_outstanding)}입니다.")
+    lines.append("")
+    lines.append(f"왜냐하면: 청구 중 status='ISSUED'(발행 완료, 수금 전) 건이 {total_billing_count}건 존재합니다.")
+    lines.append("")
+    lines.append("── 사업별 미수금 (큰 순) ──")
+    for r in rows[:10]:
+        code = r.get("opportunity_code") or "-"
+        name = r.get("opportunity_name") or ""
+        cust = r.get("customer_name") or ""
+        outstanding = int(r.get("outstanding_total") or 0)
+        count = int(r.get("outstanding_count") or 0)
+        collected = int(r.get("collected_total") or 0)
+        line = (
+            f"• [{code}] {name} ({cust})\n"
+            f"  미수금 {format_number(outstanding)} ({count}건) / 수금 완료 {format_number(collected)}"
+        )
+        lines.append(line)
+    if total_count > 10:
+        lines.append(f"\n... 외 {total_count - 10}건")
+    lines.append("")
+    lines.append(f"다음에 볼 것: 각 사업의 청구 페이지에서 발행일·결재선 확인 후 수금 독촉.")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="PROJECT_OPPORTUNITY",
+            sourceId=str(r.get("opportunity_code") or ""),
+            title=f"{r.get('opportunity_name') or '사업'} 미수금",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["structured_join"],
+            content=f"미수금 {r.get('outstanding_total')}원 / {r.get('outstanding_count')}건",
+            metadata={"snapshotBased": True, "joinType": "won_outstanding"},
+        )
+        for r in rows[:5]
+    ]
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
 def build_entity_count_response(
     *,
     query: str,
@@ -3434,6 +3604,12 @@ def build_entity_count_response(
         "prb": "PRB",
         "bid": "입찰 결과",
         "proposal": "제안서",
+        "license": "라이선스",
+        "order_report": "수주보고서",
+        "billing": "청구",
+        "user": "사용자",
+        "company_customer": "고객사",
+        "company_partner": "협력사",
     }
     label = label_map.get(entity_type, entity_type)
     return AnswerResponse(
@@ -4869,6 +5045,16 @@ _COUNT_ENTITY_MAP: dict[str, str] = {
     "prb": "prb",
     "입찰": "bid",
     "제안서": "proposal",
+    "라이선스": "license",
+    "라이센스": "license",
+    "수주보고서": "order_report",
+    "수주 보고서": "order_report",
+    "청구": "billing",
+    "고객사": "company_customer",
+    "협력사": "company_partner",
+    "파트너": "company_partner",
+    "사용자": "user",
+    "유저": "user",
 }
 
 

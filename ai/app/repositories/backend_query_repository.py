@@ -3160,18 +3160,38 @@ _ENTITY_COUNT_TABLE_MAP: dict[str, str] = {
     "prb":         "public.prb",
     "bid":         "public.bid_result",
     "proposal":    "public.proposal",
+    "license":     "public.license",
+    "order_report": "public.order_report",
+    "billing":     "public.billing",
+    "user":        "public.users",
+}
+
+# entity_type → (SQL WHERE 추가절). 특정 segment 만 count 할 때 사용.
+_ENTITY_COUNT_EXTRA_WHERE: dict[str, str] = {
+    "company_customer": "AND company_type = 'CUSTOMER'",
+    "company_partner": "AND company_type = 'PARTNER'",
 }
 
 
 def fetch_entity_count(entity_type: str) -> int | None:
     db_url = build_backend_database_url()
-    table = _ENTITY_COUNT_TABLE_MAP.get(entity_type)
+    # company_customer/company_partner 는 company 테이블 + extra where
+    if entity_type in {"company_customer", "company_partner"}:
+        table = "public.company"
+        extra_where = _ENTITY_COUNT_EXTRA_WHERE.get(entity_type, "")
+    else:
+        table = _ENTITY_COUNT_TABLE_MAP.get(entity_type)
+        extra_where = ""
     if not table:
         return None
     try:
         with psycopg.connect(db_url, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
-                cur.execute(f"SELECT COUNT(*) AS cnt FROM {table} WHERE deleted = false")
+                # users 테이블은 deleted 필드가 없을 수 있음 → 우선 시도 후 fallback
+                if entity_type == "user":
+                    cur.execute(f"SELECT COUNT(*) AS cnt FROM {table}")
+                else:
+                    cur.execute(f"SELECT COUNT(*) AS cnt FROM {table} WHERE deleted = false {extra_where}")
                 row = cur.fetchone()
                 return int(row["cnt"]) if row else None
     except psycopg.errors.UndefinedTable:
@@ -3366,6 +3386,83 @@ def fetch_module_quotation_revenue_rows(
                 return list(cur.fetchall())
     except psycopg.Error as exc:
         logger.warning("fetch_module_quotation_revenue_rows DB error: %s", exc)
+        return []
+
+
+def fetch_segment_aggregate(segment: str = "sector") -> dict[str, Any] | None:
+    """공공/민간 등 고객사 segment 별 사업기회 + 수주 집계.
+
+    segment: 'sector' (PUBLIC/PRIVATE) — company.sector 기준
+    """
+    if segment != "sector":
+        return None
+    db_url = build_backend_database_url()
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        c.sector AS sector,
+                        COUNT(DISTINCT o.id) AS opportunity_count,
+                        COUNT(DISTINCT wr.id) AS order_count,
+                        COALESCE(SUM(wr.total_amount), 0) AS contract_total,
+                        COUNT(DISTINCT CASE WHEN o.stage IN ('CONTRACT','PROJECT','MAINTENANCE','POST_SALES') THEN o.id END) AS won_count
+                    FROM public.project_opportunity o
+                    JOIN public.company c ON c.id = o.customer_company_id
+                    LEFT JOIN public.order_report wr ON wr.project_opportunity_id = o.id AND COALESCE(wr.deleted, false) = false
+                    WHERE COALESCE(o.deleted, false) = false
+                    GROUP BY c.sector
+                    ORDER BY c.sector
+                    """
+                )
+                return {"by_sector": list(cur.fetchall())}
+    except psycopg.Error as exc:
+        logger.warning("fetch_segment_aggregate DB error: %s", exc)
+        return None
+
+
+def fetch_won_with_outstanding_billing(limit: int = 50) -> list[dict[str, Any]]:
+    """수주 완료된 사업기회 중 미수금(ISSUED)이 있는 건 — cross-domain join.
+
+    각 사업기회별 미수금 합계 + 청구 건수 + 수주 일자 반환.
+    """
+    db_url = build_backend_database_url()
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        o.opportunity_code,
+                        o.opportunity_name,
+                        c.name AS customer_name,
+                        wr.contract_date,
+                        wr.total_amount AS contract_amount,
+                        COUNT(b.*) FILTER (WHERE b.status = 'ISSUED') AS outstanding_count,
+                        COALESCE(SUM(b.billing_amount) FILTER (WHERE b.status = 'ISSUED'), 0) AS outstanding_total,
+                        COALESCE(SUM(b.billing_amount) FILTER (WHERE b.status = 'COLLECTED'), 0) AS collected_total,
+                        COUNT(b.*) AS billing_total_count
+                    FROM public.project_opportunity o
+                    JOIN public.company c ON c.id = o.customer_company_id
+                    JOIN public.order_report wr ON wr.project_opportunity_id = o.id
+                    JOIN public.billing b ON b.order_report_id = wr.id
+                    WHERE COALESCE(o.deleted, false) = false
+                      AND COALESCE(wr.deleted, false) = false
+                      AND COALESCE(b.deleted, false) = false
+                    GROUP BY o.opportunity_code, o.opportunity_name, c.name,
+                             wr.contract_date, wr.total_amount
+                    HAVING COUNT(b.*) FILTER (WHERE b.status = 'ISSUED') > 0
+                    ORDER BY outstanding_total DESC NULLS LAST
+                    LIMIT %(limit)s
+                    """,
+                    {"limit": limit},
+                )
+                return list(cur.fetchall())
+    except psycopg.errors.UndefinedTable:
+        return []
+    except psycopg.Error as exc:
+        logger.warning("fetch_won_with_outstanding_billing DB error: %s", exc)
         return []
 
 
