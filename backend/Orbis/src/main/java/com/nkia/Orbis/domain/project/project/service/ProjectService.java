@@ -10,11 +10,15 @@ import com.nkia.Orbis.domain.contract.orderreport.entity.OrderReportType;
 import com.nkia.Orbis.domain.contract.orderreport.repository.OrderReportRepository;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCombinedUpdateRequest;
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
-import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectCreateResponse;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectHistoryDetailResponse;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectHistoryListResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.entity.ProjectCode;
+import com.nkia.Orbis.domain.project.project.entity.ProjectHistory;
+import com.nkia.Orbis.domain.project.project.repository.ProjectHistoryRepository;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
@@ -34,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ProjectService {
     private final ProjectRepository projectRepository;
+    private final ProjectHistoryRepository projectHistoryRepository;
     private final OrderReportRepository orderReportRepository;
     private final UserRepository userRepository;
     private final UploadFileRepository uploadFileRepository;
@@ -47,6 +52,8 @@ public class ProjectService {
 
         Project project = createProject(report);
         Project savedProject = projectRepository.save(project);
+
+        projectHistoryRepository.save(ProjectHistory.createSnapshot(savedProject, null));
 
         return ProjectCreateResponse.from(savedProject);
     }
@@ -112,6 +119,12 @@ public class ProjectService {
         User salesRep = getUser(request.getSalesRepresentativeId());
 
         project.updateProjectInfo(request.getStartDate(), request.getEndDate(), manager, salesRep);
+
+        ProjectResultReport latestReport = project.getResultReports().stream()
+                .max(Comparator.comparing(ProjectResultReport::getCreatedAt))
+                .orElse(null);
+                
+        projectHistoryRepository.save(ProjectHistory.createSnapshot(project, latestReport));
     }
 
     /**
@@ -129,6 +142,27 @@ public class ProjectService {
     public Project getProject(Long projectId) {
         return projectRepository.findById(projectId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
+    }
+
+    /**
+     * 특정 사업의 이력(히스토리) 목록 조회
+     */
+    public List<ProjectHistoryListResponse> getProjectHistories(Long projectId) {
+        List<ProjectHistory> histories = projectHistoryRepository.findByOriginalProjectIdOrderByCreatedAtDesc(projectId);
+        
+        return histories.stream()
+                .map(ProjectHistoryListResponse::from)
+                .toList();
+    }
+
+    /**
+     * 특정 사업 이력(히스토리) 상세 조회
+     */
+    public ProjectHistoryDetailResponse getProjectHistoryDetail(Long historyId) {
+        ProjectHistory history = projectHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_HISTORY_NOT_FOUND));
+
+        return ProjectHistoryDetailResponse.from(history);
     }
 
     /**

@@ -3,6 +3,7 @@ package com.nkia.Orbis.domain.maintenance.maintenancequotation.service;
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.MaintenanceErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
@@ -18,12 +19,15 @@ import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.Maint
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceAmountReason;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenancePackageCost;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotationCover;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceServiceInfo;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ServiceCategory;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ServiceItem;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.repository.MaintenanceQuotationRepository;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
+import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,6 +43,7 @@ public class MaintenanceQuotationService {
     private final ProductModuleRepository productModuleRepository;
     private final WorkflowRepository workflowRepository;
     private final WorkflowService workflowService;
+    private final UserRepository userRepository;
 
     /**
      * 유지보수 견적서 등록
@@ -49,6 +54,9 @@ public class MaintenanceQuotationService {
         MaintenanceQuotation quotation = createQuotationEntity(dto, project);
 
         mapSubEntities(dto, quotation);
+
+        MaintenanceQuotationCover cover = createCoverEntity(quotation, dto.getCoverInfo());
+        quotation.setCover(cover);
 
         MaintenanceQuotation saved = quotationRepository.save(quotation);
         return MaintenanceQuotationCreateResponse.from(saved);
@@ -63,6 +71,9 @@ public class MaintenanceQuotationService {
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
 
         updateBasicInfo(quotation, dto);
+        
+        updateCoverEntity(quotation, dto.getCoverInfo());
+
         refreshChildEntities(quotation, dto);
 
         return MaintenanceQuotationDetailResponse.from(quotation, getWorkflowId(quotation.getId()));
@@ -104,6 +115,17 @@ public class MaintenanceQuotationService {
                 .build();
     }
 
+    private MaintenanceQuotationCover createCoverEntity(MaintenanceQuotation quotation, MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
+        User salesRep = getUser(coverInfo.getSalesRepresentativeId());
+
+        return MaintenanceQuotationCover.builder()
+                .quotation(quotation)
+                .proposalType(coverInfo.getProposalType())
+                .productFamily(coverInfo.getProductFamily())
+                .salesRepresentative(salesRep)
+                .build();
+    }
+
     private void mapSubEntities(MaintenanceQuotationCreateRequest dto, MaintenanceQuotation quotation) {
         dto.getPackageCosts().forEach(p ->
                 quotation.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
@@ -118,6 +140,11 @@ public class MaintenanceQuotationService {
     private Project findProject(Long projectId) {
         return projectRepository.findById(projectId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
+    }
+
+    private User getUser(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 
     /**
@@ -164,6 +191,17 @@ public class MaintenanceQuotationService {
                 dto.getStartDate(), dto.getEndDate(),
                 dto.getMonthlySupplyPrice(), dto.getTotalQuotationAmount(),
                 dto.getSpecialNotes());
+    }
+
+    private void updateCoverEntity(MaintenanceQuotation quotation, MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
+        if (quotation.getCover() != null && coverInfo != null) {
+            User salesRep = getUser(coverInfo.getSalesRepresentativeId());
+            quotation.getCover().updateInfo(
+                    coverInfo.getProposalType(),
+                    coverInfo.getProductFamily(),
+                    salesRep
+            );
+        }
     }
 
     private void refreshChildEntities(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {

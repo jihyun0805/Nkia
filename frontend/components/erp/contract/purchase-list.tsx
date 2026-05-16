@@ -5,20 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-
-// 매입계약 임시 타입 유지
-// TODO: 백엔드 API 연동 후 실제 타입으로 대체
-export interface PurchaseContractItem {
-  id: string | number;
-  supplier: string;
-  name: string;
-  contractDate: string;
-  amount: string | number;
-  status: string;
-}
+import type { PurchaseResponse } from "@/lib/api/contract-api";
 
 interface PurchaseListProps {
-  purchases: PurchaseContractItem[];
+  purchases: PurchaseResponse[];
   isLoading?: boolean;
 }
 
@@ -46,28 +36,21 @@ export function PurchaseList({ purchases, isLoading }: PurchaseListProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>공급사</TableHead>
-                <TableHead>매입건명</TableHead>
-                <TableHead>계약일</TableHead>
-                <TableHead className="text-right">매입금액</TableHead>
-                <TableHead>상태</TableHead>
+                <TableHead>매입내용</TableHead>
+                <TableHead>사업명</TableHead>
+                <TableHead className="text-right">수량</TableHead>
+                <TableHead className="text-right">단가</TableHead>
+                <TableHead className="text-right">합계금액</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {purchases.map((purchase) => (
                 <TableRow key={purchase.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/purchases/${purchase.id}`)}>
-                  <TableCell>{purchase.supplier}</TableCell>
-                  <TableCell className="max-w-[200px] truncate font-medium">{purchase.name}</TableCell>
-                  <TableCell>{purchase.contractDate}</TableCell>
-                  <TableCell className="text-right font-medium">₩{parseInt(String(purchase.amount).replace(/,/g, "")).toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={purchase.status === "계약완료" ? "default" : "secondary"}
-                      className={purchase.status === "계약완료" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"}
-                    >
-                      {purchase.status}
-                    </Badge>
-                  </TableCell>
+                  <TableCell className="font-medium">{purchase.content}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">{purchase.projectOpportunityName || "-"}</TableCell>
+                  <TableCell className="text-right">{purchase.quantity.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">₩{purchase.price.toLocaleString()}</TableCell>
+                  <TableCell className="text-right font-medium text-blue-600">₩{purchase.totalPrice.toLocaleString()}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

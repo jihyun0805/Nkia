@@ -160,6 +160,24 @@ def should_try_targeted_domain(
     }:
         return True
 
+    # billing 도메인은 target_hint 가 없을 수 있어 키워드 fallback
+    normalized = normalization.normalized_query if normalization is not None else ""
+    if any(kw in normalized for kw in (
+        "청구", "수금", "미수금", "세금계산서", "발행 금액", "발행금액",
+        "결재 안 된 청구", "결재안 된 청구", "결재 안된 청구",
+    )):
+        return True
+
+    # 사람 메타도 target_hint 없는 경우 — billing 동일 fallback
+    if any(kw in normalized for kw in ("담당자", "영업대표", "참석자", "참가자", "pm 누구", "결재선", "결재자")):
+        return True
+
+    # 위험요인/리스크/이슈 — focus=RISK 가 감지되었지만 target_hint=general 인 경우 fallback
+    if getattr(graph_state, "focus", None) == "RISK":
+        return True
+    if any(kw in normalized for kw in ("위험요인", "리스크", "이슈 ", " 이슈", "장애 원인", "사고 원인", "고객 불만")):
+        return True
+
     return False
 
 

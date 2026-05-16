@@ -12,9 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { UserPlus, Users, Shield, Settings, Search, Loader2, PackagePlus, Plus, Building } from "lucide-react";
+import { UserPlus, Users, Shield, Settings, Search, Loader2, PackagePlus, Plus, Building, Pencil, Trash2 } from "lucide-react";
 import { adminApi, UserResponse, RoleListResponse, WorkflowTemplateListResponse, ProductModuleResponse, DepartmentResponse } from "@/lib/api/admin-api";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -117,6 +118,30 @@ export default function AdminPage() {
     fetchData();
   }, []);
 
+  const handleDeleteDepartment = async (id: string) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    try {
+      await adminApi.deleteDepartment(id);
+      setDepartments((prev) => prev.filter((d) => d.id !== id));
+      toast.success("부서가 삭제되었습니다.");
+    } catch (e) {
+      console.error(e);
+      toast.error("부서 삭제에 실패했습니다.");
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    try {
+      await adminApi.deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      toast.success("제품이 삭제되었습니다.");
+    } catch (e) {
+      console.error(e);
+      toast.error("제품 삭제에 실패했습니다.");
+    }
+  };
+
   // 검색 필터링 로직
   const filteredUsers = users.filter((u) => !searchTerm || [u.employeeNumber, u.name, u.position, u.email, u.department, u.role].some((v) => v?.toLowerCase().includes(searchTerm.toLowerCase())));
 
@@ -193,9 +218,6 @@ export default function AdminPage() {
                           <TableHead>직급</TableHead>
                           <TableHead>이메일</TableHead>
                           <TableHead>부서</TableHead>
-                          <TableHead>역할</TableHead>
-                          <TableHead>프리세일즈</TableHead>
-                          <TableHead>권한</TableHead>
                           <TableHead>상태</TableHead>
                           <TableHead>등록일</TableHead>
                         </TableRow>
@@ -208,9 +230,6 @@ export default function AdminPage() {
                             <TableCell>{user.position}</TableCell>
                             <TableCell>{user.email}</TableCell>
                             <TableCell>{user.department}</TableCell>
-                            <TableCell>{user.role}</TableCell>
-                            <TableCell>{user.isPresales ? "지정" : "-"}</TableCell>
-                            <TableCell>{user.permissions && user.permissions.length > 0 ? user.permissions.join(", ") : "-"}</TableCell>
                             <TableCell>{user.status}</TableCell>
                             <TableCell>{user.lastLogin}</TableCell>
                           </TableRow>
@@ -305,11 +324,11 @@ export default function AdminPage() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">제품 목록</CardTitle>
+                    <CardTitle className="text-lg">제품목록</CardTitle>
                     <Button asChild>
                       <Link href="/admin/products/new">
                         <Plus className="mr-2 w-4 h-4" />
-                        제품 등록
+                        제품등록
                       </Link>
                     </Button>
                   </div>
@@ -325,23 +344,34 @@ export default function AdminPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>제품 클래스</TableHead>
-                          <TableHead>제품 그룹</TableHead>
+                          <TableHead>제품분류</TableHead>
+                          <TableHead>제품군</TableHead>
                           <TableHead>제품명</TableHead>
                           <TableHead>라이선스 기준</TableHead>
-                          <TableHead>단위</TableHead>
-                          <TableHead className="text-right">단가 (원)</TableHead>
+                          <TableHead>라이선스 단위</TableHead>
+                          <TableHead className="text-right">단가(천 원)</TableHead>
+                          <TableHead className="w-[100px] text-right">수정 / 삭제</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredProducts.map((product) => (
-                          <TableRow key={product.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/products/${product.id}`)}>
+                          <TableRow key={product.id}>
                             <TableCell>{product.productClass}</TableCell>
                             <TableCell>{product.productGroup}</TableCell>
                             <TableCell className="font-medium">{product.productName}</TableCell>
                             <TableCell>{product.licenseStandard}</TableCell>
                             <TableCell>{product.licenseUnit}</TableCell>
                             <TableCell className="text-right">{(product.unitPrice || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteProduct(product.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -355,11 +385,11 @@ export default function AdminPage() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">부서 목록</CardTitle>
+                    <CardTitle className="text-lg">부서목록</CardTitle>
                     <Button asChild>
                       <Link href="/admin/departments/new">
                         <Plus className="mr-2 w-4 h-4" />
-                        부서 등록
+                        부서등록
                       </Link>
                     </Button>
                   </div>
@@ -375,17 +405,28 @@ export default function AdminPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>ID</TableHead>
-                          <TableHead>본부 (Headquarters)</TableHead>
-                          <TableHead>팀 (Team)</TableHead>
+                          <TableHead>순번</TableHead>
+                          <TableHead>본부</TableHead>
+                          <TableHead>팀</TableHead>
+                          <TableHead className="w-[100px] text-right">수정 / 삭제</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredDepartments.map((dept) => (
-                          <TableRow key={dept.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/departments/${dept.id}`)}>
+                          <TableRow key={dept.id}>
                             <TableCell>{dept.id}</TableCell>
                             <TableCell>{dept.headquarters}</TableCell>
                             <TableCell>{dept.team}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/departments/${dept.id}/edit`)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteDepartment(dept.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

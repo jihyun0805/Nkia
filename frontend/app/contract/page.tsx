@@ -17,7 +17,7 @@ import { FreeMaintenanceForm } from "@/components/erp/contract/free-maintenance-
 import { PaidMaintenanceForm } from "@/components/erp/contract/paid-maintenance-form";
 import { LicenseRequestForm } from "@/components/erp/contract/license-request-form";
 import { PurchaseList } from "@/components/erp/contract/purchase-list";
-import { orderReportApi, contractApi, licenseApi, type OrderReportListResponse, type ContractListResponse, type LicenseListResponse } from "@/lib/api/contract-api";
+import { orderReportApi, contractApi, licenseApi, purchaseApi, type OrderReportListResponse, type ContractListResponse, type LicenseListResponse, type PurchaseResponse } from "@/lib/api/contract-api";
 import { toast } from "sonner";
 
 type ActiveTab = "orders" | "contracts" | "purchases" | "licenses" | "maintenance";
@@ -36,11 +36,13 @@ export default function ContractPage() {
   const [orderReports, setOrderReports] = useState<OrderReportListResponse[]>([]);
   const [contracts, setContracts] = useState<ContractListResponse[]>([]);
   const [licenses, setLicenses] = useState<LicenseListResponse[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseResponse[]>([]);
 
   // 로딩 상태
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [loadingContracts, setLoadingContracts] = useState(false);
   const [loadingLicenses, setLoadingLicenses] = useState(false);
+  const [loadingPurchases, setLoadingPurchases] = useState(false);
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -88,12 +90,26 @@ export default function ContractPage() {
     }
   }, []);
 
+  // 매입계약 목록 조회
+  const fetchPurchases = useCallback(async () => {
+    setLoadingPurchases(true);
+    try {
+      const res = await purchaseApi.getPurchases();
+      setPurchases(res.data ?? []);
+    } catch {
+      toast.error("매입계약 목록을 불러오지 못했습니다.");
+    } finally {
+      setLoadingPurchases(false);
+    }
+  }, []);
+
   // 탭 변경 시 해당 데이터 로드
   useEffect(() => {
     if (activeTab === "orders") fetchOrderReports();
     else if (activeTab === "contracts") fetchContracts();
     else if (activeTab === "licenses") fetchLicenses();
-  }, [activeTab, fetchOrderReports, fetchContracts, fetchLicenses]);
+    else if (activeTab === "purchases") fetchPurchases();
+  }, [activeTab, fetchOrderReports, fetchContracts, fetchLicenses, fetchPurchases]);
 
   // 등록 완료 후 목록 새로고침
   const handleSuccess = () => {
@@ -101,6 +117,7 @@ export default function ContractPage() {
     if (activeTab === "orders") fetchOrderReports();
     else if (activeTab === "contracts") fetchContracts();
     else if (activeTab === "licenses") fetchLicenses();
+    else if (activeTab === "purchases") fetchPurchases();
   };
 
   // 검색 필터링
@@ -113,10 +130,12 @@ export default function ContractPage() {
 
   const filteredLicenses = licenses.filter((i) => !search || [i.customerCompanyName, i.productName, i.licenseType, i.licenseStatus].join(" ").toLowerCase().includes(search));
 
+  const filteredPurchases = purchases.filter((i) => !search || [i.content, i.projectOpportunityName || ""].join(" ").toLowerCase().includes(search));
+
   const registerLabel = {
     orders: "수주보고 등록",
     contracts: "계약 등록",
-    purchases: "매입계약 등록",
+    purchases: "",
     licenses: "라이선스 발행 요청",
     maintenance: "",
   }[activeTab];
@@ -162,7 +181,8 @@ export default function ContractPage() {
               <div className="flex items-center gap-2">
                 {activeTab !== "maintenance" && <PageSearchForm value={searchTerm} onChange={setSearchTerm} onSearch={() => setAppliedSearchTerm(searchTerm)} />}
                 {!isCreating ? (
-                  activeTab !== "maintenance" && (
+                  activeTab !== "maintenance" &&
+                  activeTab !== "purchases" && (
                     <Button onClick={() => setIsCreating(true)}>
                       <Plus className="mr-2 w-4 h-4" />
                       {registerLabel}
@@ -186,8 +206,7 @@ export default function ContractPage() {
                   <ContractList contracts={filteredContracts} isLoading={loadingContracts} />
                 </TabsContent>
                 <TabsContent value="purchases">
-                  {/* 매입계약은 별도 API가 없으므로 빈 상태 처리 */}
-                  <PurchaseList purchases={[]} />
+                  <PurchaseList purchases={filteredPurchases} isLoading={loadingPurchases} />
                 </TabsContent>
                 <TabsContent value="licenses">
                   <LicenseList licenses={filteredLicenses} isLoading={loadingLicenses} />

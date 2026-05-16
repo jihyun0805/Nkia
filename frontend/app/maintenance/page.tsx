@@ -45,7 +45,7 @@ export default function MaintenancePage() {
     const fetchData = async () => {
       try {
         const response = await getFreeMaintenanceList();
-        if (response.success && response.data) {
+        if ((response.success === true || (response as any).result === "SUCCESS") && response.data) {
           const mappedData = response.data.map((item, index) => {
             const today = new Date();
             const endDate = item.endDate ? new Date(item.endDate) : null;
@@ -72,7 +72,7 @@ export default function MaintenancePage() {
         }
 
         const paidResponse = await getPaidMaintenanceList();
-        if (paidResponse.success && paidResponse.data) {
+        if ((paidResponse.success === true || (paidResponse as any).result === "SUCCESS") && paidResponse.data) {
           const mappedPaidData = paidResponse.data.map((item, index) => {
             const today = new Date();
             const endDate = item.endDate ? new Date(item.endDate) : null;
@@ -100,7 +100,7 @@ export default function MaintenancePage() {
         }
 
         const supportResponse = await getSupportHistoryList();
-        if (supportResponse.success && supportResponse.data) {
+        if ((supportResponse.success === true || (supportResponse as any).result === "SUCCESS") && supportResponse.data) {
           const mappedSupportData = supportResponse.data.map((item) => {
             return {
               id: item.id?.toString() || "N/A",
