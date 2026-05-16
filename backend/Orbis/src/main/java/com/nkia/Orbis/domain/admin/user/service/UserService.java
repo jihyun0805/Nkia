@@ -12,6 +12,7 @@ import com.nkia.Orbis.domain.admin.user.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
 import com.nkia.Orbis.domain.admin.user.dto.response.MyInfoResponse;
 import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
+import com.nkia.Orbis.domain.admin.user.dto.response.UserSearchResponse;
 import com.nkia.Orbis.domain.admin.user.entity.Status;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
@@ -148,5 +149,13 @@ public class UserService {
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
         return MyInfoResponse.from(user);
+    }
+
+    @Transactional
+    public List<UserSearchResponse> getUsersForSearch() {
+        return userRepository.findAll()
+                .stream()
+                .map(UserSearchResponse::from)
+                .toList();
     }
 }
