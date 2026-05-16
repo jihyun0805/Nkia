@@ -215,6 +215,8 @@ function baseCustomizingRows() {
 }
 
 const customizingItemOptions = ["인건비 (특급)", "인건비 (고급)", "인건비 (중급)", "인건비 (초급)", "제 경 비", "기 술 료"] as const
+const fixedExecutiveName = "이선우"
+const fixedContactName = "진원경"
 
 function normalizeCustomizingRows(rows: QuotationFormState["customizingRows"] | undefined) {
   return Array.from({ length: 6 }, (_, index) => {
@@ -458,6 +460,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
   const inlineLineInputClass = "h-auto min-h-0 appearance-none rounded-none border-0 bg-transparent px-0 py-0 align-baseline shadow-none focus-visible:ring-0"
   const lineRowTextClass = "text-[18px] font-bold leading-none"
   const refRowTextClass = "text-[17px] font-normal leading-none"
+  const supplierLineTextClass = "text-[14px] font-normal leading-7"
   const singlePageEstimatedHeight =
     SINGLE_PAGE_STATIC_HEIGHT +
     SINGLE_PAGE_ACTION_HEIGHT +
@@ -603,24 +606,20 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 {readOnly ? <div>{templateText.addressLine1}</div> : <Input value={templateText.addressLine1} readOnly className={`${inputClass} text-[16px]`} />}
                 {readOnly ? <div>{templateText.addressLine2}</div> : <Input value={templateText.addressLine2} readOnly className={`${inputClass} text-[16px]`} />}
                 <div className="flex items-center gap-2">
-                  {readOnly ? <span>{templateText.ceoLabel}</span> : <Input value={templateText.ceoLabel} readOnly className={`${inputClass} w-[90px] text-[16px]`} />}
-                  {readOnly ? <span>{templateText.ceoName || "-"}</span> : <Input value={templateText.ceoName} readOnly className={`${inputClass} w-[100px] text-[16px]`} placeholder="대표이사 입력" />}
+                  {readOnly ? <span className={supplierLineTextClass}>{templateText.ceoLabel}</span> : <Input value={templateText.ceoLabel} readOnly className={`${inputClass} w-[90px] text-[16px]`} />}
+                  <span className={supplierLineTextClass}>{fixedExecutiveName}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {readOnly ? <span>{templateText.telLabel}</span> : <Input value={templateText.telLabel} readOnly className={`${inputClass} w-[60px] text-[16px]`} />}
-                  {readOnly ? <span>{templateText.tel}</span> : <Input value={templateText.tel} readOnly className={`${inputClass} w-[140px] text-[16px]`} />}
+                  {readOnly ? <span className={supplierLineTextClass}>{templateText.telLabel}</span> : <Input value={templateText.telLabel} readOnly className={`${inputClass} w-[60px] text-[16px]`} />}
+                  {readOnly ? <span className={supplierLineTextClass}>{templateText.tel}</span> : <Input value={templateText.tel} readOnly className={`${inputClass} w-[140px] text-[16px]`} />}
                 </div>
                 <div className="flex items-center gap-2">
-                  {readOnly ? <span>{templateText.faxLabel}</span> : <Input value={templateText.faxLabel} readOnly className={`${inputClass} w-[60px] text-[16px]`} />}
-                  {readOnly ? <span>{templateText.fax}</span> : <Input value={templateText.fax} readOnly className={`${inputClass} w-[140px] text-[16px]`} />}
+                  {readOnly ? <span className={supplierLineTextClass}>{templateText.faxLabel}</span> : <Input value={templateText.faxLabel} readOnly className={`${inputClass} w-[60px] text-[16px]`} />}
+                  {readOnly ? <span className={supplierLineTextClass}>{templateText.fax}</span> : <Input value={templateText.fax} readOnly className={`${inputClass} w-[140px] text-[16px]`} />}
                 </div>
                 <div className="flex items-center gap-2">
-                  {readOnly ? <span>{templateText.contactLabel}</span> : <Input value={templateText.contactLabel} readOnly className={`${inputClass} w-[80px] text-[16px]`} />}
-                  {readOnly ? (
-                    <span>{form.contactName || "-"}</span>
-                  ) : (
-                    <Input value={form.contactName ?? ""} readOnly className={`${inputClass} w-[110px] text-[16px]`} placeholder="담당자 입력" />
-                  )}
+                  {readOnly ? <span className={supplierLineTextClass}>{templateText.contactLabel}</span> : <Input value={templateText.contactLabel} readOnly className={`${inputClass} w-[80px] text-[16px]`} />}
+                  <span className={supplierLineTextClass}>{fixedContactName}</span>
                 </div>
               </div>
               <div className="mt-2 flex justify-end">
@@ -760,7 +759,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   <th className="border-b border-r border-black py-2">공급단가</th>
                   <th className="border-b border-r border-black py-2">공급가 합계</th>
                   <th className="border-b border-r border-black py-2">할인율</th>
-                  <th className="border-b py-2">비고</th>
+                  <th className="border-b border-black py-2">비고</th>
                 </tr>
               </thead>
               <tbody>
@@ -822,7 +821,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   </Fragment>
                 ))}
                 <tr className="bg-slate-200 font-bold">
-                  <td colSpan={4} className="border-r border-t border-black py-2 text-center">
+                  <td colSpan={4} className="border-t border-black py-2 text-center">
                     1. Solution Package 비용 합계
                   </td>
                   <td className="border-r border-t border-black py-2" />
@@ -890,7 +889,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   <th className="border-b border-r border-black py-2">세 부 항 목</th>
                   <th className="border-b border-r border-black py-2">노임단가(원)</th>
                   <th className="border-b border-r border-black py-2">Man / Month</th>
-                  <th className="border-b py-2">공급 금액</th>
+                  <th className="border-b border-black py-2">공급 금액</th>
                 </tr>
               </thead>
               <tbody>
@@ -1038,7 +1037,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 <th className="border-b border-r border-black py-2">공급단가</th>
                 <th className="border-b border-r border-black py-2">공급가 합계</th>
                 <th className="border-b border-r border-black py-2">할인율</th>
-                <th className="border-b py-2">비고</th>
+                <th className="border-b border-black py-2">비고</th>
               </tr>
             </thead>
             <tbody>
@@ -1102,7 +1101,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
               )})}
               {chunkIndex === solutionChunks.length - 1 && (
               <tr className="bg-slate-200 font-bold">
-                <td colSpan={4} className="border-r border-t border-black py-2 text-center">
+                <td colSpan={4} className="border-t border-black py-2 text-center">
                   1. Solution Package 비용 합계
                 </td>
                 <td className="border-r border-t border-black py-2" />
@@ -1175,7 +1174,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   <th className="border-b border-r border-black py-2">세 부 항 목</th>
                   <th className="border-b border-r border-black py-2">노임단가(원)</th>
                   <th className="border-b border-r border-black py-2">Man / Month</th>
-                  <th className="border-b py-2">공급 금액</th>
+                  <th className="border-b border-black py-2">공급 금액</th>
                 </tr>
               </thead>
               <tbody>
