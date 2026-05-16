@@ -390,6 +390,14 @@ export default function ActivityEditPage() {
       return
     }
 
+    if (!requestForm.customer) {
+      toast({
+        title: "활동 요청 필수값 확인",
+        description: "고객사, 요청 유형, 담당자, 활동일, 요청 내용을 입력해주십시오.",
+      })
+      return
+    }
+
     if (!canEditRequest) return
 
     const updated = updateActivityRequest(id, {
@@ -495,10 +503,10 @@ export default function ActivityEditPage() {
                       { label: "요청 유형 *", key: "type" },
                       { label: "요청자", key: "requester" },
                       { label: "담당자 *", key: "receiver" },
-                      { label: "고객사", key: "customer" },
+                      { label: "고객사 *", key: "customer" },
                       { label: "사업기회", key: "opportunity" },
-                      { label: "활동일", key: "dueDate", type: "date" },
-                      { label: "요청 내용", key: "content" },
+                      { label: "활동일 *", key: "dueDate", type: "date" },
+                      { label: "요청 내용 *", key: "content" },
                     ].map((field) => (
                       <div
                         key={field.key}

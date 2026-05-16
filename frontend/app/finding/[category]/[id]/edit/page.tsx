@@ -8,7 +8,7 @@ import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
-import { UserPicker } from "@/components/erp/user-picker"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { useBackendUsers } from "@/lib/use-backend-users"
 import { Button } from "@/components/ui/button"
 import {
@@ -60,7 +60,6 @@ type ContactDraft = {
   email: string
   mobilePhone: string
   landlinePhone: string
-  fax: string
   duty: string
   memo: string
   businessCardImage: string
@@ -78,7 +77,6 @@ function createEmptyContactDraft(): ContactDraft {
     email: "",
     mobilePhone: "",
     landlinePhone: "",
-    fax: "",
     duty: "",
     memo: "",
     businessCardImage: "",
@@ -96,7 +94,6 @@ function toContactDrafts(partner: PartnerRecord | null) {
         email: partner.email ?? "",
         mobilePhone: partner.mobilePhone ?? partner.phone ?? "",
         landlinePhone: partner.landlinePhone ?? "",
-        fax: partner.fax ?? "",
         duty: partner.duty ?? "",
         memo: partner.memo ?? "",
         businessCardImage: "",
@@ -109,7 +106,6 @@ function toContactDrafts(partner: PartnerRecord | null) {
     email: contact.email ?? "",
     mobilePhone: contact.mobilePhone ?? "",
     landlinePhone: contact.landlinePhone ?? "",
-    fax: contact.fax ?? "",
     duty: contact.duty ?? "",
     memo: contact.memo ?? "",
     businessCardImage: contact.businessCardImage ?? "",
@@ -117,7 +113,7 @@ function toContactDrafts(partner: PartnerRecord | null) {
 }
 
 function hasContactValue(contact: ContactDraft) {
-  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.fax, contact.duty, contact.memo].some(
+  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.duty, contact.memo].some(
     (value) => value.trim(),
   )
 }
@@ -301,7 +297,7 @@ export default function FindingEditPage() {
   const [customerGroup, setCustomerGroup] = useState("민간")
   const [salesRep, setSalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
   const [salesRepUserId, setSalesRepUserId] = useState<string | null>(null)
-  const editPageUsers = useBackendUsers()
+  const backendUsers = useBackendUsers()
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -377,6 +373,7 @@ export default function FindingEditPage() {
             setExpectedAmount(opportunity.expectedAmount === "-" ? "" : opportunity.expectedAmount)
             setCustomerGroup(opportunity.category)
             setSalesRep(opportunity.salesRep)
+            setSalesRepUserId(opportunity.salesRepresentativeId ?? null)
             setBusinessType(opportunity.product)
             setModuleName(opportunity.module === "-" ? "" : opportunity.module)
             setIssue(opportunity.issue === "-" ? "" : opportunity.issue)
@@ -414,6 +411,16 @@ export default function FindingEditPage() {
       cancelled = true
     }
   }, [category, id])
+
+  useEffect(() => {
+    if (category !== "opportunities") return
+    if (salesRepUserId || !salesRep.trim() || backendUsers.length === 0) return
+
+    const matchedSalesRep = backendUsers.find((user) => user.id === salesRep.trim() || user.name === salesRep.trim())
+    if (matchedSalesRep) {
+      setSalesRepUserId(matchedSalesRep.id)
+    }
+  }, [backendUsers, category, salesRep, salesRepUserId])
 
   const label = getFindingCategoryLabel(category)
   const tab = searchParams.get("tab") ?? category
@@ -506,7 +513,6 @@ export default function FindingEditPage() {
         email: keepExistingValue(currentContact.email, result.email),
         mobilePhone: keepExistingValue(currentContact.mobilePhone, result.mobile),
         landlinePhone: keepExistingValue(currentContact.landlinePhone, result.phone),
-        fax: keepExistingValue(currentContact.fax, result.fax),
         duty: keepExistingValue(currentContact.duty, result.role),
         businessCardImage,
       }
@@ -1051,10 +1057,11 @@ export default function FindingEditPage() {
               </CardHeader>
               <CardContent className="space-y-8">
                 <section className="space-y-4">
+                  <h2 className="text-base font-semibold">등록정보</h2>
                   <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>고객사명 *</Label>
-                        <CustomerAutocomplete
+                    <div className="space-y-2">
+                      <Label>고객사명 *</Label>
+                      <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => {
                           const resolvedCustomer = customers.find((item) => item.id === customer?.id || item.name === customer?.name) ?? customer
@@ -1071,55 +1078,31 @@ export default function FindingEditPage() {
                         }
                         placeholder="고객사명 일부를 입력해 기존 고객사를 선택하세요"
                       />
-                      {selectedCustomer ? <p className="text-xs text-muted-foreground">고객사 코드: {selectedCustomer.id}</p> : null}
-                    </div>
-                    <div className="space-y-2">
-                      <Label>고객군</Label>
-                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="선택하세요" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customerGroupOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>등록자</Label>
-                      <Input value={registrant} readOnly />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>영업대표 *</Label>
-                      <UserPicker
-                        value={salesRep}
-                        users={editPageUsers}
-                        onValueChange={setSalesRep}
-                        onSelect={(u) => {
-                          setSalesRep(u?.name ?? "")
-                          setSalesRepUserId(u?.id ?? null)
-                        }}
-                        placeholder="이름으로 영업대표를 검색하세요"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>사업명 *</Label>
-                      <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
+                      {selectedCustomer ? (
+                        <p className="text-xs text-muted-foreground">고객사 코드: {selectedCustomer.id}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">자동완성 목록에서 선택하면 고객사 코드가 함께 연결됩니다.</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>협력사명</Label>
                       <div className="space-y-2">
                         {partnerNames.map((partnerName, index) => (
                           <div key={`edit-opportunity-partner-${index}`} className="flex items-center gap-2">
-                            <Input
+                            <EntityAutocomplete
                               value={partnerName}
-                              onChange={(event) =>
-                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                              target="partners"
+                              onValueChange={(value) =>
+                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)))
                               }
+                              onSelect={(suggestion) => {
+                                if (!suggestion) return
+                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? suggestion.label : item)))
+                              }}
+                              allowCustomValue
                               placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
+                              emptyMessage="등록된 협력사가 없습니다."
+                              localCandidates={partnerLocalSuggestions}
                             />
                             <Button
                               type="button"
@@ -1141,12 +1124,41 @@ export default function FindingEditPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>예상 입찰 또는 계약 시점</Label>
-                      <Input
-                        type="date"
-                        value={expectedDate}
-                        onChange={(event) => setExpectedDate(event.target.value)}
+                      <Label>사업명 *</Label>
+                      <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>고객군</Label>
+                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="선택하세요" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customerGroupOptions.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>등록자</Label>
+                      <Input readOnly value={registrant} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>영업대표 *</Label>
+                      <UserIdPicker
+                        value={salesRepUserId ?? ""}
+                        users={backendUsers}
+                        onValueChange={setSalesRepUserId}
+                        placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "영업대표를 선택하세요"}
+                        disabled={backendUsers.length === 0}
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>예상 입찰 또는 계약 시점</Label>
+                      <Input type="date" value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label>예상 예산 또는 매출</Label>

@@ -54,6 +54,7 @@ type SalesActivityBackendItem = {
   projectOpportunityName?: string
   companyId?: number
   companyName?: string
+  createUserName?: string
   activityType?: string
   activityPurpose?: string
   activityContent?: string
@@ -354,6 +355,8 @@ function mapBackendActivityRecord(
   const customerId = activity.companyId ?? opportunity?.customerCompanyId
   const opportunityId = activity.projectOpportunityId ?? opportunity?.id
   const attendeeUserIds = activity.attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
+  const registrantName = activity.createUserName?.trim() || extras.registrant?.trim() || ""
+  const registrantUser = findUserByToken(users, extras.registrant ?? "")
   const requesterUser = findUserByToken(users, extras.requesterUserId ?? extras.requester ?? "")
   const requesterUserId = requesterUser?.id?.trim() ?? extras.requesterUserId ?? ""
 
@@ -362,7 +365,9 @@ function mapBackendActivityRecord(
     date,
     requestId: activity.salesActivityRequestId != null ? String(activity.salesActivityRequestId) : undefined,
     projectOpportunityId: opportunityId,
-    registrant: extras.registrant ?? "",
+    registrant:
+      registrantName ||
+      formatUserDisplayName(registrantUser ?? (extras.registrant ? { id: extras.registrant } : null)),
     requester: formatUserDisplayName(requesterUser ? requesterUser : requesterUserId ? { id: requesterUserId } : { id: extras.requester }),
     requesterUserId,
     customerCode: company?.code ?? (customerId != null ? String(customerId) : String(activity.id ?? "")),

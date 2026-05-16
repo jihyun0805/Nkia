@@ -274,6 +274,7 @@ export default function ActivityDetailPage() {
     quotationApprovalProcess.overallStatus === "진행중" &&
     Boolean(activeApprovalStep) &&
     (activeApprovalStep.assignee === currentUser.name || activeApprovalStep.assignee === currentUser.role)
+  const detailFieldClassName = "text-foreground disabled:opacity-100 disabled:text-foreground"
   const listHref =
     item && category === "activities"
       ? `/activity/customers/${(item as { customerCode?: string }).customerCode ?? ""}`
@@ -636,13 +637,13 @@ export default function ActivityDetailPage() {
                   <div className="space-y-6">
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>요청일 *</Label>
-                        <Input type="date" value={requestItem.date} readOnly disabled />
+                        <Label>요청일</Label>
+                        <Input type="date" value={requestItem.date} readOnly disabled className={detailFieldClassName} />
                       </div>
                       <div className="space-y-2">
-                        <Label>요청 유형 *</Label>
+                        <Label>요청 유형</Label>
                         <Select value={requestItem.type} disabled>
-                          <SelectTrigger>
+                          <SelectTrigger className={detailFieldClassName}>
                             <SelectValue placeholder="요청 유형을 선택하세요" />
                           </SelectTrigger>
                           <SelectContent>
@@ -655,43 +656,44 @@ export default function ActivityDetailPage() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>요청자 *</Label>
-                        <Input value={requestItem.requester} readOnly disabled />
+                        <Label>요청자</Label>
+                        <Input value={requestItem.requester} readOnly disabled className={detailFieldClassName} />
                       </div>
                       <div className="space-y-2">
-                        <Label>담당자 *</Label>
-                        <Input value={requestItem.receiver} readOnly disabled />
+                        <Label>담당자</Label>
+                        <Input value={requestItem.receiver} readOnly disabled className={detailFieldClassName} />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>고객사 *</Label>
-                        <Input value={requestMatchedCustomer?.name ?? requestItem.customer} readOnly disabled />
+                        <Label>고객사</Label>
+                        <Input value={requestMatchedCustomer?.name ?? requestItem.customer} readOnly disabled className={detailFieldClassName} />
                       </div>
                       <div className="space-y-2">
-                        <Label>사업기회 *</Label>
+                        <Label>사업기회</Label>
                         <Input
                           value={requestItem.opportunity || "미확인"}
                           readOnly
                           disabled={!requestMatchedCustomer}
+                          className={detailFieldClassName}
                           placeholder="고객사를 먼저 선택하세요"
                         />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>활동일 *</Label>
-                        <Input type="date" value={requestItem.dueDate} readOnly disabled />
+                        <Label>활동일</Label>
+                        <Input type="date" value={requestItem.dueDate} readOnly disabled className={detailFieldClassName} />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>요청 내용 *</Label>
-                      <Textarea rows={4} value={requestItem.content} readOnly disabled />
+                      <Label>요청 내용</Label>
+                      <Textarea rows={4} value={requestItem.content} readOnly disabled className={detailFieldClassName} />
                     </div>
                     {requestItem.approvedAt && (
                       <div className="space-y-2 md:w-1/2">
                         <Label>승인일</Label>
-                        <Input readOnly value={requestItem.approvedAt} disabled />
+                        <Input readOnly value={requestItem.approvedAt} disabled className={detailFieldClassName} />
                       </div>
                     )}
                   </div>

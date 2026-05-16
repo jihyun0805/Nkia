@@ -60,7 +60,6 @@ function createEmptyContactDraft(): ContactDraft {
     email: "",
     mobilePhone: "",
     landlinePhone: "",
-    fax: "",
     duty: "",
     memo: "",
     businessCardImage: "",
@@ -81,7 +80,6 @@ function normalizeContacts(customer: CustomerRecord | null) {
       email: customer.email ?? "",
       mobilePhone: customer.mobilePhone ?? customer.phone ?? "",
       landlinePhone: customer.landlinePhone ?? "",
-      fax: customer.fax ?? "",
       duty: customer.duty ?? "",
       memo: customer.memo ?? "",
     },
@@ -89,7 +87,7 @@ function normalizeContacts(customer: CustomerRecord | null) {
 }
 
 function hasContactValue(contact: ContactDraft) {
-  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.fax, contact.duty, contact.memo].some(
+  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.duty, contact.memo].some(
     (value) => String(value ?? "").trim(),
   )
 }
@@ -307,7 +305,6 @@ function CustomerEditPageContent() {
         email: keepExistingValue(currentContact.email, result.email),
         mobilePhone: keepExistingValue(currentContact.mobilePhone, result.mobile),
         landlinePhone: keepExistingValue(currentContact.landlinePhone, result.phone),
-        fax: keepExistingValue(currentContact.fax, result.fax),
         duty: keepExistingValue(currentContact.duty, result.role),
         businessCardImage,
       }
@@ -644,16 +641,6 @@ function CustomerEditPageContent() {
                               value={contact.landlinePhone ?? ""}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
-                              }
-                              placeholder="02-0000-0000"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>FAX</Label>
-                            <Input
-                              value={contact.fax ?? ""}
-                              onChange={(event) =>
-                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, fax: event.target.value } : item)))
                               }
                               placeholder="02-0000-0000"
                             />

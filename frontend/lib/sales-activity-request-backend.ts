@@ -112,6 +112,23 @@ function activityPurposeEnum(value: string) {
   return ACTIVITY_PURPOSE_TO_ENUM[value] ?? "ETC"
 }
 
+function extractCustomerFromTitle(title?: string, purposeLabel?: string) {
+  const normalizedTitle = title?.trim() ?? ""
+  const normalizedPurpose = purposeLabel?.trim() ?? ""
+
+  if (!normalizedTitle) return ""
+  if (!normalizedPurpose) return normalizedTitle
+
+  const suffixes = [` ${normalizedPurpose}`, `${normalizedPurpose} 요청`]
+  for (const suffix of suffixes) {
+    if (normalizedTitle.endsWith(suffix)) {
+      return normalizedTitle.slice(0, -suffix.length).trim()
+    }
+  }
+
+  return normalizedTitle
+}
+
 function normalizeLookupText(value: string) {
   return value.trim().toLowerCase()
 }
@@ -170,6 +187,7 @@ function mergeRequest(
     "-"
   const content = backendRequest.requestContent ?? local?.content ?? ""
   const title = backendRequest.title ?? local?.title ?? `${purposeLabel} 요청`
+  const customer = local?.customer?.trim() || extractCustomerFromTitle(title, purposeLabel) || title
   const opportunity = local?.opportunity ?? (content.trim() ? content : "미확인")
 
   return {
@@ -185,7 +203,7 @@ function mergeRequest(
     receiver,
     type: local?.type ?? purposeLabel,
     customerCode: local?.customerCode ?? "",
-    customer: local?.customer ?? title,
+    customer,
     opportunityCode: local?.opportunityCode ?? "",
     opportunity,
     content,

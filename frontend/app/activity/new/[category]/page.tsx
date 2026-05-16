@@ -380,23 +380,31 @@ function ActivityCategoryNewPageContent() {
       return
     }
 
-      try {
-        const created = await createBackendActivityRequest({
-          ...form,
-        })
-        toast({
-          title: "활동 요청 등록 완료",
-          description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
-        })
-        router.push(`/activity/requests/${created.id}`)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "백엔드에 활동 요청을 저장하지 못했습니다."
-        toast({
-          title: "활동 요청 등록 실패",
-          description: message,
-        })
-        return
-      }
+    if (!form.customer) {
+      toast({
+        title: "활동 요청 필수값 확인",
+        description: "고객사, 요청 유형, 담당자, 활동일, 요청 내용을 입력해주십시오.",
+      })
+      return
+    }
+
+    try {
+      const created = await createBackendActivityRequest({
+        ...form,
+      })
+      toast({
+        title: "활동 요청 등록 완료",
+        description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
+      })
+      router.push(`/activity/requests/${created.id}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "백엔드에 활동 요청을 저장하지 못했습니다."
+      toast({
+        title: "활동 요청 등록 실패",
+        description: message,
+      })
+      return
+    }
   }
 
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
@@ -547,7 +555,7 @@ function ActivityCategoryNewPageContent() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>고객사</Label>
+                        <Label>고객사 *</Label>
                         <CustomerAutocomplete
                           value={form.customer}
                           onValueChange={(value) => {
@@ -612,12 +620,12 @@ function ActivityCategoryNewPageContent() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>활동일</Label>
+                        <Label>활동일 *</Label>
                         <Input type="date" value={form.dueDate} onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))} />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>요청 내용</Label>
+                      <Label>요청 내용 *</Label>
                       <Textarea rows={4} value={form.content} onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))} />
                     </div>
                   </>

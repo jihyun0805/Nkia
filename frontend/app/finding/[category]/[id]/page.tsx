@@ -392,7 +392,7 @@ export default function FindingDetailPage() {
                       <h2 className="text-base font-semibold">등록정보</h2>
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <Label>고객사명 *</Label>
+                          <Label>고객사명</Label>
                           <Input readOnly value={opportunityItem?.customer ?? "-"} />
                         </div>
                         <div className="space-y-2">
@@ -408,7 +408,7 @@ export default function FindingDetailPage() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>사업명 *</Label>
+                          <Label>사업명</Label>
                           <Input readOnly value={opportunityItem?.name ?? "-"} />
                         </div>
                         <div className="space-y-2">
@@ -432,7 +432,7 @@ export default function FindingDetailPage() {
                           <Input readOnly value={opportunityItem?.expectedAmount ?? "-"} />
                         </div>
                         <div className="space-y-2">
-                          <Label>사업 구분 *</Label>
+                          <Label>사업 구분</Label>
                           <Input readOnly value={opportunityItem?.product ?? "-"} />
                         </div>
                         <div className="space-y-2">

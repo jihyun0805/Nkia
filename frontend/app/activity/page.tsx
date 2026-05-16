@@ -328,11 +328,6 @@ export default function ActivityPage() {
       })
   }, [filteredActivities])
 
-  const previewActivityCustomerCards = useMemo(
-    () => activityCustomerCards.slice(0, 10),
-    [activityCustomerCards],
-  )
-
   if (!isMounted) {
     return null
   }
@@ -405,11 +400,6 @@ export default function ActivityPage() {
                   fieldOptions={activityFieldOptions}
                   showStatusFilter={activeTab !== "activities"}
                 />
-                {activeTab === "requests" && (
-                  <Button variant="outline" onClick={handleResetRequests}>
-                    초기화
-                  </Button>
-                )}
                 <Button asChild className="bg-primary hover:bg-primary/90">
                   <Link href={`/activity/new/${activeTab}`}>
                     <Plus className="mr-2 w-4 h-4" />
@@ -427,16 +417,13 @@ export default function ActivityPage() {
                       <CardTitle className="text-lg">고객사별 활동 현황</CardTitle>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">{activityCustomerCards.length}개 고객사</Badge>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href="/activity/customers">전체 보기</Link>
-                        </Button>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {previewActivityCustomerCards.length > 0 ? (
+                    {activityCustomerCards.length > 0 ? (
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                        {previewActivityCustomerCards.map((customer) => (
+                        {activityCustomerCards.map((customer) => (
                           <Link
                             key={customer.customer}
                             className={`min-h-[168px] rounded-xl border p-5 text-left transition-colors ${
