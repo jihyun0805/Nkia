@@ -335,7 +335,8 @@ export function updateQuotation(id: string, input: Omit<QuotationRecord, "id">) 
         id: entry.id || `${id}-ITEM-${index + 1}`,
       })),
       approvalFlow: input.approvalFlow ?? current?.approvalFlow,
-      approvalProcess: current?.approvalProcess ?? input.approvalProcess ?? createDefaultApprovalProcess(),
+      approvalProcess: createDefaultApprovalProcess(),
+      status: "검토중",
       deletedVersions: current?.deletedVersions ?? input.deletedVersions ?? [],
       changeHistory: current?.changeHistory ?? [],
     })

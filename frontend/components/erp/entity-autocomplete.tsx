@@ -99,6 +99,15 @@ export function EntityAutocomplete({
     [filterSuggestion, mergedSuggestions],
   )
 
+  const visibleSuggestions = useMemo(() => {
+    const trimmedQuery = query.trim()
+    if (!trimmedQuery) {
+      const baseSuggestions = localCandidates ?? []
+      return filterSuggestion ? baseSuggestions.filter(filterSuggestion).slice(0, 8) : baseSuggestions.slice(0, 8)
+    }
+    return filteredSuggestions
+  }, [filterSuggestion, filteredSuggestions, localCandidates, query])
+
   const commitSelection = (suggestion: EntitySuggestion | null) => {
     onValueChange(suggestion?.label ?? "")
     onSelect?.(suggestion)
@@ -130,8 +139,8 @@ export function EntityAutocomplete({
           onKeyDown={(event) => {
             if (event.key !== "Enter") return
             event.preventDefault()
-            if (filteredSuggestions.length > 0) {
-              commitSelection(filteredSuggestions[0])
+            if (visibleSuggestions.length > 0) {
+              commitSelection(visibleSuggestions[0])
               return
             }
             if (allowCustomValue) {
@@ -159,7 +168,7 @@ export function EntityAutocomplete({
           <CommandList>
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>
-              {filteredSuggestions.map((suggestion) => (
+              {visibleSuggestions.map((suggestion) => (
                 <CommandItem
                   key={`${suggestion.type}-${suggestion.id}`}
                   value={`${suggestion.type}-${suggestion.id}`}
