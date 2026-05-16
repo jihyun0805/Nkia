@@ -629,7 +629,10 @@ def _build_draft_compose_node(*, embedder: EmbeddingModel):
             else None
         )
 
-        if has_draft_intent and settings.ai_enable_draft_actions:
+        # draft action 은 사용자가 명시적으로 "작성해줘/만들어줘/초안" 같은 trigger 를
+        # 발화했을 때만 detect_draft_intent 가 None 이 아니다. 발화 의도가 명확하므로
+        # settings.ai_enable_draft_actions 무시하고 항상 시도 (저장 안 함, 폼 prefill 만).
+        if has_draft_intent:
             try:
                 response = attach_draft_action_to_response(
                     response=response,
