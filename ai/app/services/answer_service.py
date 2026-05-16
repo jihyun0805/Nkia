@@ -72,6 +72,11 @@ def answer_question(
     compiled_graph: object | None = None,
     user_context: UserContext | None = None,
 ) -> AnswerResponse:
+    # 인사/잡담 short-circuit — 자연스러운 친근한 응답
+    small_talk = _answer_small_talk(query=query, embedder=embedder, thread_id=thread_id)
+    if small_talk is not None:
+        return small_talk
+
     if compiled_graph is not None:
         return invoke_orbis_agent_graph(
             compiled_graph=compiled_graph,
@@ -1104,3 +1109,78 @@ def build_structured_answer_context(response: AnswerResponse) -> str:
     if response.evidences:
         sections.append(build_evidence_context(response.evidences))
     return "\n\n---\n\n".join(sections)
+
+
+# === small talk short-circuit ===
+
+_SMALL_TALK_GREETINGS = (
+    "안녕", "안녕하세요", "안녕!", "안녕요", "하이", "헬로", "hi", "hello", "반갑",
+)
+_SMALL_TALK_THANKS = (
+    "고마", "감사", "땡큐", "thanks", "thank you", "수고",
+)
+_SMALL_TALK_FAREWELL = ("끝", "잘 가", "잘가", "bye", "끝났", "끝낼", "종료")
+_SMALL_TALK_WHO = ("너 누구", "당신은 누구", "넌 누구", "what are you", "who are you")
+_SMALL_TALK_HELP = ("도와줘", "도움말", "도움", "help", "사용법")
+
+
+def _answer_small_talk(*, query: str, embedder: EmbeddingModel, thread_id: str | None) -> AnswerResponse | None:
+    """짧은 인사/감사/잡담 query 에 자연스러운 친근한 답변. None 이면 일반 처리."""
+    text = (query or "").strip()
+    if not text or len(text) > 30:
+        return None
+    low = text.lower()
+    compact = "".join(low.split())
+
+    def has_any(patterns: tuple[str, ...]) -> bool:
+        return any(p in low or p in compact for p in patterns)
+
+    msg: str | None = None
+    if has_any(_SMALL_TALK_GREETINGS):
+        msg = (
+            "안녕하세요! 엔키아 영업관리 챗봇입니다. 😊\n\n"
+            "사업기회·PRB·RFP·견적·계약·청구·유지보수까지 데이터 기반으로 답변드립니다.\n\n"
+            "예시:\n"
+            "- \"신한은행 PRB 위험요인 알려줘\"\n"
+            "- \"이번 달 청구 현황\"\n"
+            "- \"AUTO-OPP-2026-101 사업 담당자 김철수로 수정해줘\" (수정 액션)\n"
+            "- \"쿠팡 사업기회 RFP·견적 기반 PRB 보고서 작성해줘\" (초안 작성 액션)\n\n"
+            "구체적인 사업명, 고객사명, 사업 코드와 함께 물으면 더 정확하게 답변할 수 있어요."
+        )
+    elif has_any(_SMALL_TALK_THANKS):
+        msg = "감사합니다! 다른 도움이 필요하시면 언제든 말씀해 주세요. 🙌"
+    elif has_any(_SMALL_TALK_FAREWELL):
+        msg = "수고하셨습니다! 다음에 또 도와드릴게요. 👋"
+    elif has_any(_SMALL_TALK_WHO):
+        msg = (
+            "저는 엔키아 영업관리 시스템의 사내 AI 어시스턴트입니다.\n"
+            "사업기회·PRB·RFP·견적·계약·청구·유지보수 데이터를 기반으로 질문에 답변하고, "
+            "수정/초안 작성 같은 액션 가이드도 제공합니다."
+        )
+    elif has_any(_SMALL_TALK_HELP):
+        msg = (
+            "이런 식으로 물어보시면 됩니다:\n\n"
+            "📊 조회: \"신한은행 사업 현황\", \"이번 달 청구 합계\"\n"
+            "🔍 분석: \"PRB 위험요인 큰 사업\", \"수주율 높은 패턴\"\n"
+            "✏️  수정: \"AUTO-OPP-2026-101 담당자 김철수로 수정해줘\"\n"
+            "📝 작성: \"신한은행 RFP·견적 기반 PRB 보고서 작성해줘\"\n\n"
+            "사업명·고객사명·사업코드를 명시하면 더 정확합니다."
+        )
+
+    if msg is None:
+        return None
+
+    return AnswerResponse(
+        query=query,
+        answer=msg,
+        threadId=thread_id,
+        route="small_talk",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name if embedder else "intfloat/multilingual-e5-base",
+        chatModel="small-talk-rule",
+        retrievalConfidence=None,
+        confidenceBand="high",
+        confidenceReasons=["small_talk_detected"],
+        excludedSourceTypes=[],
+        evidences=[],
+    )

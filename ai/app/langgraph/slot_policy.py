@@ -348,6 +348,30 @@ def build_metric_slot(graph_state: GraphState, query: str = "") -> GraphSlotEntr
             priority="REQUIRED",
             source="urgency_default",
         )
+    # 크기/금액 ranking — "가장 큰", "최대", "Top" 등 → 금액/예상사업비
+    if any(kw in query_lower for kw in ("가장 큰", "가장큰", "제일 큰", "제일큰", "최대", "큰 사업", "큰사업")):
+        return GraphSlotEntry(
+            value="expected_amount",
+            status="INFERRED",
+            priority="REQUIRED",
+            source="size_default",
+        )
+    # 작은/적은 → 동일 금액 (오름차순 sort 는 별도 처리)
+    if any(kw in query_lower for kw in ("가장 작은", "가장작은", "제일 작은", "최소")):
+        return GraphSlotEntry(
+            value="expected_amount",
+            status="INFERRED",
+            priority="REQUIRED",
+            source="size_default",
+        )
+    # 최근/오래된 → 시간
+    if any(kw in query_lower for kw in ("가장 최근", "최신", "오래된", "가장 오래")):
+        return GraphSlotEntry(
+            value="recency_score",
+            status="INFERRED",
+            priority="REQUIRED",
+            source="recency_default",
+        )
 
     return GraphSlotEntry(
         value=None,

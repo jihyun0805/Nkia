@@ -109,8 +109,8 @@ const DRAFT_DOCUMENT_ROUTES: Record<string, string> = {
   rfp_analysis: "/bid/new/rfp?tab=rfp",
   proposal: "/bid/new/proposal?tab=proposal",
   bid_result: "/bid/new/result?tab=result",
-  quotation: "/activity/quotations/new?tab=quotations",
-  sales_activity: "/activity/activities/new?tab=activities",
+  quotation: "/activity/new/quotations?tab=quotations",
+  sales_activity: "/activity/new/activities?tab=activities",
   project_result_report: "/project?tab=results",
 }
 
