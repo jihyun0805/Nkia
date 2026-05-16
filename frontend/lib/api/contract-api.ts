@@ -406,6 +406,18 @@ export interface LicenseResponse {
   endDate: string;
 }
 
+// 매입계약 (Purchase) 타입
+export interface PurchaseResponse {
+  id: number;
+  orderReportId: number;
+  projectOpportunityId?: number;
+  projectOpportunityName?: string;
+  content: string;
+  quantity: number;
+  price: number;
+  totalPrice: number;
+}
+
 export interface ProjectOpportunityResponse {
   id: number;
   opportunityCode: string;
@@ -572,11 +584,27 @@ export const licenseApi = {
       method: "DELETE",
     }),
 
-  /** 라이선스 결재 상신 */
   submitLicense: (id: number, firstApproverId: string) =>
     customInstance<ApiResponse<string>>({
       url: `/contract/licenses/submit/${id}`,
       method: "POST",
       data: { firstApproverId } satisfies SubmitRequest,
+    }),
+};
+
+// 매입계약 API
+export const purchaseApi = {
+  /** 매입계약 목록 조회 */
+  getPurchases: () =>
+    customInstance<ApiResponse<PurchaseResponse[]>>({
+      url: "/contract/purchases",
+      method: "GET",
+    }),
+
+  /** 매입계약 상세 조회 */
+  getPurchase: (id: number) =>
+    customInstance<ApiResponse<PurchaseResponse>>({
+      url: `/contract/purchases/${id}`,
+      method: "GET",
     }),
 };
