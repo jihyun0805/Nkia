@@ -122,6 +122,18 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    try {
+      await adminApi.deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      toast.success("제품이 삭제되었습니다.");
+    } catch (e) {
+      console.error(e);
+      toast.error("제품 삭제에 실패했습니다.");
+    }
+  };
+
   // 검색 필터링 로직
   const filteredUsers = users.filter((u) => !searchTerm || [u.employeeNumber, u.name, u.position, u.email, u.department, u.role].some((v) => v?.toLowerCase().includes(searchTerm.toLowerCase())));
 
@@ -310,11 +322,11 @@ export default function AdminPage() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">제품 목록</CardTitle>
+                    <CardTitle className="text-lg">제품목록</CardTitle>
                     <Button asChild>
                       <Link href="/admin/products/new">
                         <Plus className="mr-2 w-4 h-4" />
-                        제품 등록
+                        제품등록
                       </Link>
                     </Button>
                   </div>
@@ -330,23 +342,34 @@ export default function AdminPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>제품 클래스</TableHead>
-                          <TableHead>제품 그룹</TableHead>
+                          <TableHead>제품분류</TableHead>
+                          <TableHead>제품군</TableHead>
                           <TableHead>제품명</TableHead>
                           <TableHead>라이선스 기준</TableHead>
-                          <TableHead>단위</TableHead>
-                          <TableHead className="text-right">단가 (원)</TableHead>
+                          <TableHead>라이선스 단위</TableHead>
+                          <TableHead className="text-right">단가(천 원)</TableHead>
+                          <TableHead className="w-[100px] text-right">수정 / 삭제</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredProducts.map((product) => (
-                          <TableRow key={product.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/products/${product.id}`)}>
+                          <TableRow key={product.id}>
                             <TableCell>{product.productClass}</TableCell>
                             <TableCell>{product.productGroup}</TableCell>
                             <TableCell className="font-medium">{product.productName}</TableCell>
                             <TableCell>{product.licenseStandard}</TableCell>
                             <TableCell>{product.licenseUnit}</TableCell>
                             <TableCell className="text-right">{(product.unitPrice || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteProduct(product.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -360,11 +383,11 @@ export default function AdminPage() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">부서 목록</CardTitle>
+                    <CardTitle className="text-lg">부서목록</CardTitle>
                     <Button asChild>
                       <Link href="/admin/departments/new">
                         <Plus className="mr-2 w-4 h-4" />
-                        부서 등록
+                        부서등록
                       </Link>
                     </Button>
                   </div>

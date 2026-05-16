@@ -162,12 +162,32 @@ export default function AdminNewPage() {
                 {category === "products" && (
                   <>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2"><Label>제품 클래스 *</Label><Input onChange={(e) => handleInputChange("productClass", e.target.value)} placeholder="예: SW, HW" /></div>
-                      <div className="space-y-2"><Label>제품 그룹 *</Label><Input onChange={(e) => handleInputChange("productGroup", e.target.value)} /></div>
+                      <div className="space-y-2">
+                        <Label>제품분류 *</Label>
+                        <Select onValueChange={(v) => handleInputChange("productClass", v)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="분류 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="EMS">EMS</SelectItem>
+                            <SelectItem value="DASHBOARD">DASHBOARD</SelectItem>
+                            <SelectItem value="DATACENTER">상면관리</SelectItem>
+                            <SelectItem value="RCA">RCA</SelectItem>
+                            <SelectItem value="DCA">DCA</SelectItem>
+                            <SelectItem value="ITSM">ITSM</SelectItem>
+                            <SelectItem value="ITAM">ITAM</SelectItem>
+                            <SelectItem value="SUPPORTING_TOOLS">SUPPORTING TOOLS</SelectItem>
+                            <SelectItem value="CLOUD">CLOUD</SelectItem>
+                            <SelectItem value="BSM">BSM</SelectItem>
+                            <SelectItem value="E2E">E2E</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2"><Label>제품군 *</Label><Input onChange={(e) => handleInputChange("productGroup", e.target.value)} /></div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2"><Label>제품명 *</Label><Input onChange={(e) => handleInputChange("productName", e.target.value)} /></div>
-                      <div className="space-y-2"><Label>단가 (원) *</Label><Input type="number" onChange={(e) => handleInputChange("unitPrice", e.target.value)} /></div>
+                      <div className="space-y-2"><Label>단가(천 원) *</Label><Input type="number" onChange={(e) => handleInputChange("unitPrice", e.target.value)} /></div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2"><Label>라이선스 기준</Label><Input onChange={(e) => handleInputChange("licenseStandard", e.target.value)} /></div>
