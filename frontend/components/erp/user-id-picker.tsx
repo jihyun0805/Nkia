@@ -44,7 +44,7 @@ export function UserIdPicker({
     const hits = fuzzyMatch(
       trimmed,
       users,
-      (user) => [user.name ?? "", user.employeeNumber ?? "", user.email ?? "", user.id ?? ""],
+      (user) => [user.name ?? "", user.employeeNumber ?? "", user.email ?? "", user.id ?? "", user.departmentName ?? ""],
       8,
     )
     return hits.map((hit) => hit.item)

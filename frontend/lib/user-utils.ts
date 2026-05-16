@@ -6,6 +6,7 @@ export type UserLike = {
   name?: string
   email?: string
   position?: string
+  departmentName?: string
 }
 
 const POSITION_LABELS: Record<string, string> = {
@@ -58,7 +59,7 @@ export function formatUserSubtitle(user?: UserLike | null) {
   if (!user) return ""
 
   const position = user.position ? POSITION_LABELS[user.position] ?? user.position : ""
-  return [position, user.employeeNumber, user.email]
+  return [position, user.departmentName, user.employeeNumber, user.email]
     .filter((value): value is string => Boolean(value && value.trim()))
     .join(" · ")
 }

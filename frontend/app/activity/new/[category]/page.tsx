@@ -41,7 +41,7 @@ import { X } from "lucide-react"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { createBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
-import { createBackendQuotationRecord } from "@/lib/sales-quotation-backend"
+import { createBackendQuotationRecord, getQuotationCreateBlockReason } from "@/lib/sales-quotation-backend"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
 
@@ -280,12 +280,11 @@ function ActivityCategoryNewPageContent() {
 
     if (category === "quotations") {
       const normalized = normalizeQuotationForm(quotationForm)
-      const hasValidItem = normalized.items.some((item) => item.name && Number.parseInt(item.amount || "0", 10) > 0)
-
-      if (!normalized.customer || !normalized.opportunity || !normalized.validity || !normalized.salesRep || !hasValidItem) {
+      const blockReason = getQuotationCreateBlockReason(normalized)
+      if (blockReason) {
         toast({
-          title: "견적 필수값 확인",
-          description: "고객사, 사업기회, 유효기간, 영업대표와 1개 이상의 제품 금액을 입력해주십시오.",
+          title: "견적 입력 확인",
+          description: blockReason,
         })
         return
       }
@@ -297,7 +296,15 @@ function ActivityCategoryNewPageContent() {
           description: `${created.customer} ${registrationTitle}가 등록되었습니다.`,
         })
         router.push(`/activity/quotations/${created.id}`)
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : ""
+        if (message) {
+          toast({
+            title: `${registrationTitle} 등록 실패`,
+            description: message,
+          })
+          return
+        }
         toast({
           title: `${registrationTitle} 등록 실패`,
           description: "백엔드에 견적서를 저장하지 못했습니다.",

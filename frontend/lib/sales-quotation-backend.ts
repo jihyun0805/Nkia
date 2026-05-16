@@ -192,6 +192,51 @@ function inferLaborType(value?: string) {
   return LABOR_TYPE_ALIASES[normalized] ?? null
 }
 
+function hasText(value?: string) {
+  return value != null && value.trim() !== ""
+}
+
+export function getQuotationCreateBlockReason(input: QuotationCreateInput) {
+  if (!hasText(input.customer)) return "고객사를 선택해주십시오."
+  if (!hasText(input.opportunity)) return "사업기회를 선택해주십시오."
+  if (!hasText(input.date)) return "견적일자를 선택해주십시오."
+  if (!hasText(input.paymentTerms)) return "지급조건을 입력해주십시오."
+  if (!hasText(input.salesRep)) return "영업대표를 선택해주십시오."
+
+  const solutionRows = input.solutionRows ?? []
+  const firstSolutionIndex = solutionRows.findIndex((row) =>
+    [row.category, row.module, row.quantity, row.consumerUnitPrice, row.supplyUnitPrice].some((value) => hasText(value)),
+  )
+
+  if (firstSolutionIndex < 0) {
+    return "Solution Package 1행을 입력해주십시오."
+  }
+
+  const firstSolutionRow = solutionRows[firstSolutionIndex]
+  if (!hasText(firstSolutionRow.category)) return `Solution Package ${firstSolutionIndex + 1}행 구분을 입력해주십시오.`
+  if (!hasText(firstSolutionRow.module)) return `Solution Package ${firstSolutionIndex + 1}행 납품 모듈을 입력해주십시오.`
+  if (!hasText(firstSolutionRow.quantity)) return `Solution Package ${firstSolutionIndex + 1}행 수량을 입력해주십시오.`
+  if (!hasText(firstSolutionRow.consumerUnitPrice)) return `Solution Package ${firstSolutionIndex + 1}행 소비자가를 입력해주십시오.`
+  if (!hasText(firstSolutionRow.supplyUnitPrice)) return `Solution Package ${firstSolutionIndex + 1}행 공급단가를 입력해주십시오.`
+
+  const customizingRows = input.customizingRows ?? []
+  const firstCustomizingIndex = customizingRows.findIndex((row) =>
+    [row.item, row.laborRate, row.manMonth, row.supplyAmount].some((value) => hasText(value)),
+  )
+
+  if (firstCustomizingIndex < 0) {
+    return "인건비 1행 세부항목을 선택해주십시오."
+  }
+
+  const firstCustomizingRow = customizingRows[firstCustomizingIndex]
+  if (!hasText(firstCustomizingRow.item)) return `인건비 ${firstCustomizingIndex + 1}행 세부항목을 선택해주십시오.`
+  if (!hasText(firstCustomizingRow.laborRate)) return `인건비 ${firstCustomizingIndex + 1}행 노임단가를 입력해주십시오.`
+  if (!hasText(firstCustomizingRow.manMonth)) return `인건비 ${firstCustomizingIndex + 1}행 Man / Month를 입력해주십시오.`
+  if (!hasText(firstCustomizingRow.supplyAmount)) return `인건비 ${firstCustomizingIndex + 1}행 공급 금액을 입력해주십시오.`
+
+  return null
+}
+
 function createDefaultApprovalProcess(salesRep: string) {
   return {
     overallStatus: "진행중" as const,
@@ -572,6 +617,11 @@ export async function loadBackendQuotationRecords() {
 }
 
 export async function createBackendQuotationRecord(input: QuotationCreateInput) {
+  const blockReason = getQuotationCreateBlockReason(input)
+  if (blockReason) {
+    throw new Error(blockReason)
+  }
+
   const projectOpportunityId = await resolveProjectOpportunityId({
     customerName: input.customer,
     opportunityName: input.opportunity,
@@ -622,6 +672,11 @@ export async function createBackendQuotationRecord(input: QuotationCreateInput) 
 }
 
 export async function updateBackendQuotationRecord(id: string, input: QuotationCreateInput) {
+  const blockReason = getQuotationCreateBlockReason(input)
+  if (blockReason) {
+    throw new Error(blockReason)
+  }
+
   const projectOpportunityId = await resolveProjectOpportunityId({
     customerName: input.customer,
     opportunityName: input.opportunity,

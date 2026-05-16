@@ -433,13 +433,8 @@ async function loadCompanyManagers(companyId: number) {
 }
 
 async function loadUsers() {
-  const payload = await fetchList<PageResponse<BackendUserSummary> | BackendUserSummary[]>(`${getBackendApiBaseUrl()}/user`, "사용자 목록을 불러오지 못했습니다.");
-
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  return payload.content ?? [];
+  const payload = await fetchList<BackendUserSummary[]>(`${getBackendApiBaseUrl()}/user/search`, "사용자 목록을 불러오지 못했습니다.");
+  return Array.isArray(payload) ? payload : [];
 }
 
 export async function loadBackendUsers() {
@@ -450,7 +445,7 @@ export async function loadBackendUsers() {
       id: user.id,
       name: user.name,
       email: user.email ?? "",
-      employeeNumber: user.employeeNumber ?? "",
+      employeeNumber: user.employeeNumber ?? user.id ?? "",
     }));
 }
 

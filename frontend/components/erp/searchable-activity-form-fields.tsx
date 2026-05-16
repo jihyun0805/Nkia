@@ -5,7 +5,6 @@ import { Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
@@ -100,7 +99,8 @@ export function ActivityFormFields({
   const [content, setContent] = useState(defaultValues?.content ?? "")
   const [issues, setIssues] = useState(defaultValues?.issues ?? "")
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
-  const activityFormUsers = useBackendUsers()
+  const backendUsers = useBackendUsers()
+  const activityFormUsers = Array.isArray(backendUsers) ? backendUsers : []
   const requesterUsers = useMemo(
     () => [currentUser, ...activityFormUsers.filter((user) => user.id !== currentUser.id)],
     [activityFormUsers],
@@ -185,41 +185,6 @@ export function ActivityFormFields({
   }
 
   useEffect(() => {
-    setActivityMode(defaultValues?.activityMode ?? "")
-  }, [defaultValues?.activityMode])
-
-  useEffect(() => {
-    setActivityContent(defaultValues?.activityContent ?? "")
-  }, [defaultValues?.activityContent])
-
-  useEffect(() => {
-    setLocation(defaultValues?.location ?? "")
-  }, [defaultValues?.location])
-
-  useEffect(() => {
-    setDate(defaultValues?.date ?? "")
-  }, [defaultValues?.date])
-
-  useEffect(() => {
-    const nextAttendees = values?.attendees ?? defaultValues?.attendeeUserIds?.join(",") ?? defaultValues?.attendees ?? ""
-    setAttendees(nextAttendees)
-    const normalized = splitDelimitedValues(nextAttendees).map((item) => resolveUserId(item, attendeeUsers))
-    setAttendeeRows(normalized.length > 0 ? normalized : [""])
-  }, [attendeeUsers, defaultValues?.attendeeUserIds, defaultValues?.attendees, values?.attendees])
-
-  useEffect(() => {
-    setContent(defaultValues?.content ?? "")
-  }, [defaultValues?.content])
-
-  useEffect(() => {
-    setIssues(defaultValues?.issues ?? "")
-  }, [defaultValues?.issues])
-
-  useEffect(() => {
-    setNextAction(defaultValues?.nextAction ?? "")
-  }, [defaultValues?.nextAction])
-
-  useEffect(() => {
     if (typeof requesterValue !== "string" || !onRequesterChange) return
     if (!requester) return
     if (resolvedRequester !== requester) {
@@ -228,6 +193,7 @@ export function ActivityFormFields({
   }, [onRequesterChange, resolvedRequester, requester, requesterValue])
 
   const handleActivityModeChange = (nextMode: string) => {
+    if (nextMode === resolvedActivityMode) return
     updateValues((current) => ({
       ...current,
       activityMode: nextMode,
@@ -343,33 +309,43 @@ export function ActivityFormFields({
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>활동형태 *</Label>
-            <Select value={resolvedActivityMode} onValueChange={readOnly ? undefined : handleActivityModeChange} disabled={readOnly}>
-              <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
-              <SelectContent>
-                {activityModeOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              value={resolvedActivityMode}
+              onChange={(event) => {
+                if (readOnly) return
+                handleActivityModeChange(event.target.value)
+              }}
+              disabled={readOnly}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">선택하세요</option>
+              {activityModeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-2">
             <Label>활동내용 *</Label>
-            <Select
+            <select
               value={resolvedActivityContent}
-              onValueChange={readOnly ? undefined : (value) => updateValues((current) => ({ ...current, activityContent: value }))}
+              onChange={(event) => {
+                if (readOnly) return
+                const value = event.target.value
+                if (value === resolvedActivityContent) return
+                updateValues((current) => ({ ...current, activityContent: value }))
+              }}
               disabled={readOnly}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
-              <SelectContent>
-                {activityContentOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <option value="">선택하세요</option>
+              {activityContentOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
             {needsActivityRequest && !linkedRequestId && (
               <p className="text-sm text-muted-foreground">상담/기타를 제외한 활동내용은 일반적으로 활동 요청을 받아 진행합니다.</p>
             )}
