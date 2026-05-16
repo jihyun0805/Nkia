@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.repositories.backend_query_repository import (
+    fetch_opportunity_resolution_candidates,
     fetch_opportunity_snapshot,
     fetch_maintenance_snapshot_by_opportunity,
     fetch_project_snapshot,
@@ -28,13 +29,39 @@ _COMPARISON_FIELDS = [
 
 
 def _resolve_opportunity_code(term: str) -> str | None:
-    """문자열(코드 or 이름/고객)을 opportunity_code로 변환한다."""
+    """문자열(코드 or 이름/고객)을 opportunity_code로 변환한다.
+
+    비교 컨텍스트에서는 ambiguous (고객사가 여러 사업기회 보유) 한 경우에도
+    가장 큰 (예상금액 높은) 사업기회로 fallback. 비교를 거부하지 않음.
+    """
     import re
     CODE_PATTERN = re.compile(r"(?<![A-Z0-9-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}(?![A-Z0-9-])")
     if CODE_PATTERN.match(term.strip()):
         return term.strip()
     entity = resolve_primary_opportunity(query_terms=[term], exact_codes=[])
-    return entity.get("opportunity_code") if entity else None
+    if entity:
+        return entity.get("opportunity_code")
+    # ambiguity fallback — candidate 중 customer 또는 opportunity_name 에 term 가
+    # 포함된 것 중 expected_amount 가 가장 큰 단일 기회를 선택
+    term_lower = term.strip().lower()
+    if not term_lower:
+        return None
+    candidates = fetch_opportunity_resolution_candidates(limit=300)
+    matches: list[tuple[int, dict]] = []
+    for row in candidates:
+        cn = (row.get("customer_name") or "").lower()
+        on = (row.get("opportunity_name") or "").lower()
+        if term_lower in cn or term_lower in on:
+            amount = row.get("expected_amount") or 0
+            try:
+                amount = int(amount)
+            except (TypeError, ValueError):
+                amount = 0
+            matches.append((amount, row))
+    if not matches:
+        return None
+    matches.sort(key=lambda x: -x[0])
+    return matches[0][1].get("opportunity_code")
 
 
 def build_comparison_result(

@@ -19,6 +19,15 @@ VS_PATTERNS = (
     re.compile(r"(.+?)\s+vs\s+(.+)", re.IGNORECASE),
     re.compile(r"(.+?)와\s+(.+?)\s+중"),
     re.compile(r"(.+?)과\s+(.+?)\s+중"),
+    # "X하고 Y 비교" / "X하고 Y 사업 비교"
+    re.compile(r"(.+?)하고\s+(.+?)(?:\s+사업)?\s+비교"),
+    re.compile(r"(.+?)랑\s+(.+?)(?:\s+사업)?\s+비교"),
+    re.compile(r"(.+?)이랑\s+(.+?)(?:\s+사업)?\s+비교"),
+    # "X와 Y 비교" / "X과 Y 비교"
+    re.compile(r"(.+?)와\s+(.+?)\s+비교"),
+    re.compile(r"(.+?)과\s+(.+?)\s+비교"),
+    # "X 사업이 Y 사업보다" — "큰가/높은가/많은가" 등
+    re.compile(r"(.+?)\s+사업이\s+(.+?)\s+사업보다"),
 )
 GENERIC_COMPARISON_TERMS = {
     "내가",
@@ -117,8 +126,12 @@ def infer_comparison_metric(*, query: str, graph_state: GraphState) -> str | Non
 
 def sanitize_entity_phrase(text: str) -> str:
     cleaned = text.strip()
-    for suffix in ("중 어디", "어디가", "비교", "대비", "중"):
+    for suffix in ("중 어디", "어디가", "비교", "대비", "중", "사업", "사업의", "건", "관련"):
         if cleaned.endswith(suffix):
+            cleaned = cleaned[: -len(suffix)].strip()
+    # 한국어 조사 제거 (and, with, comparison context)
+    for suffix in ("하고", "랑", "이랑", "와", "과", "이", "가", "은", "는", "을", "를", "의"):
+        if cleaned.endswith(suffix) and len(cleaned) > len(suffix) + 1:
             cleaned = cleaned[: -len(suffix)].strip()
     return cleaned
 
