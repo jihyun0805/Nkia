@@ -43,6 +43,7 @@ import {
   updateBackendProjectOpportunity,
 } from "@/lib/finding-backend"
 import { currentUser, isSalesUser } from "@/lib/current-user"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
@@ -314,6 +315,58 @@ export default function FindingEditPage() {
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
+
+  // 챗봇 edit_field action 으로 페이지가 열렸을 때 query 의 chatbotPrefill_* 값을 폼에 반영
+  const { values: chatbotPrefillValues, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+
+  useEffect(() => {
+    if (loading) return
+    if (!hasChatbotPrefill) return
+    if (prefillAppliedRef.current) return
+    prefillAppliedRef.current = true
+    const summary: string[] = []
+    const v = chatbotPrefillValues
+    if (v.sales_representative_name) {
+      setSalesRep(v.sales_representative_name)
+      summary.push(`영업대표 → ${v.sales_representative_name}`)
+    }
+    if (v.issue_content) {
+      setIssue(v.issue_content)
+      summary.push(`이슈 → ${v.issue_content}`)
+    }
+    if (v.main_content) {
+      setMemo(v.main_content)
+      summary.push(`주요 내용 → ${v.main_content}`)
+    }
+    if (v.competitor_status) {
+      setCompetition(v.competitor_status)
+      summary.push(`경쟁 상황 → ${v.competitor_status}`)
+    }
+    if (v.expected_amount) {
+      setExpectedAmount(v.expected_amount)
+      summary.push(`예상 사업비 → ${v.expected_amount}`)
+    }
+    if (v.business_type) {
+      setBusinessType(v.business_type)
+      summary.push(`사업유형 → ${v.business_type}`)
+    }
+    if (v.stage) {
+      // stage 는 backend enum; 폼은 status 로 표시. 간단히 status 도 같이 동기화 (필요 시 mapping)
+      setStatus(v.stage)
+      summary.push(`현재 단계 → ${v.stage}`)
+    }
+    if (summary.length > 0) {
+      toast({
+        title: "챗봇에서 폼 prefill 반영",
+        description: summary.join(" / ") + " — 확인 후 저장하세요.",
+      })
+    }
+    // URL 정리 (필드 적용 후)
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, hasChatbotPrefill])
 
   useEffect(() => {
     let cancelled = false
