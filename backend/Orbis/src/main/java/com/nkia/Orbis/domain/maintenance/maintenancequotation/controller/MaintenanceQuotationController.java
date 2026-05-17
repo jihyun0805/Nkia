@@ -88,7 +88,7 @@ public class MaintenanceQuotationController {
     @PostMapping("/submit/{quotationId}")
     public ResponseEntity<ApiResponse<String>> submitMaintenanceQuotation(
             @PathVariable("quotationId") Long quotationId,
-            @RequestBody SubmitRequest request
+            @RequestBody @Valid SubmitRequest request
     ) {
         quotationService.submitMaintenanceQuotation(
                 quotationId,
