@@ -126,7 +126,17 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
             totalPrice: formatNum(p.totalPrice),
           }))
         : [],
-      maintenanceOnlyItems: isEdit ? initialData?.maintenanceOnlyItems : [],
+      maintenanceOnlyItems: isEdit
+        ? initialData?.maintenanceOnlyItems?.map((i: any) => ({
+            year: i.year,
+            amount: formatNum(i.amount),
+            license: formatNum(i.license),
+            thirdParty: formatNum(i.thirdParty),
+            service: formatNum(i.service),
+            maintenance: formatNum(i.maintenance),
+            maintenanceRate: i.maintenanceRate !== null && i.maintenanceRate !== undefined ? String(i.maintenanceRate) : "",
+          }))
+        : [],
     },
   });
 

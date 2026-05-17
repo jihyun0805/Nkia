@@ -6,8 +6,8 @@ import { Plus, Trash2 } from "lucide-react";
 
 export function OrderScopeSection() {
   const { register, control, setValue } = useFormContext();
-  const maintenanceSummary = useFieldArray({ control, name: "maintenanceSummary" });
-  const summaryData = useWatch({ control, name: "maintenanceSummary" }) || [];
+  const maintenanceOnlyItems = useFieldArray({ control, name: "maintenanceOnlyItems" });
+  const summaryData = useWatch({ control, name: "maintenanceOnlyItems" }) || [];
 
   const maintenanceDetails = useWatch({ control, name: "maintenanceDetails" }) || [];
   const maintenanceDiscount = useWatch({ control, name: "maintenanceDiscount" });
@@ -30,11 +30,11 @@ export function OrderScopeSection() {
   // 기본 1줄 자동추가
   const isInitialized = useRef(false);
   useEffect(() => {
-    if (!isInitialized.current && maintenanceSummary.fields.length === 0) {
-      maintenanceSummary.append({ year: "", projectAmount: "", license: "", thirdParty: "", service: "", maintenance: "", rate: "" });
+    if (!isInitialized.current && maintenanceOnlyItems.fields.length === 0) {
+      maintenanceOnlyItems.append({ year: "", amount: "", license: "", thirdParty: "", service: "", maintenance: "", maintenanceRate: "" });
       isInitialized.current = true;
     }
-  }, [maintenanceSummary.fields.length, maintenanceSummary.append]);
+  }, [maintenanceOnlyItems.fields.length, maintenanceOnlyItems.append]);
 
   // 자동 합산 로직
   const parseNumber = (val: string | number) => {
@@ -43,17 +43,6 @@ export function OrderScopeSection() {
     return isNaN(num) ? 0 : num;
   };
 
-  const totals = summaryData.reduce(
-    (acc: any, curr: any) => ({
-      projectAmount: acc.projectAmount + parseNumber(curr.projectAmount),
-      license: acc.license + parseNumber(curr.license),
-      thirdParty: acc.thirdParty + parseNumber(curr.thirdParty),
-      service: acc.service + parseNumber(curr.service),
-      maintenance: acc.maintenance + parseNumber(curr.maintenance),
-    }),
-    { projectAmount: 0, license: 0, thirdParty: 0, service: 0, maintenance: 0 },
-  );
-
   const formatTotal = (num: number) => (num === 0 ? "" : num.toLocaleString());
 
   // 각 행별 사업금액 자동 계산 (라이선스 + 3rd + 용역)
@@ -61,8 +50,8 @@ export function OrderScopeSection() {
     summaryData.forEach((row: any, i: number) => {
       const expectedProjectAmount = parseNumber(row.license) + parseNumber(row.thirdParty) + parseNumber(row.service);
       // 무한 루프를 막기 위해 값이 다를 때만 업데이트
-      if (parseNumber(row.projectAmount) !== expectedProjectAmount) {
-        setValue(`maintenanceSummary.${i}.projectAmount`, formatTotal(expectedProjectAmount));
+      if (parseNumber(row.amount) !== expectedProjectAmount) {
+        setValue(`maintenanceOnlyItems.${i}.amount`, formatTotal(expectedProjectAmount));
       }
     });
   }, [summaryData, setValue]);
@@ -71,20 +60,19 @@ export function OrderScopeSection() {
   const totalLicense = summaryData.reduce((acc: number, curr: any) => acc + parseNumber(curr.license), 0);
   const totalThirdParty = summaryData.reduce((acc: number, curr: any) => acc + parseNumber(curr.thirdParty), 0);
   const totalService = summaryData.reduce((acc: number, curr: any) => acc + parseNumber(curr.service), 0);
-  const totalProjectAmount = summaryData.reduce((acc: number, curr: any) => acc + parseNumber(curr.projectAmount), 0);
+  const totalProjectAmount = summaryData.reduce((acc: number, curr: any) => acc + parseNumber(curr.amount), 0);
 
-  // 합계 행: 유지보수 (소계 합산 + 특별할인)
-  const totalMaintenance = maintenanceDetails.reduce((acc: number, curr: any) => acc + parseNumber(curr.subtotal), 0) + parseNumber(maintenanceDiscount);
+  // 합계 행: 유지보수 (유지보수 수주보고 표의 유지보수 컬럼 합산)
+  const totalSummaryMaintenance = summaryData.reduce((acc: number, curr: any) => acc + parseNumber(curr.maintenance), 0);
 
   // 요율 계산
-  // 1) 유지보수 개월수는 입력된 내역들 중 가장 큰 개월수를 기준으로 계산 (값이 아예 없으면 12로 나눠서 오류 방지)
-  const maintenanceMonths = maintenanceDetails.reduce((max: number, curr: any) => Math.max(max, parseNumber(curr.months)), 0) || 12;
-
   let rateDisplay = "";
-  // 라이선스 합계가 0보다 클 때만 계산 (0으로 나누는 것 방지)
-  if (totalLicense > 0 && totalMaintenance > 0) {
-    const rateValue = ((totalMaintenance / maintenanceMonths) * 12) / totalLicense;
-    rateDisplay = (rateValue * 100).toFixed(2) + "%"; // 소수점 2자리까지 표시
+  const validRates = summaryData.map((d: any) => parseFloat(d.maintenanceRate)).filter((r: number) => !isNaN(r) && r > 0);
+  if (validRates.length > 0) {
+    const avgRate = validRates.reduce((acc: number, curr: number) => acc + curr, 0) / validRates.length;
+    rateDisplay = avgRate.toFixed(2) + "%";
+  } else if (totalLicense > 0 && totalSummaryMaintenance > 0) {
+    rateDisplay = ((totalSummaryMaintenance / totalLicense) * 100).toFixed(2) + "%";
   }
 
   const cellInput = "w-full h-full min-h-[32px] border-0 bg-transparent px-2 text-sm focus:ring-2 focus:ring-blue-600 outline-none";
@@ -195,7 +183,7 @@ export function OrderScopeSection() {
           <div className="text-sm font-bold text-purple-800">※ 유지보수 수주보고 시 작성</div>
           <button
             type="button"
-            onClick={() => maintenanceSummary.append({ year: "", projectAmount: "", license: "", thirdParty: "", service: "", maintenance: "", rate: "" })}
+            onClick={() => maintenanceOnlyItems.append({ year: "", amount: "", license: "", thirdParty: "", service: "", maintenance: "", maintenanceRate: "" })}
             className="text-xs border border-black px-2 py-1 bg-slate-100 hover:bg-slate-200 flex items-center transition-colors"
           >
             <Plus className="w-3 h-3 mr-1" /> 행 추가
@@ -235,33 +223,33 @@ export function OrderScopeSection() {
               </tr>
             </thead>
             <tbody>
-              {maintenanceSummary.fields.map((f, i) => (
+              {maintenanceOnlyItems.fields.map((f, i) => (
                 <tr key={f.id} className="border-b border-black relative group">
                   <td className="border-r border-black p-0" colSpan={2}>
-                    <input className={`${cellInput} text-center`} {...register(`maintenanceSummary.${i}.year`)} />
+                    <input className={`${cellInput} text-center`} {...register(`maintenanceOnlyItems.${i}.year`)} />
                   </td>
                   <td className="border-r border-black p-0" colSpan={3}>
-                    <input className={`${cellInput} text-right font-semibold text-slate-700 bg-slate-50`} readOnly tabIndex={-1} {...registerNumber(`maintenanceSummary.${i}.projectAmount`)} />
+                    <input className={`${cellInput} text-right font-semibold text-slate-700 bg-slate-50`} readOnly tabIndex={-1} {...registerNumber(`maintenanceOnlyItems.${i}.amount`)} />
                   </td>
                   <td className="border-r border-black p-0" colSpan={1}>
-                    <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceSummary.${i}.license`)} />
+                    <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceOnlyItems.${i}.license`)} />
                   </td>
                   <td className="border-r border-black p-0" colSpan={1}>
-                    <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceSummary.${i}.thirdParty`)} />
+                    <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceOnlyItems.${i}.thirdParty`)} />
                   </td>
                   <td className="border-r border-black p-0" colSpan={1}>
-                    <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceSummary.${i}.service`)} />
+                    <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceOnlyItems.${i}.service`)} />
                   </td>
                   <td className="border-r border-black p-0" colSpan={1}>
-                    <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceSummary.${i}.maintenance`)} />
+                    <input className={`${cellInput} text-right`} {...registerNumber(`maintenanceOnlyItems.${i}.maintenance`)} />
                   </td>
                   <td className="p-0" colSpan={1}>
-                    <input className={`${cellInput} text-center`} {...register(`maintenanceSummary.${i}.rate`)} />
+                    <input className={`${cellInput} text-center`} {...register(`maintenanceOnlyItems.${i}.maintenanceRate`)} />
                   </td>
 
                   {/* 삭제 버튼 */}
                   <td className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button type="button" onClick={() => maintenanceSummary.remove(i)} className="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50" title="행 삭제">
+                    <button type="button" onClick={() => maintenanceOnlyItems.remove(i)} className="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50" title="행 삭제">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -285,7 +273,7 @@ export function OrderScopeSection() {
                   <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(totalService)} tabIndex={-1} />
                 </td>
                 <td className="border-r border-black p-0" colSpan={1}>
-                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(totalMaintenance)} tabIndex={-1} />
+                  <input className={`${cellInput} text-right font-bold text-blue-700`} readOnly value={formatTotal(totalSummaryMaintenance)} tabIndex={-1} />
                 </td>
                 <td className="p-0" colSpan={1}>
                   <input className={`${cellInput} text-center font-bold text-blue-700`} readOnly value={rateDisplay} tabIndex={-1} />
