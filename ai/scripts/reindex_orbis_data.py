@@ -44,6 +44,9 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "recent_activity_summary",
             "billing_summary", "prb_comprehensive_opinion",
             "sales_representative_name",
+            # description (OID → text) — 실주 사유/사업 요약 등이 여기 있음.
+            # _OID_TEXT_COLUMNS 가 fetch 단계에서 텍스트로 풀어준 결과.
+            "description",
         ),
         payload_aliases={
             "opportunityId": ("id",),
@@ -185,16 +188,23 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.BID_RESULT,
         id_fields=("bidResultCode", "bid_result_code", "id"),
         title_fields=("bidResultCode", "bid_result_code", "id"),
+        # 실제 DB 컬럼명 + OID 컬럼 (_OID_TEXT_COLUMNS 에서 텍스트로 풀린 것).
+        # 기존: result_status/win_loss_reason 등 nonexistent 컬럼 → chunk 가
+        # 메타데이터만 포함하고 실주 사유 텍스트 누락 → LLM 환각.
         content_fields=(
-            "result_status", "result_date", "win_loss_reason",
-            "competitor_summary", "outcome_summary",
+            "bid_outcome", "company_name",
+            "key_success_factors", "proposal_strategy", "rfp_issues",
+            "technical_score", "price_score", "sum_score",
+            "presentation_date", "bid_announcement_date",
+            "disclosure_status",
         ),
         payload_aliases={
             "bidResultCode": ("id",),
             "opportunityId": ("project_opportunity_id",),
-            "resultStatus": ("result_status",),
-            "winLossReason": ("win_loss_reason",),
-            "competitorSummary": ("competitor_summary",),
+            "bidOutcome": ("bid_outcome",),
+            "keySuccessFactors": ("key_success_factors",),
+            "proposalStrategy": ("proposal_strategy",),
+            "rfpIssues": ("rfp_issues",),
         },
     ),
     DocumentConfig(
@@ -522,6 +532,35 @@ def build_documents(
     return documents
 
 
+# 테이블별 OID(large object) 컬럼 → 텍스트로 풀어서 색인 enrichment
+# to_jsonb 는 OID 컬럼을 숫자(참조)로만 직렬화하므로 chunk content 에
+# 실제 텍스트가 누락됨. 실주 사유(project_opportunity.description) 등
+# 의미 있는 텍스트가 색인 안 돼 LLM 환각의 root cause 가 됨.
+_OID_TEXT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "project_opportunity": ("description",),
+    "bid_result": ("key_success_factors", "proposal_strategy", "rfp_issues"),
+}
+
+
+def _read_oid_text(conn: psycopg.Connection[Any], oid: int) -> str | None:
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT read_oid")
+            try:
+                cur.execute("SELECT convert_from(lo_get(%s), 'UTF8') AS text", (oid,))
+                row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT read_oid")
+                if row is None:
+                    return None
+                text = row.get("text") if isinstance(row, dict) else row[0]
+                return text if text else None
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT read_oid")
+                return None
+    except Exception:
+        return None
+
+
 def fetch_table_rows(
     *,
     conn: psycopg.Connection[Any],
@@ -533,7 +572,20 @@ def fetch_table_rows(
         query += sql.SQL(" LIMIT {}").format(sql.Literal(limit))
     with conn.cursor() as cur:
         cur.execute(query)
-        return [dict(record["row"]) for record in cur.fetchall()]
+        rows = [dict(record["row"]) for record in cur.fetchall()]
+
+    # OID 컬럼 텍스트로 enrichment (large object → readable text)
+    oid_cols = _OID_TEXT_COLUMNS.get(table)
+    if oid_cols:
+        for row in rows:
+            for col in oid_cols:
+                value = row.get(col)
+                # to_jsonb 가 OID 를 정수로 직렬화. 양수 OID 만 풀음.
+                if isinstance(value, int) and value > 0:
+                    text = _read_oid_text(conn, value)
+                    if text:
+                        row[col] = text
+    return rows
 
 
 def _fetch_user_display(
