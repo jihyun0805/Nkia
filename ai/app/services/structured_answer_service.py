@@ -250,6 +250,11 @@ def answer_targeted_domain_query(
         billing_customer = extract_customer_name_for_billing(query=query)
         billing_code = extract_business_codes(query)
         opp_code_for_billing = billing_code[0] if billing_code else None
+        # entity scope guard: query 본문에 회사명/사업코드 명시 없으면 BILLING 전체 집계 분기 차단.
+        # follow-up ("그 사업 청구 현황") 처럼 직전 turn 의 entity 가 의도된 케이스는
+        # discovery (LLM grounded) 로 fall-through 시켜 history context + entity 일치 evidence 만 사용.
+        if not billing_customer and not opp_code_for_billing:
+            return None
         # 질문에서 상태 필터 추출 (비율 질문은 전체 모집단을 보아야 하므로 필터를 적용하지 않음)
         billing_statuses: list[str] | None = None
         is_ratio_query = "비율" in normalized_query or "퍼센트" in normalized_query or "%" in normalized_query
@@ -661,15 +666,16 @@ def answer_targeted_domain_query(
         "견적", "프로포잘", "제안서",
         "유지보수 활동", "유지보수 이력", "유지보수 내역", "유지보수",
         "활동", "회의", "미팅",
-        "결재선", "상신자", "결재 상태", "결재상태", "결재자",
+        "결재", "결재선", "상신자", "결재 상태", "결재상태", "결재자",
+        "결재 진행", "결재 완료", "결재 대기", "상신",
         "rfp 분석", "rfp 결과",
         "prb 결과", "prb 의견", "prb 종합",
-        "입찰결과", "입찰 결과", "수주 결과", "수주결과",
+        "입찰결과", "입찰 결과", "입찰",
+        "수주 결과", "수주결과", "수주보고", "수주 보고", "수주보고서", "수주",
         "라이선스", "라이센스",
         "고객지원", "고객 지원",
         "청구", "수금", "미수금", "세금계산서",
         "라이프사이클", "전체 라이프사이클",
-        "결재 진행", "결재 완료", "결재 대기",
         "위험요인", "리스크", "이슈",
     )
     if any(kw in normalized_query for kw in domain_specific_keywords):
