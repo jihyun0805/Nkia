@@ -765,20 +765,35 @@ def has_vague_metric_question(query: str) -> bool:
 def build_conversation_context(history: list[ConversationMessage]) -> str:
     """LLM 에 전달할 대화 컨텍스트.
 
-    의도: follow-up 흐름 파악용 — 직전 사용자 질문만 짧게 노출.
+    의도: follow-up 흐름 파악용 — user 질문만 짧게 노출.
     이전 assistant 답변은 포함하지 않음 (LLM 이 답변 내용을 재인용/재사용해
     [근거 문서] 와 무관한 환각/leak 을 만드는 패턴을 차단).
+
+    중요: 첫 user 질문은 항상 보존한다.
+    drilldown follow-up (예: turn 5 "수주보고 내용 알려줘") 에서 entity 가
+    turn 1 에만 명시된 경우, 마지막 N개만 보이면 LLM 이 entity 를 잃고
+    "특정 사업/회사 명시 안 됨" 으로 잘못 refusal 하는 패턴 차단.
     """
     if not history:
         return ""
 
-    lines = []
-    # 가장 최근 user turn 만 (최대 3개) 노출. assistant 답변은 제외.
     user_messages = [m for m in history if m.role == "user"]
-    for message in user_messages[-3:]:
+    if not user_messages:
+        return ""
+
+    # 첫 user (entity 가능성 높음) + 최근 2개. dedup.
+    if len(user_messages) <= 3:
+        preserved = user_messages
+    else:
+        preserved = [user_messages[0]] + user_messages[-2:]
+
+    lines = []
+    seen_contents: set[str] = set()
+    for message in preserved:
         content = (message.content or "").strip()
-        if not content:
+        if not content or content in seen_contents:
             continue
+        seen_contents.add(content)
         # 너무 긴 query 는 자름 (LLM 토큰 절약 + 환각 줄임)
         lines.append(f"사용자(이전): {content[:200]}")
     return "\n".join(lines)
