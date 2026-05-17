@@ -137,7 +137,7 @@ public class BillingService {
 
     private String getUserNameFromId(String userIdStr) {
         if (userIdStr == null || userIdStr.isBlank()) {
-            return userIdStr;
+            return "알 수 없는 유저";
         }
         try {
             UUID userUuid = UUID.fromString(userIdStr);
@@ -146,7 +146,7 @@ public class BillingService {
                     .orElse(userIdStr);
         } catch (IllegalArgumentException e) {
             log.error("Invalid UUID format for userId: {}", userIdStr, e);
-            return userIdStr;
+            return "알 수 없는 유저";
         }
     }
 
