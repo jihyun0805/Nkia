@@ -31,12 +31,10 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -132,22 +130,19 @@ public class BillingService {
         OrderReport report = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
 
-        return convertToFormInitResponse(report, getUserNameFromId(userIdStr));
-    }
+        String userName = userIdStr;
 
-    private String getUserNameFromId(String userIdStr) {
-        if (userIdStr == null || userIdStr.isBlank()) {
-            return "알 수 없는 유저";
-        }
         try {
             UUID userUuid = UUID.fromString(userIdStr);
-            return userRepository.findById(userUuid)
-                    .map(User::getName)
-                    .orElse(userIdStr);
+            User user = userRepository.findById(userUuid).orElse(null);
+            if (user != null) {
+                userName = user.getName();
+            }
         } catch (IllegalArgumentException e) {
-            log.error("Invalid UUID format for userId: {}", userIdStr, e);
-            return "알 수 없는 유저";
+            // 예외 무시
         }
+
+        return convertToFormInitResponse(report, userName);
     }
 
     /**
@@ -184,7 +179,7 @@ public class BillingService {
             uploadFileService.getUploadFile(oldImageId).delete();
         }
 
-        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()));
     }
 
     /**
@@ -209,7 +204,7 @@ public class BillingService {
         List<Billing> billings = billingRepository.findAllByOrderByIdDesc();
 
         return billings.stream()
-                .map(billing -> BillingListResponse.from(billing, getUserNameFromId(billing.getCreatedBy())))
+                .map(BillingListResponse::from)
                 .toList();
     }
 
@@ -220,7 +215,7 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
-        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()));
     }
 
     @Transactional

@@ -13,10 +13,6 @@ import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
 import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
-import com.nkia.Orbis.domain.maintenance.maintenancehistory.dto.response.MaintenanceHistoryDetailResponse;
-import com.nkia.Orbis.domain.maintenance.maintenancehistory.dto.response.MaintenanceHistoryListResponse;
-import com.nkia.Orbis.domain.maintenance.maintenancehistory.entity.MaintenanceHistory;
-import com.nkia.Orbis.domain.maintenance.maintenancehistory.repository.MaintenanceHistoryRepository;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.request.MaintenanceUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceDetailResponse;
@@ -47,7 +43,6 @@ public class MaintenanceService {
     private final UploadFileService uploadFileService;
     private final WorkflowRepository workflowRepository;
     private final WorkflowService workflowService;
-    private final MaintenanceHistoryRepository maintenanceHistoryRepository;
 
     /**
      * 유지보수 (무상/유상) 신규 등록
@@ -72,8 +67,9 @@ public class MaintenanceService {
     /**
      * 유지보수 엔티티 생성
      */
+    @Transactional
     private Maintenance createMaintenanceEntity(MaintenanceCreateRequest dto, Project project, User salesRep,
-            User primary, User secondary, User regularPm, UploadFile contractFile) {
+                                                User primary, User secondary, User regularPm, UploadFile contractFile) {
         return Maintenance.builder()
                 .project(project)
                 .salesRep(salesRep)
@@ -134,15 +130,10 @@ public class MaintenanceService {
 
         handleContractFileUpdate(maintenance, dto.getContractFileId());
 
-        saveSnapshot(maintenance);
-
         UploadFile contractFile = getUploadFile(dto.getContractFileId());
         maintenance.updateMaintenance(dto, salesRep, primary, secondary, regularPm, contractFile);
 
-        String creatorName = getUserNameByUuidString(maintenance.getCreatedBy());
-        String updaterName = getUserNameByUuidString(maintenance.getUpdatedBy());
-
-        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance), creatorName, updaterName);
+        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance));
     }
 
     /**
@@ -186,10 +177,7 @@ public class MaintenanceService {
         Maintenance maintenance = maintenanceRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
 
-        String creatorName = getUserNameByUuidString(maintenance.getCreatedBy());
-        String updaterName = getUserNameByUuidString(maintenance.getUpdatedBy());
-
-        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance), creatorName, updaterName);
+        return MaintenanceDetailResponse.from(maintenance, getWorkflowId(maintenance));
     }
 
     /**
@@ -201,47 +189,6 @@ public class MaintenanceService {
         return list.stream()
                 .map(MaintenanceListResponse::from)
                 .toList();
-    }
-
-    public List<MaintenanceHistoryListResponse> getHistories(Long maintenanceId) {
-        if (!maintenanceRepository.existsById(maintenanceId)) {
-            throw new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND);
-        }
-        List<MaintenanceHistory> histories = maintenanceHistoryRepository
-                .findByMaintenanceIdOrderByVersionDesc(maintenanceId);
-        return histories.stream()
-                .map(MaintenanceHistoryListResponse::from)
-                .toList();
-    }
-
-    public MaintenanceHistoryDetailResponse getHistoryDetail(Long historyId) {
-        MaintenanceHistory history = maintenanceHistoryRepository.findById(historyId)
-                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
-
-        Long workflowId = getWorkflowId(history.getMaintenance());
-        String creatorName = getUserNameByUuidString(history.getCreatedBy());
-        String updaterName = getUserNameByUuidString(history.getUpdatedBy());
-        return MaintenanceHistoryDetailResponse.from(history, workflowId, creatorName, updaterName);
-    }
-
-    private void saveSnapshot(Maintenance m) {
-        int nextVersion = (int) maintenanceHistoryRepository.countByMaintenanceId(m.getId()) + 1;
-        MaintenanceHistory history = MaintenanceHistory.create(m, nextVersion);
-        maintenanceHistoryRepository.save(history);
-    }
-
-    private String getUserNameByUuidString(String uuidStr) {
-        if (uuidStr == null || uuidStr.isBlank()) {
-            return "-";
-        }
-        try {
-            UUID uuid = UUID.fromString(uuidStr);
-            return userRepository.findById(uuid)
-                    .map(User::getName)
-                    .orElse("알 수 없음");
-        } catch (IllegalArgumentException e) {
-            return uuidStr;
-        }
     }
 
     /**
@@ -258,7 +205,8 @@ public class MaintenanceService {
     @Transactional
     public void submitMaintenance(
             Long maintenanceId,
-            UUID firstApproverId) {
+            UUID firstApproverId
+    ) {
         Maintenance maintenance = maintenanceRepository.findById(maintenanceId)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MAINTENANCE_NOT_FOUND));
 
@@ -274,7 +222,8 @@ public class MaintenanceService {
                 workflowDomain,
                 maintenance.getId(),
                 requesterId,
-                firstApproverId);
+                firstApproverId
+        );
 
         maintenance.submit();
     }
@@ -287,7 +236,8 @@ public class MaintenanceService {
                 .findByWorkflowDomainAndTargetIdAndStatus(
                         workflowDomain,
                         maintenance.getId(),
-                        WorkflowStatus.IN_PROGRESS)
+                        WorkflowStatus.IN_PROGRESS
+                )
                 .map(Workflow::getId)
                 .orElse(null);
     }

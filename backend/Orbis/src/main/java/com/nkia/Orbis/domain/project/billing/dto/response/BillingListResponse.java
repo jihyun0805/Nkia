@@ -23,7 +23,7 @@ public class BillingListResponse {
 
     private String requesterName;
 
-    public static BillingListResponse from(Billing billing, String requesterName) {
+    public static BillingListResponse from(Billing billing) {
         return BillingListResponse.builder()
                 .customerName(billing.getOrderReport().getFinalCustomerCompany().getName())
                 .projectName(billing.getOrderReport().getProjectOpportunity().getOpportunityName())
@@ -31,7 +31,7 @@ public class BillingListResponse {
                 .issuedAt(billing.getIssuedAt())
                 .collectedAt(billing.getCollectedAt())
                 .salesRepName(billing.getOrderReport().getPm().getName())
-                .requesterName(requesterName)
+                .requesterName(billing.getCreatedBy())
                 .build();
     }
 }

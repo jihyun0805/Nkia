@@ -31,9 +31,6 @@ public class MaintenanceQuotationUpdateRequest {
     private String specialNotes;
 
     @Valid
-    private MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo;
-
-    @Valid
     private List<MaintenanceQuotationCreateRequest.PackageCostRequest> packageCosts;
 
     @Valid

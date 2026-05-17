@@ -16,7 +16,6 @@ type CustomerAutocompleteProps = {
   disabled?: boolean
   onUnregisteredAttempt?: () => void
   allowCustomValue?: boolean
-  inputClassName?: string
 }
 
 export function CustomerAutocomplete({
@@ -27,7 +26,6 @@ export function CustomerAutocomplete({
   disabled = false,
   onUnregisteredAttempt,
   allowCustomValue = false,
-  inputClassName,
 }: CustomerAutocompleteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
@@ -75,7 +73,6 @@ export function CustomerAutocomplete({
           value={query}
           disabled={disabled}
           placeholder={placeholder}
-          className={inputClassName}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
             const nextValue = event.target.value

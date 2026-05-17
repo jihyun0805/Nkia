@@ -6,7 +6,6 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
-import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -30,6 +29,7 @@ import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   loadBackendCompanyManagers,
   loadBackendFindingData,
+  mapCustomerSector,
   updateBackendCompany,
   createBackendCompanyManager,
   updateBackendCompanyManager,
@@ -38,21 +38,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
 
-const customerGroupOptions = [
-  { value: "PUBLIC", label: "공공" },
-  { value: "PRIVATE", label: "민간" },
-  { value: "OVERSEAS", label: "해외" },
-]
-
-type CustomerSector = "PUBLIC" | "PRIVATE" | "OVERSEAS"
-
-function mapCustomerSectorToEnum(value: string): CustomerSector {
-  const normalized = value.trim().toUpperCase()
-  if (normalized === "PUBLIC" || value === "공공") return "PUBLIC"
-  if (normalized === "PRIVATE" || value === "민간") return "PRIVATE"
-  if (normalized === "OVERSEAS" || value === "해외") return "OVERSEAS"
-  return "PRIVATE"
-}
+const customerGroupOptions = ["공공", "민간", "해외"]
 
 type ContactDraft = CustomerContact
 
@@ -73,6 +59,7 @@ function createEmptyContactDraft(): ContactDraft {
     email: "",
     mobilePhone: "",
     landlinePhone: "",
+    fax: "",
     duty: "",
     memo: "",
     businessCardImage: "",
@@ -93,6 +80,7 @@ function normalizeContacts(customer: CustomerRecord | null) {
       email: customer.email ?? "",
       mobilePhone: customer.mobilePhone ?? customer.phone ?? "",
       landlinePhone: customer.landlinePhone ?? "",
+      fax: customer.fax ?? "",
       duty: customer.duty ?? "",
       memo: customer.memo ?? "",
     },
@@ -100,7 +88,7 @@ function normalizeContacts(customer: CustomerRecord | null) {
 }
 
 function hasContactValue(contact: ContactDraft) {
-  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.duty, contact.memo].some(
+  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.fax, contact.duty, contact.memo].some(
     (value) => String(value ?? "").trim(),
   )
 }
@@ -169,7 +157,7 @@ function CustomerEditPageContent() {
     Awaited<ReturnType<typeof loadBackendCompanyManagers>>
   >([])
   const [customerName, setCustomerName] = useState("")
-  const [customerGroup, setCustomerGroup] = useState<CustomerSector>("PRIVATE")
+  const [customerGroup, setCustomerGroup] = useState("민간")
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
@@ -199,7 +187,7 @@ function CustomerEditPageContent() {
         }
 
         setCustomerName(current.name)
-        setCustomerGroup(mapCustomerSectorToEnum(current.category || "PRIVATE"))
+        setCustomerGroup(current.category || "민간")
         setAddress(current.address ?? "")
         setMemo(current.memo ?? "")
         setContacts(normalizeContacts(current))
@@ -234,16 +222,6 @@ function CustomerEditPageContent() {
   const duplicateCustomer = useMemo(
     () => customers.find((item) => item.id !== id && item.name.trim().toLowerCase() === customerName.trim().toLowerCase()) ?? null,
     [customers, customerName, id],
-  )
-  const customerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
-    () =>
-      customers.map((customer) => ({
-        id: customer.id,
-        label: customer.name,
-        subtitle: customer.category || undefined,
-        keywords: customer.aliases ?? [],
-      })),
-    [customers],
   )
 
   function syncBackendManagers(companyCode: string, companyId: number, filledContacts: ContactDraft[]) {
@@ -318,6 +296,7 @@ function CustomerEditPageContent() {
         email: keepExistingValue(currentContact.email, result.email),
         mobilePhone: keepExistingValue(currentContact.mobilePhone, result.mobile),
         landlinePhone: keepExistingValue(currentContact.landlinePhone, result.phone),
+        fax: keepExistingValue(currentContact.fax, result.fax),
         duty: keepExistingValue(currentContact.duty, result.role),
         businessCardImage,
       }
@@ -351,10 +330,10 @@ function CustomerEditPageContent() {
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !primaryContact?.name?.trim() || !primaryContact?.email?.trim()) {
+    if (!normalizedName || !primaryContact?.name?.trim() || !primaryContact?.email?.trim() || !primaryContact?.mobilePhone?.trim()) {
       toast({
         title: "고객사 수정 확인",
-        description: "고객사명, 담당자 1의 성명, 이메일을 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -388,7 +367,7 @@ function CustomerEditPageContent() {
     try {
       await updateBackendCompany(customer.backendId, {
         name: normalizedName,
-        sector: mapCustomerSectorToEnum(customerGroup),
+        sector: mapCustomerSector(customerGroup),
         address,
         memo,
       }, customer.id)
@@ -484,30 +463,18 @@ function CustomerEditPageContent() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label>고객사명 *</Label>
-                      <CustomerAutocomplete
-                        value={customerName}
-                        onSelect={(nextCustomer) => setCustomerName(nextCustomer?.name ?? "")}
-                        onValueChange={setCustomerName}
-                        allowCustomValue
-                        placeholder="고객사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
-                      />
-                      <SimilarMatchHint
-                        query={customerName}
-                        candidates={customerSimilarCandidates}
-                        hintTitle="비슷한 고객사가 이미 등록되어 있어요"
-                        onPick={(candidate) => setCustomerName(candidate.label)}
-                      />
+                      <CustomerAutocomplete value={customerName} onSelect={(nextCustomer) => setCustomerName(nextCustomer?.name ?? "")} onValueChange={setCustomerName} allowCustomValue placeholder="고객사명을 입력하세요" />
                     </div>
                     <div className="space-y-2">
                       <Label>고객군</Label>
-                      <Select value={customerGroup} onValueChange={(value) => setCustomerGroup(mapCustomerSectorToEnum(value))}>
+                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
                         </SelectTrigger>
                         <SelectContent>
                           {customerGroupOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
+                            <SelectItem key={option} value={option}>
+                              {option}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -635,7 +602,7 @@ function CustomerEditPageContent() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호</Label>
+                            <Label>무선전화번호 *</Label>
                             <Input
                               inputMode="tel"
                               autoComplete="tel"
@@ -654,6 +621,16 @@ function CustomerEditPageContent() {
                               value={contact.landlinePhone ?? ""}
                               onChange={(event) =>
                                 setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, landlinePhone: event.target.value } : item)))
+                              }
+                              placeholder="02-0000-0000"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>FAX</Label>
+                            <Input
+                              value={contact.fax ?? ""}
+                              onChange={(event) =>
+                                setContacts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, fax: event.target.value } : item)))
                               }
                               placeholder="02-0000-0000"
                             />

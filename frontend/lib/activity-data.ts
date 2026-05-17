@@ -11,7 +11,6 @@ export type ActivityRecord = {
   projectOpportunityId?: number
   registrant?: string
   requester?: string
-  requesterUserId?: string
   customerCode: string
   businessCode: string
   activityMode: string
@@ -21,7 +20,6 @@ export type ActivityRecord = {
   opportunity: string
   location: string
   attendees: string
-  attendeeUserIds?: string[]
   content: string
   issues: string
   nextAction: string

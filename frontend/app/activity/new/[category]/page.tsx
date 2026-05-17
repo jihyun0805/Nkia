@@ -26,7 +26,6 @@ import { ActivityFormFields } from "@/components/erp/searchable-activity-form-fi
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
-import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import {
@@ -40,13 +39,10 @@ import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-b
 import { toast } from "@/hooks/use-toast"
 import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { X } from "lucide-react"
-import { currentUser } from "@/lib/current-user"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { createBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
-import { createBackendQuotationRecord, getQuotationCreateBlockReason } from "@/lib/sales-quotation-backend"
-import { findUserByToken, formatUserDisplayName } from "@/lib/user-utils"
-import { useBackendUsers } from "@/lib/use-backend-users"
+import { createBackendQuotationRecord } from "@/lib/sales-quotation-backend"
 
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
 
@@ -108,7 +104,6 @@ function ActivityCategoryNewPageContent() {
   const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
   const [findingData, setFindingData] = useState<FindingBackendData>(emptyFindingData)
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
-  const backendUsers = useBackendUsers()
   const [activityForm, setActivityForm] = useState({
     date: "",
     activityMode: "",
@@ -122,7 +117,7 @@ function ActivityCategoryNewPageContent() {
   const [form, setForm] = useState({
     date: "",
     type: "",
-    requester: currentUser.name,
+    requester: "",
     receiver: "",
     customerCode: "",
     customer: "",
@@ -354,11 +349,12 @@ function ActivityCategoryNewPageContent() {
 
     if (category === "quotations") {
       const normalized = normalizeQuotationForm(quotationForm)
-      const blockReason = getQuotationCreateBlockReason(normalized)
-      if (blockReason) {
+      const hasValidItem = normalized.items.some((item) => item.name && Number.parseInt(item.amount || "0", 10) > 0)
+
+      if (!normalized.customer || !normalized.opportunity || !normalized.validity || !normalized.salesRep || !hasValidItem) {
         toast({
-          title: "견적 입력 확인",
-          description: blockReason,
+          title: "견적 필수값 확인",
+          description: "고객사, 사업기회, 유효기간, 영업대표와 1개 이상의 제품 금액을 입력해주십시오.",
         })
         return
       }
@@ -370,15 +366,7 @@ function ActivityCategoryNewPageContent() {
           description: `${created.customer} ${registrationTitle}가 등록되었습니다.`,
         })
         router.push(`/activity/quotations/${created.id}`)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : ""
-        if (message) {
-          toast({
-            title: `${registrationTitle} 등록 실패`,
-            description: message,
-          })
-          return
-        }
+      } catch {
         toast({
           title: `${registrationTitle} 등록 실패`,
           description: "백엔드에 견적서를 저장하지 못했습니다.",
@@ -449,31 +437,23 @@ function ActivityCategoryNewPageContent() {
       return
     }
 
-    if (!form.customer) {
-      toast({
-        title: "활동 요청 필수값 확인",
-        description: "고객사, 요청 유형, 담당자, 활동일, 요청 내용을 입력해주십시오.",
-      })
-      return
-    }
-
-    try {
-      const created = await createBackendActivityRequest({
-        ...form,
-      })
-      toast({
-        title: "활동 요청 등록 완료",
-        description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
-      })
-      router.push(`/activity/requests/${created.id}`)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "백엔드에 활동 요청을 저장하지 못했습니다."
-      toast({
-        title: "활동 요청 등록 실패",
-        description: message,
-      })
-      return
-    }
+      try {
+        const created = await createBackendActivityRequest({
+          ...form,
+        })
+        toast({
+          title: "활동 요청 등록 완료",
+          description: `${created.receiver} 담당자에게 접수 확인 티켓을 전송했습니다.`,
+        })
+        router.push(`/activity/requests/${created.id}`)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "백엔드에 활동 요청을 저장하지 못했습니다."
+        toast({
+          title: "활동 요청 등록 실패",
+          description: message,
+        })
+        return
+      }
   }
 
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
@@ -521,9 +501,6 @@ function ActivityCategoryNewPageContent() {
     setActivityOpportunity(suggestion.label)
     setActivityOpportunityCode(suggestion.code || suggestion.id)
   }
-
-  const receiverUser = findUserByToken(backendUsers, form.receiver)
-  const receiverUserId = receiverUser?.id ?? ""
 
   return (
     <div className="min-h-screen bg-background">
@@ -585,7 +562,7 @@ function ActivityCategoryNewPageContent() {
                   <>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>요청일</Label>
+                        <Label>요청일 *</Label>
                         <Input type="date" value={form.date} onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
@@ -606,20 +583,21 @@ function ActivityCategoryNewPageContent() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>요청자</Label>
-                        <Input value={currentUser.name} readOnly />
+                        <Label>요청자 *</Label>
+                        <Input
+                          value={form.requester}
+                          onChange={(event) => setForm((prev) => ({ ...prev, requester: event.target.value }))}
+                          placeholder="요청자 이름을 입력하세요"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>담당자 *</Label>
-                        <UserIdPicker
-                          value={receiverUserId}
-                          users={backendUsers}
-                          onValueChange={(value) => {
-                            const user = findUserByToken(backendUsers, value)
-                            setForm((prev) => ({ ...prev, receiver: formatUserDisplayName(user) }))
-                          }}
-                          placeholder="담당자를 선택하세요"
+                        <Input
+                          value={form.receiver}
+                          onChange={(event) => setForm((prev) => ({ ...prev, receiver: event.target.value }))}
+                          placeholder="담당자 이름을 직접 입력하세요"
                         />
+                        <p className="text-sm text-muted-foreground">백엔드 사용자 이름과 일치해야 저장됩니다.</p>
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
@@ -653,7 +631,7 @@ function ActivityCategoryNewPageContent() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>사업기회</Label>
+                        <Label>사업기회 *</Label>
                         <EntityAutocomplete
                           value={form.opportunity}
                           target="opportunities"

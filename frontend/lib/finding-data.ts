@@ -64,7 +64,6 @@ export type OpportunityRecord = {
   id: string
   backendId?: number
   createdAt: string
-  createUserName?: string
   customerCode: string
   partnerCode: string
   partnerCodes?: string[]
@@ -85,15 +84,7 @@ export type OpportunityRecord = {
   partnerContact: string
   partnerPhone: string
   status: string
-  salesRepresentativeId?: string
   salesRep: string
-  partnerCompanyIds?: number[]
-  partnerCompanyNames?: string[]
-  productModuleIds?: number[]
-  productModuleNames?: string[]
-  rfpFileIds?: number[]
-  rfpFileNames?: string[]
-  rfpFileSizes?: number[]
   rfpAttachments?: OpportunityAttachment[]
 }
 export type OpportunityAttachment = {
@@ -174,7 +165,7 @@ const deletedOpportunityIdsStorageKey = "orbis.deleted-opportunity-ids"
 const partnerStorageKey = "orbis.partners"
 const deletedPartnerIdsStorageKey = "orbis.deleted-partner-ids"
 const customerGroupOptions = ["공공", "민간", "해외"]
-const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"]
+const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 
 export const findingFormSections: FindingFormSection[] = [
   {

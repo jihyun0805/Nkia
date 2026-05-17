@@ -176,10 +176,6 @@ function resolveAttendeeUserId(participant?: string | null, currentUserId?: stri
   const normalized = normalizeLookupText(participant)
   if (!normalized) return ""
 
-  if (/^[0-9a-f-]{36}$/i.test(normalized)) {
-    return participant?.trim() ?? ""
-  }
-
   const currentNormalizedName = normalizeLookupText(currentUser.name)
   const currentNormalizedEmail = normalizeLookupText(currentUser.email)
   const currentNormalizedId = normalizeLookupText(currentUserId ?? currentUser.id)

@@ -250,11 +250,6 @@ def answer_targeted_domain_query(
         billing_customer = extract_customer_name_for_billing(query=query)
         billing_code = extract_business_codes(query)
         opp_code_for_billing = billing_code[0] if billing_code else None
-        # entity scope guard: query 본문에 회사명/사업코드 명시 없으면 BILLING 전체 집계 분기 차단.
-        # follow-up ("그 사업 청구 현황") 처럼 직전 turn 의 entity 가 의도된 케이스는
-        # discovery (LLM grounded) 로 fall-through 시켜 history context + entity 일치 evidence 만 사용.
-        if not billing_customer and not opp_code_for_billing:
-            return None
         # 질문에서 상태 필터 추출 (비율 질문은 전체 모집단을 보아야 하므로 필터를 적용하지 않음)
         billing_statuses: list[str] | None = None
         is_ratio_query = "비율" in normalized_query or "퍼센트" in normalized_query or "%" in normalized_query
@@ -666,16 +661,15 @@ def answer_targeted_domain_query(
         "견적", "프로포잘", "제안서",
         "유지보수 활동", "유지보수 이력", "유지보수 내역", "유지보수",
         "활동", "회의", "미팅",
-        "결재", "결재선", "상신자", "결재 상태", "결재상태", "결재자",
-        "결재 진행", "결재 완료", "결재 대기", "상신",
+        "결재선", "상신자", "결재 상태", "결재상태", "결재자",
         "rfp 분석", "rfp 결과",
         "prb 결과", "prb 의견", "prb 종합",
-        "입찰결과", "입찰 결과", "입찰",
-        "수주 결과", "수주결과", "수주보고", "수주 보고", "수주보고서", "수주",
+        "입찰결과", "입찰 결과", "수주 결과", "수주결과",
         "라이선스", "라이센스",
         "고객지원", "고객 지원",
         "청구", "수금", "미수금", "세금계산서",
         "라이프사이클", "전체 라이프사이클",
+        "결재 진행", "결재 완료", "결재 대기",
         "위험요인", "리스크", "이슈",
     )
     if any(kw in normalized_query for kw in domain_specific_keywords):
@@ -2271,20 +2265,10 @@ def build_opportunity_status_response(
 ) -> AnswerResponse:
     canonical = adapt_opportunity_snapshot(snapshot)
     # 상태별 한글 라벨로 풀어 자연스럽게
-    # backend ProjectOpportunityStage 9종 + WON/LOST 매핑.
-    # S14P31S106-336 신규 3종 (PROMISING/PROGRESSING) 추가.
     stage_label_map = {
-        "FINDING": "발굴",
-        "PROMISING": "유망",          # 영업 진행도 — 신규
-        "PROGRESSING": "진행중",       # 영업 진행도 — 신규
-        "ACTIVITY": "영업활동",
-        "BID": "입찰 진행",
-        "CONTRACT": "계약 진행",
-        "PROJECT": "프로젝트 수행",
-        "MAINTENANCE": "유지보수",
-        "POST_SALES": "사후영업",
-        "WON": "수주 완료",
-        "LOST": "실주",
+        "FINDING": "발굴", "ACTIVITY": "영업활동", "BID": "입찰 진행",
+        "CONTRACT": "계약 진행", "PROJECT": "프로젝트 수행", "MAINTENANCE": "유지보수",
+        "POST_SALES": "사후영업", "WON": "수주 완료", "LOST": "실주",
     }
     stage = canonical.currentStatus or ""
     stage_kor = stage_label_map.get(stage.upper(), stage or "미기재")
@@ -3391,36 +3375,6 @@ def build_module_revenue_response(
     )
 
 
-_COMPANY_SUFFIX_PATTERN_FOR_FILTER = re.compile(
-    r"[가-힣A-Za-z0-9]{1,}("
-    r"증권|카드|은행|보험|화재|생명|"
-    r"전자|화학|통신|텔레콤|네트웍스|네트워크|시스템즈|솔루션|솔루션즈|"
-    r"건설|중공업|바이오|제약|에너지|디스플레이|모비스|모바일|"
-    r"항공|해운|로지스틱스|상사|코스메틱|글로벌|홀딩스|코퍼레이션|"
-    r"하이테크|인더스트리"
-    r")"
-)
-# 명시적 한국 회사명 prefix (가공 회사명 검출용 — 정부/대기업 prefix)
-_KOREAN_COMPANY_PREFIX = re.compile(
-    r"(삼성|현대|SK|LG|카카오|네이버|롯데|한화|GS|두산|효성|CJ|"
-    r"대한|한국|국가|정부|서울|부산|인천|대구|광주|울산|"
-    r"포스코|아모레|셀트리온|넷마블|엔씨|쿠팡|토스|당근|야놀자|직방)"
-)
-
-
-def _query_has_customer_candidate(query: str) -> bool:
-    """query 에 회사명 후보(suffix 또는 prefix 패턴) 가 있는지.
-
-    True 면 사용자가 명시적으로 회사를 지칭한 것 → DB 매칭 0건일 때는
-    "근거 없음" 답이 정확. False 면 일반 list 쿼리 가능성 → 전체 list 허용.
-    """
-    if _COMPANY_SUFFIX_PATTERN_FOR_FILTER.search(query):
-        return True
-    if _KOREAN_COMPANY_PREFIX.search(query):
-        return True
-    return False
-
-
 def filter_opportunity_list_rows_for_query(*, query: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized_query = " ".join(query.lower().split())
     if any(keyword in normalized_query for keyword in ("카드사", "카드회사", "신용카드")):
@@ -3436,12 +3390,6 @@ def filter_opportunity_list_rows_for_query(*, query: str, rows: list[dict[str, A
     customer_filtered = [row for row in rows if _is_customer_name_in_query(row, query)]
     if customer_filtered:
         return customer_filtered
-
-    # query 에 회사명 후보(suffix/prefix) 가 있는데 DB 매칭 0건이면 환각 차단:
-    # 전체 list 반환하지 않고 빈 list → 상위 분기에서 'fall-through' 되어
-    # discovery (LLM grounded) 로 "근거 없음" 정직 답.
-    if _query_has_customer_candidate(query):
-        return []
 
     return rows
 
@@ -4818,10 +4766,6 @@ def resolve_primary_opportunity_with_fallback(
             scored.append((score, row))
     scored.sort(key=lambda item: (-item[0], str(item[1].get("opportunity_code") or "")))
     if not scored:
-        return None
-    # entity hint 가 약한 query (예: "진행 단계 알려줘") 는 random match 차단.
-    # 회사명 직접 매치(12점) 이상만 신뢰 — 토큰 점수(3점)만으로는 임의 사업 lock 위험.
-    if scored[0][0] < 12:
         return None
     if len(scored) == 1 or scored[0][0] >= scored[1][0] + 3:
         return scored[0][1]

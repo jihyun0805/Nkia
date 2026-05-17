@@ -5,9 +5,9 @@ import { Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
-import { fuzzyMatch } from "@/lib/fuzzy-match"
+import { getEntitySuggestions, type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { cn } from "@/lib/utils"
-import { type CustomerRecord, normalizeCustomerKeyword } from "@/lib/finding-data"
+import { type CustomerRecord, getCustomerByName, normalizeCustomerKeyword, searchCustomers } from "@/lib/finding-data"
 import { loadBackendFindingData } from "@/lib/finding-backend"
 
 type CustomerAutocompleteProps = {
@@ -18,7 +18,6 @@ type CustomerAutocompleteProps = {
   disabled?: boolean
   onUnregisteredAttempt?: () => void
   allowCustomValue?: boolean
-  inputClassName?: string
 }
 
 export function CustomerAutocomplete({
@@ -29,45 +28,47 @@ export function CustomerAutocomplete({
   disabled = false,
   onUnregisteredAttempt,
   allowCustomValue = false,
-  inputClassName,
 }: CustomerAutocompleteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
-  const [customers, setCustomers] = useState<CustomerRecord[]>([])
+  const [dbSuggestions, setDbSuggestions] = useState<CustomerRecord[]>([])
 
   useEffect(() => {
     setQuery(value)
   }, [value])
 
   useEffect(() => {
-    let cancelled = false
-    void loadBackendFindingData()
-      .then((data) => {
-        if (!cancelled) {
-          setCustomers(data.customers)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCustomers([])
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const suggestions = useMemo(() => {
     const trimmedQuery = query.trim()
-    if (!trimmedQuery) return customers.slice(0, 8)
+    if (!trimmedQuery) {
+      setDbSuggestions([])
+      return
+    }
 
-    return fuzzyMatch(
-      trimmedQuery,
-      customers,
-      (customer) => [customer.name, customer.id, ...(customer.aliases ?? [])],
-      8,
-    ).map((hit) => hit.item)
-  }, [customers, query])
+    const abortController = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      getEntitySuggestions({
+        query: trimmedQuery,
+        target: "customers",
+        limit: 8,
+        signal: abortController.signal,
+      })
+        .then((results) => {
+          setDbSuggestions(results.filter((item) => item.type === "CUSTOMER").map(mapSuggestionToCustomer))
+        })
+        .catch((error) => {
+          if (error instanceof DOMException && error.name === "AbortError") return
+          setDbSuggestions([])
+        })
+    }, 250)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      abortController.abort()
+    }
+  }, [query])
+
+  const localSuggestions = useMemo(() => searchCustomers(query).slice(0, 8), [query])
+  const suggestions = dbSuggestions.length > 0 ? dbSuggestions : localSuggestions
 
   const commitSelection = (customer: CustomerRecord | null) => {
     onSelect(customer)
@@ -76,20 +77,31 @@ export function CustomerAutocomplete({
     setOpen(false)
   }
 
-  const resolveKnownCustomer = () => {
+  const resolveKnownCustomer = async () => {
     if (suggestions.length > 0) {
       return suggestions[0]
     }
 
-    const exactMatch = findKnownCustomer(query, customers)
+    const exactMatch = findKnownCustomer(query, dbSuggestions)
     if (exactMatch) {
       return exactMatch
     }
-    return null
+
+    try {
+      const backendData = await loadBackendFindingData()
+      const normalizedQuery = normalizeCustomerKeyword(query)
+      const backendMatch = backendData.customers.find((customer) => {
+        if (normalizeCustomerKeyword(customer.name) === normalizedQuery) return true
+        return customer.aliases?.some((alias) => normalizeCustomerKeyword(alias) === normalizedQuery) ?? false
+      })
+      return backendMatch ?? null
+    } catch {
+      return null
+    }
   }
 
-  const handleEnter = () => {
-    const exactMatch = resolveKnownCustomer()
+  const handleEnter = async () => {
+    const exactMatch = await resolveKnownCustomer()
     if (exactMatch) {
       commitSelection(exactMatch)
       return
@@ -115,7 +127,6 @@ export function CustomerAutocomplete({
           value={query}
           disabled={disabled}
           placeholder={placeholder}
-          className={inputClassName}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
             const nextValue = event.target.value
@@ -134,23 +145,25 @@ export function CustomerAutocomplete({
           }}
           onBlur={() => {
             window.setTimeout(() => {
-              const exactMatch = resolveKnownCustomer()
-              if (exactMatch) {
-                commitSelection(exactMatch)
-                return
-              }
+              void (async () => {
+                const exactMatch = await resolveKnownCustomer()
+                if (exactMatch) {
+                  commitSelection(exactMatch)
+                  return
+                }
 
-              if (normalizeCustomerKeyword(query) && !allowCustomValue) {
-                onUnregisteredAttempt?.()
-              }
+                if (normalizeCustomerKeyword(query) && !allowCustomValue) {
+                  onUnregisteredAttempt?.()
+                }
 
-              if (allowCustomValue) {
+                if (allowCustomValue) {
+                  setOpen(false)
+                  return
+                }
+
+                setQuery(value)
                 setOpen(false)
-                return
-              }
-
-              setQuery(value)
-              setOpen(false)
+              })()
             }, 100)
           }}
         />
@@ -186,11 +199,24 @@ export function CustomerAutocomplete({
   )
 }
 
+function mapSuggestionToCustomer(suggestion: EntitySuggestion): CustomerRecord {
+  return {
+    id: suggestion.code || suggestion.id,
+    name: suggestion.label,
+    category: String(suggestion.metadata?.sector ?? ""),
+    opportunities: 0,
+    contracts: 0,
+    contact: "",
+    phone: "",
+  }
+}
+
 function findKnownCustomer(query: string, dbSuggestions: CustomerRecord[]) {
   const normalizedQuery = normalizeCustomerKeyword(query)
   if (!normalizedQuery) return null
 
   return (
+    getCustomerByName(query) ??
     dbSuggestions.find((customer) => normalizeCustomerKeyword(customer.name) === normalizedQuery) ??
     null
   )

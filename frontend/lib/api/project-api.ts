@@ -60,8 +60,6 @@ export interface ProjectCreateResponse {
 /** 사업 등록 요청 (수주보고서 ID로 생성) */
 export interface ProjectCreateRequest {
   orderReportId: number;
-  startDate?: string;
-  endDate?: string;
 }
 
 /** 사업 결합 수정 요청 (PM, 영업대표, 기간, 결과보고 파일) */

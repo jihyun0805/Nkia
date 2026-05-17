@@ -2,13 +2,11 @@
 
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
-import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
-import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
-import { UserIdPicker } from "@/components/erp/user-id-picker"
+import { UserPicker } from "@/components/erp/user-picker"
 import { useBackendUsers } from "@/lib/use-backend-users"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,36 +29,26 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
-import { type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { findingStatuses, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   createBackendCompanyManager,
   deleteBackendCompanyManager,
   loadBackendCompanyManagers,
   loadBackendFindingData,
-  loadBackendProjectOpportunity,
-  loadBackendProductModules,
   mapPartnerCategory,
   resolveSalesRepresentativeId,
-  stageLabel,
   updateBackendCompany,
   updateBackendCompanyManager,
   updateBackendProjectOpportunity,
-  uploadBackendRfpFiles,
 } from "@/lib/finding-backend"
 import { currentUser, isSalesUser } from "@/lib/current-user"
-import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
-const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"]
-type OpportunityStage = "FINDING" | "PROMISING" | "PROGRESSING"
-const opportunityStatusOptions: Array<{ value: OpportunityStage; label: string }> = [
-  { value: "FINDING", label: "발굴" },
-  { value: "PROMISING", label: "유망" },
-  { value: "PROGRESSING", label: "진행중" },
-]
+const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
+const customerGroupOptions = ["공공", "민간", "해외"]
 const partnerTypeOptions = ["SI", "파트너", "기타"]
 
 type ContactDraft = {
@@ -70,6 +58,7 @@ type ContactDraft = {
   email: string
   mobilePhone: string
   landlinePhone: string
+  fax: string
   duty: string
   memo: string
   businessCardImage: string
@@ -77,7 +66,6 @@ type ContactDraft = {
 
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
-  fileId?: number
 }
 
 function createEmptyContactDraft(): ContactDraft {
@@ -88,6 +76,7 @@ function createEmptyContactDraft(): ContactDraft {
     email: "",
     mobilePhone: "",
     landlinePhone: "",
+    fax: "",
     duty: "",
     memo: "",
     businessCardImage: "",
@@ -105,6 +94,7 @@ function toContactDrafts(partner: PartnerRecord | null) {
         email: partner.email ?? "",
         mobilePhone: partner.mobilePhone ?? partner.phone ?? "",
         landlinePhone: partner.landlinePhone ?? "",
+        fax: partner.fax ?? "",
         duty: partner.duty ?? "",
         memo: partner.memo ?? "",
         businessCardImage: "",
@@ -117,6 +107,7 @@ function toContactDrafts(partner: PartnerRecord | null) {
     email: contact.email ?? "",
     mobilePhone: contact.mobilePhone ?? "",
     landlinePhone: contact.landlinePhone ?? "",
+    fax: contact.fax ?? "",
     duty: contact.duty ?? "",
     memo: contact.memo ?? "",
     businessCardImage: contact.businessCardImage ?? "",
@@ -124,7 +115,7 @@ function toContactDrafts(partner: PartnerRecord | null) {
 }
 
 function hasContactValue(contact: ContactDraft) {
-  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.duty, contact.memo].some(
+  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.fax, contact.duty, contact.memo].some(
     (value) => value.trim(),
   )
 }
@@ -135,90 +126,16 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   return currentValue ?? ""
 }
 
-function normalizeCompanyName(value: string) {
-  return value.replace(/[\s\u00A0]+/g, "").trim().toLowerCase()
-}
-
 function mapOpportunityProductClass(value: string) {
   const normalized = value.trim().toUpperCase()
-  if (
-    normalized === "EMS" ||
-    normalized === "DASHBOARD" ||
-    normalized === "DATACENTER" ||
-    normalized === "RCA" ||
-    normalized === "DCA" ||
-    normalized === "ITSM" ||
-    normalized === "ITAM" ||
-    normalized === "SUPPORTING_TOOLS" ||
-    normalized === "CLOUD" ||
-    normalized === "BSM" ||
-    normalized === "E2E" ||
-    normalized === "ETC"
-  ) {
-    return normalized
-  }
+  if (normalized === "EMS" || normalized === "ITSM") return normalized
   return "ETC"
 }
 
-function toOpportunityStage(value: string): OpportunityStage {
-  const normalized = value.trim().toUpperCase()
-  if (normalized === "FINDING" || value === "발굴") return "FINDING"
-  if (normalized === "PROMISING" || value === "유망") return "PROMISING"
-  if (normalized === "PROGRESSING" || value === "진행중") return "PROGRESSING"
+function mapOpportunityStageFromStatus(value: string) {
+  if (value === "진행중") return "ACTIVITY"
+  if (value === "유망") return "BID"
   return "FINDING"
-}
-
-function normalizeLookupText(value?: string | number | null) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s\u00A0]+/g, "")
-}
-
-function splitMultipleValues(value: string) {
-  return value
-    .split(/[,/|+\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function resolvePartnerCompanyIds(partnerNames: string[], backendPartners: PartnerRecord[]) {
-  const resolved = partnerNames.flatMap((partnerName) => {
-    const normalizedName = normalizeLookupText(partnerName)
-    if (!normalizedName) return []
-    const matched = backendPartners.find((partner) => {
-      const partnerId = normalizeLookupText(partner.backendId)
-      return normalizeLookupText(partner.name) === normalizedName || partnerId === normalizedName
-    })
-    return matched?.backendId != null ? [matched.backendId] : []
-  })
-
-  return Array.from(new Set(resolved))
-}
-
-function resolveProductModuleIds(moduleName: string, productModules: { id?: number; productName?: string }[]) {
-  const names = splitMultipleValues(moduleName)
-  if (names.length === 0) return []
-
-  const resolved = names.flatMap((name) => {
-    const normalizedName = normalizeLookupText(name)
-    if (!normalizedName) return []
-    const matched = productModules.find((module) => {
-      const moduleId = normalizeLookupText(module.id)
-      const productName = normalizeLookupText(module.productName)
-      return productName === normalizedName || moduleId === normalizedName || productName.includes(normalizedName) || normalizedName.includes(productName)
-    })
-    return matched?.id != null ? [matched.id] : []
-  })
-
-  return Array.from(new Set(resolved))
-}
-
-async function resolveRfpFileIds(attachments: RfpAttachmentDraft[]) {
-  const existingIds = attachments.map((attachment) => attachment.fileId).filter((value): value is number => typeof value === "number")
-  const newFiles = attachments.map((attachment) => attachment.file).filter((file): file is File => Boolean(file))
-  const uploadedIds = newFiles.length > 0 ? await uploadBackendRfpFiles(newFiles) : []
-  return Array.from(new Set([...existingIds, ...uploadedIds]))
 }
 
 function parseExpectedBudget(value?: string) {
@@ -375,15 +292,16 @@ export default function FindingEditPage() {
   const [partnerNames, setPartnerNames] = useState<string[]>([""])
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
+  const [customerGroup, setCustomerGroup] = useState("민간")
   const [salesRep, setSalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
   const [salesRepUserId, setSalesRepUserId] = useState<string | null>(null)
-  const backendUsers = useBackendUsers()
+  const editPageUsers = useBackendUsers()
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
   const [decisionInfo, setDecisionInfo] = useState("")
-  const [status, setStatus] = useState<OpportunityStage>("FINDING")
+  const [status, setStatus] = useState("발굴")
   const [partnerType, setPartnerType] = useState("SI")
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
@@ -397,29 +315,6 @@ export default function FindingEditPage() {
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
-  const partnerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
-    () =>
-      partners.map((partner) => ({
-        id: partner.id,
-        label: partner.name,
-        subtitle: partner.type || undefined,
-      })),
-    [partners],
-  )
-  const partnerLocalSuggestions = useMemo<EntitySuggestion[]>(
-    () =>
-      partners.map((partner) => ({
-        type: "PARTNER" as const,
-        id: partner.id,
-        code: partner.id,
-        label: partner.name,
-        subtitle: partner.type || null,
-        score: 0,
-        matchedBy: "fuzzy" as const,
-        metadata: {},
-      })),
-    [partners],
-  )
 
   // 챗봇 edit_field action 으로 페이지가 열렸을 때 query 의 chatbotPrefill_* 값을 폼에 반영
   const { values: chatbotPrefillValues, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -457,9 +352,9 @@ export default function FindingEditPage() {
       summary.push(`사업유형 → ${v.business_type}`)
     }
     if (v.stage) {
-      const stageValue = toOpportunityStage(v.stage)
-      setStatus(stageValue)
-      summary.push(`현재 단계 → ${stageValue}`)
+      // stage 는 backend enum; 폼은 status 로 표시. 간단히 status 도 같이 동기화 (필요 시 mapping)
+      setStatus(v.stage)
+      summary.push(`현재 단계 → ${v.stage}`)
     }
     if (summary.length > 0) {
       toast({
@@ -487,88 +382,31 @@ export default function FindingEditPage() {
 
         if (category === "opportunities") {
           const opportunity = data.opportunities.find((current) => current.id === id) ?? null
-          const opportunityDetail = opportunity?.backendId ? await loadBackendProjectOpportunity(opportunity.backendId).catch(() => null) : null
-          const selectedOpportunity = opportunityDetail
-            ? {
-                ...(opportunity ?? {}),
-                backendId: opportunityDetail.id,
-                customerCode:
-                  opportunity?.customerCode ??
-                  data.customers.find((customer) => customer.backendId === opportunityDetail.customerCompanyId)?.id ??
-                  (opportunityDetail.customerCompanyId != null ? String(opportunityDetail.customerCompanyId) : ""),
-                createUserName: opportunityDetail.createUserName ?? opportunity?.createUserName,
-                name: opportunityDetail.opportunityName ?? opportunity?.name ?? "-",
-                customer: opportunityDetail.customerCompanyName ?? opportunity?.customer ?? "-",
-                registrant: opportunityDetail.createUserName ?? opportunity?.registrant ?? "-",
-                product: opportunityDetail.projectType ? String(opportunityDetail.projectType) : opportunity?.product ?? "-",
-                expectedAmount:
-                  opportunityDetail.expectedBudget != null
-                    ? opportunityDetail.expectedBudget.toLocaleString("ko-KR")
-                    : opportunity?.expectedAmount ?? "-",
-                expectedDate: opportunityDetail.expectedBidDate ?? opportunity?.expectedDate ?? "-",
-                competition: opportunityDetail.competitionStatus ?? opportunity?.competition ?? "-",
-                issue: opportunity?.issue ?? opportunityDetail.description ?? "-",
-                decisionInfo: opportunity?.decisionInfo ?? opportunityDetail.description ?? "-",
-                status: stageLabel(opportunityDetail.stage) ?? opportunity?.status ?? "-",
-                salesRepresentativeId: opportunityDetail.salesRepresentativeId ?? opportunity?.salesRepresentativeId,
-                salesRep: opportunityDetail.salesRepresentativeName ?? opportunity?.salesRep ?? "-",
-              }
-            : opportunity
-
-          setItem(selectedOpportunity as OpportunityRecord | PartnerRecord | null)
-          if (selectedOpportunity) {
-            const matchedCustomer = data.customers.find((customer) => customer.id === selectedOpportunity.customerCode) ?? null
-            const partnerText = selectedOpportunity.partner ?? "-"
+          setItem(opportunity)
+          if (opportunity) {
+            const matchedCustomer = data.customers.find((customer) => customer.id === opportunity.customerCode) ?? null
             setSelectedCustomer(matchedCustomer)
-            setCustomerName(selectedOpportunity.customer)
-            setOpportunityName(selectedOpportunity.name)
-            setRegistrant(selectedOpportunity.registrant)
+            setCustomerName(opportunity.customer)
+            setOpportunityName(opportunity.name)
+            setRegistrant(opportunity.registrant)
             setPartnerNames(
-              Array.isArray(selectedOpportunity.partners) && selectedOpportunity.partners.length > 0
-                ? selectedOpportunity.partners
-                : partnerText === "-"
+              Array.isArray(opportunity.partners) && opportunity.partners.length > 0
+                ? opportunity.partners
+                : opportunity.partner === "-"
                   ? [""]
-                  : partnerText.split(",").map((partner) => partner.trim()),
+                  : opportunity.partner.split(",").map((partner) => partner.trim()),
             )
-            setExpectedDate(selectedOpportunity.expectedDate === "-" ? "" : selectedOpportunity.expectedDate)
-            setExpectedAmount(selectedOpportunity.expectedAmount === "-" ? "" : selectedOpportunity.expectedAmount)
-            setSalesRep(selectedOpportunity.salesRep ?? "")
-            setSalesRepUserId(selectedOpportunity.salesRepresentativeId ?? null)
-            setBusinessType(selectedOpportunity.product ?? "")
-            setModuleName(
-              Array.isArray(selectedOpportunity.productModuleNames) && selectedOpportunity.productModuleNames.length > 0
-                ? selectedOpportunity.productModuleNames.join(", ")
-                : (selectedOpportunity.module ?? "-") === "-"
-                  ? ""
-                  : selectedOpportunity.module ?? "",
-            )
-            setIssue(selectedOpportunity.issue === "-" ? "" : selectedOpportunity.issue)
-            setCompetition(selectedOpportunity.competition === "-" ? "" : selectedOpportunity.competition)
-            setDecisionInfo(selectedOpportunity.decisionInfo === "-" ? "" : selectedOpportunity.decisionInfo)
-            setStatus(toOpportunityStage(opportunityDetail?.stage ?? selectedOpportunity.status))
-            setPartnerNames(
-              Array.isArray(selectedOpportunity.partnerCompanyNames) && selectedOpportunity.partnerCompanyNames.length > 0
-                ? selectedOpportunity.partnerCompanyNames
-                : Array.isArray(selectedOpportunity.partners) && selectedOpportunity.partners.length > 0
-                  ? selectedOpportunity.partners
-                  : partnerText === "-"
-                    ? [""]
-                    : partnerText.split(",").map((partner) => partner.trim()),
-            )
-            setRfpAttachments(
-              Array.isArray(selectedOpportunity.rfpFileIds) && selectedOpportunity.rfpFileIds.length > 0
-                ? selectedOpportunity.rfpFileIds.map((fileId, index) => ({
-                    id: String(fileId),
-                    name: selectedOpportunity.rfpFileNames?.[index] ?? `첨부파일 ${index + 1}`,
-                    size: selectedOpportunity.rfpFileSizes?.[index] ?? 0,
-                    contentType: "",
-                    dataUrl: "",
-                    summary: "",
-                    createdAt: "",
-                    fileId,
-                  }))
-                : selectedOpportunity.rfpAttachments ?? [],
-            )
+            setExpectedDate(opportunity.expectedDate === "-" ? "" : opportunity.expectedDate)
+            setExpectedAmount(opportunity.expectedAmount === "-" ? "" : opportunity.expectedAmount)
+            setCustomerGroup(opportunity.category)
+            setSalesRep(opportunity.salesRep)
+            setBusinessType(opportunity.product)
+            setModuleName(opportunity.module === "-" ? "" : opportunity.module)
+            setIssue(opportunity.issue === "-" ? "" : opportunity.issue)
+            setCompetition(opportunity.competition === "-" ? "" : opportunity.competition)
+            setDecisionInfo(opportunity.decisionInfo === "-" ? "" : opportunity.decisionInfo)
+            setStatus(opportunity.status)
+            setRfpAttachments(opportunity.rfpAttachments ?? [])
           }
         }
 
@@ -599,16 +437,6 @@ export default function FindingEditPage() {
       cancelled = true
     }
   }, [category, id])
-
-  useEffect(() => {
-    if (category !== "opportunities") return
-    if (salesRepUserId || !salesRep.trim() || backendUsers.length === 0) return
-
-    const matchedSalesRep = backendUsers.find((user) => user.id === salesRep.trim() || user.name === salesRep.trim())
-    if (matchedSalesRep) {
-      setSalesRepUserId(matchedSalesRep.id ?? null)
-    }
-  }, [backendUsers, category, salesRep, salesRepUserId])
 
   const label = getFindingCategoryLabel(category)
   const tab = searchParams.get("tab") ?? category
@@ -701,6 +529,7 @@ export default function FindingEditPage() {
         email: keepExistingValue(currentContact.email, result.email),
         mobilePhone: keepExistingValue(currentContact.mobilePhone, result.mobile),
         landlinePhone: keepExistingValue(currentContact.landlinePhone, result.phone),
+        fax: keepExistingValue(currentContact.fax, result.fax),
         duty: keepExistingValue(currentContact.duty, result.role),
         businessCardImage,
       }
@@ -735,10 +564,10 @@ export default function FindingEditPage() {
       const filledContacts = contacts.filter(hasContactValue)
       const primaryContact = filledContacts[0]
 
-      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim()) {
+      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
         toast({
           title: "협력사 수정 확인",
-          description: "협력사명, 유형, 담당자 1의 성명, 이메일을 모두 입력해주십시오.",
+          description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
         })
         return
       }
@@ -752,11 +581,11 @@ export default function FindingEditPage() {
         return
       }
 
-      const duplicatePartner = partners.find((partner) => partner.id !== id && normalizeCompanyName(partner.name) === normalizeCompanyName(normalizedName)) ?? null
+      const duplicatePartner = partners.find((partner) => partner.id !== id && partner.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
       if (duplicatePartner) {
         toast({
-          title: "협력사 중복 등록",
-          description: "이미 등록된 동일한 이름의 협력사가 있습니다.",
+          title: "협력사 수정 확인",
+          description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
         })
         return
       }
@@ -856,14 +685,6 @@ export default function FindingEditPage() {
       return
     }
 
-    if (selectedCustomer.backendId == null) {
-      toast({
-        title: "사업기회 수정 실패",
-        description: "선택한 고객사의 백엔드 식별자를 찾지 못했습니다.",
-      })
-      return
-    }
-
     setSubmitting(true)
     ;(async () => {
       try {
@@ -877,38 +698,11 @@ export default function FindingEditPage() {
           return
         }
 
-        const matchedSalesRep = backendUsers.find((user) => user.id === salesRepresentativeId)
-        if (!matchedSalesRep) {
-          toast({
-            title: "사업기회 수정 확인",
-            description: "선택한 영업대표를 사용자 목록에서 찾지 못했습니다.",
-          })
-          setSubmitting(false)
-          return
-        }
-
-        const [productModules, rfpFileIds] = await Promise.all([
-          loadBackendProductModules().catch(() => []),
-          resolveRfpFileIds(rfpAttachments),
-        ])
-        const partnerCompanyIds = resolvePartnerCompanyIds(partnerNames, partners)
-        const productModuleIds = resolveProductModuleIds(moduleName, productModules)
-        const customerCompanyId = selectedCustomer.backendId
-        if (customerCompanyId == null) {
-          toast({
-            title: "사업기회 수정 실패",
-            description: "선택한 고객사의 백엔드 식별자를 찾지 못했습니다.",
-          })
-          setSubmitting(false)
-          return
-        }
-
         const updated = await updateBackendProjectOpportunity(currentOpportunity.backendId!, {
           opportunityName: opportunityName.trim(),
-          stage: status,
+          stage: mapOpportunityStageFromStatus(status),
           projectType: mapOpportunityProductClass(businessType),
           salesRepresentativeId,
-          customerCompanyId,
           expectedBidDate: expectedDate,
           expectedBudget: expectedAmount,
           description: buildOpportunityDescription({
@@ -917,9 +711,6 @@ export default function FindingEditPage() {
             decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
           }),
           competitionStatus: competition,
-          partnerCompanyIds,
-          productModuleIds,
-          rfpFileIds,
         })
 
         toast({
@@ -1011,24 +802,7 @@ export default function FindingEditPage() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>협력사명 *</Label>
-                        <EntityAutocomplete
-                          value={partnerName}
-                          target="partners"
-                          onValueChange={setPartnerName}
-                          onSelect={(suggestion) => {
-                            if (suggestion) setPartnerName(suggestion.label)
-                          }}
-                          allowCustomValue
-                          placeholder="협력사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
-                          emptyMessage="등록된 협력사가 없습니다."
-                          localCandidates={partnerLocalSuggestions}
-                        />
-                        <SimilarMatchHint
-                          query={partnerName}
-                          candidates={partnerSimilarCandidates}
-                          hintTitle="비슷한 협력사가 이미 등록되어 있어요"
-                          onPick={(candidate) => setPartnerName(candidate.label)}
-                        />
+                        <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
                       </div>
                       <div className="space-y-2">
                         <Label>유형</Label>
@@ -1174,7 +948,7 @@ export default function FindingEditPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호</Label>
+                              <Label>무선전화번호 *</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -1283,16 +1057,16 @@ export default function FindingEditPage() {
               </CardHeader>
               <CardContent className="space-y-8">
                 <section className="space-y-4">
-                  <h2 className="text-base font-semibold">등록정보</h2>
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>고객사명 *</Label>
-                      <CustomerAutocomplete
+                      <div className="space-y-2">
+                        <Label>고객사명 *</Label>
+                        <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => {
                           const resolvedCustomer = customers.find((item) => item.id === customer?.id || item.name === customer?.name) ?? customer
                           setSelectedCustomer(resolvedCustomer ?? null)
                           setCustomerName(resolvedCustomer?.name ?? "")
+                          setCustomerGroup(resolvedCustomer?.category ?? "민간")
                         }}
                         onValueChange={setCustomerName}
                         onUnregisteredAttempt={() =>
@@ -1303,31 +1077,55 @@ export default function FindingEditPage() {
                         }
                         placeholder="고객사명 일부를 입력해 기존 고객사를 선택하세요"
                       />
-                      {selectedCustomer ? (
-                        <p className="text-xs text-muted-foreground">고객사 코드: {selectedCustomer.id}</p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">자동완성 목록에서 선택하면 고객사 코드가 함께 연결됩니다.</p>
-                      )}
+                      {selectedCustomer ? <p className="text-xs text-muted-foreground">고객사 코드: {selectedCustomer.id}</p> : null}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>고객군</Label>
+                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="선택하세요" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customerGroupOptions.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>등록자</Label>
+                      <Input value={registrant} readOnly />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>영업대표</Label>
+                      <UserPicker
+                        value={salesRep}
+                        users={editPageUsers}
+                        onValueChange={setSalesRep}
+                        onSelect={(u) => {
+                          setSalesRep(u?.name ?? "")
+                          setSalesRepUserId(u?.id ?? null)
+                        }}
+                        placeholder="이름으로 영업대표를 검색하세요"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>사업명 *</Label>
+                      <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
                     </div>
                     <div className="space-y-2">
                       <Label>협력사명</Label>
                       <div className="space-y-2">
                         {partnerNames.map((partnerName, index) => (
                           <div key={`edit-opportunity-partner-${index}`} className="flex items-center gap-2">
-                            <EntityAutocomplete
+                            <Input
                               value={partnerName}
-                              target="partners"
-                              onValueChange={(value) =>
-                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)))
+                              onChange={(event) =>
+                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
                               }
-                              onSelect={(suggestion) => {
-                                if (!suggestion) return
-                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? suggestion.label : item)))
-                              }}
-                              allowCustomValue
                               placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
-                              emptyMessage="등록된 협력사가 없습니다."
-                              localCandidates={partnerLocalSuggestions}
                             />
                             <Button
                               type="button"
@@ -1349,26 +1147,8 @@ export default function FindingEditPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>사업명 *</Label>
-                      <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>등록자</Label>
-                      <Input readOnly value={registrant} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>영업대표 *</Label>
-                      <UserIdPicker
-                        value={salesRepUserId ?? ""}
-                        users={backendUsers}
-                        onValueChange={setSalesRepUserId}
-                        placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "영업대표를 선택하세요"}
-                        disabled={backendUsers.length === 0}
-                      />
-                    </div>
-                    <div className="space-y-2">
                       <Label>예상 입찰 또는 계약 시점</Label>
-                      <Input type="date" value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} />
+                      <Input value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} placeholder="예: 2026년 3분기" />
                     </div>
                     <div className="space-y-2">
                       <Label>예상 예산 또는 매출</Label>
@@ -1391,14 +1171,14 @@ export default function FindingEditPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>상태</Label>
-                      <Select value={status} onValueChange={(value) => setStatus(toOpportunityStage(value))}>
+                      <Select value={status} onValueChange={setStatus}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
                         </SelectTrigger>
                         <SelectContent>
-                          {opportunityStatusOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
+                          {findingStatuses.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
                             </SelectItem>
                           ))}
                         </SelectContent>

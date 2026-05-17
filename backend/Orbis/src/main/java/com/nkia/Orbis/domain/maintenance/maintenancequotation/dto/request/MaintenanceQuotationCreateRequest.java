@@ -8,14 +8,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
-
-import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ProductFamily;
-import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ProposalType;
 
 @Getter
 @NoArgsConstructor
 public class MaintenanceQuotationCreateRequest {
+
+    @NotBlank(message = "견적서 번호는 필수입니다")
+    private String refNo;
 
     @NotNull(message = "프로젝트 ID는 필수입니다")
     private Long projectId;
@@ -47,9 +46,6 @@ public class MaintenanceQuotationCreateRequest {
     private String specialNotes;
 
     @Valid
-    private CoverInfoRequest coverInfo;
-
-    @Valid
     private List<PackageCostRequest> packageCosts;
 
     @Valid
@@ -57,19 +53,6 @@ public class MaintenanceQuotationCreateRequest {
 
     @Valid
     private List<AmountReasonRequest> amountReasons;
-
-    @Getter
-    @NoArgsConstructor
-    public static class CoverInfoRequest {
-        @NotNull(message = "영업대표 정보는 필수입니다")
-        private UUID salesRepresentativeId;
-
-        @NotNull(message = "제안 유형은 필수입니다")
-        private ProposalType proposalType;
-
-        @NotNull(message = "제품군은 필수입니다")
-        private ProductFamily productFamily;
-    }
 
     @Getter
     @NoArgsConstructor
