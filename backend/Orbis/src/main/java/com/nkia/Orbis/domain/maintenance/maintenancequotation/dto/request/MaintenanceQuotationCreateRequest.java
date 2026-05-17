@@ -17,9 +17,6 @@ import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.ProposalTyp
 @NoArgsConstructor
 public class MaintenanceQuotationCreateRequest {
 
-    @NotBlank(message = "견적서 번호는 필수입니다")
-    private String refNo;
-
     @NotNull(message = "프로젝트 ID는 필수입니다")
     private Long projectId;
 

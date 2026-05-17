@@ -108,6 +108,10 @@ public class MaintenanceQuotation extends BaseEntity {
         this.cover = cover;
     }
 
+    public void updateRefNo(String refNo) {
+        this.refNo = refNo;
+    }
+
     public void updateInfo(String paymentTerms, Long totalAmount, LocalDate startDate,
                            LocalDate endDate, Long monthlySupplyPrice,
                            Long totalQuotationAmount, String specialNotes) {
