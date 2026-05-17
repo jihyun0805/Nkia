@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClipboardList, Receipt, TrendingUp, Plus, Loader2, AlertCircle } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
@@ -124,6 +125,7 @@ export default function ProjectPage() {
   }, [activeTab, fetchBillings]);
 
   // 예상 매출액 상태
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [expectedRevenue, setExpectedRevenue] = useState<any[]>([]);
   const [totalEms, setTotalEms] = useState(0);
   const [totalItg, setTotalItg] = useState(0);
@@ -137,10 +139,10 @@ export default function ProjectPage() {
   const fetchRevenue = useCallback(async () => {
     setRevenueLoading(true);
     try {
-      const res = await projectApi.getAnnualRevenue(2026);
+      const res = await projectApi.getAnnualRevenue(selectedYear);
       const data = res.data ?? [];
 
-      const y = 2026;
+      const y = selectedYear;
       type MonthRow = { month: string; ems: number; itg: number; iot: number; other: number; emsMaint: number; itgMaint: number };
       const monthlyData: Record<string, MonthRow> = {};
       for (let i = 1; i <= 12; i++) {
@@ -161,7 +163,7 @@ export default function ProjectPage() {
         });
       });
 
-      const revenueList = Object.values(monthlyData).filter((row) => row.ems > 0 || row.itg > 0 || row.iot > 0 || row.other > 0 || row.emsMaint > 0 || row.itgMaint > 0);
+      const revenueList = Object.values(monthlyData);
 
       let tEms = 0,
         tItg = 0,
@@ -193,7 +195,7 @@ export default function ProjectPage() {
     } finally {
       setRevenueLoading(false);
     }
-  }, []);
+  }, [selectedYear]);
 
   useEffect(() => {
     if (activeTab === "revenue") {
@@ -449,9 +451,26 @@ export default function ProjectPage() {
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">제품별/월별 예상 매출액</CardTitle>
-                    <Badge variant="secondary" className="text-sm px-3 py-1">
-                      연말 총 합계 ₩{Math.round(totalRevenue).toLocaleString()}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <Select
+                        value={String(selectedYear)}
+                        onValueChange={(val) => setSelectedYear(Number(val))}
+                      >
+                        <SelectTrigger className="w-[120px] h-9">
+                          <SelectValue placeholder="연도 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="2024">2024년</SelectItem>
+                          <SelectItem value="2025">2025년</SelectItem>
+                          <SelectItem value="2026">2026년</SelectItem>
+                          <SelectItem value="2027">2027년</SelectItem>
+                          <SelectItem value="2028">2028년</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Badge variant="secondary" className="text-sm px-3 py-1">
+                        연말 총 합계 ₩{Math.round(totalRevenue).toLocaleString()}
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
