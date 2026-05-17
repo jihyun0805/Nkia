@@ -4,6 +4,8 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectOpportunityErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
+import com.nkia.Orbis.domain.admin.productmodule.repository.ProductModuleRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.domain.company.entity.Company;
@@ -13,17 +15,18 @@ import com.nkia.Orbis.domain.projectopportunity.projectopportunity.dto.request.P
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.dto.response.ProjectOpportunityResponse;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
-import lombok.RequiredArgsConstructor;
-import org.jetbrains.annotations.NotNull;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.nkia.Orbis.domain.uploadfile.entity.UploadFile;
+import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +36,8 @@ public class ProjectOpportunityService {
     private final ProjectOpportunityRepository projectOpportunityRepository;
     private final CompanyRepository companyRepository; // 신규 등록 시 고객사 조회를 위해 필요
     private final UserRepository userRepository;
+    private final ProductModuleRepository productModuleRepository;
+    private final UploadFileRepository uploadFileRepository;
 
     /**
      * 1. 사업 기회 등록 (Create)
@@ -40,23 +45,56 @@ public class ProjectOpportunityService {
     @Transactional // 쓰기 작업이므로 트랜잭션 오버라이딩
     public ProjectOpportunityResponse createProjectOpportunity(ProjectOpportunityCreateRequest request) {
         // 중복 코드 방어 로직 (면접 어필 포인트)
-        if (projectOpportunityRepository.existsByOpportunityCode(request.opportunityCode())) {
-            throw new ApiException(ProjectOpportunityErrorCode.EXISTS_PROJECT_OPPORTUNITY_CODE);
-        }
+        checkProjectOpportunityCode(request);
 
         // DTO에서 넘어온 ID로 실제 고객사 엔티티 조회
-        Company customerCompany = companyRepository.findById(request.customerCompanyId())
-                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
-
+        Company customerCompany = findCustomerCompany(request);
         User salesRepresentative = findUser(request.salesRepresentativeId());
 
         // DTO 내부의 toEntity 메서드를 통해 엔티티 조립 (이전 단계에서 설계한 핵심 포인트!)
         ProjectOpportunity opportunity = request.toEntity(customerCompany, salesRepresentative);
 
+        // 첨부파일(RFP), 협력사, 납품 모듈 매핑
+        mappingRfpFiles(request, opportunity);
+        mappingPartnerCompanies(request, opportunity);
+        mappingProductModules(request, opportunity);
+
         ProjectOpportunity savedOpportunity = projectOpportunityRepository.save(opportunity);
         User createUser = getCreatorSafely(savedOpportunity);
 
-        return ProjectOpportunityResponse.from(savedOpportunity,createUser);
+        return ProjectOpportunityResponse.from(savedOpportunity, createUser);
+    }
+
+    private void checkProjectOpportunityCode(ProjectOpportunityCreateRequest request) {
+        if (projectOpportunityRepository.existsByOpportunityCode(request.opportunityCode())) {
+            throw new ApiException(ProjectOpportunityErrorCode.EXISTS_PROJECT_OPPORTUNITY_CODE);
+        }
+    }
+
+    private Company findCustomerCompany(ProjectOpportunityCreateRequest request) {
+        return companyRepository.findById(request.customerCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
+    }
+
+    private void mappingRfpFiles(ProjectOpportunityCreateRequest request, ProjectOpportunity opportunity) {
+        if (request.rfpFileIds() != null && !request.rfpFileIds().isEmpty()) {
+            List<UploadFile> files = uploadFileRepository.findAllById(request.rfpFileIds());
+            opportunity.addRfpFiles(files);
+        }
+    }
+
+    private void mappingPartnerCompanies(ProjectOpportunityCreateRequest request, ProjectOpportunity opportunity) {
+        if (request.partnerCompanyIds() != null && !request.partnerCompanyIds().isEmpty()) {
+            List<Company> partnerCompanies = companyRepository.findAllById(request.partnerCompanyIds());
+            partnerCompanies.forEach(opportunity::addPartnerCompany);
+        }
+    }
+
+    private void mappingProductModules(ProjectOpportunityCreateRequest request, ProjectOpportunity opportunity) {
+        if (request.productModuleIds() != null && !request.productModuleIds().isEmpty()) {
+            List<ProductModule> productModules = productModuleRepository.findAllById(request.productModuleIds());
+            productModules.forEach(opportunity::addProductModule);
+        }
     }
 
     /**
@@ -67,13 +105,18 @@ public class ProjectOpportunityService {
         ProjectOpportunity opportunity = findProjectOpportunity(id);
         // Repository save() 호출 없이, 엔티티의 비즈니스 메서드만 호출 (더티 체킹)
         updateProjectOpportunityInfo(request, opportunity);
+        updatingRfpFiles(request, opportunity);
+        updatingPartnerCompanies(request, opportunity);
+        updatingProductModules(request, opportunity);
         User createUser = getCreatorSafely(opportunity);
-        return ProjectOpportunityResponse.from(opportunity,createUser);
+        return ProjectOpportunityResponse.from(opportunity, createUser);
     }
 
     private void updateProjectOpportunityInfo(ProjectOpportunityUpdateRequest request,
                                               ProjectOpportunity opportunity) {
         User salesRepresentative = findUser(request.salesRepresentativeId());
+        Company customerCompany = companyRepository.findById(request.customerCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
         opportunity.updateInformation(
                 request.opportunityName(),
                 request.stage(),
@@ -82,8 +125,49 @@ public class ProjectOpportunityService {
                 request.expectedBudget(),
                 request.description(),
                 request.competitionStatus(),
-                salesRepresentative
+                salesRepresentative,
+                customerCompany
         );
+    }
+
+    private void updatingRfpFiles(ProjectOpportunityUpdateRequest request, ProjectOpportunity opportunity) {
+        List<Long> fileIds = request.rfpFileIds();
+        if (fileIds != null && !fileIds.isEmpty()) {
+            List<UploadFile> files = uploadFileRepository.findAllById(fileIds);
+            // 방어 로직: 전달된 ID 개수와 조회된 파일 개수가 다르면 예외 발생
+            if (files.size() != fileIds.size()) {
+                throw new IllegalArgumentException("요청한 파일 중 일부를 찾을 수 없습니다."); // 적절한 ApiException으로 교체 권장
+            }
+            opportunity.updateRfpFiles(files);
+        } else {
+            opportunity.updateRfpFiles(null); // 비우기 요청 처리
+        }
+    }
+
+    private void updatingPartnerCompanies(ProjectOpportunityUpdateRequest request, ProjectOpportunity opportunity) {
+        List<Long> companyIds = request.partnerCompanyIds();
+        if (companyIds != null && !companyIds.isEmpty()) {
+            List<Company> partnerCompanies = companyRepository.findAllById(companyIds);
+            if (partnerCompanies.size() != companyIds.size()) {
+                throw new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND);
+            }
+            opportunity.updatePartnerCompanies(partnerCompanies);
+        } else {
+            opportunity.updatePartnerCompanies(null);
+        }
+    }
+
+    private void updatingProductModules(ProjectOpportunityUpdateRequest request, ProjectOpportunity opportunity) {
+        List<Long> moduleIds = request.productModuleIds();
+        if (moduleIds != null && !moduleIds.isEmpty()) {
+            List<ProductModule> productModules = productModuleRepository.findAllById(moduleIds);
+            if (productModules.size() != moduleIds.size()) {
+                throw new IllegalArgumentException("요청한 모듈 중 일부를 찾을 수 없습니다."); // 적절한 ApiException으로 교체 권장
+            }
+            opportunity.updateProductModules(productModules);
+        } else {
+            opportunity.updateProductModules(null);
+        }
     }
 
     /**
@@ -102,7 +186,7 @@ public class ProjectOpportunityService {
     public ProjectOpportunityResponse getProjectOpportunity(Long id) {
         ProjectOpportunity opportunity = findProjectOpportunity(id);
         User createUser = getCreatorSafely(opportunity);
-        return ProjectOpportunityResponse.from(opportunity,createUser);
+        return ProjectOpportunityResponse.from(opportunity, createUser);
     }
 
     /**
@@ -116,7 +200,7 @@ public class ProjectOpportunityService {
 
         // 추출한 UUID로 User를 한 번에 조회하여 Map으로 캐싱 (IN 쿼리 1번만 발생)
         Map<UUID, User> creatorMap = userRepository.findAllById(creatorIds).stream()
-            .collect(Collectors.toMap(User::getId, user -> user));
+                .collect(Collectors.toMap(User::getId, user -> user));
 
         // DTO 변환 시 Map에서 꺼내서 사용
         return page.map(opportunity -> {
@@ -130,11 +214,11 @@ public class ProjectOpportunityService {
 
     private Set<UUID> getCreatorIds(Page<ProjectOpportunity> page) {
         return page.getContent()
-            .stream()
-            .map(ProjectOpportunity::getCreatedBy)
-            .filter(createdBy -> createdBy != null && !createdBy.isBlank())
-            .map(UUID::fromString)
-            .collect(Collectors.toSet());
+                .stream()
+                .map(ProjectOpportunity::getCreatedBy)
+                .filter(createdBy -> createdBy != null && !createdBy.isBlank())
+                .map(UUID::fromString)
+                .collect(Collectors.toSet());
     }
 
     private User getCreatorSafely(ProjectOpportunity opportunity) {
@@ -150,9 +234,9 @@ public class ProjectOpportunityService {
         }
     }
 
-    private User findUser(UUID userid){
+    private User findUser(UUID userid) {
         return userRepository.findById(userid)
-            .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
 
     private ProjectOpportunity findProjectOpportunity(Long id) {
