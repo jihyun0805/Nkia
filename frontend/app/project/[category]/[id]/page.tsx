@@ -113,7 +113,7 @@ function ProjectDetail({ id }: { id: number }) {
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" asChild>
-              <Link href="/project">목록으로</Link>
+              <Link href="/project?tab=results">목록으로</Link>
             </Button>
             <Button asChild>
               <Link href={`/project/results/${id}/edit`}>수정</Link>
@@ -203,7 +203,7 @@ function BillingDetail({ id }: { id: number }) {
             삭제
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/project">목록으로</Link>
+            <Link href="/project?tab=billingAndCollection">목록으로</Link>
           </Button>
         </div>
       </CardContent>

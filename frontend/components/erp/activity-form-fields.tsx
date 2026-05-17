@@ -1,16 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { UserIdPicker } from "@/components/erp/user-id-picker"
+import { UserPicker } from "@/components/erp/user-picker"
 import { useBackendUsers } from "@/lib/use-backend-users"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
-import { currentUser } from "@/lib/current-user"
 import {
   activityContentOptions,
   activityModeOptions,
@@ -18,10 +17,8 @@ import {
   type ActivityRecord,
 } from "@/lib/activity-data"
 import { type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
-import { findUserByToken, formatUserDisplayName, resolveUserId, splitDelimitedValues } from "@/lib/user-utils"
 
 const automaticLocationModes = ["이메일", "전화", "영상회의"]
-const detailFieldClassName = "text-foreground disabled:opacity-100 disabled:text-foreground"
 
 type ActivityFormFieldsProps = {
   defaultValues?: Partial<ActivityRecord>
@@ -95,20 +92,18 @@ export function ActivityFormFields({
   const [content, setContent] = useState(defaultValues?.content ?? "")
   const [issues, setIssues] = useState(defaultValues?.issues ?? "")
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
-  const backendUsers = useBackendUsers()
-  const activityFormUsers = Array.isArray(backendUsers) ? backendUsers : []
-  const requesterUsers = useMemo(
-    () => [currentUser, ...activityFormUsers.filter((user) => user.id !== currentUser.id)],
-    [activityFormUsers],
+  const [registrant, setRegistrant] = useState(registrantValue ?? defaultValues?.registrant ?? "")
+  const activityFormUsers = useBackendUsers()
+  const [attendeeRows, setAttendeeRows] = useState<string[]>(
+    (() => {
+      const initial = (defaultValues?.attendees ?? "")
+        .split(/[\n,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+      return initial.length > 0 ? initial : [""]
+    })(),
   )
-  const attendeeUsers = useMemo(
-    () => [currentUser, ...activityFormUsers.filter((user) => user.id !== currentUser.id)],
-    [activityFormUsers],
-  )
-  const [attendeeRows, setAttendeeRows] = useState<string[]>([""])
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
-  const resolvedRequester = resolveUserId(requester, requesterUsers)
-  const requesterDisplay = formatUserDisplayName(findUserByToken(requesterUsers, requester) ?? (requester ? { id: requester } : null))
   const linkedRequestId = defaultValues?.requestId ?? ""
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
   const resolvedDate = values?.date ?? date
@@ -122,7 +117,6 @@ export function ActivityFormFields({
   const isAutomaticLocation = automaticLocationModes.includes(resolvedActivityMode)
   const locationValue = isAutomaticLocation ? resolvedActivityMode : resolvedLocation
   const needsActivityRequest = resolvedActivityContent !== "" && !requestOptionalActivityContents.includes(resolvedActivityContent)
-  const requiredMark = readOnly ? "" : " *"
 
   const updateValues = (
     updater: (current: {
@@ -181,12 +175,46 @@ export function ActivityFormFields({
   }
 
   useEffect(() => {
-    if (typeof requesterValue !== "string" || !onRequesterChange) return
-    if (!requester) return
-    if (resolvedRequester !== requester) {
-      onRequesterChange(resolvedRequester)
-    }
-  }, [onRequesterChange, resolvedRequester, requester, requesterValue])
+    setActivityMode(defaultValues?.activityMode ?? "")
+  }, [defaultValues?.activityMode])
+
+  useEffect(() => {
+    setActivityContent(defaultValues?.activityContent ?? "")
+  }, [defaultValues?.activityContent])
+
+  useEffect(() => {
+    setLocation(defaultValues?.location ?? "")
+  }, [defaultValues?.location])
+
+  useEffect(() => {
+    setDate(defaultValues?.date ?? "")
+  }, [defaultValues?.date])
+
+  useEffect(() => {
+    const nextAttendees = values?.attendees ?? defaultValues?.attendees ?? ""
+    setAttendees(nextAttendees)
+    const normalized = nextAttendees
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+    setAttendeeRows(normalized.length > 0 ? normalized : [""])
+  }, [defaultValues?.attendees, values?.attendees])
+
+  useEffect(() => {
+    setContent(defaultValues?.content ?? "")
+  }, [defaultValues?.content])
+
+  useEffect(() => {
+    setIssues(defaultValues?.issues ?? "")
+  }, [defaultValues?.issues])
+
+  useEffect(() => {
+    setNextAction(defaultValues?.nextAction ?? "")
+  }, [defaultValues?.nextAction])
+
+  useEffect(() => {
+    setRegistrant(registrantValue ?? defaultValues?.registrant ?? "")
+  }, [registrantValue, defaultValues?.registrant])
 
   const handleActivityModeChange = (nextMode: string) => {
     updateValues((current) => ({
@@ -199,33 +227,41 @@ export function ActivityFormFields({
           : current.location,
     }))
   }
-  const registrantDisplay =
-    registrantValue !== undefined
-      ? registrantValue.trim() || defaultValues?.registrant?.trim() || currentUser.name
-      : defaultValues?.registrant?.trim() || "-"
 
   return (
     <>
       <div className="space-y-2 md:w-1/2">
         <Label>등록자</Label>
-        <Input value={registrantDisplay} readOnly className={detailFieldClassName} />
+        <Input
+          value={registrant}
+          readOnly={readOnly}
+          disabled={readOnly}
+          onChange={(event) => {
+            if (readOnly) return
+            const next = event.target.value
+            setRegistrant(next)
+            onRegistrantChange?.(next)
+          }}
+          placeholder="등록자명을 입력하세요"
+        />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>요청자</Label>
           {typeof requesterValue === "string" && onRequesterChange ? (
             readOnly ? (
-              <Input value={requesterDisplay} readOnly className={detailFieldClassName} />
+              <Input value={requester} readOnly disabled />
             ) : (
-              <UserIdPicker
-                value={resolvedRequester}
-                users={requesterUsers}
+              <UserPicker
+                value={requester}
+                users={activityFormUsers}
                 onValueChange={(v) => onRequesterChange(v)}
+                onSelect={(u) => onRequesterChange(u?.name ?? "")}
                 placeholder="요청자가 없는 경우 비워둘 수 있습니다"
               />
             )
           ) : (
-            <Input value={requesterDisplay} readOnly placeholder="요청자가 없는 경우 비워둘 수 있습니다" />
+            <Input defaultValue={defaultValues?.requester} readOnly={readOnly} disabled={readOnly} placeholder="요청자가 없는 경우 비워둘 수 있습니다" />
           )}
           {!linkedRequestId && (
             <p className="text-sm text-muted-foreground">
@@ -236,7 +272,7 @@ export function ActivityFormFields({
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>{`고객사${requiredMark}`}</Label>
+          <Label>고객사 *</Label>
           {typeof customerValue === "string" && onCustomerSelect ? (
             <CustomerAutocomplete
               value={customerValue}
@@ -247,21 +283,21 @@ export function ActivityFormFields({
               disabled={readOnly}
             />
           ) : (
-            <Input defaultValue={defaultValues?.customer} readOnly={readOnly} disabled={readOnly} placeholder="고객사를 입력하세요" className={detailFieldClassName} />
+            <Input defaultValue={defaultValues?.customer} readOnly={readOnly} disabled={readOnly} placeholder="고객사를 입력하세요" />
           )}
           <p className="text-sm text-muted-foreground">
             등록된 고객사만 선택할 수 있으며 고객코드가 함께 승계됩니다.
           </p>
         </div>
         <div className="space-y-2">
-          <Label>{`사업기회${requiredMark}`}</Label>
+          <Label>사업기회 *</Label>
           {onOpportunityChange && opportunityOptions ? (
             <Select
               value={opportunity}
               onValueChange={readOnly ? undefined : onOpportunityChange}
               disabled={readOnly || !customerValue}
             >
-              <SelectTrigger className={detailFieldClassName}>
+              <SelectTrigger>
                 <SelectValue placeholder={customerValue ? "사업기회를 선택하세요" : "고객사를 먼저 선택하세요"} />
               </SelectTrigger>
               <SelectContent>
@@ -274,19 +310,18 @@ export function ActivityFormFields({
               </SelectContent>
             </Select>
           ) : (
-            <Input defaultValue={defaultValues?.opportunity} readOnly={readOnly} disabled={readOnly} placeholder="사업기회를 입력하세요" className={detailFieldClassName} />
+            <Input defaultValue={defaultValues?.opportunity} readOnly={readOnly} disabled={readOnly} placeholder="사업기회를 입력하세요" />
           )}
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>{`활동일${requiredMark}`}</Label>
+          <Label>활동일 *</Label>
           <Input
             type="date"
             value={resolvedDate}
             readOnly={readOnly}
             disabled={readOnly}
-            className={detailFieldClassName}
             onChange={(event) => {
               if (readOnly) return
               updateValues((current) => ({ ...current, date: event.target.value }))
@@ -295,18 +330,9 @@ export function ActivityFormFields({
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>{`활동형태${requiredMark}`}</Label>
-            <Select
-              value={resolvedActivityMode}
-              onValueChange={(value) => {
-                if (readOnly) return
-                handleActivityModeChange(value)
-              }}
-              disabled={readOnly}
-            >
-              <SelectTrigger className={`w-full ${detailFieldClassName}`}>
-                <SelectValue placeholder="선택하세요" />
-              </SelectTrigger>
+            <Label>활동형태 *</Label>
+            <Select value={resolvedActivityMode} onValueChange={readOnly ? undefined : handleActivityModeChange} disabled={readOnly}>
+              <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
               <SelectContent>
                 {activityModeOptions.map((option) => (
                   <SelectItem key={option} value={option}>
@@ -317,19 +343,13 @@ export function ActivityFormFields({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>{`활동내용${requiredMark}`}</Label>
+            <Label>활동내용 *</Label>
             <Select
               value={resolvedActivityContent}
-              onValueChange={(value) => {
-                if (readOnly) return
-                if (value === resolvedActivityContent) return
-                updateValues((current) => ({ ...current, activityContent: value }))
-              }}
+              onValueChange={readOnly ? undefined : (value) => updateValues((current) => ({ ...current, activityContent: value }))}
               disabled={readOnly}
             >
-              <SelectTrigger className={`w-full ${detailFieldClassName}`}>
-                <SelectValue placeholder="선택하세요" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="선택하세요" /></SelectTrigger>
               <SelectContent>
                 {activityContentOptions.map((option) => (
                   <SelectItem key={option} value={option}>
@@ -358,7 +378,6 @@ export function ActivityFormFields({
             value={locationValue}
             readOnly={readOnly || isAutomaticLocation}
             disabled={readOnly}
-            className={detailFieldClassName}
             onChange={(event) => {
               if (readOnly) return
               updateValues((current) => ({ ...current, location: event.target.value }))
@@ -371,17 +390,17 @@ export function ActivityFormFields({
           <div className="max-h-64 space-y-2 overflow-auto rounded-md border border-border p-3">
             {attendeeRows.map((item, index) => (
               <div key={index} className="grid grid-cols-[1fr_auto] gap-2">
-                <UserIdPicker
+                <Input
                   value={item}
+                  readOnly={readOnly}
                   disabled={readOnly}
-                  users={attendeeUsers}
-                  onValueChange={(nextValue) => {
+                  onChange={(event) => {
                     if (readOnly) return
                     const next = [...attendeeRows]
-                    next[index] = nextValue
+                    next[index] = event.target.value
                     updateAttendeeItems(next)
                   }}
-                  placeholder="참석자를 선택하세요"
+                  placeholder="참석자 이름 또는 사번"
                 />
                 <Button
                   type="button"
@@ -416,12 +435,11 @@ export function ActivityFormFields({
         </div>
       </div>
       <div className="space-y-2">
-        <Label>{`주요 내용${requiredMark}`}</Label>
+        <Label>주요 내용 *</Label>
         <Textarea
           value={resolvedContent}
           readOnly={readOnly}
           disabled={readOnly}
-          className={detailFieldClassName}
           onChange={(event) => {
             if (readOnly) return
             updateValues((current) => ({ ...current, content: event.target.value }))
@@ -435,7 +453,6 @@ export function ActivityFormFields({
           value={resolvedIssues}
           readOnly={readOnly}
           disabled={readOnly}
-          className={detailFieldClassName}
           onChange={(event) => {
             if (readOnly) return
             updateValues((current) => ({ ...current, issues: event.target.value }))
@@ -449,7 +466,6 @@ export function ActivityFormFields({
           value={resolvedNextAction}
           readOnly={readOnly}
           disabled={readOnly}
-          className={detailFieldClassName}
           onChange={(event) => {
             if (readOnly) return
             updateValues((current) => ({ ...current, nextAction: event.target.value }))

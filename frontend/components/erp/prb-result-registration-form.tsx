@@ -20,7 +20,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
 import { toast } from "@/hooks/use-toast"
 import { currentUser } from "@/lib/current-user"
@@ -38,7 +37,6 @@ import {
   loadBackendPrbResults,
   saveBackendPrbResult,
 } from "@/lib/prb-result-backend"
-import { useBackendUsers } from "@/lib/use-backend-users"
 
 type PrbResultRegistrationFormProps = {
   prbResultId?: string
@@ -66,6 +64,7 @@ function today() {
 
 function normalizeAttendeeOpinions(
   attendeeOpinions: AttendeeOpinionForm[] = [],
+  prb?: PrbRecord | null,
 ) {
   const next = attendeeOpinions.slice(0, 7).map((item) => ({
     participant: item.participant || "",
@@ -74,8 +73,9 @@ function normalizeAttendeeOpinions(
   }))
 
   while (next.length < 7) {
+    const index = next.length
     next.push({
-      participant: "",
+      participant: prb?.approvalLines?.[index]?.name ?? `참석자 ${index + 1}`,
       opinion: "",
       decision: "",
     })
@@ -84,8 +84,8 @@ function normalizeAttendeeOpinions(
   return next
 }
 
-function createDefaultAttendees() {
-  return normalizeAttendeeOpinions([])
+function createDefaultAttendees(prb?: PrbRecord | null) {
+  return normalizeAttendeeOpinions([], prb)
 }
 
 function createEmptyForm(prb?: PrbRecord | null): FormState {
@@ -94,7 +94,7 @@ function createEmptyForm(prb?: PrbRecord | null): FormState {
     meetingDate: today(),
     location: "",
     riskFactors: "",
-    attendeeOpinions: createDefaultAttendees(),
+    attendeeOpinions: createDefaultAttendees(prb),
     overallOpinion: "",
   }
 }
@@ -103,18 +103,15 @@ function TableInput({
   value,
   onChange,
   readOnly = false,
-  type = "text",
   className = "",
 }: {
   value: string
   onChange?: (value: string) => void
   readOnly?: boolean
-  type?: "text" | "date"
   className?: string
 }) {
   return (
     <Input
-      type={type}
       readOnly={readOnly}
       value={value}
       className={`h-10 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-0 ${className}`}
@@ -155,8 +152,8 @@ function createFormFromResult(result: PrbResultRecord, prb?: PrbRecord | null): 
     riskFactors: result.riskFactors || "",
     attendeeOpinions:
       result.attendeeOpinions.length > 0
-        ? normalizeAttendeeOpinions(result.attendeeOpinions)
-        : createDefaultAttendees(),
+        ? normalizeAttendeeOpinions(result.attendeeOpinions, prb)
+        : createDefaultAttendees(prb),
     overallOpinion: result.overallOpinion || "",
   }
 }
@@ -171,7 +168,6 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
   const [validationMessage, setValidationMessage] = useState("")
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [existingResult, setExistingResult] = useState<PrbResultRecord | null>(null)
-  const backendUsers = useBackendUsers()
 
   // 챗봇 create_draft (prb_result) prefill
   const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -245,7 +241,7 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
         setForm((current) => ({
           ...current,
           prbId: candidate.id,
-          attendeeOpinions: normalizeAttendeeOpinions(current.attendeeOpinions),
+          attendeeOpinions: normalizeAttendeeOpinions(current.attendeeOpinions, candidate),
         }))
         setSelectionOpen(false)
         return
@@ -278,23 +274,16 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
     () => selectedPrb ?? (form.prbId ? getPrbById(form.prbId) : null),
     [form.prbId, selectedPrb],
   )
-  const attendeeUsers = useMemo(
-    () => {
-      const safeUsers = Array.isArray(backendUsers) ? backendUsers : []
-      return [currentUser, ...safeUsers.filter((user) => user.id !== currentUser.id)]
-    },
-    [backendUsers],
-  )
 
   const applyPrb = (prb: PrbRecord) => {
     setSelectedPrb(prb)
     setSelectionValue(prb.id)
-      setForm((current) => ({
-        ...current,
-        prbId: prb.id,
-        meetingDate: current.meetingDate || prb.createdDate,
-        attendeeOpinions: normalizeAttendeeOpinions(current.attendeeOpinions),
-      }))
+    setForm((current) => ({
+      ...current,
+      prbId: prb.id,
+      meetingDate: current.meetingDate || prb.createdDate,
+      attendeeOpinions: normalizeAttendeeOpinions(current.attendeeOpinions, prb),
+    }))
   }
 
   const updateAttendee = (index: number, field: keyof AttendeeOpinionForm, value: string) => {
@@ -418,11 +407,7 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
                   <tr>
                     <th className="border border-slate-400 bg-slate-50 px-3 py-2 text-center font-semibold">일시</th>
                     <td colSpan={3} className="border border-slate-400">
-                      <TableInput
-                        type="date"
-                        value={form.meetingDate}
-                        onChange={(value) => setForm((current) => ({ ...current, meetingDate: value }))}
-                      />
+                      <TableInput value={form.meetingDate} onChange={(value) => setForm((current) => ({ ...current, meetingDate: value }))} />
                     </td>
                   </tr>
                   <tr>
@@ -444,16 +429,11 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
                           참석자 의견
                         </th>
                       )}
-                      <td className="border border-slate-400 bg-slate-50 px-3 py-2 font-medium whitespace-nowrap">
-                        참석자 {index + 1}
+                      <td className="border border-slate-400 bg-slate-50 px-3 py-2 font-medium">
+                        <TableInput value={item.participant} onChange={(value) => updateAttendee(index, "participant", value)} />
                       </td>
-                      <td className="border border-slate-400 px-2 py-1">
-                        <UserIdPicker
-                          value={item.participant}
-                          users={attendeeUsers}
-                          onValueChange={(value) => updateAttendee(index, "participant", value)}
-                          placeholder="사용자를 선택하세요"
-                        />
+                      <td className="border border-slate-400">
+                        <TableTextarea value={item.opinion} onChange={(value) => updateAttendee(index, "opinion", value)} rows={4} />
                       </td>
                       <td className="border border-slate-400 px-2">
                         <Select value={item.decision || "미정"} onValueChange={(value) => updateAttendee(index, "decision", value === "미정" ? "" : value)}>

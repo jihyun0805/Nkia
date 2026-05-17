@@ -8,8 +8,6 @@ import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceDet
 import com.nkia.Orbis.domain.maintenance.maintenance.dto.response.MaintenanceListResponse;
 import com.nkia.Orbis.domain.maintenance.maintenance.entity.MaintenanceType;
 import com.nkia.Orbis.domain.maintenance.maintenance.service.MaintenanceService;
-import com.nkia.Orbis.domain.maintenance.maintenancehistory.dto.response.MaintenanceHistoryDetailResponse;
-import com.nkia.Orbis.domain.maintenance.maintenancehistory.dto.response.MaintenanceHistoryListResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -104,27 +102,11 @@ public class MaintenanceController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @Operation(summary = "유지보수 히스토리 목록 조회")
-    @GetMapping("/{id}/histories")
-    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE', 'READ')")
-    public ResponseEntity<ApiResponse<List<MaintenanceHistoryListResponse>>> getHistories(@PathVariable Long id) {
-        List<MaintenanceHistoryListResponse> response = maintenanceService.getHistories(id);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    @Operation(summary = "유지보수 히스토리 상세 조회")
-    @GetMapping("/histories/{historyId}")
-    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE', 'READ')")
-    public ResponseEntity<ApiResponse<MaintenanceHistoryDetailResponse>> getHistoryDetail(@PathVariable Long historyId) {
-        MaintenanceHistoryDetailResponse response = maintenanceService.getHistoryDetail(historyId);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
     @Operation(summary = "유지보수 결재 상신")
     @PostMapping("/submit/{maintenanceId}")
     public ResponseEntity<ApiResponse<String>> submitMaintenance(
             @PathVariable("maintenanceId") Long maintenanceId,
-            @RequestBody @Valid SubmitRequest request
+            @RequestBody SubmitRequest request
     ) {
         maintenanceService.submitMaintenance(
                 maintenanceId,

@@ -38,16 +38,11 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         id_fields=("opportunityCode", "opportunity_code", "id"),
         title_fields=("opportunityName", "opportunity_name", "id"),
         content_fields=(
-            # 실제 DB 컬럼 (entity ProjectOpportunity.java 검증):
-            "stage", "project_type", "expected_budget", "competition_status",
-            "expected_bid_date",
-            # description (OID → text) — 사업 요약/실주 사유 등 핵심 텍스트
-            # _OID_TEXT_COLUMNS 가 fetch 단계에서 텍스트로 풀어준 결과.
-            "description",
-            # build_current_opportunity_documents 의 enrichment 결과:
+            "current_status", "business_type", "expected_amount",
+            "main_content", "issue_content", "competitor_status",
+            "decision_structure", "contact_line",
             "recent_activity_summary",
-            "billing_summary",
-            "prb_comprehensive_opinion",
+            "billing_summary", "prb_comprehensive_opinion",
             "sales_representative_name",
         ),
         payload_aliases={
@@ -71,10 +66,8 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "opportunity_name", "customer_name",
             "activity_date_time",
             "activity_type", "activity_purpose", "activity_content",
-            "location",        # 대면미팅/화상회의 장소 — 사용자가 폼에 입력
             "customer_interest", "issue", "next_activity",
             "attendee_names",
-            "status",          # ActivityStatus
         ),
         payload_aliases={
             "activityAt": ("activity_date_time",),
@@ -87,26 +80,6 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "opportunityId": ("project_opportunity_id",),
             "opportunityName": ("opportunity_name",),
             "customerName": ("customer_name",),
-        },
-    ),
-    # 영업활동 요청 (활동 등록 전 요청 폼) — 신규 색인 대상
-    DocumentConfig(
-        table="sales_activity_request",
-        source_type=SourceType.SALES_ACTIVITY_REQUEST,   # 신규 type
-        id_fields=("id",),
-        title_fields=("title", "id"),
-        content_fields=(
-            "title",
-            "request_content",        # 요청 내용 TEXT
-            "activity_purpose", "activity_type",
-            "activity_date_time",
-            # enrichment (build_current_sales_activity_request_documents):
-            "target_user_name", "request_user_name",
-        ),
-        payload_aliases={
-            "salesActivityId": ("sales_activity_id",),
-            "targetUserId": ("target_user_id",),
-            "requestUserId": ("request_user_id",),
         },
     ),
     DocumentConfig(
@@ -133,16 +106,11 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         id_fields=("rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
         title_fields=("project_name", "opportunity_name", "rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
         content_fields=(
-            # 실제 DB 컬럼 (entity RfpAnalyzeResult.java 검증):
-            "project_name",
-            "project_description",   # TEXT — RFP 분석 본문
-            "hardware_provider",
-            "budget_amount",
-            "expected_duration",
-            "project_location",
-            "proposal_deadline",
-            "status",                # RfpStatus enum
-            "proposal_type",         # ProposalType enum
+            "issuer", "project_scope", "project_period",
+            "requirements", "risk_factors", "special_notes",
+            "key_requirements", "analysis_summary",
+            "project_name", "project_description", "expected_duration",
+            "project_location", "proposal_deadline", "analysis_status", "status",
         ),
         payload_aliases={
             "opportunityId": ("project_opportunity_id", "opportunity_id"),
@@ -217,29 +185,16 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.BID_RESULT,
         id_fields=("bidResultCode", "bid_result_code", "id"),
         title_fields=("bidResultCode", "bid_result_code", "id"),
-        # 실제 DB 컬럼명 + OID 컬럼 (_OID_TEXT_COLUMNS 에서 텍스트로 풀린 것).
-        # 기존: result_status/win_loss_reason 등 nonexistent 컬럼 → chunk 가
-        # 메타데이터만 포함하고 실주 사유 텍스트 누락 → LLM 환각.
         content_fields=(
-            "bid_outcome", "company_name",
-            "key_success_factors", "proposal_strategy", "rfp_issues",
-            "technical_score", "price_score", "sum_score",
-            "presentation_date", "bid_announcement_date",
-            "disclosure_status",
-            # ElementCollection enrichment (build_current_bid_result_documents):
-            "competitor_scores_text",      # 경쟁사 점수 요약
-            "win_loss_analyses_text",      # 수주/실주 원인 분석 (WinLossAnalysis)
-            "total_analysis_score",        # 총 분석 점수
-            # context enrichment:
-            "opportunity_name", "customer_name", "bid_outcome_label",
+            "result_status", "result_date", "win_loss_reason",
+            "competitor_summary", "outcome_summary",
         ),
         payload_aliases={
             "bidResultCode": ("id",),
             "opportunityId": ("project_opportunity_id",),
-            "bidOutcome": ("bid_outcome",),
-            "keySuccessFactors": ("key_success_factors",),
-            "proposalStrategy": ("proposal_strategy",),
-            "rfpIssues": ("rfp_issues",),
+            "resultStatus": ("result_status",),
+            "winLossReason": ("win_loss_reason",),
+            "competitorSummary": ("competitor_summary",),
         },
     ),
     DocumentConfig(
@@ -248,30 +203,16 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         id_fields=("wonReportCode", "won_report_code", "id"),
         title_fields=("wonReportCode", "won_report_code", "id"),
         content_fields=(
-            # 실제 DB 컬럼 (entity OrderReport.java 검증):
-            "status",                          # ApprovalStatus
-            "vat_type",                        # VatType enum
-            "total_amount",                    # 총 계약금액
-            "payment_condition",               # 대금지급조건
-            "scope_of_work",                   # 사업범위 TEXT
-            "remarks",                         # 특이사항 TEXT
-            "additional_documents",            # 기타서류
-            "type",                            # OrderReportType
-            "code_type",                       # CodeType
-            "contract_date",
-            "contract_start_date", "contract_end_date",
-            "contract_period_months",
-            "free_maintenance_period_months",
-            # enrichment 결과:
+            "contract_date", "contract_amount", "business_scope",
+            "special_notes", "outcome_summary",
             "opportunity_name", "customer_name", "workflow_summary",
         ),
         payload_aliases={
             "wonReportCode": ("id",),
             "opportunityId": ("project_opportunity_id",),
             "contractDate": ("contract_date",),
-            "totalAmount": ("total_amount",),
-            "scopeOfWork": ("scope_of_work",),
-            "paymentCondition": ("payment_condition",),
+            "contractAmount": ("contract_amount",),
+            "businessScope": ("business_scope",),
         },
     ),
     DocumentConfig(
@@ -280,21 +221,13 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         id_fields=("contractCode", "contract_code", "id"),
         title_fields=("contractCode", "contract_code", "id"),
         content_fields=(
-            # 실제 DB 컬럼 (entity Contract.java 검증):
-            "status",                  # ApprovalStatus
-            "contract_amount",
-            "contract_date",
-            "maintenance_condition",
-            "proposal_type",           # ProposalType enum
-            # enrichment 결과 (build_current_contract_documents):
+            "contract_status", "start_date", "end_date", "memo",
             "opportunity_name", "customer_name", "workflow_summary",
         ),
         payload_aliases={
             "contractCode": ("id",),
             "orderReportId": ("order_report_id",),
-            "contractStatus": ("status",),
-            "contractAmount": ("contract_amount",),
-            "contractDate": ("contract_date",),
+            "contractStatus": ("contract_status",),
         },
     ),
     DocumentConfig(
@@ -330,30 +263,6 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.MAINTENANCE,
         id_fields=("maintenanceCode", "maintenance_code", "id"),
         title_fields=("maintenanceCode", "maintenance_code", "id"),
-        # 실제 DB 컬럼 (entity Maintenance.java 검증) — 이전 content_fields 비어있어
-        # chunk content 가 메타데이터만 포함하고 사용자 입력 필드 (25+) 다 누락되던 root cause.
-        content_fields=(
-            "status",                     # ApprovalStatus
-            "category",                   # 구분
-            "type",                       # MaintenanceType (FREE/PAID)
-            "product_family",             # ProdFamily enum
-            "inspection_cycle",           # InspectionCycle
-            "importance",                 # Importance
-            "location",                   # 위치
-            "is_remote",
-            "rate",                       # 요율
-            "contract_amount", "annual_amount",
-            "contract_date", "start_date", "end_date",
-            "report_submitted",
-            "ap_count", "es_count",
-            "ap_version", "es_version", "db_version",
-            "acl_patch_status", "vuln_patch_status", "db_ha_status",
-            "upgrade_plan",
-            # enrichment 로 채워질 user/project 이름 (build_current_maintenance_documents 가 채움):
-            "sales_rep_name", "manager_primary_name", "manager_secondary_name",
-            "regular_pm_name",
-            "project_name", "opportunity_name", "customer_name",
-        ),
         payload_aliases={
             "maintenanceCode": ("id",),
             "projectId": ("project_id",),
@@ -395,26 +304,6 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         payload_aliases={
             "supportCode": ("id",),
             "maintenanceId": ("maintenance_id",),
-        },
-    ),
-    # 고객지원 요청 (요청 폼 — 사용자 직접 입력 텍스트가 풍부) — 신규 색인 대상
-    DocumentConfig(
-        table="customer_support_request",
-        source_type=SourceType.CUSTOMER_SUPPORT_REQUEST,   # 신규 type
-        id_fields=("requestCode", "request_code", "request_id", "id"),
-        title_fields=("request_code", "request_id", "id"),
-        content_fields=(
-            "request_content",        # 고객 요청 본문 TEXT
-            "remarks",                # 특기사항 1000자
-            "approval_status", "status",
-            "request_start_date", "request_end_date",
-            # enrichment (build_current_customer_support_request_documents):
-            "customer_name", "requester_name", "registrant_name",
-            "sales_rep_name", "support_manager_name",
-        ),
-        payload_aliases={
-            "requestId": ("request_id", "id"),
-            "customerCompanyId": ("customer_company_id",),
         },
     ),
     DocumentConfig(
@@ -530,10 +419,7 @@ ALWAYS_CONFIGS: tuple[DocumentConfig, ...] = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Orbis AI 재색인 스크립트")
-    parser.add_argument("--db-url", required=True, help="PostgreSQL connection URL (AI user)")
-    parser.add_argument("--backend-db-url", default=None,
-                        help="백엔드 owner 유저 URL. OID large object 권한 부여용. "
-                             "미지정 시 POSTGRES_USER/PASSWORD/HOST/PORT/DB env 로 자동 구성.")
+    parser.add_argument("--db-url", required=True, help="PostgreSQL connection URL")
     parser.add_argument("--ai-base-url", required=True, help="AI API base URL")
     parser.add_argument("--ai-internal-token", required=True, help="AI internal token")
     parser.add_argument("--batch-size", type=int, default=50, help="index API 배치 크기")
@@ -541,76 +427,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _grant_oid_to_ai_user(backend_db_url: str, ai_user: str) -> int:
-    """백엔드 owner 유저 connection 으로 모든 large object 에 AI user GRANT.
-
-    OID 컬럼 (description/key_success_factors 등) 은 backend 가 owner 라
-    AI 유저 (orbis_ai) 가 기본으로는 lo_get 접근 불가. 매 reindex 시작 시
-    GRANT 해줘야 새 OID 도 enrichment 가능.
-    """
-    try:
-        with psycopg.connect(backend_db_url) as conn:
-            with conn.cursor() as cur:
-                cur.execute(f"""
-                    DO $$
-                    DECLARE oid_val oid;
-                    BEGIN
-                      FOR oid_val IN SELECT oid FROM pg_largeobject_metadata LOOP
-                        BEGIN
-                          EXECUTE format('GRANT SELECT ON LARGE OBJECT %s TO {ai_user}', oid_val);
-                        EXCEPTION WHEN OTHERS THEN NULL;
-                        END;
-                      END LOOP;
-                    END $$;
-                """)
-                cur.execute("SELECT count(*) AS n FROM pg_largeobject_metadata")
-                row = cur.fetchone()
-                return int(row[0] if isinstance(row, tuple) else row.get("count", row.get("n", 0)))
-    except Exception as exc:
-        print(f"[reindex] OID GRANT 실패 (large object enrichment 비활성): {exc}", flush=True)
-        return -1
-
-
-def _resolve_backend_db_url(args_url: str | None, ai_db_url: str | None = None) -> str | None:
-    if args_url:
-        return args_url
-    import os as _os
-    user = _os.environ.get("POSTGRES_USER")
-    pw = _os.environ.get("POSTGRES_PASSWORD")
-    db = _os.environ.get("POSTGRES_DB", "orbis_db")
-    if not (user and pw):
-        return None
-    # AI_DATABASE_URL 의 host/port 활용 — 같은 DB 인스턴스라 hostname 일치 보장.
-    # POSTGRES_HOST env 가 잘못된 경우(예: 컨테이너 DNS resolve 실패) 회피.
-    host = _os.environ.get("POSTGRES_HOST", "orbis_postgres")
-    port = _os.environ.get("POSTGRES_PORT", "5432")
-    if ai_db_url:
-        try:
-            from urllib.parse import urlparse
-            p = urlparse(ai_db_url)
-            if p.hostname:
-                host = p.hostname
-            if p.port:
-                port = str(p.port)
-        except Exception:
-            pass
-    from urllib.parse import quote_plus
-    return f"postgresql://{quote_plus(user)}:{quote_plus(pw)}@{host}:{port}/{db}"
-
-
 def main() -> int:
     args = parse_args()
-    # OID large object enrichment 을 위해 backend owner 권한 GRANT
-    backend_url = _resolve_backend_db_url(args.backend_db_url, ai_db_url=args.db_url)
-    if backend_url:
-        from urllib.parse import urlparse
-        ai_user = urlparse(args.db_url).username or "orbis_ai"
-        granted_count = _grant_oid_to_ai_user(backend_url, ai_user)
-        if granted_count >= 0:
-            print(f"[reindex] OID GRANT ok (large_objects={granted_count} → {ai_user})", flush=True)
-    else:
-        print("[reindex] backend-db-url 미설정 — OID enrichment 비활성", flush=True)
-
     with psycopg.connect(args.db_url, row_factory=dict_row) as conn:
         existing_tables = fetch_existing_tables(conn)
         documents = build_documents(
@@ -694,10 +512,6 @@ def build_documents(
                 documents.extend(build_current_billing_documents(row, conn=conn))
             elif config.table == "proposal":
                 documents.extend(build_current_proposal_documents(row, conn=conn))
-            elif config.table == "customer_support_request":
-                documents.extend(build_current_customer_support_request_documents(row, conn=conn))
-            elif config.table == "sales_activity_request":
-                documents.extend(build_current_sales_activity_request_documents(row, conn=conn))
             elif config.table in _TABLE_TO_WORKFLOW_DOMAIN:
                 # workflow_summary 만 enrich 하는 경량 builder
                 documents.extend(_build_with_workflow_enrich(config=config, row=row, conn=conn))
@@ -706,35 +520,6 @@ def build_documents(
                 if document is not None:
                     documents.append(document)
     return documents
-
-
-# 테이블별 OID(large object) 컬럼 → 텍스트로 풀어서 색인 enrichment
-# to_jsonb 는 OID 컬럼을 숫자(참조)로만 직렬화하므로 chunk content 에
-# 실제 텍스트가 누락됨. 실주 사유(project_opportunity.description) 등
-# 의미 있는 텍스트가 색인 안 돼 LLM 환각의 root cause 가 됨.
-_OID_TEXT_COLUMNS: dict[str, tuple[str, ...]] = {
-    "project_opportunity": ("description",),
-    "bid_result": ("key_success_factors", "proposal_strategy", "rfp_issues"),
-}
-
-
-def _read_oid_text(conn: psycopg.Connection[Any], oid: int) -> str | None:
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SAVEPOINT read_oid")
-            try:
-                cur.execute("SELECT convert_from(lo_get(%s), 'UTF8') AS text", (oid,))
-                row = cur.fetchone()
-                cur.execute("RELEASE SAVEPOINT read_oid")
-                if row is None:
-                    return None
-                text = row.get("text") if isinstance(row, dict) else row[0]
-                return text if text else None
-            except Exception:
-                cur.execute("ROLLBACK TO SAVEPOINT read_oid")
-                return None
-    except Exception:
-        return None
 
 
 def fetch_table_rows(
@@ -748,27 +533,7 @@ def fetch_table_rows(
         query += sql.SQL(" LIMIT {}").format(sql.Literal(limit))
     with conn.cursor() as cur:
         cur.execute(query)
-        rows = [dict(record["row"]) for record in cur.fetchall()]
-
-    # OID 컬럼 텍스트로 enrichment (large object → readable text)
-    # to_jsonb 는 OID 를 string ("18394") 으로 직렬화 — int/str 둘 다 처리.
-    oid_cols = _OID_TEXT_COLUMNS.get(table)
-    if oid_cols:
-        for row in rows:
-            for col in oid_cols:
-                value = row.get(col)
-                oid_int: int | None = None
-                if isinstance(value, int) and value > 0:
-                    oid_int = value
-                elif isinstance(value, str) and value.isdigit():
-                    n = int(value)
-                    if n > 0:
-                        oid_int = n
-                if oid_int is not None:
-                    text = _read_oid_text(conn, oid_int)
-                    if text:
-                        row[col] = text
-    return rows
+        return [dict(record["row"]) for record in cur.fetchall()]
 
 
 def _fetch_user_display(
@@ -1167,43 +932,6 @@ def build_current_bid_result_documents(
             enriched["opportunity_code"] = summary.get("opportunity_code")
             enriched["opportunity_name"] = summary.get("opportunity_name")
             enriched["customer_name"] = summary.get("customer_name")
-        # ElementCollection enrichment — to_jsonb 에 안 잡히는 자식 테이블 join
-        bid_id = row.get("id")
-        if bid_id is not None:
-            try:
-                with conn.cursor() as cur:
-                    cur.execute("SAVEPOINT enrich_bid")
-                    try:
-                        # 경쟁사 점수
-                        cur.execute(
-                            "SELECT company_name, technical_score, price_score "
-                            "FROM bid_result_competitor_score WHERE bid_result_id = %s",
-                            (bid_id,),
-                        )
-                        comps = cur.fetchall()
-                        if comps:
-                            enriched["competitor_scores_text"] = " / ".join(
-                                f"{c.get('company_name','')}(기술 {c.get('technical_score','-')}, "
-                                f"가격 {c.get('price_score','-')})"
-                                for c in comps
-                            )
-                        # 수주/실주 원인 분석 (WinLossAnalysis VO)
-                        cur.execute(
-                            "SELECT category, evaluation_item, score "
-                            "FROM bid_result_analysis WHERE bid_result_id = %s",
-                            (bid_id,),
-                        )
-                        analyses = cur.fetchall()
-                        if analyses:
-                            enriched["win_loss_analyses_text"] = " / ".join(
-                                f"[{a.get('category','')}] {a.get('evaluation_item','')}: {a.get('score','-')}점"
-                                for a in analyses
-                            )
-                        cur.execute("RELEASE SAVEPOINT enrich_bid")
-                    except Exception:
-                        cur.execute("ROLLBACK TO SAVEPOINT enrich_bid")
-            except Exception:
-                pass
     outcome = (enriched.get("bid_outcome") or "").upper()
     outcome_label = "수주(WIN)" if outcome == "WIN" else ("실주(LOSS)" if outcome == "LOSS" else outcome)
     enriched["bid_outcome_label"] = outcome_label
@@ -1455,60 +1183,6 @@ def _fetch_workflow_summary(
     if approver_summary:
         summary_lines.append("결재선: " + " / ".join(approver_summary))
     return "\n".join(summary_lines)
-
-
-def build_current_customer_support_request_documents(
-    row: dict[str, Any],
-    conn: psycopg.Connection[Any] | None = None,
-) -> list[dict[str, Any]]:
-    """CustomerSupportRequest 색인 — user 4종 + customer enrichment."""
-    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "customer_support_request")
-    enriched = dict(row)
-    if conn is not None:
-        # 4 user 이름 enrich (requester/registrant/sales_rep/support_manager)
-        for src, dst in (
-            ("requester_id", "requester_name"),
-            ("registrant_id", "registrant_name"),
-            ("sales_rep_id", "sales_rep_name"),
-            ("support_manager_id", "support_manager_name"),
-        ):
-            label = _format_user_label(_fetch_user_display(conn, row.get(src)))
-            if label:
-                enriched[dst] = label
-        # customer 회사명 enrich
-        cc_id = row.get("customer_company_id")
-        if cc_id is not None:
-            cname = _fetch_company_name(conn, cc_id)
-            if cname:
-                enriched["customer_name"] = cname
-    enriched["display_title"] = _build_descriptive_title(
-        customer_name=enriched.get("customer_name"),
-        opportunity_name=None,
-        suffix="고객지원 요청",
-        fallback_code=str(row.get("id")),
-        raw_id=row.get("id"),
-    )
-    document = build_document(config=config, row=enriched)
-    return [document] if document is not None else []
-
-
-def build_current_sales_activity_request_documents(
-    row: dict[str, Any],
-    conn: psycopg.Connection[Any] | None = None,
-) -> list[dict[str, Any]]:
-    """SalesActivityRequest 색인 — target/request user 이름 enrich."""
-    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "sales_activity_request")
-    enriched = dict(row)
-    if conn is not None:
-        for src, dst in (
-            ("target_user_id", "target_user_name"),
-            ("request_user_id", "request_user_name"),
-        ):
-            label = _format_user_label(_fetch_user_display(conn, row.get(src)))
-            if label:
-                enriched[dst] = label
-    document = build_document(config=config, row=enriched)
-    return [document] if document is not None else []
 
 
 def build_current_proposal_documents(
@@ -1968,17 +1642,6 @@ def build_current_maintenance_documents(
 ) -> list[dict[str, Any]]:
     config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "maintenance")
     enriched = dict(row)
-    # user 이름 enrich (sales_rep / manager_primary / manager_secondary / regular_pm)
-    if conn is not None:
-        for src, dst in (
-            ("sales_rep_id", "sales_rep_name"),
-            ("manager_primary_id", "manager_primary_name"),
-            ("manager_secondary_id", "manager_secondary_name"),
-            ("regular_pm_id", "regular_pm_name"),
-        ):
-            label = _format_user_label(_fetch_user_display(conn, row.get(src)))
-            if label:
-                enriched[dst] = label
     if conn is not None and row.get("project_id") is not None:
         try:
             with conn.cursor() as cur:

@@ -74,17 +74,21 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (!hasChatbotPrefill || prefillAppliedRef.current) return;
-    if (inheritedData) return;
+    if (inheritedData) return;  // 상속된 데이터 있으면 prefill 비활성
     prefillAppliedRef.current = true;
     const slot = chatbotPrefill;
     if (slot.customer_name) setValue("customerName", slot.customer_name);
     if (slot.title || slot.opportunity_name) setValue("projectName", slot.title || slot.opportunity_name);
+    if (slot.completed_at) setValue("endDate", slot.completed_at);
+    // results_summary, achievements, issues, lessons_learned 는 폼에 직접 필드가 없으나
+    // 사용자가 별도 영역에 채울 수 있도록 toast 로 안내만
     const applied = Object.keys(slot).length;
     if (applied > 0) {
       const id = window.setTimeout(() => clearChatbotPrefill(), 100);
       return () => window.clearTimeout(id);
     }
     return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChatbotPrefill]);
 
   // 선택 시 폼 업데이트
@@ -99,6 +103,8 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
     try {
       const res = await orderReportApi.getOrderReport(report.id);
       const detail = res.data;
+      if (detail.contractStartDate) setValue("startDate", detail.contractStartDate);
+      if (detail.contractEndDate) setValue("endDate", detail.contractEndDate);
 
       if (!report.finalCustomerCompanyName && detail.finalCustomerCompanyName) {
         setValue("customerName", detail.finalCustomerCompanyName);
@@ -146,11 +152,7 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
 
     setIsSubmitting(true);
     try {
-      const res = await projectApi.createProject({ 
-        orderReportId,
-        startDate: _data.startDate,
-        endDate: _data.endDate,
-      });
+      const res = await projectApi.createProject({ orderReportId });
       // 생성된 사업 상세 조회
       const detail = await projectApi.getProject(res.data.id);
       setCreatedProject(detail.data);
@@ -306,13 +308,13 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
               {/* 사업개시일 */}
               <div className="space-y-2">
                 <Label htmlFor="startDate">사업개시일</Label>
-                <Input id="startDate" type="date" {...register("startDate")} placeholder="사업개시일 선택" />
+                <Input id="startDate" type="date" {...register("startDate")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
               </div>
 
               {/* 사업완료일 */}
               <div className="space-y-2">
                 <Label htmlFor="endDate">사업완료일</Label>
-                <Input id="endDate" type="date" {...register("endDate")} placeholder="사업완료일 선택" />
+                <Input id="endDate" type="date" {...register("endDate")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
               </div>
 
               {/* PM 이름 */}

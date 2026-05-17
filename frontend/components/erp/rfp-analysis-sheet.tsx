@@ -19,8 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
-import { UserIdPicker } from "@/components/erp/user-id-picker"
+import { CustomerAutocomplete } from "@/components/erp/customer-autocomplete"
 import {
   getBidItem,
   getRfpAnalysisByRequestId,
@@ -30,12 +29,10 @@ import {
 } from "@/lib/bid-data"
 import type { ActivityRequestRecord } from "@/lib/activity-data"
 import { getActivityRequests, notifyRfpAnalysisCompleted } from "@/lib/activity-request-workflow"
-import { currentUser } from "@/lib/current-user"
 import { getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName, type CustomerRecord } from "@/lib/finding-data"
 import { createBackendRfpAnalysis, deleteBackendRfpAnalysis, loadBackendRfpAnalyses, updateBackendRfpAnalysis } from "@/lib/rfp-analysis-backend"
 import { toast } from "@/hooks/use-toast"
 import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
-import { loadBackendUsers, type BackendUserSummary } from "@/lib/workflow-backend"
 
 type RfpAnalysisSheetProps = {
   requestId?: string
@@ -403,7 +400,6 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   const initialCustomer = requestItem?.customerCode ? getCustomerByCode(requestItem.customerCode) : null
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(initialCustomer)
   const [selectedCustomerName, setSelectedCustomerName] = useState(initialCustomer?.name ?? "")
-  const [backendUsers, setBackendUsers] = useState<BackendUserSummary[]>([])
   const standaloneOpportunityOptions = getOpportunitiesByCustomerName(selectedCustomerName)
   const [selectedOpportunityCode, setSelectedOpportunityCode] = useState(requestItem?.opportunityCode ?? "")
   const linkedOpportunity = requestItem?.customer
@@ -422,11 +418,12 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   const [projectPeriod, setProjectPeriod] = useState(shouldStartBlank ? "" : requestItem?.projectPeriod ?? "")
   const [businessPlace, setBusinessPlace] = useState(shouldStartBlank ? "" : requestItem?.businessPlace ?? "")
   const [proposalDeadline, setProposalDeadline] = useState(shouldStartBlank ? "" : requestItem?.proposalDeadline ?? requestItem?.dueDate ?? "")
+  const [requesterName, setRequesterName] = useState(shouldStartBlank ? "" : requestItem?.requester ?? "")
+  const [analystName, setAnalystName] = useState(shouldStartBlank ? "" : requestItem?.analyst ?? "")
   const [requestDate, setRequestDate] = useState(shouldStartBlank ? "" : requestItem?.requestDate ?? requestItem?.receiveDate ?? "")
   const [analysisStatus, setAnalysisStatus] = useState<RfpAnalysisStatus>(
     (persistedAnalysis?.status ?? (activityRequestItem ? "접수" : (requestItem?.status ?? "분석중"))) as RfpAnalysisStatus,
   )
-  const [analystId, setAnalystId] = useState(shouldStartBlank ? "" : requestItem?.assigneeId ?? "")
   const [requirements, setRequirements] = useState<RequirementRow[]>(
     requestItem?.requirements?.length
       ? requestItem.requirements
@@ -455,6 +452,8 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     if (slot.expected_period) setProjectPeriod(slot.expected_period)
     if (slot.business_location) setBusinessPlace(slot.business_location)
     if (slot.submission_deadline) setProposalDeadline(slot.submission_deadline)
+    if (slot.sales_representative) setRequesterName(slot.sales_representative)
+    if (slot.manager) setAnalystName(slot.manager)
     if (slot.requested_at) setRequestDate(slot.requested_at)
     // requirements 는 JSON 으로 들어올 수 있음
     if (slot.requirements) {
@@ -521,38 +520,6 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   }, [requestId])
 
   useEffect(() => {
-    void loadBackendUsers()
-      .then((users) => {
-        const merged = [
-          {
-            id: currentUser.id,
-            employeeNumber: currentUser.id,
-            position: currentUser.role,
-            name: currentUser.name,
-            departmentName: currentUser.department,
-            phone: "",
-            email: currentUser.email,
-          },
-          ...users.filter((user) => user.id !== currentUser.id),
-        ]
-        setBackendUsers(merged)
-      })
-      .catch(() => {
-        setBackendUsers([
-          {
-            id: currentUser.id,
-            employeeNumber: currentUser.id,
-            position: currentUser.role,
-            name: currentUser.name,
-            departmentName: currentUser.department,
-            phone: "",
-            email: currentUser.email,
-          },
-        ])
-      })
-  }, [])
-
-  useEffect(() => {
     if (!requestItem) return
 
     const matchedCustomer = requestItem.customerCode
@@ -578,7 +545,8 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     const nextProjectPeriod = requestItem.projectPeriod ?? ""
     const nextBusinessPlace = requestItem.businessPlace ?? ""
     const nextProposalDeadline = requestItem.proposalDeadline ?? requestItem.dueDate ?? ""
-    const nextAnalystId = requestItem.assigneeId ?? ""
+    const nextRequesterName = requestItem.requester ?? ""
+    const nextAnalystName = requestItem.analyst ?? ""
     const nextRequestDate = requestItem.requestDate ?? requestItem.receiveDate ?? ""
     const nextAnalysisStatus = (requestItem.status ?? "분석중") as RfpAnalysisStatus
     const nextRequirements = requestItem.requirements?.length
@@ -599,9 +567,10 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     setProjectPeriod((current) => (current === nextProjectPeriod ? current : nextProjectPeriod))
     setBusinessPlace((current) => (current === nextBusinessPlace ? current : nextBusinessPlace))
     setProposalDeadline((current) => (current === nextProposalDeadline ? current : nextProposalDeadline))
+    setRequesterName((current) => (current === nextRequesterName ? current : nextRequesterName))
+    setAnalystName((current) => (current === nextAnalystName ? current : nextAnalystName))
     setRequestDate((current) => (current === nextRequestDate ? current : nextRequestDate))
     setAnalysisStatus((current) => (current === nextAnalysisStatus ? current : nextAnalysisStatus))
-    setAnalystId((current) => (current === nextAnalystId ? current : nextAnalystId))
     setRequirements((current) => {
       if (requirementRowsSignature(current) === requirementRowsSignature(nextRequirements)) {
         return current
@@ -627,8 +596,6 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   }
 
   const selectedOpportunity = standaloneOpportunityOptions.find((item) => item.id === selectedOpportunityCode) ?? null
-  const requesterDisplay = requestItem?.requester ?? currentUser.name
-  const selectedAnalyst = backendUsers.find((user) => user.id === analystId) ?? null
 
   useEffect(() => {
     if (!isStandalone || !selectedOpportunity) return
@@ -675,13 +642,13 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
       id: bidRequestItem?.id ?? linkedSavedAnalysis?.id,
       requestId: linkedRequestId,
       projectOpportunityId: requestItem?.projectOpportunityId,
-      assigneeId: analystId,
+      assigneeId: requestItem?.assigneeId,
       customer: customerName,
       customerCode,
       opportunity: opportunityName,
       opportunityCode,
-      requester: requesterDisplay,
-      analyst: selectedAnalyst?.name ?? currentUser.name,
+      requester: requesterName,
+      analyst: analystName,
       receiveDate: requestDate || new Date().toISOString().slice(0, 10),
       requestDate: requestDate || new Date().toISOString().slice(0, 10),
       dueDate: requestItem?.dueDate ?? proposalDeadline ?? new Date().toISOString().slice(0, 10),
@@ -703,9 +670,9 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
         ? await updateBackendRfpAnalysis(persistedAnalysis.id, nextRecord)
         : await createBackendRfpAnalysis(nextRecord)
 
-      if (status === "완료" && !wasCompleted && linkedRequestId) {
+      if (status === "완료" && !wasCompleted && linkedRequestId && requesterName) {
         notifyRfpAnalysisCompleted({
-          requester: requesterDisplay,
+          requester: requesterName,
           customer: customerName,
           opportunity: opportunityName,
           requestId: linkedRequestId,
@@ -783,8 +750,8 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
       ["예상사업기간", projectPeriod],
       ["사업장소", businessPlace],
       ["제안서 접수마감일", proposalDeadline],
-      ["요청자", requesterDisplay],
-      ["담당자", selectedAnalyst?.name ?? currentUser.name],
+      ["요청자", requesterName],
+      ["담당자", analystName],
       ["요청일", requestDate],
       ["상태", analysisStatus],
       ["주요사업내용(특이점)", majorContent],
@@ -942,18 +909,8 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
       if (importedBasicInfo.projectPeriod !== undefined) setProjectPeriod(importedBasicInfo.projectPeriod)
       if (importedBasicInfo.businessPlace !== undefined) setBusinessPlace(importedBasicInfo.businessPlace)
       if (importedBasicInfo.proposalDeadline !== undefined) setProposalDeadline(importedBasicInfo.proposalDeadline)
-      if (importedBasicInfo.analyst !== undefined) {
-        const normalizedAnalyst = importedBasicInfo.analyst.trim()
-        const matchedAnalyst = backendUsers.find(
-          (user) =>
-            user.id === normalizedAnalyst ||
-            user.employeeNumber === normalizedAnalyst ||
-            user.name === normalizedAnalyst,
-        )
-        if (matchedAnalyst?.id) {
-          setAnalystId(matchedAnalyst.id)
-        }
-      }
+      if (importedBasicInfo.salesRep !== undefined) setRequesterName(importedBasicInfo.salesRep)
+      if (importedBasicInfo.analyst !== undefined) setAnalystName(importedBasicInfo.analyst)
       if (importedBasicInfo.requestDate !== undefined) setRequestDate(importedBasicInfo.requestDate)
       if (importedBasicInfo.status !== undefined && analysisStatusOptions.includes(importedBasicInfo.status as RfpAnalysisStatus)) {
         setAnalysisStatus(importedBasicInfo.status as RfpAnalysisStatus)
@@ -1051,7 +1008,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
               </tr>
               <tr>
                 <BasicInfoRow label="사업 구분">
-                  <ExcelInput value="" readOnly placeholder="" />
+                  <ExcelSelect value={businessType} onChange={setBusinessType} options={businessTypes} />
                 </BasicInfoRow>
                 <BasicInfoRow label="제안 형태">
                   <ExcelSelect value={proposalType} onChange={setProposalType} options={proposalTypes} />
@@ -1083,17 +1040,10 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
               </tr>
               <tr>
                 <BasicInfoRow label="요청자">
-                  <ExcelInput value={requesterDisplay} readOnly placeholder="로그인한 사용자 이름이 자동 표시됩니다." />
+                  <ExcelInput value={requesterName} onChange={(event) => setRequesterName(event.target.value)} placeholder="요청자를 입력하세요" />
                 </BasicInfoRow>
                 <BasicInfoRow label="담당자">
-                  <div className="px-2 py-1">
-                    <UserIdPicker
-                      value={analystId}
-                      users={backendUsers}
-                      onValueChange={setAnalystId}
-                      placeholder="담당자를 선택해주세요."
-                    />
-                  </div>
+                  <ExcelInput value={analystName} onChange={(event) => setAnalystName(event.target.value)} placeholder="담당자를 입력하세요" />
                 </BasicInfoRow>
               </tr>
               <tr>
@@ -1101,17 +1051,28 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
                   <BasicInfoRow label="활동요청 코드" value={requestItem.id} />
                 ) : (
                   <BasicInfoRow label="요청일">
-                    <ExcelInput type="date" value={requestDate} readOnly />
+                    <ExcelInput type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
                   </BasicInfoRow>
                 )}
                 <BasicInfoRow label="상태">
-                  <ExcelInput value={analysisStatus} readOnly />
+                  <Select value={analysisStatus} onValueChange={(value) => setAnalysisStatus(value as RfpAnalysisStatus)}>
+                    <SelectTrigger className="h-10 rounded-none border-0 shadow-none focus:ring-0">
+                      <SelectValue placeholder="상태를 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {analysisStatusOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </BasicInfoRow>
               </tr>
               {requestItem?.id?.startsWith("REQ-") && (
                 <tr>
                   <BasicInfoRow label="요청일">
-                    <ExcelInput type="date" value={requestDate} readOnly />
+                    <ExcelInput type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
                   </BasicInfoRow>
                   <BasicInfoRow label="연결 사업기회 코드" value={requestItem?.opportunityCode ?? "-"} />
                 </tr>

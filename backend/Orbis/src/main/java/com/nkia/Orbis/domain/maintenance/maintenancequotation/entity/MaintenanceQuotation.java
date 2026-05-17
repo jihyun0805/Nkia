@@ -15,7 +15,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,14 +67,10 @@ public class MaintenanceQuotation extends BaseEntity {
     @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MaintenanceAmountReason> amountReasons = new ArrayList<>();
 
-    // 표지 정보
-    @OneToOne(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
-    private MaintenanceQuotationCover cover;
-
     @Builder
     public MaintenanceQuotation(String refNo, Project project, LocalDate quotationDate, String paymentTerms,
                                 Long totalAmount, LocalDate startDate, LocalDate endDate, Long monthlySupplyPrice,
-                                Long totalQuotationAmount, String specialNotes) {
+                                Long totalQuotationAmount, String specialNotes, Long spMaintenanceCost) {
         this.refNo = refNo;
         this.project = project;
         this.quotationDate = quotationDate;
@@ -102,14 +97,6 @@ public class MaintenanceQuotation extends BaseEntity {
     public void addCostBasis(MaintenanceAmountReason amountReason) {
         this.amountReasons.add(amountReason);
         amountReason.setQuotation(this);
-    }
-
-    public void setCover(MaintenanceQuotationCover cover) {
-        this.cover = cover;
-    }
-
-    public void updateRefNo(String refNo) {
-        this.refNo = refNo;
     }
 
     public void updateInfo(String paymentTerms, Long totalAmount, LocalDate startDate,

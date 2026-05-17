@@ -61,10 +61,12 @@ public class MaintenanceDetailResponse {
 
 
     private String createdBy;
-    private String updatedBy;
     private LocalDateTime createdAt;
 
-    public static MaintenanceDetailResponse from(Maintenance m, Long workflowId, String creatorName, String updaterName) {
+    /**
+     * 엔티티를 DTO로 변환 (NPE 방지 처리 포함)
+     */
+    public static MaintenanceDetailResponse from(Maintenance m, Long workflowId) {
         String customerName = m.getProject() != null && m.getProject().getOrderReport() != null &&
                 m.getProject().getOrderReport().getFinalCustomerCompany() != null ?
                 m.getProject().getOrderReport().getFinalCustomerCompany().getName() : "-";
@@ -93,10 +95,7 @@ public class MaintenanceDetailResponse {
                 .apCount(m.getApCount()).esCount(m.getEsCount())
                 .esVersion(m.getEsVersion()).dbHaStatus(m.isDbHaStatus())
                 .dbVersion(m.getDbVersion())
-                .remarks(m.getRemarks())
-                .createdBy(creatorName)
-                .updatedBy(updaterName)
-                .createdAt(m.getCreatedAt())
+                .remarks(m.getRemarks()).createdBy(m.getCreatedBy()).createdAt(m.getCreatedAt())
                 .contractFileId(m.getContractFile() != null ? m.getContractFile().getId() : null)
                 .status(m.getStatus())
                 .workflowId(workflowId)

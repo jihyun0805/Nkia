@@ -21,12 +21,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { getCustomers, getOpportunities, type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 import { loadBackendBidResults, loadBackendBidResultDetailById, saveBackendBidResult } from "@/lib/bid-result-backend"
 import { loadBackendProposals } from "@/lib/proposal-backend"
-import { useBackendUsers } from "@/lib/use-backend-users"
-import { resolveUserId } from "@/lib/user-utils"
 import {
   type BidOutcome,
   type BidResultAnalysisSheet,
@@ -268,7 +265,6 @@ function BidResultHeaderCell({
 
 export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResultRegistrationFormProps) {
   const router = useRouter()
-  const users = useBackendUsers()
   const [proposals, setProposals] = useState<ProposalRecord[]>([])
   const [bidResults, setBidResults] = useState<BidResultRecord[]>([])
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
@@ -386,9 +382,6 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
       ) ?? null,
     [availableProposals, form.customerCode, form.opportunityCode, form.proposalId],
   )
-
-  const salesLeaderUserId = resolveUserId(form.analysisSheet.salesLeaderName || matchingProposal?.salesRep || "", users)
-  const pmUserId = resolveUserId(form.analysisSheet.pmName, users)
 
   useEffect(() => {
     if (mergedExistingResult) {
@@ -759,28 +752,18 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
                 <tr>
                   <BidResultHeaderCell>영업대표명</BidResultHeaderCell>
                   <BidResultCell colSpan={13}>
-                    <UserIdPicker
-                      value={salesLeaderUserId}
-                      users={users}
-                      onValueChange={(value) => {
-                        const selectedUser = users.find((user) => user.id === value)
-                        updateAnalysisField("salesLeaderName", selectedUser?.name ?? "")
-                      }}
-                      placeholder="영업대표를 선택하세요"
+                    <BidResultTableInput
+                      value={form.analysisSheet.salesLeaderName || matchingProposal?.salesRep || ""}
+                      onChange={(value) => updateAnalysisField("salesLeaderName", value)}
                     />
                   </BidResultCell>
                 </tr>
                 <tr>
                   <BidResultHeaderCell>PM명</BidResultHeaderCell>
                   <BidResultCell colSpan={13}>
-                    <UserIdPicker
-                      value={pmUserId}
-                      users={users}
-                      onValueChange={(value) => {
-                        const selectedUser = users.find((user) => user.id === value)
-                        updateAnalysisField("pmName", selectedUser?.name ?? "")
-                      }}
-                      placeholder="PM을 선택하세요"
+                    <BidResultTableInput
+                      value={form.analysisSheet.pmName}
+                      onChange={(value) => updateAnalysisField("pmName", value)}
                     />
                   </BidResultCell>
                 </tr>

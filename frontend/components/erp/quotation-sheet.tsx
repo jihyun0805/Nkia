@@ -4,8 +4,8 @@ import { Fragment } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { currentUser } from "@/lib/current-user"
 import { type QuotationRecord } from "@/lib/activity-data"
 import { getCustomerByName } from "@/lib/finding-data"
@@ -203,45 +203,13 @@ function baseSolutionRows() {
 }
 
 function baseCustomizingRows() {
-  return Array.from({ length: 6 }, (_, index) => ({
-    id: `CUSTOM-${index + 1}`,
-    rowNo: String(index + 1),
-    item: getFixedCustomizingItem(index),
-    laborRate: "",
-    manMonth: "",
-    supplyAmount: "",
-  }))
+  return [
+    { id: "", rowNo: "1", item: "", laborRate: "", manMonth: "", supplyAmount: "" },
+  ]
 }
 
-const fixedExecutiveName = "이선우"
-const fixedContactName = "진원경"
-
-const customizingItemLabels = [
-  "인건비 (특급)",
-  "인건비 (고급)",
-  "인건비 (중급)",
-  "인건비 (초급)",
-  "제 경 비",
-  "기 술 료",
-] as const
-
-function getFixedCustomizingItem(index: number) {
-  return customizingItemLabels[index] ?? ""
-}
-
-function normalizeCustomizingRows(rows: QuotationFormState["customizingRows"] | undefined) {
-  return Array.from({ length: 6 }, (_, index) => {
-    const row = rows?.[index]
-    return {
-      id: row?.id ?? `CUSTOM-${index + 1}`,
-      rowNo: String(index + 1),
-      item: row?.item?.trim() || getFixedCustomizingItem(index),
-      laborRate: row?.laborRate ?? "",
-      manMonth: row?.manMonth ?? "",
-      supplyAmount: row?.supplyAmount ?? "",
-    }
-  })
-}
+const proposalTypeOptions = ["자체 제안", "SI 제안"] as const
+const productGroupOptions = ["EMS", "ITSM", "Automation", "WSS"] as const
 
 function defaultTemplateText() {
   return {
@@ -317,7 +285,8 @@ export function createEmptyQuotationForm(): QuotationFormState {
       ],
     },
     changeHistory: [],
-    remarks: "",
+    remarks:
+      "1. 무상유지보수 기간은 1년이며, 무상유지보수 기간 종료 후 유지보수 요율은 12%입니다.\n2. 무상유지보수 활동에는 하자보수와 장애처리가 포함되며, 정기점검은 포함되어 있지 않습니다.",
     amount: "0",
     validity: "",
     status: "검토중",
@@ -359,14 +328,19 @@ export function normalizeQuotationForm(form: QuotationFormState): QuotationFormS
     })
     .filter((row) => Object.values(row).some((value) => value && value !== row.id))
 
-  const normalizedCustomizingRows = normalizeCustomizingRows(form.customizingRows).map((row) => ({
-    ...row,
-    item: row.item.trim(),
-    laborRate: row.laborRate.replace(/[^\d]/g, ""),
-    manMonth: row.manMonth.replace(/[^\d.]/g, ""),
-    supplyAmount: row.supplyAmount === "-" ? "-" : row.supplyAmount.replace(/[^\d]/g, ""),
-  }))
+  const customizingRows = (form.customizingRows ?? [])
+    .map((row) => ({
+      ...row,
+      rowNo: row.rowNo.trim(),
+      item: row.item.trim(),
+      laborRate: row.laborRate.replace(/[^\d]/g, ""),
+      manMonth: row.manMonth.replace(/[^\d.]/g, ""),
+      supplyAmount: row.supplyAmount === "-" ? "-" : row.supplyAmount.replace(/[^\d]/g, ""),
+    }))
+    .filter((row) => Object.values(row).some((value) => value && value !== row.id))
+
   const normalizedSolutionRows = solutionRows.length > 0 ? solutionRows : baseSolutionRows()
+  const normalizedCustomizingRows = customizingRows.length > 0 ? customizingRows : baseCustomizingRows()
   const solutionAmount = sumBy(normalizedSolutionRows, (row) => row.supplyTotal)
   const customizingAmount = sumBy(
     normalizedCustomizingRows.filter((row) => row.supplyAmount !== "-"),
@@ -438,7 +412,7 @@ export function normalizeQuotationForm(form: QuotationFormState): QuotationFormS
         ],
       },
     changeHistory: form.changeHistory ?? [],
-    remarks: form.remarks ?? "",
+    remarks: form.remarks?.trim() || "",
     amount: String(totalAmount),
     validity: form.validity || addDays(form.date, 30),
   }
@@ -456,7 +430,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
   const COMPACT_CUSTOM_SUMMARY_HEIGHT = 48 + (readOnly ? 0 : 72)
   const items = form.items ?? []
   const solutionRows = form.solutionRows ?? []
-  const customizingRows = normalizeCustomizingRows(form.customizingRows)
+  const customizingRows = form.customizingRows ?? []
   const templateText = { ...defaultTemplateText(), ...(form.templateText ?? {}) }
   const totalAmountSuffix = templateText.totalAmountSuffix === "원정 (부가세별도)" ? "" : templateText.totalAmountSuffix
   const itemsTotal = sumBy(items, (item) => item.amount)
@@ -471,7 +445,6 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
   const inlineLineInputClass = "h-auto min-h-0 appearance-none rounded-none border-0 bg-transparent px-0 py-0 align-baseline shadow-none focus-visible:ring-0"
   const lineRowTextClass = "text-[18px] font-bold leading-none"
   const refRowTextClass = "text-[17px] font-normal leading-none"
-  const supplierLineTextClass = "text-[14px] font-normal leading-7"
   const singlePageEstimatedHeight =
     SINGLE_PAGE_STATIC_HEIGHT +
     SINGLE_PAGE_ACTION_HEIGHT +
@@ -506,7 +479,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
     updateForm((prev) => ({
       ...prev,
       customer: value,
-      customerCode: customer?.id ?? prev.customerCode,
+      customerCode: customer?.id ?? "",
       opportunity: customer && prev.customer !== value ? "" : prev.opportunity,
       opportunityCode: customer && prev.customer !== value ? "" : prev.opportunityCode,
     }))
@@ -520,11 +493,13 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
             {readOnly ? (
               <div className="font-serif leading-[0.9] tracking-[0.2em]" style={{ fontSize: "72px" }}>{templateText.documentTitle}</div>
             ) : (
-              <div className="mx-auto w-full max-w-[1280px] text-center">
-                <div className="font-serif leading-[0.9] tracking-[0.2em]" style={{ fontSize: "72px" }}>
-                  {templateText.documentTitle}
-                </div>
-              </div>
+              <Textarea
+                value={templateText.documentTitle}
+                onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), documentTitle: event.target.value } }))}
+                className="mx-auto min-h-0 w-full max-w-[1280px] appearance-none resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 py-0 text-center font-serif text-inherit shadow-none focus-visible:ring-0 whitespace-pre-wrap break-words [scrollbar-width:none] [-ms-overflow-style:none]"
+                style={{ fontSize: "72px", lineHeight: "0.9", letterSpacing: "0.2em" }}
+                rows={1}
+              />
             )}
             <div className="mt-4 text-[17px]">
               {readOnly ? (
@@ -549,34 +524,33 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   {readOnly ? (
                     <span className="min-w-[160px] break-words">{form.customer || ""}</span>
                   ) : (
-                    <CustomerAutocomplete
+                    <Input
                       value={form.customer}
-                      onSelect={(customer) =>
-                        updateForm((prev) => ({
-                          ...prev,
-                          customer: customer?.name ?? "",
-                          customerCode: customer?.id ?? "",
-                          opportunity: customer && prev.customer !== customer.name ? "" : prev.opportunity,
-                          opportunityCode: customer && prev.customer !== customer.name ? "" : prev.opportunityCode,
-                        }))
-                      }
-                      onValueChange={handleCustomerChange}
-                      placeholder="고객사를 선택하세요"
-                      inputClassName={`${inlineLineInputClass} min-w-[160px] flex-1 text-[22px] font-bold`}
+                      onChange={(event) => handleCustomerChange(event.target.value)}
+                      className={`${inlineLineInputClass} min-w-[160px] flex-1 text-[22px] font-bold`}
                     />
                   )}
                   {readOnly ? (
                     <span className="shrink-0">{templateText.recipientSuffix}</span>
                   ) : (
-                    <Input value={templateText.recipientSuffix} readOnly className={`${inputClass} w-[90px] shrink-0 text-[22px] font-bold`} />
+                    <Input
+                      value={templateText.recipientSuffix}
+                      onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), recipientSuffix: event.target.value } }))}
+                      className={`${inputClass} w-[90px] shrink-0 text-[22px] font-bold`}
+                    />
                   )}
                 </div>
               </div>
 
               {readOnly ? (
-              <div className="mt-10 whitespace-pre-wrap break-words text-[16px] leading-7">{templateText.introText}</div>
+                <div className="mt-10 whitespace-pre-wrap break-words text-[16px] leading-7">{templateText.introText}</div>
               ) : (
-                <Textarea value={templateText.introText} readOnly className={`${wrappingTextClass} mt-10 w-full text-[16px] leading-7`} rows={1} />
+                <Textarea
+                  value={templateText.introText}
+                  onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), introText: event.target.value } }))}
+                  className={`${wrappingTextClass} mt-10 w-full text-[16px] leading-7`}
+                  rows={1}
+                />
               )}
 
               <div className="mt-10 space-y-2 text-[16px]">
@@ -584,24 +558,86 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   {readOnly ? (
                     <span className="shrink-0">{templateText.quoteDateLabel}</span>
                   ) : (
-                    <Input value={templateText.quoteDateLabel} readOnly className={`${inputClass} w-[90px] text-[16px]`} />
+                    <Input
+                      value={templateText.quoteDateLabel}
+                      onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), quoteDateLabel: event.target.value } }))}
+                      className={`${inputClass} w-[90px] text-[16px]`}
+                    />
                   )}
                   {readOnly ? (
                     <span className="min-w-0 break-words">{form.date || "-"}</span>
                   ) : (
-                    <Input type="date" value={form.date} onChange={(event) => updateForm((prev) => ({ ...prev, date: event.target.value }))} className={`${inputClass} w-[180px] text-[16px]`} />
+                    <Input value={form.date} onChange={(event) => updateForm((prev) => ({ ...prev, date: event.target.value }))} className={`${inputClass} w-[180px] text-[16px]`} />
                   )}
                 </div>
                 <div className="flex items-start gap-2">
                   {readOnly ? (
                     <span className="shrink-0">{templateText.paymentTermsLabel}</span>
                   ) : (
-                    <Input value={templateText.paymentTermsLabel} readOnly className={`${inputClass} w-[120px] text-[16px]`} />
+                    <Input
+                      value={templateText.paymentTermsLabel}
+                      onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), paymentTermsLabel: event.target.value } }))}
+                      className={`${inputClass} w-[120px] text-[16px]`}
+                    />
                   )}
                   {readOnly ? (
                     <span className="min-w-0 break-words leading-7">{form.paymentTerms || "-"}</span>
                   ) : (
                     <Input value={form.paymentTerms ?? ""} onChange={(event) => updateForm((prev) => ({ ...prev, paymentTerms: event.target.value }))} className={`${inputClass} w-[120px] text-[16px]`} />
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>제안 유형:</span>
+                  {readOnly ? (
+                    <span>{form.proposalType || "-"}</span>
+                  ) : (
+                    <Select
+                      value={form.proposalType}
+                      onValueChange={(value) =>
+                        updateForm((prev) => ({
+                          ...prev,
+                          proposalType: value as QuotationFormState["proposalType"],
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-[140px] rounded-none border-0 px-0 text-[16px] shadow-none focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {proposalTypeOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>제품군:</span>
+                  {readOnly ? (
+                    <span>{form.productGroup || "-"}</span>
+                  ) : (
+                    <Select
+                      value={form.productGroup}
+                      onValueChange={(value) =>
+                        updateForm((prev) => ({
+                          ...prev,
+                          productGroup: value as QuotationFormState["productGroup"],
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-[140px] rounded-none border-0 px-0 text-[16px] shadow-none focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {productGroupOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
               </div>
@@ -611,26 +647,39 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
               {readOnly ? (
                 <div className="text-[18px] font-bold">{templateText.supplierName}</div>
               ) : (
-                <Input value={templateText.supplierName} readOnly className={`${inputClass} w-[180px] text-[18px] font-bold`} />
+                <Input
+                  value={templateText.supplierName}
+                  onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), supplierName: event.target.value } }))}
+                  className={`${inputClass} w-[180px] text-[18px] font-bold`}
+                />
               )}
               <div className="mt-2 space-y-1 text-[16px] leading-8">
-                {readOnly ? <div>{templateText.addressLine1}</div> : <Input value={templateText.addressLine1} readOnly className={`${inputClass} text-[16px]`} />}
-                {readOnly ? <div>{templateText.addressLine2}</div> : <Input value={templateText.addressLine2} readOnly className={`${inputClass} text-[16px]`} />}
+                {readOnly ? <div>{templateText.addressLine1}</div> : <Input value={templateText.addressLine1} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), addressLine1: event.target.value } }))} className={`${inputClass} text-[16px]`} />}
+                {readOnly ? <div>{templateText.addressLine2}</div> : <Input value={templateText.addressLine2} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), addressLine2: event.target.value } }))} className={`${inputClass} text-[16px]`} />}
                 <div className="flex items-center gap-2">
-                  {readOnly ? <span className={supplierLineTextClass}>{templateText.ceoLabel}</span> : <Input value={templateText.ceoLabel} readOnly className={`${inputClass} w-[90px] text-[16px]`} />}
-                  <span className={supplierLineTextClass}>{fixedExecutiveName}</span>
+                  {readOnly ? <span>{templateText.ceoLabel}</span> : <Input value={templateText.ceoLabel} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), ceoLabel: event.target.value } }))} className={`${inputClass} w-[90px] text-[16px]`} />}
+                  {readOnly ? <span>{templateText.ceoName || "-"}</span> : <Input value={templateText.ceoName} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), ceoName: event.target.value } }))} className={`${inputClass} w-[100px] text-[16px]`} placeholder="대표이사 입력" />}
                 </div>
                 <div className="flex items-center gap-2">
-                  {readOnly ? <span className={supplierLineTextClass}>{templateText.telLabel}</span> : <Input value={templateText.telLabel} readOnly className={`${inputClass} w-[60px] text-[16px]`} />}
-                  {readOnly ? <span className={supplierLineTextClass}>{templateText.tel}</span> : <Input value={templateText.tel} readOnly className={`${inputClass} w-[140px] text-[16px]`} />}
+                  {readOnly ? <span>{templateText.telLabel}</span> : <Input value={templateText.telLabel} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), telLabel: event.target.value } }))} className={`${inputClass} w-[60px] text-[16px]`} />}
+                  {readOnly ? <span>{templateText.tel}</span> : <Input value={templateText.tel} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), tel: event.target.value } }))} className={`${inputClass} w-[140px] text-[16px]`} />}
                 </div>
                 <div className="flex items-center gap-2">
-                  {readOnly ? <span className={supplierLineTextClass}>{templateText.faxLabel}</span> : <Input value={templateText.faxLabel} readOnly className={`${inputClass} w-[60px] text-[16px]`} />}
-                  {readOnly ? <span className={supplierLineTextClass}>{templateText.fax}</span> : <Input value={templateText.fax} readOnly className={`${inputClass} w-[140px] text-[16px]`} />}
+                  {readOnly ? <span>{templateText.faxLabel}</span> : <Input value={templateText.faxLabel} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), faxLabel: event.target.value } }))} className={`${inputClass} w-[60px] text-[16px]`} />}
+                  {readOnly ? <span>{templateText.fax}</span> : <Input value={templateText.fax} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), fax: event.target.value } }))} className={`${inputClass} w-[140px] text-[16px]`} />}
                 </div>
                 <div className="flex items-center gap-2">
-                  {readOnly ? <span className={supplierLineTextClass}>{templateText.contactLabel}</span> : <Input value={templateText.contactLabel} readOnly className={`${inputClass} w-[80px] text-[16px]`} />}
-                  <span className={supplierLineTextClass}>{fixedContactName}</span>
+                  {readOnly ? <span>{templateText.contactLabel}</span> : <Input value={templateText.contactLabel} onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), contactLabel: event.target.value } }))} className={`${inputClass} w-[80px] text-[16px]`} />}
+                  {readOnly ? (
+                    <span>{form.contactName || "-"}</span>
+                  ) : (
+                    <Input
+                      value={form.contactName ?? ""}
+                      onChange={(event) => updateForm((prev) => ({ ...prev, contactName: event.target.value }))}
+                      className={`${inputClass} w-[110px] text-[16px]`}
+                      placeholder="담당자 입력"
+                    />
+                  )}
                 </div>
               </div>
               <div className="mt-2 flex justify-end">
@@ -669,7 +718,11 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
             {readOnly ? (
               <div className="text-right text-[14px]">{templateText.unitNote}</div>
             ) : (
-              <Input value={templateText.unitNote} readOnly className={`${inputClass} w-[220px] text-right text-[14px]`} />
+              <Input
+                value={templateText.unitNote}
+                onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), unitNote: event.target.value } }))}
+                className={`${inputClass} w-[220px] text-right text-[14px]`}
+              />
             )}
           </div>
 
@@ -692,14 +745,38 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                       {readOnly ? (
                         <div className="whitespace-pre-wrap break-words text-[16px] leading-relaxed">{item.name || "-"}</div>
                       ) : (
-                        <Textarea value={item.name} readOnly className={`${tableCellTextareaClass} text-[16px]`} rows={1} />
+                        <Textarea
+                          value={item.name}
+                          onChange={(event) =>
+                            updateForm((prev) => ({
+                              ...prev,
+                              items: prev.items.map((entry, entryIndex) => (entryIndex === index ? { ...entry, name: event.target.value } : entry)),
+                              solutionSectionTitle: index === 0 ? event.target.value : prev.solutionSectionTitle,
+                              customizingSectionTitle: index === 1 ? event.target.value : prev.customizingSectionTitle,
+                            }))
+                          }
+                          className={`${tableCellTextareaClass} text-[16px]`}
+                          rows={1}
+                        />
                       )}
                     </td>
                     <td className="border-b-[2px] border-black px-3 py-2">
                       {readOnly ? (
                         <div className="text-right text-[16px]">{formatCurrency(item.amount) || "-"}</div>
                       ) : (
-                        <Textarea value={item.amount} readOnly className={`${tableCellTextareaClass} text-right text-[16px]`} rows={1} />
+                        <Textarea
+                          value={item.amount}
+                          onChange={(event) =>
+                            updateForm((prev) => ({
+                              ...prev,
+                              items: prev.items.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, amount: event.target.value.replace(/[^\d]/g, "") } : entry,
+                              ),
+                            }))
+                          }
+                          className={`${tableCellTextareaClass} text-right text-[16px]`}
+                          rows={1}
+                        />
                       )}
                     </td>
                   </tr>
@@ -716,32 +793,55 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
             {readOnly ? (
               <div className="text-[24px] font-bold">{templateText.remarksTitle}</div>
             ) : (
-              <Input value={templateText.remarksTitle} readOnly className={`${inputClass} w-[160px] text-[24px] font-bold`} />
+              <Input
+                value={templateText.remarksTitle}
+                onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), remarksTitle: event.target.value } }))}
+                className={`${inputClass} w-[160px] text-[24px] font-bold`}
+              />
             )}
-            <div className="mt-2 border border-black px-4 py-3">
-              {readOnly ? (
-                <div className="min-h-[110px] whitespace-pre-wrap break-words text-[16px] leading-9">{form.remarks || "-"}</div>
-              ) : (
-                <textarea
-                  rows={6}
-                  value={form.remarks ?? ""}
-                  onChange={(event) => updateForm((prev) => ({ ...prev, remarks: event.target.value }))}
-                  className="min-h-[160px] w-full resize-y rounded-none border-0 bg-transparent px-0 py-0 text-[16px] leading-9 shadow-none outline-none"
-                />
-              )}
-            </div>
+            {readOnly ? (
+              <div className="mt-2 whitespace-pre-line text-[16px] leading-9">{form.remarks || "-"}</div>
+            ) : (
+              <Textarea rows={4} value={form.remarks ?? ""} onChange={(event) => updateForm((prev) => ({ ...prev, remarks: event.target.value }))} className="mt-2 min-h-[110px] rounded-none border-0 px-0 text-[16px] leading-9 shadow-none focus-visible:ring-0" />
+            )}
           </div>
         </div>
       </div>
 
       {evidenceFitsSinglePage ? (
         <div className="mx-auto w-full max-w-[1320px] min-h-[1580px] border border-slate-300 bg-white px-8 py-8 shadow-sm print:shadow-none">
-          <div className="flex justify-center">
-            <div className="text-center font-bold" style={{ fontSize: "34px", lineHeight: "1.1" }}>{templateText.evidenceTitle}</div>
-          </div>
+          {readOnly ? (
+            <div className="flex justify-center">
+              <div className="text-center font-bold" style={{ fontSize: "34px", lineHeight: "1.1" }}>{templateText.evidenceTitle}</div>
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <Textarea
+                value={templateText.evidenceTitle}
+                onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), evidenceTitle: event.target.value } }))}
+                className={`${wrappingTextClass} w-[720px] text-center font-bold`}
+                style={{ fontSize: "34px", lineHeight: "1.1" }}
+                rows={1}
+              />
+            </div>
+          )}
 
           <div className="mt-4 flex items-end justify-between">
-            <div className="text-[22px] font-bold">{form.solutionSectionTitle || "1) Solution Package"}</div>
+            {readOnly ? (
+              <div className="text-[22px] font-bold">{form.solutionSectionTitle || "1) Solution Package"}</div>
+            ) : (
+              <Input
+                value={form.solutionSectionTitle || ""}
+                onChange={(event) =>
+                  updateForm((prev) => ({
+                    ...prev,
+                    solutionSectionTitle: event.target.value,
+                    items: prev.items.map((item, index) => (index === 0 ? { ...item, name: event.target.value } : item)),
+                  }))
+                }
+                className="h-8 w-[360px] rounded-none border-0 px-0 text-[22px] font-bold shadow-none focus-visible:ring-0"
+              />
+            )}
             <div className="text-right text-[14px]">{templateText.unitNote}</div>
           </div>
 
@@ -770,39 +870,41 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   <th className="border-b border-r border-black py-2">공급단가</th>
                   <th className="border-b border-r border-black py-2">공급가 합계</th>
                   <th className="border-b border-r border-black py-2">할인율</th>
-                  <th className="border-b border-black py-2">비고</th>
+                  <th className="border-b py-2">비고</th>
                 </tr>
               </thead>
               <tbody>
                 {solutionRows.map((row, index) => (
                   <Fragment key={row.id || `solution-${index}`}>
                     <tr>
-                    {[
-                      { key: "rowNo", align: "text-center" },
-                      { key: "category", align: "" },
-                      { key: "module", align: "" },
-                      { key: "quantity", align: "text-center" },
-                      { key: "consumerUnitPrice", align: "text-right" },
-                      { key: "consumerTotal", align: "text-right" },
-                      { key: "supplyUnitPrice", align: "text-right" },
-                      { key: "supplyTotal", align: "text-right" },
-                      { key: "discountRate", align: "text-center" },
-                      { key: "note", align: "text-center" },
-                    ].map((field, fieldIndex) => {
-                      const isComputed = field.key === "consumerTotal" || field.key === "supplyTotal"
-                      return (
+                      {[
+                        { key: "rowNo", align: "text-center" },
+                        { key: "category", align: "" },
+                        { key: "module", align: "" },
+                        { key: "quantity", align: "text-center" },
+                        { key: "consumerUnitPrice", align: "text-right" },
+                        { key: "consumerTotal", align: "text-right" },
+                        { key: "supplyUnitPrice", align: "text-right" },
+                        { key: "supplyTotal", align: "text-right" },
+                        { key: "discountRate", align: "text-center" },
+                        { key: "note", align: "text-center" },
+                      ].map((field, fieldIndex) => (
                         <td key={field.key} className={`border-r border-b border-black ${fieldIndex === 9 ? "border-r-0" : ""} px-1 py-1`}>
-                          {readOnly || isComputed ? (
+                          {readOnly ? (
                             <div className={`${field.align} ${readOnlyTableCellClass}`}>
                               {["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
                                 ? formatMaybeDash(row[field.key as keyof typeof row] as string)
                                 : field.key === "discountRate"
                                   ? formatDiscountRate(row.discountRate)
-                                  : (row[field.key as keyof typeof row] as string) || "-"}
+                                : (row[field.key as keyof typeof row] as string) || "-"}
                             </div>
                           ) : (
-                            <Textarea
-                              value={(row[field.key as keyof typeof row] as string) ?? ""}
+                          <Textarea
+                            value={
+                              ["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
+                                  ? ((row[field.key as keyof typeof row] as string) ?? "")
+                                  : (row[field.key as keyof typeof row] as string)
+                              }
                               onChange={(event) =>
                                 updateForm((prev) => ({
                                   ...prev,
@@ -811,11 +913,9 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                                       ? {
                                           ...entry,
                                           [field.key]:
-                                            field.key === "quantity"
-                                              ? event.target.value.replace(/[^\d.]/g, "")
-                                              : field.key === "discountRate"
-                                                ? event.target.value.replace(/[^\d.]/g, "")
-                                                : event.target.value,
+                                            ["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
+                                              ? event.target.value.replace(/[^\d]/g, "")
+                                              : event.target.value,
                                         }
                                       : entry,
                                   ),
@@ -826,13 +926,12 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                             />
                           )}
                         </td>
-                      )
-                    })}
+                      ))}
                     </tr>
                   </Fragment>
                 ))}
                 <tr className="bg-slate-200 font-bold">
-                  <td colSpan={4} className="border-t border-black py-2 text-center">
+                  <td colSpan={4} className="border-r border-t border-black py-2 text-center">
                     1. Solution Package 비용 합계
                   </td>
                   <td className="border-r border-t border-black py-2" />
@@ -881,7 +980,21 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
           )}
 
           <div className="mt-10 flex items-end justify-between">
-            <div className="text-[22px] font-bold">{form.customizingSectionTitle || "2) 인건비-커스터마이징"}</div>
+            {readOnly ? (
+              <div className="text-[22px] font-bold">{form.customizingSectionTitle || "2) 인건비-커스터마이징"}</div>
+            ) : (
+              <Input
+                value={form.customizingSectionTitle || ""}
+                onChange={(event) =>
+                  updateForm((prev) => ({
+                    ...prev,
+                    customizingSectionTitle: event.target.value,
+                    items: prev.items.map((item, index) => (index === 1 ? { ...item, name: event.target.value } : item)),
+                  }))
+                }
+                className="h-8 w-[360px] rounded-none border-0 px-0 text-[22px] font-bold shadow-none focus-visible:ring-0"
+              />
+            )}
             <div className="text-right text-[14px]">{templateText.unitNote}</div>
           </div>
 
@@ -900,81 +1013,53 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   <th className="border-b border-r border-black py-2">세 부 항 목</th>
                   <th className="border-b border-r border-black py-2">노임단가(원)</th>
                   <th className="border-b border-r border-black py-2">Man / Month</th>
-                  <th className="border-b border-black py-2">공급 금액</th>
+                  <th className="border-b py-2">공급 금액</th>
                 </tr>
               </thead>
               <tbody>
                 {customizingRows.map((row, index) => (
                   <tr key={row.id || `custom-${index}`}>
-                    <td className="border-b border-r border-black px-1 py-1">
-                      <div className={`text-center ${readOnlyTableCellClass}`}>{row.rowNo || String(index + 1)}</div>
-                    </td>
-                    <td className="border-b border-r border-black px-1 py-1">
-                      {readOnly ? (
-                        <div className={`${readOnlyTableCellClass}`}>{row.item || "-"}</div>
-                      ) : (
-                        <div className="px-1 py-1 text-[12px]">{row.item || getFixedCustomizingItem(index) || "-"}</div>
+                    {[
+                      { key: "rowNo", align: "text-center" },
+                      { key: "item", align: "" },
+                      { key: "laborRate", align: "text-right" },
+                      { key: "manMonth", align: "text-center" },
+                      { key: "supplyAmount", align: "text-right" },
+                    ].map((field, fieldIndex) => (
+                      <td key={field.key} className={`${fieldIndex < 4 ? "border-r" : ""} border-b border-black px-1 py-1`}>
+                        {readOnly ? (
+                          <div className={`${field.align} ${readOnlyTableCellClass}`}>
+                            {["laborRate", "supplyAmount"].includes(field.key) ? formatMaybeDash(row[field.key as keyof typeof row] as string) : (row[field.key as keyof typeof row] as string) || "-"}
+                          </div>
+                        ) : (
+                          <Textarea
+                            value={
+                              ["laborRate", "supplyAmount"].includes(field.key) && row[field.key as keyof typeof row] !== "-"
+                                ? ((row[field.key as keyof typeof row] as string) ?? "")
+                                : (row[field.key as keyof typeof row] as string)
+                            }
+                            onChange={(event) =>
+                              updateForm((prev) => ({
+                                ...prev,
+                                customizingRows: (prev.customizingRows ?? []).map((entry, entryIndex) =>
+                                  entryIndex === index
+                                    ? {
+                                        ...entry,
+                                        [field.key]:
+                                          ["laborRate", "supplyAmount"].includes(field.key) && event.target.value !== "-"
+                                            ? event.target.value.replace(/[^\d.]/g, "")
+                                            : event.target.value,
+                                      }
+                                    : entry,
+                                ),
+                              }))
+                            }
+                            className={`${tableCellTextareaClass} ${field.align} text-[12px]`}
+                            rows={1}
+                          />
                         )}
                       </td>
-                    <td className="border-b border-r border-black px-1 py-1">
-                      {readOnly ? (
-                        <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.laborRate)}</div>
-                      ) : (
-                        <Textarea
-                          value={row.laborRate === "-" ? "" : row.laborRate}
-                          onChange={(event) =>
-                            updateForm((prev) => ({
-                              ...prev,
-                              customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                                entryIndex === index ? { ...entry, laborRate: event.target.value.replace(/[^\d.]/g, "") } : entry,
-                              ),
-                            }))
-                          }
-                          className={`${tableCellTextareaClass} text-right text-[12px]`}
-                          rows={1}
-                        />
-                      )}
-                    </td>
-                    <td className="border-b border-r border-black px-1 py-1">
-                      {readOnly ? (
-                        <div className={`text-center ${readOnlyTableCellClass}`}>{row.manMonth || "-"}</div>
-                      ) : (
-                        <Textarea
-                          value={row.manMonth}
-                          onChange={(event) =>
-                            updateForm((prev) => ({
-                              ...prev,
-                              customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                                entryIndex === index ? { ...entry, manMonth: event.target.value.replace(/[^\d.]/g, "") } : entry,
-                              ),
-                            }))
-                          }
-                          className={`${tableCellTextareaClass} text-center text-[12px]`}
-                          rows={1}
-                        />
-                      )}
-                    </td>
-                    <td className="border-b border-black px-1 py-1">
-                      {readOnly ? (
-                        <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.supplyAmount)}</div>
-                      ) : (
-                        <Textarea
-                          value={row.supplyAmount === "-" ? "" : row.supplyAmount}
-                          onChange={(event) =>
-                            updateForm((prev) => ({
-                              ...prev,
-                              customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                                entryIndex === index
-                                  ? { ...entry, supplyAmount: event.target.value === "-" ? "-" : event.target.value.replace(/[^\d.]/g, "") }
-                                  : entry,
-                              ),
-                            }))
-                          }
-                          className={`${tableCellTextareaClass} text-right text-[12px]`}
-                          rows={1}
-                        />
-                      )}
-                    </td>
+                    ))}
                   </tr>
                 ))}
                 <tr className="bg-slate-200 font-bold">
@@ -987,18 +1072,71 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
             </table>
           </div>
 
+          {!readOnly && (
+            <div className="mt-3 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  updateForm((prev) => ({
+                    ...prev,
+                    customizingRows: [
+                      ...(prev.customizingRows ?? []),
+                      {
+                        id: "",
+                        rowNo: String((prev.customizingRows ?? []).length + 1),
+                        item: "",
+                        laborRate: "",
+                        manMonth: "",
+                        supplyAmount: "",
+                      },
+                    ],
+                  }))
+                }
+                className="rounded-none border-black"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                커스터마이징 행 추가
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <>
-      {solutionChunks.map((chunk, chunkIndex) => (
+        {solutionChunks.map((chunk, chunkIndex) => (
           <div key={`solution-page-${chunkIndex}`} className="mx-auto w-full max-w-[1240px] min-h-[1580px] border border-slate-300 bg-white px-8 py-8 shadow-sm print:shadow-none print:break-after-page">
           {chunkIndex === 0 &&
-            <div className="flex justify-center">
-              <div className="text-center text-[18px] font-bold">{templateText.evidenceTitle}</div>
-            </div>}
+            (readOnly ? (
+              <div className="flex justify-center">
+                <div className="text-center text-[18px] font-bold">{templateText.evidenceTitle}</div>
+              </div>
+            ) : (
+              <div className="flex justify-center">
+                <Textarea
+                  value={templateText.evidenceTitle}
+                  onChange={(event) => updateForm((prev) => ({ ...prev, templateText: { ...defaultTemplateText(), ...(prev.templateText ?? {}), evidenceTitle: event.target.value } }))}
+                  className={`${wrappingTextClass} w-[320px] text-center text-[18px] font-bold leading-6`}
+                  rows={1}
+                />
+              </div>
+            ))}
 
           <div className={`${chunkIndex === 0 ? "mt-4" : "mt-0"} flex items-end justify-between`}>
-            <div className="text-[18px] font-bold">{form.solutionSectionTitle || "1) Solution Package"}</div>
+            {readOnly ? (
+              <div className="text-[18px] font-bold">{form.solutionSectionTitle || "1) Solution Package"}</div>
+            ) : (
+              <Input
+                value={form.solutionSectionTitle || ""}
+                onChange={(event) =>
+                  updateForm((prev) => ({
+                    ...prev,
+                    solutionSectionTitle: event.target.value,
+                    items: prev.items.map((item, index) => (index === 0 ? { ...item, name: event.target.value } : item)),
+                  }))
+                }
+                className="h-8 w-[280px] rounded-none border-0 px-0 text-[18px] font-bold shadow-none focus-visible:ring-0"
+              />
+            )}
             <div className="text-right text-[14px]">{templateText.unitNote}</div>
           </div>
 
@@ -1027,7 +1165,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 <th className="border-b border-r border-black py-2">공급단가</th>
                 <th className="border-b border-r border-black py-2">공급가 합계</th>
                 <th className="border-b border-r border-black py-2">할인율</th>
-                <th className="border-b border-black py-2">비고</th>
+                <th className="border-b py-2">비고</th>
               </tr>
             </thead>
             <tbody>
@@ -1091,7 +1229,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
               )})}
               {chunkIndex === solutionChunks.length - 1 && (
               <tr className="bg-slate-200 font-bold">
-                <td colSpan={4} className="border-t border-black py-2 text-center">
+                <td colSpan={4} className="border-r border-t border-black py-2 text-center">
                   1. Solution Package 비용 합계
                 </td>
                 <td className="border-r border-t border-black py-2" />
@@ -1145,7 +1283,21 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
       {customizingChunks.map((chunk, chunkIndex) => (
         <div key={`custom-page-${chunkIndex}`} className="mx-auto w-full max-w-[1240px] min-h-[1580px] border border-slate-300 bg-white px-8 py-8 shadow-sm print:shadow-none print:break-after-page">
           <div className="mt-0 flex items-end justify-between">
-            <div className="text-[18px] font-bold">{form.customizingSectionTitle || "2) 인건비-커스터마이징"}</div>
+            {readOnly ? (
+              <div className="text-[18px] font-bold">{form.customizingSectionTitle || "2) 인건비-커스터마이징"}</div>
+            ) : (
+              <Input
+                value={form.customizingSectionTitle || ""}
+                onChange={(event) =>
+                  updateForm((prev) => ({
+                    ...prev,
+                    customizingSectionTitle: event.target.value,
+                    items: prev.items.map((item, index) => (index === 1 ? { ...item, name: event.target.value } : item)),
+                  }))
+                }
+                className="h-8 w-[280px] rounded-none border-0 px-0 text-[18px] font-bold shadow-none focus-visible:ring-0"
+              />
+            )}
             <div className="text-right text-[14px]">{templateText.unitNote}</div>
           </div>
 
@@ -1164,7 +1316,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   <th className="border-b border-r border-black py-2">세 부 항 목</th>
                   <th className="border-b border-r border-black py-2">노임단가(원)</th>
                   <th className="border-b border-r border-black py-2">Man / Month</th>
-                  <th className="border-b border-black py-2">공급 금액</th>
+                  <th className="border-b py-2">공급 금액</th>
                 </tr>
               </thead>
               <tbody>
@@ -1172,75 +1324,47 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                   const index = customizingRows.findIndex((entry) => entry.id === row.id)
                   return (
                 <tr key={row.id || `custom-${index}`}>
-                  <td className="border-b border-r border-black px-1 py-1">
-                    <div className={`text-center ${readOnlyTableCellClass}`}>{row.rowNo || String(index + 1)}</div>
-                  </td>
-                  <td className="border-b border-r border-black px-1 py-1">
-                    {readOnly ? (
-                      <div className={readOnlyTableCellClass}>{row.item || "-"}</div>
-                    ) : (
-                      <div className="px-1 py-1 text-[12px]">{row.item || getFixedCustomizingItem(index) || "-"}</div>
-                    )}
-                  </td>
-                  <td className="border-b border-r border-black px-1 py-1">
-                    {readOnly ? (
-                      <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.laborRate)}</div>
-                    ) : (
-                      <Textarea
-                        value={row.laborRate === "-" ? "" : row.laborRate}
-                        onChange={(event) =>
-                          updateForm((prev) => ({
-                            ...prev,
-                            customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                              entryIndex === index ? { ...entry, laborRate: event.target.value.replace(/[^\d.]/g, "") } : entry,
-                            ),
-                          }))
-                        }
-                        className={`${tableCellTextareaClass} text-right text-[12px]`}
-                        rows={1}
-                      />
-                    )}
-                  </td>
-                  <td className="border-b border-r border-black px-1 py-1">
-                    {readOnly ? (
-                      <div className={`text-center ${readOnlyTableCellClass}`}>{row.manMonth || "-"}</div>
-                    ) : (
-                      <Textarea
-                        value={row.manMonth}
-                        onChange={(event) =>
-                          updateForm((prev) => ({
-                            ...prev,
-                            customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                              entryIndex === index ? { ...entry, manMonth: event.target.value.replace(/[^\d.]/g, "") } : entry,
-                            ),
-                          }))
-                        }
-                        className={`${tableCellTextareaClass} text-center text-[12px]`}
-                        rows={1}
-                      />
-                    )}
-                  </td>
-                  <td className="border-b border-black px-1 py-1">
-                    {readOnly ? (
-                      <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.supplyAmount)}</div>
-                    ) : (
-                      <Textarea
-                        value={row.supplyAmount === "-" ? "" : row.supplyAmount}
-                        onChange={(event) =>
-                          updateForm((prev) => ({
-                            ...prev,
-                            customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                              entryIndex === index
-                                ? { ...entry, supplyAmount: event.target.value === "-" ? "-" : event.target.value.replace(/[^\d.]/g, "") }
-                                : entry,
-                            ),
-                          }))
-                        }
-                        className={`${tableCellTextareaClass} text-right text-[12px]`}
-                        rows={1}
-                      />
-                    )}
-                  </td>
+                  {[
+                    { key: "rowNo", align: "text-center" },
+                    { key: "item", align: "" },
+                    { key: "laborRate", align: "text-right" },
+                    { key: "manMonth", align: "text-center" },
+                    { key: "supplyAmount", align: "text-right" },
+                  ].map((field, fieldIndex) => (
+                    <td key={field.key} className={`${fieldIndex < 4 ? "border-r" : ""} border-b border-black px-1 py-1`}>
+                      {readOnly ? (
+                        <div className={`${field.align} ${readOnlyTableCellClass}`}>
+                          {["laborRate", "supplyAmount"].includes(field.key) ? formatMaybeDash(row[field.key as keyof typeof row] as string) : (row[field.key as keyof typeof row] as string) || "-"}
+                        </div>
+                      ) : (
+                          <Textarea
+                            value={
+                              ["laborRate", "supplyAmount"].includes(field.key) && row[field.key as keyof typeof row] !== "-"
+                                ? ((row[field.key as keyof typeof row] as string) ?? "")
+                              : (row[field.key as keyof typeof row] as string)
+                          }
+                          onChange={(event) =>
+                            updateForm((prev) => ({
+                              ...prev,
+                              customizingRows: (prev.customizingRows ?? []).map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? {
+                                      ...entry,
+                                      [field.key]:
+                                        ["laborRate", "supplyAmount"].includes(field.key) && event.target.value !== "-"
+                                          ? event.target.value.replace(/[^\d.]/g, "")
+                                          : event.target.value,
+                                    }
+                                  : entry,
+                              ),
+                            }))
+                          }
+                            className={`${tableCellTextareaClass} ${field.align} text-[12px]`}
+                            rows={1}
+                          />
+                      )}
+                    </td>
+                  ))}
                 </tr>
                 )})}
                 {chunkIndex === customizingChunks.length - 1 && (
@@ -1255,6 +1379,34 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
             </table>
           </div>
 
+          {!readOnly && chunkIndex === customizingChunks.length - 1 && (
+            <div className="mt-3 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  updateForm((prev) => ({
+                    ...prev,
+                    customizingRows: [
+                      ...(prev.customizingRows ?? []),
+                      {
+                        id: "",
+                        rowNo: String((prev.customizingRows ?? []).length + 1),
+                        item: "",
+                        laborRate: "",
+                        manMonth: "",
+                        supplyAmount: "",
+                      },
+                    ],
+                  }))
+                }
+                className="rounded-none border-black"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                커스터마이징 행 추가
+              </Button>
+            </div>
+          )}
         </div>
       ))}
       </>

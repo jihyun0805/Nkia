@@ -8,7 +8,7 @@ import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
-import { UserIdPicker } from "@/components/erp/user-id-picker"
+import { UserPicker } from "@/components/erp/user-picker"
 import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,8 +32,7 @@ import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusiness
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { type StoredFileAttachment } from "@/lib/attachments"
-import { currentUser } from "@/lib/current-user"
-import { getPartners, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
+import { findingStatuses, type CustomerContact, type CustomerRecord, type OpportunityAttachment, type PartnerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   buildCompanyCode,
@@ -41,29 +40,17 @@ import {
   createBackendCompanyManager,
   createBackendProjectOpportunity,
   loadBackendFindingData,
-  loadBackendProductModules,
+  mapCustomerSector,
   mapPartnerCategory,
-  uploadBackendRfpFiles,
+  resolveSalesRepresentativeId,
 } from "@/lib/finding-backend"
 import { loadBackendUsers, type BackendUserSummary } from "@/lib/workflow-backend"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
-type CustomerSector = "PUBLIC" | "PRIVATE" | "OVERSEAS"
-type OpportunityStage = "FINDING" | "PROMISING" | "PROGRESSING"
-
-const customerGroupOptions = [
-  { value: "PUBLIC", label: "공공" },
-  { value: "PRIVATE", label: "민간" },
-  { value: "OVERSEAS", label: "해외" },
-]
-const opportunityStatusOptions: Array<{ value: OpportunityStage; label: string }> = [
-  { value: "FINDING", label: "발굴" },
-  { value: "PROMISING", label: "유망" },
-  { value: "PROGRESSING", label: "진행중" },
-]
+const customerGroupOptions = ["공공", "민간", "해외"]
 const partnerTypeOptions = ["SI", "파트너", "기타"]
-const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"]
+const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
 
 type ContactDraft = {
   name: string
@@ -80,7 +67,6 @@ type ContactDraft = {
 
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
-  fileId?: number
 }
 function createEmptyContactDraft(): ContactDraft {
   return {
@@ -120,10 +106,6 @@ function getFindingCategoryLabel(category: "opportunities" | "customers" | "part
   return "협력사"
 }
 
-function normalizeCompanyName(value: string) {
-  return value.replace(/[\s\u00A0]+/g, "").trim().toLowerCase()
-}
-
 function parseExpectedBudget(value?: string) {
   const normalized = String(value ?? "").trim()
   if (!normalized) return undefined
@@ -160,92 +142,8 @@ function buildOpportunityDescription(params: {
 
 function mapOpportunityProductClass(value: string) {
   const normalized = value.trim().toUpperCase()
-  if (
-    normalized === "EMS" ||
-    normalized === "DASHBOARD" ||
-    normalized === "DATACENTER" ||
-    normalized === "RCA" ||
-    normalized === "DCA" ||
-    normalized === "ITSM" ||
-    normalized === "ITAM" ||
-    normalized === "SUPPORTING_TOOLS" ||
-    normalized === "CLOUD" ||
-    normalized === "BSM" ||
-    normalized === "E2E" ||
-    normalized === "ETC"
-  ) {
-    return normalized
-  }
+  if (normalized === "EMS" || normalized === "ITSM") return normalized
   return "ETC"
-}
-
-function mapCustomerSectorToEnum(value: string): CustomerSector {
-  const normalized = value.trim().toUpperCase()
-  if (normalized === "PUBLIC" || value === "공공") return "PUBLIC"
-  if (normalized === "PRIVATE" || value === "민간") return "PRIVATE"
-  if (normalized === "OVERSEAS" || value === "해외") return "OVERSEAS"
-  return "PRIVATE"
-}
-
-function toOpportunityStage(value: string): OpportunityStage {
-  const normalized = value.trim().toUpperCase()
-  if (normalized === "FINDING" || value === "발굴") return "FINDING"
-  if (normalized === "PROMISING" || value === "유망") return "PROMISING"
-  if (normalized === "PROGRESSING" || value === "진행중") return "PROGRESSING"
-  return "FINDING"
-}
-
-function normalizeLookupText(value?: string | number | null) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s\u00A0]+/g, "")
-}
-
-function splitMultipleValues(value: string) {
-  return value
-    .split(/[,/|+\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function resolvePartnerCompanyIds(partnerNames: string[], backendPartners: PartnerRecord[]) {
-  const resolved = partnerNames.flatMap((partnerName) => {
-    const normalizedName = normalizeLookupText(partnerName)
-    if (!normalizedName) return []
-    const matched = backendPartners.find((partner) => {
-      const partnerId = normalizeLookupText(partner.backendId)
-      return normalizeLookupText(partner.name) === normalizedName || partnerId === normalizedName
-    })
-    return matched?.backendId != null ? [matched.backendId] : []
-  })
-
-  return Array.from(new Set(resolved))
-}
-
-function resolveProductModuleIds(moduleName: string, productModules: { id?: number; productName?: string }[]) {
-  const names = splitMultipleValues(moduleName)
-  if (names.length === 0) return []
-
-  const resolved = names.flatMap((name) => {
-    const normalizedName = normalizeLookupText(name)
-    if (!normalizedName) return []
-    const matched = productModules.find((module) => {
-      const moduleId = normalizeLookupText(module.id)
-      const productName = normalizeLookupText(module.productName)
-      return productName === normalizedName || moduleId === normalizedName || productName.includes(normalizedName) || normalizedName.includes(productName)
-    })
-    return matched?.id != null ? [matched.id] : []
-  })
-
-  return Array.from(new Set(resolved))
-}
-
-async function resolveRfpFileIds(attachments: RfpAttachmentDraft[]) {
-  const existingIds = attachments.map((attachment) => attachment.fileId).filter((value): value is number => typeof value === "number")
-  const newFiles = attachments.map((attachment) => attachment.file).filter((file): file is File => Boolean(file))
-  const uploadedIds = newFiles.length > 0 ? await uploadBackendRfpFiles(newFiles) : []
-  return Array.from(new Set([...existingIds, ...uploadedIds]))
 }
 
 function createCompanyManagerPayload(params: {
@@ -405,7 +303,7 @@ export function FindingCategoryNewPageView({
   const [loadingBackend, setLoadingBackend] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [customerName, setCustomerName] = useState("")
-  const [customerGroup, setCustomerGroup] = useState<CustomerSector>("PRIVATE")
+  const [customerGroup, setCustomerGroup] = useState("민간")
   const [partnerName, setPartnerName] = useState("")
   const [partnerType, setPartnerType] = useState("SI")
   const [address, setAddress] = useState("")
@@ -417,13 +315,17 @@ export function FindingCategoryNewPageView({
   const [opportunityPartnerNames, setOpportunityPartnerNames] = useState<string[]>([""])
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
-  const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string>("")
+  const [opportunityCustomerGroup, setOpportunityCustomerGroup] = useState("민간")
+  const [opportunityRegistrant, setOpportunityRegistrant] = useState("")
+  const [opportunitySalesRep, setOpportunitySalesRep] = useState("")
+  const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string | null>(null)
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
-  const [opportunityStatus, setOpportunityStatus] = useState<OpportunityStage>("FINDING")
+  const [opportunityStatus, setOpportunityStatus] = useState("발굴")
   const [customerRegistrationGuideOpen, setCustomerRegistrationGuideOpen] = useState(false)
+  const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [ocrLoadingIndex, setOcrLoadingIndex] = useState<number | null>(null)
   const [rfpAttachments, setRfpAttachments] = useState<RfpAttachmentDraft[]>([])
@@ -585,10 +487,10 @@ export function FindingCategoryNewPageView({
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.email.trim()) {
+    if (!normalizedName || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "고객사 등록 확인",
-        description: "고객사명, 담당자 1의 성명, 이메일을 모두 입력해주십시오.",
+        description: "고객사명, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -602,13 +504,9 @@ export function FindingCategoryNewPageView({
       return
     }
 
-    const normalizedCustomerName = normalizeCompanyName(normalizedName)
-    const duplicate = backendCustomers.find((item) => normalizeCompanyName(item.name) === normalizedCustomerName) ?? null
+    const duplicate = backendCustomers.find((item) => item.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
     if (duplicate) {
-      toast({
-        title: "고객사 중복 등록",
-        description: "이미 등록된 동일한 이름의 고객사가 있습니다.",
-      })
+      setDuplicateOpen(true)
       return
     }
 
@@ -621,7 +519,7 @@ export function FindingCategoryNewPageView({
           code,
           name: normalizedName,
           businessRegistrationNumber: createAutoBusinessRegistrationNumber("CUS", code),
-          sector: mapCustomerSectorToEnum(customerGroup),
+          sector: mapCustomerSector(customerGroup),
           address,
           memo,
         })
@@ -653,15 +551,15 @@ export function FindingCategoryNewPageView({
     })()
   }
 
-  const handlePartnerSubmit = async () => {
+  const handlePartnerSubmit = () => {
     const normalizedName = partnerName.trim()
     const filledContacts = contacts.filter(hasContactValue)
     const primaryContact = filledContacts[0]
 
-    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim()) {
+    if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
       toast({
         title: "협력사 등록 확인",
-        description: "협력사명, 유형, 담당자 1의 성명, 이메일을 모두 입력해주십시오.",
+        description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
       })
       return
     }
@@ -675,13 +573,11 @@ export function FindingCategoryNewPageView({
       return
     }
 
-    const normalizedPartnerName = normalizeCompanyName(normalizedName)
-    const localPartnerDuplicate = getPartners().find((item) => normalizeCompanyName(item.name) === normalizedPartnerName) ?? null
-    const currentDuplicate = backendPartners.find((item) => normalizeCompanyName(item.name) === normalizedPartnerName) ?? null
-    if (currentDuplicate || localPartnerDuplicate) {
+    const duplicate = backendPartners.find((item) => item.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
+    if (duplicate) {
       toast({
-        title: "협력사 중복 등록",
-        description: "이미 등록된 동일한 이름의 협력사가 있습니다.",
+        title: "협력사 등록 확인",
+        description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
       })
       return
     }
@@ -717,14 +613,6 @@ export function FindingCategoryNewPageView({
         })
         router.push("/finding?tab=partners")
       } catch (error) {
-        const message = error instanceof Error ? error.message : ""
-        if (message.includes("중복") || message.includes("duplicate") || message.includes("already exists") || message.includes("이미 등록")) {
-          toast({
-            title: "협력사 중복 등록",
-            description: "이미 등록된 동일한 이름의 협력사가 있습니다.",
-          })
-          return
-        }
         toast({
           title: "협력사 등록 실패",
           description: error instanceof Error ? error.message : "등록에 실패했습니다.",
@@ -941,7 +829,7 @@ export function FindingCategoryNewPageView({
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호</Label>
+                              <Label>무선전화번호 *</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -984,7 +872,7 @@ export function FindingCategoryNewPageView({
                     <Button variant="outline" asChild disabled={submitting}>
                       <Link href="/finding?tab=partners">취소</Link>
                     </Button>
-                    <Button type="button" onClick={() => void handlePartnerSubmit()} disabled={submitting}>
+                    <Button onClick={handlePartnerSubmit} disabled={submitting || loadingBackend}>
                       {submitting ? "등록 중..." : "등록"}
                     </Button>
                   </div>
@@ -1020,21 +908,13 @@ export function FindingCategoryNewPageView({
       }
 
       void (async () => {
-      try {
-        const salesRepresentativeId = opportunitySalesRepUserId.trim()
-        if (!salesRepresentativeId) {
-          toast({
-            title: "사업기회 등록 확인",
-              description: "영업대표를 선택해주십시오.",
-            })
-            return
-          }
-
-          const matchedSalesRep = backendUsers.find((user) => user.id === salesRepresentativeId)
-          if (!matchedSalesRep) {
+        try {
+          const salesRepresentativeId =
+            opportunitySalesRepUserId ?? (await resolveSalesRepresentativeId(opportunitySalesRep))
+          if (!salesRepresentativeId) {
             toast({
               title: "사업기회 등록 확인",
-              description: "선택한 영업대표를 사용자 목록에서 찾지 못했습니다.",
+              description: "영업대표를 사용자 목록에서 찾지 못했습니다.",
             })
             return
           }
@@ -1048,19 +928,12 @@ export function FindingCategoryNewPageView({
             return
           }
           const customerRouteId = resolvedCustomer.id
-          const [productModules, rfpFileIds] = await Promise.all([
-            loadBackendProductModules().catch(() => []),
-            resolveRfpFileIds(rfpAttachments),
-          ])
-          const partnerCompanyIds = resolvePartnerCompanyIds(opportunityPartnerNames, backendPartners)
-          const productModuleIds = resolveProductModuleIds(moduleName, productModules)
 
           const result = await createBackendProjectOpportunity({
             opportunityName: opportunityName.trim(),
             customerCompanyId,
             salesRepresentativeId,
             projectType: businessType,
-            stage: opportunityStatus,
             expectedBidDate: expectedDate || undefined,
             expectedBudget: expectedAmount || undefined,
             description: buildOpportunityDescription({
@@ -1069,9 +942,6 @@ export function FindingCategoryNewPageView({
               decisionInfo: buildDecisionInfoFromCustomer(resolvedCustomer),
             }),
             competitionStatus: competition,
-            partnerCompanyIds,
-            productModuleIds,
-            rfpFileIds,
           })
 
           toast({
@@ -1125,6 +995,7 @@ export function FindingCategoryNewPageView({
                             const resolvedCustomer = backendCustomers.find((item) => item.id === customer?.id || item.name === customer?.name) ?? customer
                             setSelectedOpportunityCustomer(resolvedCustomer ?? null)
                             setOpportunityCustomerName(resolvedCustomer?.name ?? "")
+                            setOpportunityCustomerGroup(resolvedCustomer?.category ?? "민간")
                           }}
                           onValueChange={setOpportunityCustomerName}
                           onUnregisteredAttempt={() => setCustomerRegistrationGuideOpen(true)}
@@ -1180,26 +1051,41 @@ export function FindingCategoryNewPageView({
                         <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
                       </div>
                       <div className="space-y-2">
-                        <Label>등록자</Label>
-                        <Input readOnly value={currentUser.name} />
+                        <Label>고객군</Label>
+                        <Select value={opportunityCustomerGroup} onValueChange={setOpportunityCustomerGroup}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="선택하세요" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {customerGroupOptions.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>영업대표 *</Label>
-                        <UserIdPicker
-                          value={opportunitySalesRepUserId}
+                        <Label>등록자</Label>
+                        <Input value={opportunityRegistrant} onChange={(event) => setOpportunityRegistrant(event.target.value)} placeholder="등록자명을 입력하세요" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>영업대표</Label>
+                        <UserPicker
+                          value={opportunitySalesRep}
                           users={backendUsers}
-                          onValueChange={setOpportunitySalesRepUserId}
-                          placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "영업대표를 선택하세요"}
+                          onValueChange={setOpportunitySalesRep}
+                          onSelect={(user) => {
+                            setOpportunitySalesRep(user?.name ?? "")
+                            setOpportunitySalesRepUserId(user?.id ?? null)
+                          }}
+                          placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "이름으로 영업대표를 검색하세요"}
                           disabled={backendUsers.length === 0}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>예상 입찰 또는 계약 시점</Label>
-                        <Input
-                          type="date"
-                          value={expectedDate}
-                          onChange={(event) => setExpectedDate(event.target.value)}
-                        />
+                        <Input value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} placeholder="예: 2026년 3분기" />
                       </div>
                       <div className="space-y-2">
                         <Label>예상 예산 또는 매출</Label>
@@ -1222,14 +1108,14 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>상태</Label>
-                        <Select value={opportunityStatus} onValueChange={(value) => setOpportunityStatus(toOpportunityStage(value))}>
+                        <Select value={opportunityStatus} onValueChange={setOpportunityStatus}>
                           <SelectTrigger>
                             <SelectValue placeholder="선택하세요" />
                           </SelectTrigger>
                           <SelectContent>
-                            {opportunityStatusOptions.map((status) => (
-                              <SelectItem key={status.value} value={status.value}>
-                                {status.label}
+                            {findingStatuses.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {status}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1444,14 +1330,14 @@ export function FindingCategoryNewPageView({
                     </div>
                     <div className="space-y-2">
                       <Label>고객군</Label>
-                      <Select value={customerGroup} onValueChange={(value) => setCustomerGroup(mapCustomerSectorToEnum(value))}>
+                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
                         </SelectTrigger>
                         <SelectContent>
                           {customerGroupOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
+                            <SelectItem key={option} value={option}>
+                              {option}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1579,7 +1465,7 @@ export function FindingCategoryNewPageView({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>무선전화번호</Label>
+                            <Label>무선전화번호 *</Label>
                             <Input
                               inputMode="tel"
                               autoComplete="tel"
@@ -1631,6 +1517,21 @@ export function FindingCategoryNewPageView({
           </div>
         </main>
       </div>
+
+      <AlertDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
+        <AlertDialogContent>
+          <AlertDialogCancel className="absolute top-4 right-4 h-9 w-9 p-0">
+            <X className="h-4 w-4" />
+          </AlertDialogCancel>
+          <AlertDialogHeader>
+            <AlertDialogTitle>고객사 중복 등록</AlertDialogTitle>
+            <AlertDialogDescription>이미 등록된 동일한 이름의 고객사가 있습니다.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setDuplicateOpen(false)}>확인</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteIndex !== null} onOpenChange={(open) => !open && setDeleteIndex(null)}>
         <AlertDialogContent>
