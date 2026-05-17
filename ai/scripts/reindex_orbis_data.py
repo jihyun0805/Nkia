@@ -44,6 +44,9 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "recent_activity_summary",
             "billing_summary", "prb_comprehensive_opinion",
             "sales_representative_name",
+            # description (OID → text) — 실주 사유/사업 요약 등이 여기 있음.
+            # _OID_TEXT_COLUMNS 가 fetch 단계에서 텍스트로 풀어준 결과.
+            "description",
         ),
         payload_aliases={
             "opportunityId": ("id",),
@@ -185,16 +188,23 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.BID_RESULT,
         id_fields=("bidResultCode", "bid_result_code", "id"),
         title_fields=("bidResultCode", "bid_result_code", "id"),
+        # 실제 DB 컬럼명 + OID 컬럼 (_OID_TEXT_COLUMNS 에서 텍스트로 풀린 것).
+        # 기존: result_status/win_loss_reason 등 nonexistent 컬럼 → chunk 가
+        # 메타데이터만 포함하고 실주 사유 텍스트 누락 → LLM 환각.
         content_fields=(
-            "result_status", "result_date", "win_loss_reason",
-            "competitor_summary", "outcome_summary",
+            "bid_outcome", "company_name",
+            "key_success_factors", "proposal_strategy", "rfp_issues",
+            "technical_score", "price_score", "sum_score",
+            "presentation_date", "bid_announcement_date",
+            "disclosure_status",
         ),
         payload_aliases={
             "bidResultCode": ("id",),
             "opportunityId": ("project_opportunity_id",),
-            "resultStatus": ("result_status",),
-            "winLossReason": ("win_loss_reason",),
-            "competitorSummary": ("competitor_summary",),
+            "bidOutcome": ("bid_outcome",),
+            "keySuccessFactors": ("key_success_factors",),
+            "proposalStrategy": ("proposal_strategy",),
+            "rfpIssues": ("rfp_issues",),
         },
     ),
     DocumentConfig(
@@ -419,7 +429,10 @@ ALWAYS_CONFIGS: tuple[DocumentConfig, ...] = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Orbis AI 재색인 스크립트")
-    parser.add_argument("--db-url", required=True, help="PostgreSQL connection URL")
+    parser.add_argument("--db-url", required=True, help="PostgreSQL connection URL (AI user)")
+    parser.add_argument("--backend-db-url", default=None,
+                        help="백엔드 owner 유저 URL. OID large object 권한 부여용. "
+                             "미지정 시 POSTGRES_USER/PASSWORD/HOST/PORT/DB env 로 자동 구성.")
     parser.add_argument("--ai-base-url", required=True, help="AI API base URL")
     parser.add_argument("--ai-internal-token", required=True, help="AI internal token")
     parser.add_argument("--batch-size", type=int, default=50, help="index API 배치 크기")
@@ -427,8 +440,64 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _grant_oid_to_ai_user(backend_db_url: str, ai_user: str) -> int:
+    """백엔드 owner 유저 connection 으로 모든 large object 에 AI user GRANT.
+
+    OID 컬럼 (description/key_success_factors 등) 은 backend 가 owner 라
+    AI 유저 (orbis_ai) 가 기본으로는 lo_get 접근 불가. 매 reindex 시작 시
+    GRANT 해줘야 새 OID 도 enrichment 가능.
+    """
+    try:
+        with psycopg.connect(backend_db_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    DO $$
+                    DECLARE oid_val oid;
+                    BEGIN
+                      FOR oid_val IN SELECT oid FROM pg_largeobject_metadata LOOP
+                        BEGIN
+                          EXECUTE format('GRANT SELECT ON LARGE OBJECT %s TO {ai_user}', oid_val);
+                        EXCEPTION WHEN OTHERS THEN NULL;
+                        END;
+                      END LOOP;
+                    END $$;
+                """)
+                cur.execute("SELECT count(*) AS n FROM pg_largeobject_metadata")
+                row = cur.fetchone()
+                return int(row[0] if isinstance(row, tuple) else row.get("count", row.get("n", 0)))
+    except Exception as exc:
+        print(f"[reindex] OID GRANT 실패 (large object enrichment 비활성): {exc}", flush=True)
+        return -1
+
+
+def _resolve_backend_db_url(args_url: str | None) -> str | None:
+    if args_url:
+        return args_url
+    import os as _os
+    user = _os.environ.get("POSTGRES_USER")
+    pw = _os.environ.get("POSTGRES_PASSWORD")
+    host = _os.environ.get("POSTGRES_HOST", "orbis_postgres")
+    port = _os.environ.get("POSTGRES_PORT", "5432")
+    db = _os.environ.get("POSTGRES_DB", "orbis_db")
+    if not (user and pw):
+        return None
+    from urllib.parse import quote_plus
+    return f"postgresql://{quote_plus(user)}:{quote_plus(pw)}@{host}:{port}/{db}"
+
+
 def main() -> int:
     args = parse_args()
+    # OID large object enrichment 을 위해 backend owner 권한 GRANT
+    backend_url = _resolve_backend_db_url(args.backend_db_url)
+    if backend_url:
+        from urllib.parse import urlparse
+        ai_user = urlparse(args.db_url).username or "orbis_ai"
+        granted_count = _grant_oid_to_ai_user(backend_url, ai_user)
+        if granted_count >= 0:
+            print(f"[reindex] OID GRANT ok (large_objects={granted_count} → {ai_user})", flush=True)
+    else:
+        print("[reindex] backend-db-url 미설정 — OID enrichment 비활성", flush=True)
+
     with psycopg.connect(args.db_url, row_factory=dict_row) as conn:
         existing_tables = fetch_existing_tables(conn)
         documents = build_documents(
@@ -522,6 +591,35 @@ def build_documents(
     return documents
 
 
+# 테이블별 OID(large object) 컬럼 → 텍스트로 풀어서 색인 enrichment
+# to_jsonb 는 OID 컬럼을 숫자(참조)로만 직렬화하므로 chunk content 에
+# 실제 텍스트가 누락됨. 실주 사유(project_opportunity.description) 등
+# 의미 있는 텍스트가 색인 안 돼 LLM 환각의 root cause 가 됨.
+_OID_TEXT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "project_opportunity": ("description",),
+    "bid_result": ("key_success_factors", "proposal_strategy", "rfp_issues"),
+}
+
+
+def _read_oid_text(conn: psycopg.Connection[Any], oid: int) -> str | None:
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT read_oid")
+            try:
+                cur.execute("SELECT convert_from(lo_get(%s), 'UTF8') AS text", (oid,))
+                row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT read_oid")
+                if row is None:
+                    return None
+                text = row.get("text") if isinstance(row, dict) else row[0]
+                return text if text else None
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT read_oid")
+                return None
+    except Exception:
+        return None
+
+
 def fetch_table_rows(
     *,
     conn: psycopg.Connection[Any],
@@ -533,7 +631,27 @@ def fetch_table_rows(
         query += sql.SQL(" LIMIT {}").format(sql.Literal(limit))
     with conn.cursor() as cur:
         cur.execute(query)
-        return [dict(record["row"]) for record in cur.fetchall()]
+        rows = [dict(record["row"]) for record in cur.fetchall()]
+
+    # OID 컬럼 텍스트로 enrichment (large object → readable text)
+    # to_jsonb 는 OID 를 string ("18394") 으로 직렬화 — int/str 둘 다 처리.
+    oid_cols = _OID_TEXT_COLUMNS.get(table)
+    if oid_cols:
+        for row in rows:
+            for col in oid_cols:
+                value = row.get(col)
+                oid_int: int | None = None
+                if isinstance(value, int) and value > 0:
+                    oid_int = value
+                elif isinstance(value, str) and value.isdigit():
+                    n = int(value)
+                    if n > 0:
+                        oid_int = n
+                if oid_int is not None:
+                    text = _read_oid_text(conn, oid_int)
+                    if text:
+                        row[col] = text
+    return rows
 
 
 def _fetch_user_display(
