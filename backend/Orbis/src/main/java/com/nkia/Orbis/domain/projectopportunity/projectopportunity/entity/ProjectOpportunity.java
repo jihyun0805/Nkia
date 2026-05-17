@@ -4,6 +4,7 @@ import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.activity.quotation.entity.Quotation;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.admin.productmodule.entity.ProductClass;
+import com.nkia.Orbis.domain.admin.productmodule.entity.ProductModule;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.bid.bidresult.entity.BidResult;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
@@ -184,7 +185,27 @@ public class ProjectOpportunity extends BaseEntity {
         }
     }
 
-    public void addFile(UploadFile file) {
-        this.rfpFiles.add(file);
+    public void addRfpFiles(List<UploadFile> files) {
+        if (files != null && !files.isEmpty()) {
+            this.rfpFiles.addAll(files);
+        }
+    }
+
+    public void addPartnerCompany(Company company) {
+        // ProjectOpportunityPartnerCompany 엔티티에 Builder가 있다고 가정
+        ProjectOpportunityPartnerCompany partner = ProjectOpportunityPartnerCompany.builder()
+                .projectOpportunity(this)
+                .company(company)
+                .build();
+        this.partnerCompanies.add(partner);
+    }
+
+    public void addProductModule(ProductModule module) {
+        // ProjectOpportunityProductModule 엔티티에 Builder가 있다고 가정
+        ProjectOpportunityProductModule productModule = ProjectOpportunityProductModule.builder()
+                .projectOpportunity(this)
+                .productModule(module)
+                .build();
+        this.productModules.add(productModule);
     }
 }
