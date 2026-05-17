@@ -16,7 +16,7 @@ type PageResponse<T> = {
   content?: T[];
 };
 
-type UserSummaryResponse = {
+export type BackendUserSummary = {
   id?: string;
   employeeNumber?: string;
   name?: string;
@@ -49,7 +49,7 @@ type CompanyManagerSummaryResponse = {
   memo?: string;
 };
 
-type ProjectOpportunitySummaryResponse = {
+export type ProjectOpportunitySummaryResponse = {
   id?: number;
   opportunityCode?: string;
   opportunityName?: string;
@@ -59,10 +59,18 @@ type ProjectOpportunitySummaryResponse = {
   expectedBudget?: number | string;
   customerCompanyId?: number;
   customerCompanyName?: string;
+  salesRepresentativeId?: string;
   salesRepresentativeName?: string;
   createUserName?: string;
   description?: string;
   competitionStatus?: string;
+  partnerCompanyIds?: number[];
+  partnerCompanyNames?: string[];
+  productModuleIds?: number[];
+  productModuleNames?: string[];
+  rfpFileIds?: number[];
+  rfpFileNames?: string[];
+  rfpFileSizes?: number[];
 };
 
 type OpportunityDisplayOverride = {
@@ -71,6 +79,11 @@ type OpportunityDisplayOverride = {
 
 type CompanyDisplayOverride = {
   memo?: string;
+};
+
+type BackendProductModuleSummary = {
+  id?: number;
+  productName?: string;
 };
 
 type OrderReportSummaryResponse = {
@@ -185,6 +198,13 @@ function getCompanyDisplayOverride(companyCode?: string) {
   return loadCompanyDisplayOverrides()[normalizedCode] ?? null;
 }
 
+function normalizeLookupText(value?: string | number | null) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u00A0]+/g, "");
+}
+
 async function normalizeVoidResponse(response: Response, fallbackMessage: string): Promise<void> {
   const payload = (await response.json().catch(() => null)) as ApiResponse<null> | null;
 
@@ -206,6 +226,14 @@ async function fetchList<T>(url: string, fallbackMessage: string) {
   });
 
   return normalizeResponseMessage<T>(response, fallbackMessage);
+}
+
+async function loadProductModules() {
+  const payload = await fetchList<BackendProductModuleSummary[]>(
+    `${getBackendApiBaseUrl()}/admin/product-modules`,
+    "제품 모듈 목록을 불러오지 못했습니다.",
+  );
+  return Array.isArray(payload) ? payload : [];
 }
 
 function sectorLabel(value?: string) {
@@ -238,15 +266,23 @@ export function mapPartnerCategory(value: string) {
 
 function mapOpportunityProductClass(value: string) {
   const normalized = value.trim().toUpperCase();
-  if (normalized === "EMS" || normalized === "ITSM") return normalized;
-  if (normalized === "AUTOMATION" || normalized === "WSS") return "ETC";
+  if (
+    normalized === "EMS" ||
+    normalized === "DASHBOARD" ||
+    normalized === "DATACENTER" ||
+    normalized === "RCA" ||
+    normalized === "DCA" ||
+    normalized === "ITSM" ||
+    normalized === "ITAM" ||
+    normalized === "SUPPORTING_TOOLS" ||
+    normalized === "CLOUD" ||
+    normalized === "BSM" ||
+    normalized === "E2E" ||
+    normalized === "ETC"
+  ) {
+    return normalized;
+  }
   return "ETC";
-}
-
-function mapOpportunityStage(status?: string) {
-  if (status === "진행중") return "ACTIVITY";
-  if (status === "유망") return "BID";
-  return "FINDING";
 }
 
 function parseExpectedBudget(value?: string) {
@@ -284,14 +320,10 @@ export function buildFallbackManagerEmail(companyCode: string, _name: string, in
   return `manager-${normalizedCompany}-${index + 1}@orbis.local`;
 }
 
-function stageLabel(value?: string) {
+export function stageLabel(value?: string) {
   if (value === "FINDING") return "발굴";
-  if (value === "ACTIVITY") return "활동";
-  if (value === "BID") return "입찰";
-  if (value === "CONTRACT") return "계약";
-  if (value === "PROJECT") return "사업";
-  if (value === "MAINTENANCE") return "유지보수";
-  if (value === "POST_SALES") return "사후영업";
+  if (value === "PROMISING") return "유망";
+  if (value === "PROGRESSING") return "진행중";
   return "-";
 }
 
@@ -432,18 +464,33 @@ async function loadCompanyManagers(companyId: number) {
 }
 
 async function loadUsers() {
-  const payload = await fetchList<PageResponse<UserSummaryResponse> | UserSummaryResponse[]>(`${getBackendApiBaseUrl()}/user`, "사용자 목록을 불러오지 못했습니다.");
+  const payload = await fetchList<BackendUserSummary[]>(`${getBackendApiBaseUrl()}/user/search`, "사용자 목록을 불러오지 못했습니다.");
+  return Array.isArray(payload) ? payload : [];
+}
 
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  return payload.content ?? [];
+export async function loadBackendUsers() {
+  const users = await loadUsers();
+  return users
+    .filter((user): user is Required<Pick<BackendUserSummary, "id" | "name">> & BackendUserSummary => Boolean(user.id && user.name))
+    .map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email ?? "",
+      employeeNumber: user.employeeNumber ?? user.id ?? "",
+    }));
 }
 
 async function loadProjectOpportunities() {
   const payload = await fetchList<PageResponse<ProjectOpportunitySummaryResponse>>(`${getBackendApiBaseUrl()}/project-opportunities?size=2000`, "사업기회 목록을 불러오지 못했습니다.");
   return payload.content ?? [];
+}
+
+export async function loadBackendProjectOpportunity(id: number) {
+  const payload = await fetchList<ProjectOpportunitySummaryResponse>(
+    `${getBackendApiBaseUrl()}/project-opportunities/${id}`,
+    "사업기회 상세를 불러오지 못했습니다.",
+  );
+  return payload;
 }
 
 async function loadOrderReports() {
@@ -483,21 +530,31 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
   const opportunities: OpportunityRecord[] = projectOpportunities.map((item, index) => {
     const parsedDescription = parseOpportunityDescription(item.description);
     const displayOverride = getOpportunityDisplayOverride(item.opportunityCode);
+    const partnerCompanyIds = Array.isArray(item.partnerCompanyIds) ? item.partnerCompanyIds.filter((value): value is number => typeof value === "number") : [];
+    const partnerCompanyNames = Array.isArray(item.partnerCompanyNames) ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string") : [];
+    const productModuleIds = Array.isArray(item.productModuleIds) ? item.productModuleIds.filter((value): value is number => typeof value === "number") : [];
+    const productModuleNames = Array.isArray(item.productModuleNames) ? item.productModuleNames.filter((value): value is string => typeof value === "string") : [];
+    const rfpFileIds = Array.isArray(item.rfpFileIds) ? item.rfpFileIds.filter((value): value is number => typeof value === "number") : [];
+    const rfpFileNames = Array.isArray(item.rfpFileNames) ? item.rfpFileNames.filter((value): value is string => typeof value === "string") : [];
+    const rfpFileSizes = Array.isArray(item.rfpFileSizes) ? item.rfpFileSizes.filter((value): value is number => typeof value === "number") : [];
+    const partnerDisplay = partnerCompanyNames.length > 0 ? partnerCompanyNames.join(", ") : "-";
+    const moduleDisplay = productModuleNames.length > 0 ? productModuleNames.join(", ") : parsedDescription.moduleName || "-";
     return {
       id: item.opportunityCode ?? String(item.id ?? `OPP-${index + 1}`),
       backendId: item.id,
       createdAt: "",
+      createUserName: item.createUserName ?? "-",
       customerCode: item.customerCompanyId != null ? buildCustomerRecordCode(customerLookup.get(item.customerCompanyId)) : "",
-      partnerCode: "-",
-      partnerCodes: [],
+      partnerCode: partnerCompanyIds.length > 0 ? partnerCompanyIds.map((partnerId) => String(partnerId)).join(", ") : "-",
+      partnerCodes: partnerCompanyIds.map((partnerId) => String(partnerId)),
       name: item.opportunityName ?? "-",
       registrant: item.createUserName ?? "-",
       customer: item.customerCompanyName ?? "-",
-      partner: "-",
-      partners: [],
+      partner: partnerDisplay,
+      partners: partnerCompanyNames,
       category: "-",
       product: item.projectType ? String(item.projectType) : "-",
-      module: parsedDescription.moduleName || "-",
+      module: moduleDisplay,
       expectedAmount: formatAmount(item.expectedBudget),
       expectedDate: item.expectedBidDate ?? "-",
       issue: parsedDescription.issue || "-",
@@ -507,8 +564,24 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       partnerContact: "-",
       partnerPhone: "-",
       status: stageLabel(item.stage),
+      salesRepresentativeId: item.salesRepresentativeId ?? undefined,
       salesRep: item.salesRepresentativeName ?? item.createUserName ?? "-",
-      rfpAttachments: [],
+      partnerCompanyIds,
+      partnerCompanyNames,
+      productModuleIds,
+      productModuleNames,
+      rfpFileIds,
+      rfpFileNames,
+      rfpFileSizes,
+      rfpAttachments: rfpFileIds.map((fileId, fileIndex) => ({
+        id: String(fileId),
+        name: rfpFileNames[fileIndex] ?? `첨부파일 ${fileIndex + 1}`,
+        size: rfpFileSizes[fileIndex] ?? 0,
+        contentType: "",
+        dataUrl: "",
+        summary: "",
+        createdAt: "",
+      })),
     };
   });
 
@@ -755,15 +828,43 @@ export async function deleteBackendCompanyManager(managerId: number) {
   return true;
 }
 
+async function uploadBackendRfpFile(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${getBackendApiBaseUrl()}/files/upload?category=RFP`, {
+    method: "POST",
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+    body: formData,
+  });
+
+  return normalizeResponseMessage<number>(response, "RFP 첨부파일을 업로드하지 못했습니다.");
+}
+
+export async function uploadBackendRfpFiles(files: File[]) {
+  const uploaded = await Promise.all(files.map((file) => uploadBackendRfpFile(file)));
+  return uploaded.filter((value): value is number => typeof value === "number");
+}
+
+export async function loadBackendProductModules() {
+  return loadProductModules();
+}
+
 export async function createBackendProjectOpportunity(input: {
   opportunityName: string;
   customerCompanyId: number;
   salesRepresentativeId: string;
   projectType: string;
+  stage: string;
   expectedBidDate?: string;
   expectedBudget?: string;
   description?: string;
   competitionStatus?: string;
+  partnerCompanyIds?: number[];
+  productModuleIds?: number[];
+  rfpFileIds?: number[];
 }) {
   const response = await fetch(`${getBackendApiBaseUrl()}/project-opportunities`, {
     method: "POST",
@@ -775,6 +876,7 @@ export async function createBackendProjectOpportunity(input: {
     body: JSON.stringify({
       opportunityCode: buildOpportunityCode(),
       opportunityName: input.opportunityName,
+      stage: input.stage,
       projectType: mapOpportunityProductClass(input.projectType),
       salesRepresentativeId: input.salesRepresentativeId,
       expectedBidDate: input.expectedBidDate || null,
@@ -782,6 +884,9 @@ export async function createBackendProjectOpportunity(input: {
       description: input.description ?? null,
       competitionStatus: input.competitionStatus ?? null,
       customerCompanyId: input.customerCompanyId,
+      partnerCompanyIds: input.partnerCompanyIds?.length ? input.partnerCompanyIds : null,
+      productModuleIds: input.productModuleIds?.length ? input.productModuleIds : null,
+      rfpFileIds: input.rfpFileIds?.length ? input.rfpFileIds : null,
     }),
   });
 
@@ -799,10 +904,14 @@ export async function updateBackendProjectOpportunity(
     stage: string;
     projectType: string;
     salesRepresentativeId: string;
+    customerCompanyId: number;
     expectedBidDate?: string;
     expectedBudget?: string;
     description?: string;
     competitionStatus?: string;
+    partnerCompanyIds?: number[];
+    productModuleIds?: number[];
+    rfpFileIds?: number[];
   },
 ) {
   const response = await fetch(`${getBackendApiBaseUrl()}/project-opportunities/${id}`, {
@@ -814,13 +923,17 @@ export async function updateBackendProjectOpportunity(
     credentials: "include",
     body: JSON.stringify({
       opportunityName: input.opportunityName,
-      stage: mapOpportunityStage(input.stage),
+      stage: input.stage,
       projectType: mapOpportunityProductClass(input.projectType),
       salesRepresentativeId: input.salesRepresentativeId,
+      customerCompanyId: input.customerCompanyId,
       expectedBidDate: input.expectedBidDate || null,
       expectedBudget: parseExpectedBudget(input.expectedBudget),
       description: input.description ?? null,
       competitionStatus: input.competitionStatus ?? null,
+      partnerCompanyIds: input.partnerCompanyIds?.length ? input.partnerCompanyIds : null,
+      productModuleIds: input.productModuleIds?.length ? input.productModuleIds : null,
+      rfpFileIds: input.rfpFileIds?.length ? input.rfpFileIds : null,
     }),
   });
 

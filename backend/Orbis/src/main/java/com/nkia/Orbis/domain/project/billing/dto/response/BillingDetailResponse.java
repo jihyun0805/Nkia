@@ -41,7 +41,7 @@ public class BillingDetailResponse {
 
     private LocalDateTime createdAt;
 
-    public static BillingDetailResponse from(Billing billing, Long workflowId) {
+    public static BillingDetailResponse from(Billing billing, Long workflowId, String createdByName) {
         return BillingDetailResponse.builder()
                 .id(billing.getId())
                 .workflowId(workflowId)
@@ -56,7 +56,7 @@ public class BillingDetailResponse {
                 .remarks(billing.getRemarks())
                 .invoiceImageId(billing.getInvoiceImageId())
                 .status(billing.getStatus().name())
-                .createdBy(billing.getCreatedBy())
+                .createdBy(createdByName)
                 .createdAt(billing.getCreatedAt())
                 .build();
     }

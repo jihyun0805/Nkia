@@ -147,7 +147,7 @@ public class BillingController {
     @PostMapping("/submit/{billingId}")
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BILLING', 'UPDATE')")
     public ResponseEntity<ApiResponse<String>> submitBilling(
-            @PathVariable("billingId") Long billingId,
+            @PathVariable Long billingId,
             @RequestBody SubmitRequest request
     ) {
         billingService.submitBilling(

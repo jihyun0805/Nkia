@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,9 +17,16 @@ import { adminApi, UserResponse, RoleListResponse, WorkflowTemplateListResponse,
 import { format } from "date-fns";
 import { toast } from "sonner";
 
-export default function AdminPage() {
+function AdminPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
+  const initialTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    initialTab === "permissions" || initialTab === "workflow" || initialTab === "products" || initialTab === "departments"
+      ? initialTab
+      : "users",
+  );
 
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
@@ -151,7 +159,7 @@ export default function AdminPage() {
       <div className="flex-1 flex flex-col">
         <Header title="시스템관리" description="계정, 권한, 프로세스, 제품 및 부서 관리를 수행합니다" />
         <main className="flex-1 overflow-auto p-6">
-          <Tabs defaultValue="users" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <div className="flex items-center justify-between overflow-x-auto pb-2">
               <TabsList>
                 <TabsTrigger value="users" className="gap-2">
@@ -431,5 +439,13 @@ export default function AdminPage() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageContent />
+    </Suspense>
   );
 }

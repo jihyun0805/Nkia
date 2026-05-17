@@ -71,6 +71,17 @@ def build_query_rewrite_plan(*, query: str, history: list[ConversationMessage]) 
             applied=False,
         )
 
+    # 직전 assistant 답변이 disambiguation (다중 후보 제시) 이면 prefix 차단.
+    # 사용자가 명시 선택 안 한 상태에서 임의 후보로 prefix 하면 잘못된 사업 lock 됨.
+    if previous_assistant_is_disambiguation(history):
+        return QueryRewritePlan(
+            original_query=query,
+            rewritten_query=query,
+            rewrite_reason="prev_disambig_skip",
+            rewrite_confidence=None,
+            applied=False,
+        )
+
     subject = infer_followup_subject(history)
     if not subject or subject in query:
         return QueryRewritePlan(
@@ -119,6 +130,34 @@ _COMPANY_SUFFIX_PATTERN = re.compile(
 )
 
 
+_DISAMBIG_MARKERS = (
+    "어떤 사업기회를 알고 싶으신가요",
+    "사업기회가 2건 있습니다",
+    "사업기회가 3건 있습니다",
+    "사업기회가 4건 있습니다",
+    "사업기회가 5건 있습니다",
+    "사업코드나 사업명을 포함해서 다시 질문",
+    "다음 중 어느 사업을 의미하시나요",
+)
+
+
+def previous_assistant_is_disambiguation(history: list[ConversationMessage]) -> bool:
+    """가장 최근 assistant 답변이 disambig (다중 후보 제시) 인지 검출.
+
+    True 면 query_rewrite 의 subject prefix 를 건너뛰어
+    잘못된 후보로 lock 되는 leak 을 막는다.
+    """
+    for message in reversed(history):
+        role = getattr(message, "role", None) or (message.get("role") if isinstance(message, dict) else None)
+        if role == "assistant":
+            content = get_message_content(message).strip()
+            return any(marker in content for marker in _DISAMBIG_MARKERS)
+        if role == "user":
+            # user 가 새 query 보냈으니 그 직전 assistant 까지만 본다
+            continue
+    return False
+
+
 def contains_entity_reference(query: str) -> bool:
     """query 자체에 회사명 후보 또는 다른 사업기회 코드가 명시되어 있으면 True.
 
@@ -133,16 +172,28 @@ def contains_entity_reference(query: str) -> bool:
 
 
 def infer_followup_subject(history: list[ConversationMessage]) -> str | None:
+    """follow-up subject 후보를 user query 에서만 추출.
+
+    중요: assistant 답변에서 코드 추출하면 fallback 가이드의 예시 코드
+    ("예: 'AUTO-OPP-2026-101'") 가 잘못된 subject 로 lock 되어 leak 발생.
+    오직 사용자가 직접 명시한 entity 만 follow-up 의 lock 대상으로 사용.
+    """
     recent_messages = history[-6:]
+    user_messages = [m for m in recent_messages if _is_user_message(m)]
     codes: list[str] = []
-    for message in reversed(recent_messages):
+    for message in reversed(user_messages):
         content = get_message_content(message)
         if content:
             codes.extend(extract_business_codes_from_text(content))
     if codes:
         return codes[0]
 
-    combined_text = "\n".join(content for message in recent_messages if (content := get_message_content(message)))
+    # 코드 없으면 user query 들의 entity 단어로 매칭
+    combined_text = "\n".join(
+        content for message in user_messages if (content := get_message_content(message))
+    )
+    if not combined_text.strip():
+        return None
     normalization = normalize_query_context(combined_text)
     entity = resolve_primary_opportunity(
         query_terms=normalization.scope_terms or normalization.entity_terms,
@@ -151,6 +202,12 @@ def infer_followup_subject(history: list[ConversationMessage]) -> str | None:
     if entity is None:
         return None
     return f"{entity['opportunity_code']} {entity['opportunity_name']}"
+
+
+def _is_user_message(message: object) -> bool:
+    if isinstance(message, dict):
+        return message.get("role") == "user"
+    return getattr(message, "role", None) == "user"
 
 
 def extract_business_codes_from_text(text: str) -> list[str]:

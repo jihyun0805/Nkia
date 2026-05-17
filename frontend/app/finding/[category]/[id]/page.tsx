@@ -35,7 +35,7 @@ import {
 } from "@/lib/finding-data"
 import { type ActivityRecord, getActivityDisplayType } from "@/lib/activity-data"
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend"
-import { deleteBackendCompany, deleteBackendProjectOpportunity, loadBackendFindingData } from "@/lib/finding-backend"
+import { deleteBackendCompany, deleteBackendProjectOpportunity, loadBackendFindingData, loadBackendProjectOpportunity, stageLabel } from "@/lib/finding-backend"
 import { FileText } from "lucide-react"
 
 function formatRfpSummaryTitle(fileName: string) {
@@ -131,9 +131,72 @@ export default function FindingDetailPage() {
     loadBackendFindingData()
       .then((data) => {
         if (cancelled) return
-        setOpportunities(data.opportunities)
         setCustomers(data.customers)
         setPartners(data.partners)
+        setOpportunities(data.opportunities)
+
+        if (category !== "opportunities" || !id) return
+
+        void loadBackendProjectOpportunity(Number(id))
+          .then((opportunity) => {
+            if (cancelled) return
+
+            const fallback = data.opportunities.find((entry) => matchesFindingRecordId(entry, id)) ?? null
+            const matchedCustomer = data.customers.find((customer) => customer.backendId === opportunity.customerCompanyId) ?? null
+            const merged: OpportunityRecord = {
+              ...(fallback ?? {
+                id: opportunity.opportunityCode ?? String(opportunity.id ?? id),
+                createdAt: "",
+                customerCode: "",
+                partnerCode: "-",
+                name: opportunity.opportunityName ?? "-",
+                registrant: opportunity.createUserName ?? "-",
+                customer: opportunity.customerCompanyName ?? "-",
+                partner: "-",
+                category: "-",
+                product: opportunity.projectType ? String(opportunity.projectType) : "-",
+                module: "-",
+                expectedAmount: opportunity.expectedBudget != null ? opportunity.expectedBudget.toLocaleString("ko-KR") : "-",
+                expectedDate: opportunity.expectedBidDate ?? "-",
+                issue: opportunity.description ?? "-",
+                competition: opportunity.competitionStatus ?? "-",
+                decisionInfo: opportunity.description ?? "-",
+                partnerType: "-",
+                partnerContact: "-",
+                partnerPhone: "-",
+                status: opportunity.stage ?? "-",
+                salesRep: opportunity.salesRepresentativeName ?? opportunity.createUserName ?? "-",
+              }),
+              backendId: opportunity.id,
+              id: fallback?.id ?? opportunity.opportunityCode ?? String(opportunity.id ?? id),
+              customerCode: fallback?.customerCode ?? matchedCustomer?.id ?? (opportunity.customerCompanyId != null ? String(opportunity.customerCompanyId) : ""),
+              createUserName: opportunity.createUserName ?? fallback?.createUserName,
+              name: opportunity.opportunityName ?? fallback?.name ?? "-",
+              customer: opportunity.customerCompanyName ?? fallback?.customer ?? "-",
+              registrant: opportunity.createUserName ?? fallback?.registrant ?? "-",
+              product: opportunity.projectType ? String(opportunity.projectType) : fallback?.product ?? "-",
+              expectedAmount:
+                opportunity.expectedBudget != null
+                  ? opportunity.expectedBudget.toLocaleString("ko-KR")
+                  : fallback?.expectedAmount ?? "-",
+              expectedDate: opportunity.expectedBidDate ?? fallback?.expectedDate ?? "-",
+              competition: opportunity.competitionStatus ?? fallback?.competition ?? "-",
+              issue: fallback?.issue ?? opportunity.description ?? "-",
+              decisionInfo: fallback?.decisionInfo ?? opportunity.description ?? "-",
+              status: stageLabel(opportunity.stage) ?? fallback?.status ?? "-",
+              salesRepresentativeId: opportunity.salesRepresentativeId ?? fallback?.salesRepresentativeId,
+              salesRep: opportunity.salesRepresentativeName ?? fallback?.salesRep ?? "-",
+            }
+
+            setOpportunities((current) => {
+              const hasExisting = current.some((entry) => matchesFindingRecordId(entry, id))
+              if (!hasExisting) return [merged]
+              return current.map((entry) => (matchesFindingRecordId(entry, id) ? merged : entry))
+            })
+          })
+          .catch(() => {
+            if (cancelled) return
+          })
       })
       .catch(() => {
         if (cancelled) return
@@ -145,7 +208,7 @@ export default function FindingDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [category, id])
 
   useEffect(() => {
     if (category !== "opportunities") return
@@ -392,9 +455,8 @@ export default function FindingDetailPage() {
                       <h2 className="text-base font-semibold">등록정보</h2>
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <Label>고객사명 *</Label>
+                          <Label>고객사명</Label>
                           <Input readOnly value={opportunityItem?.customer ?? "-"} />
-                          <p className="text-xs text-muted-foreground">고객사 코드: {opportunityItem?.customerCode ?? "-"}</p>
                         </div>
                         <div className="space-y-2">
                           <Label>협력사명</Label>
@@ -409,16 +471,16 @@ export default function FindingDetailPage() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>사업명 *</Label>
+                          <Label>사업명</Label>
                           <Input readOnly value={opportunityItem?.name ?? "-"} />
                         </div>
                         <div className="space-y-2">
                           <Label>고객군</Label>
-                          <Input readOnly value={opportunityItem?.category ?? "-"} />
+                          <Input readOnly value={selectedCustomer?.category ?? opportunityItem?.category ?? "-"} />
                         </div>
                         <div className="space-y-2">
                           <Label>등록자</Label>
-                          <Input readOnly value={opportunityItem?.registrant ?? "-"} />
+                          <Input readOnly value={opportunityItem?.createUserName ?? "-"} />
                         </div>
                         <div className="space-y-2">
                           <Label>영업대표</Label>
@@ -433,7 +495,7 @@ export default function FindingDetailPage() {
                           <Input readOnly value={opportunityItem?.expectedAmount ?? "-"} />
                         </div>
                         <div className="space-y-2">
-                          <Label>사업 구분 *</Label>
+                          <Label>사업 구분</Label>
                           <Input readOnly value={opportunityItem?.product ?? "-"} />
                         </div>
                         <div className="space-y-2">
