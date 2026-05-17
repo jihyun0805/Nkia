@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -29,4 +30,10 @@ public class ProjectOpportunityProductModule extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_module_id")
     private ProductModule productModule;
+
+    @Builder
+    public ProjectOpportunityProductModule(ProjectOpportunity projectOpportunity, ProductModule productModule) {
+        this.projectOpportunity = projectOpportunity;
+        this.productModule = productModule;
+    }
 }
