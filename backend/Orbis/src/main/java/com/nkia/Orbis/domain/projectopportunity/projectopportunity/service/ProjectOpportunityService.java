@@ -105,6 +105,9 @@ public class ProjectOpportunityService {
         ProjectOpportunity opportunity = findProjectOpportunity(id);
         // Repository save() 호출 없이, 엔티티의 비즈니스 메서드만 호출 (더티 체킹)
         updateProjectOpportunityInfo(request, opportunity);
+        updatingRfpFiles(request, opportunity);
+        updatingPartnerCompanies(request, opportunity);
+        updatingProductModules(request, opportunity);
         User createUser = getCreatorSafely(opportunity);
         return ProjectOpportunityResponse.from(opportunity, createUser);
     }
@@ -112,6 +115,8 @@ public class ProjectOpportunityService {
     private void updateProjectOpportunityInfo(ProjectOpportunityUpdateRequest request,
                                               ProjectOpportunity opportunity) {
         User salesRepresentative = findUser(request.salesRepresentativeId());
+        Company customerCompany = companyRepository.findById(request.customerCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
         opportunity.updateInformation(
                 request.opportunityName(),
                 request.stage(),
@@ -120,8 +125,49 @@ public class ProjectOpportunityService {
                 request.expectedBudget(),
                 request.description(),
                 request.competitionStatus(),
-                salesRepresentative
+                salesRepresentative,
+                customerCompany
         );
+    }
+
+    private void updatingRfpFiles(ProjectOpportunityUpdateRequest request, ProjectOpportunity opportunity) {
+        List<Long> fileIds = request.rfpFileIds();
+        if (fileIds != null && !fileIds.isEmpty()) {
+            List<UploadFile> files = uploadFileRepository.findAllById(fileIds);
+            // 방어 로직: 전달된 ID 개수와 조회된 파일 개수가 다르면 예외 발생
+            if (files.size() != fileIds.size()) {
+                throw new IllegalArgumentException("요청한 파일 중 일부를 찾을 수 없습니다."); // 적절한 ApiException으로 교체 권장
+            }
+            opportunity.updateRfpFiles(files);
+        } else {
+            opportunity.updateRfpFiles(null); // 비우기 요청 처리
+        }
+    }
+
+    private void updatingPartnerCompanies(ProjectOpportunityUpdateRequest request, ProjectOpportunity opportunity) {
+        List<Long> companyIds = request.partnerCompanyIds();
+        if (companyIds != null && !companyIds.isEmpty()) {
+            List<Company> partnerCompanies = companyRepository.findAllById(companyIds);
+            if (partnerCompanies.size() != companyIds.size()) {
+                throw new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND);
+            }
+            opportunity.updatePartnerCompanies(partnerCompanies);
+        } else {
+            opportunity.updatePartnerCompanies(null);
+        }
+    }
+
+    private void updatingProductModules(ProjectOpportunityUpdateRequest request, ProjectOpportunity opportunity) {
+        List<Long> moduleIds = request.productModuleIds();
+        if (moduleIds != null && !moduleIds.isEmpty()) {
+            List<ProductModule> productModules = productModuleRepository.findAllById(moduleIds);
+            if (productModules.size() != moduleIds.size()) {
+                throw new IllegalArgumentException("요청한 모듈 중 일부를 찾을 수 없습니다."); // 적절한 ApiException으로 교체 권장
+            }
+            opportunity.updateProductModules(productModules);
+        } else {
+            opportunity.updateProductModules(null);
+        }
     }
 
     /**

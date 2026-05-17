@@ -149,7 +149,7 @@ public class ProjectOpportunity extends BaseEntity {
     public void updateInformation(String opportunityName, ProjectOpportunityStage stage,
                                   ProductClass projectType, LocalDate expectedBidDate,
                                   BigDecimal expectedBudget, String description,
-                                  String competitionStatus, User salesRepresentative) {
+                                  String competitionStatus, User salesRepresentative, Company customerCompany) {
         this.opportunityName = opportunityName;
         this.stage = stage != null ? stage : this.stage;
         this.projectType = projectType;
@@ -158,6 +158,28 @@ public class ProjectOpportunity extends BaseEntity {
         this.description = description;
         this.competitionStatus = competitionStatus;
         this.salesRepresentative = salesRepresentative;
+        this.customerCompany = customerCompany; // 추가
+    }
+
+    public void updateRfpFiles(List<UploadFile> files) {
+        this.rfpFiles.clear(); // 기존 매핑 삭제
+        if (files != null && !files.isEmpty()) {
+            this.rfpFiles.addAll(files); // 새 파일 등록
+        }
+    }
+
+    public void updatePartnerCompanies(List<Company> companies) {
+        this.partnerCompanies.clear(); // 기존 매핑 삭제 (orphanRemoval 작동)
+        if (companies != null && !companies.isEmpty()) {
+            companies.forEach(this::addPartnerCompany); // 새로운 객체 생성 및 연결
+        }
+    }
+
+    public void updateProductModules(List<ProductModule> modules) {
+        this.productModules.clear(); // 기존 매핑 삭제 (orphanRemoval 작동)
+        if (modules != null && !modules.isEmpty()) {
+            modules.forEach(this::addProductModule); // 새로운 객체 생성 및 연결
+        }
     }
 
     public void assignRfpAnalyzeResult(RfpAnalyzeResult rfpAnalyzeResult) {
@@ -192,7 +214,6 @@ public class ProjectOpportunity extends BaseEntity {
     }
 
     public void addPartnerCompany(Company company) {
-        // ProjectOpportunityPartnerCompany 엔티티에 Builder가 있다고 가정
         ProjectOpportunityPartnerCompany partner = ProjectOpportunityPartnerCompany.builder()
                 .projectOpportunity(this)
                 .company(company)
@@ -201,7 +222,6 @@ public class ProjectOpportunity extends BaseEntity {
     }
 
     public void addProductModule(ProductModule module) {
-        // ProjectOpportunityProductModule 엔티티에 Builder가 있다고 가정
         ProjectOpportunityProductModule productModule = ProjectOpportunityProductModule.builder()
                 .projectOpportunity(this)
                 .productModule(module)
