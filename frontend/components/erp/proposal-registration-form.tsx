@@ -18,14 +18,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
-import { UserPicker } from "@/components/erp/user-picker"
-import { useBackendUsers } from "@/lib/use-backend-users"
 import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { type ProposalProductGroup, type ProposalRecord, type ProposalType } from "@/lib/bid-data"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
 import { loadBackendProposalDetailById, loadBackendProposals, saveBackendProposal, type ProposalBackendDetail } from "@/lib/proposal-backend"
+import { currentUser } from "@/lib/current-user"
+import { useBackendUsers } from "@/lib/use-backend-users"
+import { resolveUserId } from "@/lib/user-utils"
 
 type ProposalRegistrationFormProps = {
   initialRequestId?: string
@@ -86,6 +88,9 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
   const [form, setForm] = useState<FormState>(emptyForm)
   const [validationMessage, setValidationMessage] = useState("")
   const [proposalDetail, setProposalDetail] = useState<ProposalBackendDetail | null>(null)
+  const selectedSalesRepId = resolveUserId(form.salesRep, users)
+  const proposalDetailAppliedRef = useRef(false)
+  const initialRequestAppliedRef = useRef(false)
 
   // 챗봇 create_draft 액션 prefill
   const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -223,6 +228,14 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     }
   }, [proposalId])
 
+  useEffect(() => {
+    proposalDetailAppliedRef.current = false
+  }, [proposalId])
+
+  useEffect(() => {
+    initialRequestAppliedRef.current = false
+  }, [initialRequestId])
+
   const completedRequestIds = new Set(
     proposals
       .map((proposal) => {
@@ -251,7 +264,9 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
   )
 
   useEffect(() => {
-    if (proposalDetail) {
+    if (!proposalDetail || proposalDetailAppliedRef.current) return
+
+    proposalDetailAppliedRef.current = true
     setForm({
       requestId: proposalDetail.requestId,
       customerCode: proposalDetail.customerCode,
@@ -265,14 +280,15 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
       salesRep: proposalDetail.salesRep,
       contactName: proposalDetail.contactName,
     })
-      return
-    }
+  }, [proposalDetail])
 
-    if (initialRequestId) {
-      const matchedRequest = requests.find((item) => item.id === initialRequestId)
-      if (matchedRequest) {
-        applyRequest(matchedRequest)
-      }
+  useEffect(() => {
+    if (proposalDetail || !initialRequestId || initialRequestAppliedRef.current) return
+
+    const matchedRequest = requests.find((item) => item.id === initialRequestId)
+    if (matchedRequest) {
+      initialRequestAppliedRef.current = true
+      applyRequest(matchedRequest)
     }
   }, [initialRequestId, proposalDetail, requests, findingData.customers, findingData.opportunities])
 
@@ -418,15 +434,15 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     <>
       <Card>
         <CardHeader>
-          <CardTitle>{proposalId ? "제안서 수정" : "제안서 등록"}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
+        <CardTitle>{proposalId ? "제안서 수정" : "제안서 등록"}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>활동 요청 코드</Label>
+              <Label>활동 요청 코드 *</Label>
               <Select value={form.requestId} onValueChange={handleRequestChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="활동 요청 코드를 선택하세요 (선택)" />
+                  <SelectValue placeholder="활동 요청 코드를 선택하세요" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableRequests.map((request) => (
@@ -438,20 +454,12 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>고객사명</Label>
-              <Input
-                value={form.customerName}
-                onChange={(event) => handleCustomerNameChange(event.target.value)}
-                placeholder="고객사명을 입력하세요"
-              />
+              <Label>고객사명 *</Label>
+              <Input value={form.customerName} readOnly />
             </div>
             <div className="space-y-2">
-              <Label>사업명</Label>
-              <Input
-                value={form.opportunityName}
-                onChange={(event) => handleOpportunityNameChange(event.target.value)}
-                placeholder="사업명을 입력하세요"
-              />
+              <Label>사업명 *</Label>
+              <Input value={form.opportunityName} readOnly />
             </div>
             <div className="space-y-2">
               <Label>제안형태</Label>
@@ -493,17 +501,21 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
             </div>
             <div className="space-y-2">
               <Label>영업대표</Label>
-              <UserPicker
-                value={form.salesRep}
+              <UserIdPicker
+                value={selectedSalesRepId}
                 users={users}
-                onSelect={(u) => setForm((current) => ({ ...current, salesRep: u?.name ?? "" }))}
-                onValueChange={(v) => setForm((current) => ({ ...current, salesRep: v }))}
-                placeholder="이름으로 영업대표를 검색하세요"
+                onValueChange={(v) =>
+                  setForm((current) => ({
+                    ...current,
+                    salesRep: users.find((user) => user.id === v)?.name ?? current.salesRep,
+                  }))
+                }
+                placeholder="영업대표를 선택하세요"
               />
             </div>
             <div className="space-y-2">
               <Label>담당자</Label>
-              <Input value={form.contactName} onChange={(event) => setForm((current) => ({ ...current, contactName: event.target.value }))} />
+              <Input value={currentUser.name} readOnly />
             </div>
           </div>
 
