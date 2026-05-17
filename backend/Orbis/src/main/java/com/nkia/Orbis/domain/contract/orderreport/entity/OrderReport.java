@@ -46,6 +46,9 @@ public class OrderReport extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ApprovalStatus status;
 
+    @Enumerated(EnumType.STRING)
+    private VatType vatType;
+
     @Column(nullable = false, unique = true)
     private String orderReportCode;
 
@@ -211,10 +214,12 @@ public class OrderReport extends BaseEntity {
             CompanyManager contractCounterpartManager,
             Company finalCustomerCompany,
             CompanyManager finalCustomerManager,
-            Double itemTotalMaintenanceRate
+            Double itemTotalMaintenanceRate,
+            VatType vatType
     ) {
         OrderReport orderReport = new OrderReport();
         orderReport.status = ApprovalStatus.DRAFT;
+        orderReport.vatType = vatType;
         orderReport.orderReportCode = orderReportCode;
         orderReport.paymentCondition = paymentCondition;
         orderReport.quotationProvided = quotationProvided;
@@ -421,6 +426,7 @@ public class OrderReport extends BaseEntity {
 
     public void update(
             OrderReportType type,
+            VatType vatType,
             String paymentCondition,
             boolean quotationProvided,
             boolean contractProvided,
@@ -445,6 +451,7 @@ public class OrderReport extends BaseEntity {
             Double itemTotalMaintenanceRate
     ) {
         this.type = type;
+        this.vatType = vatType;
         this.paymentCondition = paymentCondition;
         this.quotationProvided = quotationProvided;
         this.contractProvided = contractProvided;

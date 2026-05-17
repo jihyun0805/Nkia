@@ -1,8 +1,6 @@
 package com.nkia.Orbis.domain.admin.workflow.dto.response;
 
-import com.nkia.Orbis.domain.admin.user.entity.Position;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLine;
-import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowLineStatus;
 import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,9 +15,9 @@ public class WorkflowLineResponse {
 
     private String approverName;
 
-    private Position approverPosition;
+    private String approverPosition;
 
-    private WorkflowLineStatus status;
+    private String status;
 
     private String comment;
 
@@ -32,8 +30,8 @@ public class WorkflowLineResponse {
                 .stepOrder(workflowLine.getStepOrder())
                 .stepName(workflowLine.getWorkflowStep().getStepName())
                 .approverName(workflowLine.getApprover().getName())
-                .approverPosition(workflowLine.getApprover().getPosition())
-                .status(workflowLine.getStatus())
+                .approverPosition(workflowLine.getApprover().getPosition().getDescription())
+                .status(workflowLine.getStatus().getDescription())
                 .comment(workflowLine.getComment())
                 .actedAt(workflowLine.getActedAt())
                 .build();

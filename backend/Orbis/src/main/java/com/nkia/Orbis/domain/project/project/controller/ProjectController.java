@@ -5,6 +5,8 @@ import com.nkia.Orbis.domain.project.project.dto.request.ProjectCombinedUpdateRe
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectCreateResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectHistoryDetailResponse;
+import com.nkia.Orbis.domain.project.project.dto.response.ProjectHistoryListResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
 import com.nkia.Orbis.domain.project.project.service.ProjectFacadeService;
 import com.nkia.Orbis.domain.project.project.service.ProjectService;
@@ -92,5 +94,29 @@ public class ProjectController {
     public ResponseEntity<ApiResponse<Void>> deleteProject(@PathVariable Long projectId) {
         projectService.deleteProject(projectId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
+     * 사업 이력(히스토리) 목록 조회
+     */
+    @Operation(summary = "사업 이력(히스토리) 목록 조회")
+    @GetMapping("/{projectId}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT', 'READ')")
+    public ResponseEntity<ApiResponse<List<ProjectHistoryListResponse>>> getProjectHistories(
+            @PathVariable Long projectId) {
+        List<ProjectHistoryListResponse> response = projectService.getProjectHistories(projectId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 사업 이력(히스토리) 상세 조회
+     */
+    @Operation(summary = "사업 이력(히스토리) 상세 조회")
+    @GetMapping("/histories/{historyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT', 'READ')")
+    public ResponseEntity<ApiResponse<ProjectHistoryDetailResponse>> getProjectHistoryDetail(
+            @PathVariable Long historyId) {
+        ProjectHistoryDetailResponse response = projectService.getProjectHistoryDetail(historyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

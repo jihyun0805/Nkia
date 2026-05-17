@@ -248,15 +248,30 @@ def parse_period_summary_intent(
 ) -> StructuredQueryIntent | None:
     if normalization is None or not normalization.time_range.label:
         return None
-    if not normalization.has_summary_intent and "실적" not in normalized_query:
-        return None
+    summary_hints = ("실적", "매출", "총 매출", "총액")
+    is_won_summary = (
+        normalization.has_summary_intent or any(h in normalized_query for h in summary_hints)
+    ) and any(keyword in normalized_query for keyword in ["수주", "실적", "계약", "매출"])
 
-    if any(keyword in normalized_query for keyword in ["수주", "실적", "계약", "매출"]):
+    if is_won_summary:
         return StructuredQueryIntent(
             intent_type="period_summary",
             summary_domain="won",
             metric_label="수주 실적",
             source_types=["WON", "ORDER_REPORT", "CONTRACT", "ATTACHMENT"],
+            time_from=normalization.time_range.start_at,
+            time_to=normalization.time_range.end_at,
+            time_label=normalization.time_range.label,
+        )
+
+    # 청구 기반 period summary — 시간 범위 + billing 키워드만 있어도 진입
+    # (summary_intent 미요구 — "지난달 청구 건" 같은 자연스러운 질의 대응)
+    if any(keyword in normalized_query for keyword in ["청구", "수금", "발행", "세금계산서", "미수금"]):
+        return StructuredQueryIntent(
+            intent_type="period_summary",
+            summary_domain="billing",
+            metric_label="청구·수금",
+            source_types=["BILLING"],
             time_from=normalization.time_range.start_at,
             time_to=normalization.time_range.end_at,
             time_label=normalization.time_range.label,

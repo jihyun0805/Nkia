@@ -194,7 +194,7 @@ def apply_slot_policy(
         applied_defaults.append("time_range:recent->90d")
     slots["time_range"] = time_slot
 
-    metric_slot = build_metric_slot(graph_state)
+    metric_slot = build_metric_slot(graph_state, query=query)
     slots["metric"] = metric_slot
 
     graph_state.slots = slots
@@ -313,7 +313,7 @@ def build_time_slot(*, graph_state: GraphState, query: str) -> GraphSlotEntry:
     )
 
 
-def build_metric_slot(graph_state: GraphState) -> GraphSlotEntry:
+def build_metric_slot(graph_state: GraphState, query: str = "") -> GraphSlotEntry:
     if graph_state.intent not in RANK_INTENTS:
         return GraphSlotEntry(
             value=graph_state.aggregation.metric,
@@ -328,6 +328,49 @@ def build_metric_slot(graph_state: GraphState) -> GraphSlotEntry:
             status="INFERRED",
             priority="REQUIRED",
             source="aggregation_parser",
+        )
+
+    # 위험/리스크/이슈 + ranking → 기본 metric 추론으로 clarification 대신 답변 시도
+    # focus 는 slot_policy 보다 늦게 설정되므로 query 자체에서 직접 감지
+    query_lower = (query or "").lower()
+    if any(kw in query_lower for kw in ("위험", "리스크", "이슈")):
+        return GraphSlotEntry(
+            value="risk_factor_count",
+            status="INFERRED",
+            priority="REQUIRED",
+            source="risk_focus_default",
+        )
+    # 급함/우선순위 → 최근 활동/PRB 기준
+    if any(kw in query_lower for kw in ("급한", "급해", "긴급", "우선", "임박")):
+        return GraphSlotEntry(
+            value="recency_score",
+            status="INFERRED",
+            priority="REQUIRED",
+            source="urgency_default",
+        )
+    # 크기/금액 ranking — "가장 큰", "최대", "Top" 등 → 금액/예상사업비
+    if any(kw in query_lower for kw in ("가장 큰", "가장큰", "제일 큰", "제일큰", "최대", "큰 사업", "큰사업")):
+        return GraphSlotEntry(
+            value="expected_amount",
+            status="INFERRED",
+            priority="REQUIRED",
+            source="size_default",
+        )
+    # 작은/적은 → 동일 금액 (오름차순 sort 는 별도 처리)
+    if any(kw in query_lower for kw in ("가장 작은", "가장작은", "제일 작은", "최소")):
+        return GraphSlotEntry(
+            value="expected_amount",
+            status="INFERRED",
+            priority="REQUIRED",
+            source="size_default",
+        )
+    # 최근/오래된 → 시간
+    if any(kw in query_lower for kw in ("가장 최근", "최신", "오래된", "가장 오래")):
+        return GraphSlotEntry(
+            value="recency_score",
+            status="INFERRED",
+            priority="REQUIRED",
+            source="recency_default",
         )
 
     return GraphSlotEntry(

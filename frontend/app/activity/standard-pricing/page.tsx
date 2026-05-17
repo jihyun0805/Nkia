@@ -18,10 +18,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import {
-  standardPriceNotes,
-  type StandardPriceRecord,
-} from "@/lib/activity-data"
+import { standardPriceNotes, type StandardPriceRecord } from "@/lib/activity-data"
 import { Plus, Trash2 } from "lucide-react"
 
 const STANDARD_PRICE_STORAGE_KEY = "orbis.activity.standardPrices"
@@ -344,25 +341,19 @@ export default function StandardPricingPage() {
                             <TableCell className="bg-white px-2 py-2 text-right text-sm align-top">
                               <Input
                                 value={row.unitPrice}
-                                onChange={(e) =>
-                                  handleStandardPriceChange(row.id, "unitPrice", e.target.value)
-                                }
+                                onChange={(e) => handleStandardPriceChange(row.id, "unitPrice", e.target.value)}
                                 className="h-8 rounded-none border-0 bg-transparent px-0 text-right text-sm shadow-none"
                               />
                             </TableCell>
                             <TableCell className="bg-white px-2 py-2 text-right text-sm align-top">
                               <Input
                                 value={row.discountRate}
-                                onChange={(e) =>
-                                  handleStandardPriceChange(row.id, "discountRate", e.target.value)
-                                }
+                                onChange={(e) => handleStandardPriceChange(row.id, "discountRate", e.target.value)}
                                 className="h-8 rounded-none border-0 bg-transparent px-0 text-right text-sm shadow-none"
                               />
                             </TableCell>
                             <TableCell className="bg-white px-2 py-2 text-right text-sm font-medium align-top">
-                              <p>
-                                {formatWon(calculateProposalPrice(row.unitPrice, row.discountRate))}
-                              </p>
+                              <p>{formatWon(calculateProposalPrice(row.unitPrice, row.discountRate))}</p>
                             </TableCell>
                             <TableCell className="bg-white px-2 py-2 text-right align-top">
                               <div className="flex justify-end">

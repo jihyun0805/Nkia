@@ -2,11 +2,13 @@
 
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
-import { UserPicker } from "@/components/erp/user-picker"
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
+import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { useBackendUsers } from "@/lib/use-backend-users"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,6 +45,8 @@ import {
   updateBackendProjectOpportunity,
 } from "@/lib/finding-backend"
 import { currentUser, isSalesUser } from "@/lib/current-user"
+import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
@@ -57,7 +61,6 @@ type ContactDraft = {
   email: string
   mobilePhone: string
   landlinePhone: string
-  fax: string
   duty: string
   memo: string
   businessCardImage: string
@@ -75,7 +78,6 @@ function createEmptyContactDraft(): ContactDraft {
     email: "",
     mobilePhone: "",
     landlinePhone: "",
-    fax: "",
     duty: "",
     memo: "",
     businessCardImage: "",
@@ -93,7 +95,6 @@ function toContactDrafts(partner: PartnerRecord | null) {
         email: partner.email ?? "",
         mobilePhone: partner.mobilePhone ?? partner.phone ?? "",
         landlinePhone: partner.landlinePhone ?? "",
-        fax: partner.fax ?? "",
         duty: partner.duty ?? "",
         memo: partner.memo ?? "",
         businessCardImage: "",
@@ -106,7 +107,6 @@ function toContactDrafts(partner: PartnerRecord | null) {
     email: contact.email ?? "",
     mobilePhone: contact.mobilePhone ?? "",
     landlinePhone: contact.landlinePhone ?? "",
-    fax: contact.fax ?? "",
     duty: contact.duty ?? "",
     memo: contact.memo ?? "",
     businessCardImage: contact.businessCardImage ?? "",
@@ -114,7 +114,7 @@ function toContactDrafts(partner: PartnerRecord | null) {
 }
 
 function hasContactValue(contact: ContactDraft) {
-  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.fax, contact.duty, contact.memo].some(
+  return [contact.name, contact.position, contact.department, contact.email, contact.mobilePhone, contact.landlinePhone, contact.duty, contact.memo].some(
     (value) => value.trim(),
   )
 }
@@ -123,6 +123,10 @@ function keepExistingValue(currentValue: string | undefined, nextValue: string |
   const trimmedNext = String(nextValue ?? "").trim()
   if (trimmedNext) return trimmedNext
   return currentValue ?? ""
+}
+
+function normalizeCompanyName(value: string) {
+  return value.replace(/[\s\u00A0]+/g, "").trim().toLowerCase()
 }
 
 function mapOpportunityProductClass(value: string) {
@@ -294,7 +298,7 @@ export default function FindingEditPage() {
   const [customerGroup, setCustomerGroup] = useState("민간")
   const [salesRep, setSalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
   const [salesRepUserId, setSalesRepUserId] = useState<string | null>(null)
-  const editPageUsers = useBackendUsers()
+  const backendUsers = useBackendUsers()
   const [businessType, setBusinessType] = useState("")
   const [moduleName, setModuleName] = useState("")
   const [issue, setIssue] = useState("")
@@ -314,6 +318,81 @@ export default function FindingEditPage() {
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
+  const partnerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
+    () =>
+      partners.map((partner) => ({
+        id: partner.id,
+        label: partner.name,
+        subtitle: partner.type || undefined,
+      })),
+    [partners],
+  )
+  const partnerLocalSuggestions = useMemo<EntitySuggestion[]>(
+    () =>
+      partners.map((partner) => ({
+        type: "PARTNER" as const,
+        id: partner.id,
+        code: partner.id,
+        label: partner.name,
+        subtitle: partner.type || null,
+        score: 0,
+        matchedBy: "fuzzy" as const,
+        metadata: {},
+      })),
+    [partners],
+  )
+
+  // 챗봇 edit_field action 으로 페이지가 열렸을 때 query 의 chatbotPrefill_* 값을 폼에 반영
+  const { values: chatbotPrefillValues, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+
+  useEffect(() => {
+    if (loading) return
+    if (!hasChatbotPrefill) return
+    if (prefillAppliedRef.current) return
+    prefillAppliedRef.current = true
+    const summary: string[] = []
+    const v = chatbotPrefillValues
+    if (v.sales_representative_name) {
+      setSalesRep(v.sales_representative_name)
+      summary.push(`영업대표 → ${v.sales_representative_name}`)
+    }
+    if (v.issue_content) {
+      setIssue(v.issue_content)
+      summary.push(`이슈 → ${v.issue_content}`)
+    }
+    if (v.main_content) {
+      setMemo(v.main_content)
+      summary.push(`주요 내용 → ${v.main_content}`)
+    }
+    if (v.competitor_status) {
+      setCompetition(v.competitor_status)
+      summary.push(`경쟁 상황 → ${v.competitor_status}`)
+    }
+    if (v.expected_amount) {
+      setExpectedAmount(v.expected_amount)
+      summary.push(`예상 사업비 → ${v.expected_amount}`)
+    }
+    if (v.business_type) {
+      setBusinessType(v.business_type)
+      summary.push(`사업유형 → ${v.business_type}`)
+    }
+    if (v.stage) {
+      // stage 는 backend enum; 폼은 status 로 표시. 간단히 status 도 같이 동기화 (필요 시 mapping)
+      setStatus(v.stage)
+      summary.push(`현재 단계 → ${v.stage}`)
+    }
+    if (summary.length > 0) {
+      toast({
+        title: "챗봇에서 폼 prefill 반영",
+        description: summary.join(" / ") + " — 확인 후 저장하세요.",
+      })
+    }
+    // URL 정리 (필드 적용 후)
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, hasChatbotPrefill])
 
   useEffect(() => {
     let cancelled = false
@@ -347,6 +426,7 @@ export default function FindingEditPage() {
             setExpectedAmount(opportunity.expectedAmount === "-" ? "" : opportunity.expectedAmount)
             setCustomerGroup(opportunity.category)
             setSalesRep(opportunity.salesRep)
+            setSalesRepUserId(opportunity.salesRepresentativeId ?? null)
             setBusinessType(opportunity.product)
             setModuleName(opportunity.module === "-" ? "" : opportunity.module)
             setIssue(opportunity.issue === "-" ? "" : opportunity.issue)
@@ -384,6 +464,16 @@ export default function FindingEditPage() {
       cancelled = true
     }
   }, [category, id])
+
+  useEffect(() => {
+    if (category !== "opportunities") return
+    if (salesRepUserId || !salesRep.trim() || backendUsers.length === 0) return
+
+    const matchedSalesRep = backendUsers.find((user) => user.id === salesRep.trim() || user.name === salesRep.trim())
+    if (matchedSalesRep) {
+      setSalesRepUserId(matchedSalesRep.id)
+    }
+  }, [backendUsers, category, salesRep, salesRepUserId])
 
   const label = getFindingCategoryLabel(category)
   const tab = searchParams.get("tab") ?? category
@@ -476,7 +566,6 @@ export default function FindingEditPage() {
         email: keepExistingValue(currentContact.email, result.email),
         mobilePhone: keepExistingValue(currentContact.mobilePhone, result.mobile),
         landlinePhone: keepExistingValue(currentContact.landlinePhone, result.phone),
-        fax: keepExistingValue(currentContact.fax, result.fax),
         duty: keepExistingValue(currentContact.duty, result.role),
         businessCardImage,
       }
@@ -511,10 +600,10 @@ export default function FindingEditPage() {
       const filledContacts = contacts.filter(hasContactValue)
       const primaryContact = filledContacts[0]
 
-      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim() || !primaryContact?.mobilePhone.trim()) {
+      if (!normalizedName || !partnerType || !primaryContact?.name.trim() || !primaryContact?.email.trim()) {
         toast({
           title: "협력사 수정 확인",
-          description: "협력사명, 유형, 담당자 1의 성명, 이메일, 무선전화번호를 모두 입력해주십시오.",
+          description: "협력사명, 유형, 담당자 1의 성명, 이메일을 모두 입력해주십시오.",
         })
         return
       }
@@ -528,11 +617,11 @@ export default function FindingEditPage() {
         return
       }
 
-      const duplicatePartner = partners.find((partner) => partner.id !== id && partner.name.trim().toLowerCase() === normalizedName.toLowerCase()) ?? null
+      const duplicatePartner = partners.find((partner) => partner.id !== id && normalizeCompanyName(partner.name) === normalizeCompanyName(normalizedName)) ?? null
       if (duplicatePartner) {
         toast({
-          title: "협력사 수정 확인",
-          description: "같은 이름의 협력사가 이미 등록되어 있습니다.",
+          title: "협력사 중복 등록",
+          description: "이미 등록된 동일한 이름의 협력사가 있습니다.",
         })
         return
       }
@@ -749,7 +838,24 @@ export default function FindingEditPage() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>협력사명 *</Label>
-                        <Input value={partnerName} onChange={(event) => setPartnerName(event.target.value)} placeholder="협력사명을 입력하세요" />
+                        <EntityAutocomplete
+                          value={partnerName}
+                          target="partners"
+                          onValueChange={setPartnerName}
+                          onSelect={(suggestion) => {
+                            if (suggestion) setPartnerName(suggestion.label)
+                          }}
+                          allowCustomValue
+                          placeholder="협력사명을 입력하세요 (LG, 엘지, 엘쥐 등 유사 표기 자동 매칭)"
+                          emptyMessage="등록된 협력사가 없습니다."
+                          localCandidates={partnerLocalSuggestions}
+                        />
+                        <SimilarMatchHint
+                          query={partnerName}
+                          candidates={partnerSimilarCandidates}
+                          hintTitle="비슷한 협력사가 이미 등록되어 있어요"
+                          onPick={(candidate) => setPartnerName(candidate.label)}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>유형</Label>
@@ -895,7 +1001,7 @@ export default function FindingEditPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>무선전화번호 *</Label>
+                              <Label>무선전화번호</Label>
                               <Input
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -1004,10 +1110,11 @@ export default function FindingEditPage() {
               </CardHeader>
               <CardContent className="space-y-8">
                 <section className="space-y-4">
+                  <h2 className="text-base font-semibold">등록정보</h2>
                   <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>고객사명 *</Label>
-                        <CustomerAutocomplete
+                    <div className="space-y-2">
+                      <Label>고객사명 *</Label>
+                      <CustomerAutocomplete
                         value={customerName}
                         onSelect={(customer) => {
                           const resolvedCustomer = customers.find((item) => item.id === customer?.id || item.name === customer?.name) ?? customer
@@ -1024,55 +1131,31 @@ export default function FindingEditPage() {
                         }
                         placeholder="고객사명 일부를 입력해 기존 고객사를 선택하세요"
                       />
-                      {selectedCustomer ? <p className="text-xs text-muted-foreground">고객사 코드: {selectedCustomer.id}</p> : null}
-                    </div>
-                    <div className="space-y-2">
-                      <Label>고객군</Label>
-                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="선택하세요" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customerGroupOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>등록자</Label>
-                      <Input value={registrant} readOnly />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>영업대표</Label>
-                      <UserPicker
-                        value={salesRep}
-                        users={editPageUsers}
-                        onValueChange={setSalesRep}
-                        onSelect={(u) => {
-                          setSalesRep(u?.name ?? "")
-                          setSalesRepUserId(u?.id ?? null)
-                        }}
-                        placeholder="이름으로 영업대표를 검색하세요"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>사업명 *</Label>
-                      <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
+                      {selectedCustomer ? (
+                        <p className="text-xs text-muted-foreground">고객사 코드: {selectedCustomer.id}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">자동완성 목록에서 선택하면 고객사 코드가 함께 연결됩니다.</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>협력사명</Label>
                       <div className="space-y-2">
                         {partnerNames.map((partnerName, index) => (
                           <div key={`edit-opportunity-partner-${index}`} className="flex items-center gap-2">
-                            <Input
+                            <EntityAutocomplete
                               value={partnerName}
-                              onChange={(event) =>
-                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                              target="partners"
+                              onValueChange={(value) =>
+                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)))
                               }
+                              onSelect={(suggestion) => {
+                                if (!suggestion) return
+                                setPartnerNames((prev) => prev.map((item, itemIndex) => (itemIndex === index ? suggestion.label : item)))
+                              }}
+                              allowCustomValue
                               placeholder={index === 0 ? "협력사명을 입력하세요" : `협력사명 ${index + 1}`}
+                              emptyMessage="등록된 협력사가 없습니다."
+                              localCandidates={partnerLocalSuggestions}
                             />
                             <Button
                               type="button"
@@ -1094,8 +1177,41 @@ export default function FindingEditPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
+                      <Label>사업명 *</Label>
+                      <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>고객군</Label>
+                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="선택하세요" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customerGroupOptions.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>등록자</Label>
+                      <Input readOnly value={registrant} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>영업대표 *</Label>
+                      <UserIdPicker
+                        value={salesRepUserId ?? ""}
+                        users={backendUsers}
+                        onValueChange={setSalesRepUserId}
+                        placeholder={backendUsers.length === 0 ? "사용자 목록을 불러오는 중..." : "영업대표를 선택하세요"}
+                        disabled={backendUsers.length === 0}
+                      />
+                    </div>
+                    <div className="space-y-2">
                       <Label>예상 입찰 또는 계약 시점</Label>
-                      <Input value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} placeholder="예: 2026년 3분기" />
+                      <Input type="date" value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label>예상 예산 또는 매출</Label>

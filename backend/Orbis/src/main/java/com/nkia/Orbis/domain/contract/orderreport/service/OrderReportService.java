@@ -133,7 +133,8 @@ public class OrderReportService {
                 contractCounterpartManager,
                 finalCustomerCompany,
                 finalCustomerManager,
-                request.getItemTotalMaintenanceRate()
+                request.getItemTotalMaintenanceRate(),
+                request.getVatType()
         );
 
         projectOpportunity.assignOrderReport(orderReport);
@@ -232,6 +233,7 @@ public class OrderReportService {
 
         orderReport.update(
                 request.getType(),
+                request.getVatType(),
                 request.getPaymentCondition(),
                 request.isQuotationProvided(),
                 request.isContractProvided(),

@@ -149,7 +149,7 @@ export default function AdminEditPage() {
         })
       }
       toast.success(`${label} 수정이 완료되었습니다.`)
-      router.push(`/admin/${category}/${id}`)
+      router.push(category === "departments" ? "/admin" : `/admin/${category}/${id}`)
     } catch (e: any) {
       console.error(e)
       toast.error(`${label} 수정에 실패했습니다.`)
@@ -174,9 +174,13 @@ export default function AdminEditPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link href={`/admin/${category}/${id}`}>{id}</Link>
-                  </BreadcrumbLink>
+                  {category === "departments" ? (
+                    <span className="text-muted-foreground">{id}</span>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <Link href={`/admin/${category}/${id}`}>{id}</Link>
+                    </BreadcrumbLink>
+                  )}
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
@@ -252,12 +256,32 @@ export default function AdminEditPage() {
                     {category === "products" && (
                       <>
                         <div className="grid gap-4 md:grid-cols-2">
-                          <div className="space-y-2"><Label>제품 클래스 *</Label><Input value={formData.productClass || ""} onChange={(e) => handleInputChange("productClass", e.target.value)} /></div>
-                          <div className="space-y-2"><Label>제품 그룹 *</Label><Input value={formData.productGroup || ""} onChange={(e) => handleInputChange("productGroup", e.target.value)} /></div>
+                          <div className="space-y-2">
+                            <Label>제품분류 *</Label>
+                            <Select value={formData.productClass} onValueChange={(v) => handleInputChange("productClass", v)}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="제품분류 선택" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="EMS">EMS</SelectItem>
+                                <SelectItem value="DASHBOARD">DASHBOARD</SelectItem>
+                                <SelectItem value="DATACENTER">상면관리</SelectItem>
+                                <SelectItem value="RCA">RCA</SelectItem>
+                                <SelectItem value="DCA">DCA</SelectItem>
+                                <SelectItem value="ITSM">ITSM</SelectItem>
+                                <SelectItem value="ITAM">ITAM</SelectItem>
+                                <SelectItem value="SUPPORTING_TOOLS">SUPPORTING TOOLS</SelectItem>
+                                <SelectItem value="CLOUD">CLOUD</SelectItem>
+                                <SelectItem value="BSM">BSM</SelectItem>
+                                <SelectItem value="E2E">E2E</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2"><Label>제품군 *</Label><Input value={formData.productGroup || ""} onChange={(e) => handleInputChange("productGroup", e.target.value)} /></div>
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2"><Label>제품명 *</Label><Input value={formData.productName || ""} onChange={(e) => handleInputChange("productName", e.target.value)} /></div>
-                          <div className="space-y-2"><Label>단가 (원) *</Label><Input type="number" value={formData.unitPrice || ""} onChange={(e) => handleInputChange("unitPrice", e.target.value)} /></div>
+                          <div className="space-y-2"><Label>단가(천 원) *</Label><Input type="number" value={formData.unitPrice || ""} onChange={(e) => handleInputChange("unitPrice", e.target.value)} /></div>
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2"><Label>라이선스 기준</Label><Input value={formData.licenseStandard || ""} onChange={(e) => handleInputChange("licenseStandard", e.target.value)} /></div>
@@ -277,7 +301,7 @@ export default function AdminEditPage() {
 
                     <div className="flex justify-end gap-2 border-t pt-6">
                       <Button variant="outline" asChild>
-                        <Link href={`/admin/${category}/${id}`}>취소</Link>
+                        <Link href={category === "departments" ? "/admin" : `/admin/${category}/${id}`}>취소</Link>
                       </Button>
                       <Button onClick={handleSubmit} disabled={submitting}>
                         {submitting ? "수정 중..." : "수정"}

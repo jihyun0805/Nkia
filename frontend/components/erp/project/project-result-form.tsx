@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,24 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
     },
   });
 
+  // 챗봇 create_draft (project_result_report) prefill
+  const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill();
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!hasChatbotPrefill || prefillAppliedRef.current) return;
+    if (inheritedData) return;
+    prefillAppliedRef.current = true;
+    const slot = chatbotPrefill;
+    if (slot.customer_name) setValue("customerName", slot.customer_name);
+    if (slot.title || slot.opportunity_name) setValue("projectName", slot.title || slot.opportunity_name);
+    const applied = Object.keys(slot).length;
+    if (applied > 0) {
+      const id = window.setTimeout(() => clearChatbotPrefill(), 100);
+      return () => window.clearTimeout(id);
+    }
+    return undefined;
+  }, [hasChatbotPrefill]);
+
   // 선택 시 폼 업데이트
   const handleSelectReport = async (report: OrderReportListResponse) => {
     setSelectedReport(report);
@@ -80,8 +99,6 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
     try {
       const res = await orderReportApi.getOrderReport(report.id);
       const detail = res.data;
-      if (detail.contractStartDate) setValue("startDate", detail.contractStartDate);
-      if (detail.contractEndDate) setValue("endDate", detail.contractEndDate);
 
       if (!report.finalCustomerCompanyName && detail.finalCustomerCompanyName) {
         setValue("customerName", detail.finalCustomerCompanyName);
@@ -129,7 +146,11 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
 
     setIsSubmitting(true);
     try {
-      const res = await projectApi.createProject({ orderReportId });
+      const res = await projectApi.createProject({ 
+        orderReportId,
+        startDate: _data.startDate,
+        endDate: _data.endDate,
+      });
       // 생성된 사업 상세 조회
       const detail = await projectApi.getProject(res.data.id);
       setCreatedProject(detail.data);
@@ -285,13 +306,13 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
               {/* 사업개시일 */}
               <div className="space-y-2">
                 <Label htmlFor="startDate">사업개시일</Label>
-                <Input id="startDate" type="date" {...register("startDate")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
+                <Input id="startDate" type="date" {...register("startDate")} placeholder="사업개시일 선택" />
               </div>
 
               {/* 사업완료일 */}
               <div className="space-y-2">
                 <Label htmlFor="endDate">사업완료일</Label>
-                <Input id="endDate" type="date" {...register("endDate")} readOnly className="bg-muted" placeholder="수주보고서에서 자동 연동" />
+                <Input id="endDate" type="date" {...register("endDate")} placeholder="사업완료일 선택" />
               </div>
 
               {/* PM 이름 */}

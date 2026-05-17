@@ -328,11 +328,6 @@ export default function ActivityPage() {
       })
   }, [filteredActivities])
 
-  const previewActivityCustomerCards = useMemo(
-    () => activityCustomerCards.slice(0, 10),
-    [activityCustomerCards],
-  )
-
   if (!isMounted) {
     return null
   }
@@ -366,20 +361,29 @@ export default function ActivityPage() {
         <main className="flex-1 overflow-auto p-6">
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "activities" | "quotations" | "requests")} className="space-y-6">
             <div className="flex items-center justify-between">
-              <TabsList>
-                <TabsTrigger value="activities" className="gap-2">
-                  <Calendar className="w-4 h-4" />
-                  활동 현황
-                </TabsTrigger>
-                <TabsTrigger value="quotations" className="gap-2">
-                  <FileText className="w-4 h-4" />
-                  견적 관리
-                </TabsTrigger>
-                <TabsTrigger value="requests" className="gap-2">
-                  <Users className="w-4 h-4" />
-                  활동 요청
-                </TabsTrigger>
-              </TabsList>
+              <div className="flex items-center gap-2">
+                <TabsList>
+                  <TabsTrigger value="activities" className="gap-2">
+                    <Calendar className="w-4 h-4" />
+                    활동 현황
+                  </TabsTrigger>
+                  <TabsTrigger value="quotations" className="gap-2">
+                    <FileText className="w-4 h-4" />
+                    견적 관리
+                  </TabsTrigger>
+                  <TabsTrigger value="requests" className="gap-2">
+                    <Users className="w-4 h-4" />
+                    활동 요청
+                  </TabsTrigger>
+                </TabsList>
+                {activeTab === "quotations" && (
+                  <Button asChild className="bg-primary hover:bg-primary/90">
+                    <Link href="/admin?tab=products">
+                      표준가격표
+                    </Link>
+                  </Button>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 <PageSearchForm
@@ -396,19 +400,6 @@ export default function ActivityPage() {
                   fieldOptions={activityFieldOptions}
                   showStatusFilter={activeTab !== "activities"}
                 />
-                {activeTab === "requests" && (
-                  <Button variant="outline" onClick={handleResetRequests}>
-                    초기화
-                  </Button>
-                )}
-                {activeTab === "quotations" && (
-                  <Button asChild className="bg-primary hover:bg-primary/90">
-                    <Link href="/activity/standard-pricing">
-                      <Plus className="mr-2 w-4 h-4" />
-                      표준가격표 등록
-                    </Link>
-                  </Button>
-                )}
                 <Button asChild className="bg-primary hover:bg-primary/90">
                   <Link href={`/activity/new/${activeTab}`}>
                     <Plus className="mr-2 w-4 h-4" />
@@ -426,16 +417,13 @@ export default function ActivityPage() {
                       <CardTitle className="text-lg">고객사별 활동 현황</CardTitle>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">{activityCustomerCards.length}개 고객사</Badge>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href="/activity/customers">전체 보기</Link>
-                        </Button>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {previewActivityCustomerCards.length > 0 ? (
+                    {activityCustomerCards.length > 0 ? (
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                        {previewActivityCustomerCards.map((customer) => (
+                        {activityCustomerCards.map((customer) => (
                           <Link
                             key={customer.customer}
                             className={`min-h-[168px] rounded-xl border p-5 text-left transition-colors ${

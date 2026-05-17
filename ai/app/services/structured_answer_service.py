@@ -57,6 +57,14 @@ from app.repositories.backend_query_repository import (
     fetch_module_quotation_revenue_rows,
     fetch_entity_count,
     fetch_opportunity_list_rows,
+    fetch_billing_rows,
+    fetch_quarterly_won_trend,
+    fetch_rfp_to_won_conversion,
+    fetch_segment_aggregate,
+    fetch_won_with_outstanding_billing,
+    fetch_people_for_customer,
+    fetch_attendees_for_opportunity,
+    fetch_opportunity_people_meta,
 )
 from app.schemas.answer import AnswerEvidence, AnswerResponse
 from app.services.metric_registry import get_metric_spec
@@ -133,15 +141,33 @@ def answer_targeted_domain_query(
     normalized_query = normalization.normalized_query
     exact_codes = extract_business_codes(query)
 
-    exact_snapshot_response = answer_exact_code_snapshot_query(
-        query=query,
-        exact_codes=exact_codes,
-        limit=limit,
-        embedder=embedder,
-        user_context=user_context,
+    # 위험요인/리스크 질의는 generic snapshot 보다 risk-focused 답변 우선 (opp_code 동반 시)
+    risk_focused = is_entity_risk_focus_query(normalized_query, graph_state)
+    skip_exact_snapshot = risk_focused and any(c.startswith("AUTO-OPP-") or c.startswith("OPP-") for c in exact_codes)
+
+    # 도메인 키워드 명시된 query 도 generic snapshot 우회 (멀티턴 followup 포함)
+    _early_domain_kws = (
+        "결재선", "상신자", "결재 상태", "결재상태", "결재자",
+        "견적", "유지보수 활동", "유지보수 이력", "유지보수 내역",
+        "회의", "미팅", "활동",
+        "rfp 분석", "rfp 결과", "prb 결과", "prb 의견",
+        "입찰결과", "수주 결과", "라이선스",
+        "고객지원", "청구", "수금", "미수금",
+        "라이프사이클", "결재 진행", "결재 완료", "결재 대기",
     )
-    if exact_snapshot_response is not None:
-        return exact_snapshot_response
+    if any(kw in normalized_query for kw in _early_domain_kws):
+        skip_exact_snapshot = True
+
+    if not skip_exact_snapshot:
+        exact_snapshot_response = answer_exact_code_snapshot_query(
+            query=query,
+            exact_codes=exact_codes,
+            limit=limit,
+            embedder=embedder,
+            user_context=user_context,
+        )
+        if exact_snapshot_response is not None:
+            return exact_snapshot_response
 
     attachment_related_response = answer_attachment_related_opportunity_query(
         query=query,
@@ -167,6 +193,102 @@ def answer_targeted_domain_query(
             return None
         return build_maintenance_activity_rank_response(query=query, rows=rows[:3], limit=limit, embedder=embedder)
 
+    # 사람 메타 ("X 담당자 누구?", "X 영업대표", "X 참석자" 등) — billing 보다 먼저
+    people_response = answer_people_query(
+        query=query,
+        normalized_query=normalized_query,
+        limit=limit,
+        embedder=embedder,
+        user_context=user_context,
+    )
+    if people_response is not None:
+        return people_response
+
+    # cross-domain: 수주 후 미수금 — order_report ⨝ billing 명시적 join
+    is_won_outstanding_query = (
+        any(kw in normalized_query for kw in ("수주 완료", "수주완료", "수주된", "수주한", "수주"))
+        and any(kw in normalized_query for kw in ("미수금", "미수 금", "수금 안", "수금안 ", "회수 안", "회수안 "))
+    )
+    if is_won_outstanding_query:
+        rows = fetch_won_with_outstanding_billing(limit=20)
+        if rows:
+            return build_won_outstanding_response(query=query, rows=rows, embedder=embedder)
+
+    # 분기별 추이 — "분기별 수주 추이" / "분기 매출 추이" 등
+    is_quarterly_trend = (
+        ("분기" in normalized_query and any(k in normalized_query for k in ("추이", "변화", "흐름", "트렌드")))
+        or ("분기별" in normalized_query and any(k in normalized_query for k in ("수주", "매출", "실적", "계약")))
+    )
+    if is_quarterly_trend:
+        trend = fetch_quarterly_won_trend(years_back=2)
+        if trend:
+            return build_quarterly_trend_response(query=query, trend=trend, embedder=embedder)
+
+    # RFP→수주 전환율 — "RFP 분석 완료 후 수주된 사업 비율"
+    is_rfp_conversion = (
+        any(k in normalized_query for k in ("rfp 분석", "rfp분석", "rfp 후", "rfp 완료"))
+        and any(k in normalized_query for k in ("수주", "수주율", "전환", "비율", "확률"))
+    )
+    if is_rfp_conversion:
+        conv = fetch_rfp_to_won_conversion()
+        if conv:
+            return build_rfp_conversion_response(query=query, conv=conv, embedder=embedder)
+
+    # segment 비교 (공공 vs 민간) — sector aggregate
+    is_sector_compare = (
+        ("공공" in normalized_query and "민간" in normalized_query)
+        or "공공 vs 민간" in normalized_query
+        or "민간 vs 공공" in normalized_query
+        or ("공공" in normalized_query and ("수주" in normalized_query or "비율" in normalized_query) and any(c in normalized_query for c in ("비교", "vs", "차이")))
+    )
+    if is_sector_compare:
+        agg = fetch_segment_aggregate(segment="sector")
+        if agg and agg.get("by_sector"):
+            return build_segment_compare_response(query=query, agg=agg, embedder=embedder)
+
+    if is_billing_query(normalized_query):
+        billing_customer = extract_customer_name_for_billing(query=query)
+        billing_code = extract_business_codes(query)
+        opp_code_for_billing = billing_code[0] if billing_code else None
+        # entity scope guard: query 본문에 회사명/사업코드 명시 없으면 BILLING 전체 집계 분기 차단.
+        # follow-up ("그 사업 청구 현황") 처럼 직전 turn 의 entity 가 의도된 케이스는
+        # discovery (LLM grounded) 로 fall-through 시켜 history context + entity 일치 evidence 만 사용.
+        if not billing_customer and not opp_code_for_billing:
+            return None
+        # 질문에서 상태 필터 추출 (비율 질문은 전체 모집단을 보아야 하므로 필터를 적용하지 않음)
+        billing_statuses: list[str] | None = None
+        is_ratio_query = "비율" in normalized_query or "퍼센트" in normalized_query or "%" in normalized_query
+        if is_ratio_query:
+            billing_statuses = None
+        elif any(kw in normalized_query for kw in ("결재 안", "결재안", "결재 전", "미결재", "결재 대기", "상신만", "상신 만")):
+            billing_statuses = ["REQUESTED"]
+        elif any(kw in normalized_query for kw in ("결재 완료", "결재완료", "승인된", "승인 완료")):
+            billing_statuses = ["APPROVED", "ISSUED", "COLLECTED"]
+        elif "미수금" in normalized_query or "발행만" in normalized_query or "발행 만" in normalized_query:
+            billing_statuses = ["ISSUED"]
+        elif "수금 완료" in normalized_query or "수금완료" in normalized_query:
+            billing_statuses = ["COLLECTED"]
+        # 금액 범위 필터 — "1억 이상", "5천만원 이하", "1000만원 이상" 같은 패턴
+        billing_min_amount, billing_max_amount = _extract_billing_amount_range(normalized_query)
+        # 시간 필터 — graph_state.timeRange 또는 normalization.time_range 활용
+        billing_start_at = start_at or normalization.time_range.start_at
+        billing_end_at = end_at or normalization.time_range.end_at
+        billing_rows = fetch_billing_rows(
+            opportunity_code=opp_code_for_billing,
+            customer_name_term=billing_customer,
+            statuses=billing_statuses,
+            min_amount=billing_min_amount,
+            max_amount=billing_max_amount,
+            start_at=billing_start_at,
+            end_at=billing_end_at,
+        )
+        if billing_rows:
+            time_label = normalization.time_range.label
+            return build_billing_summary_response(
+                query=query, rows=billing_rows, limit=limit, embedder=embedder,
+                time_label=time_label,
+            )
+
     if is_entity_count_query(normalized_query):
         if user_context is not None and not user_context.is_unrestricted():
             return None
@@ -179,16 +301,30 @@ def answer_targeted_domain_query(
                 )
 
     if is_opportunity_list_query(normalized_query):
-        rows = fetch_opportunity_list_rows(limit=50)
-        rows = filter_opportunity_list_rows_for_query(query=query, rows=rows)
-        rows = [
-            row for row in rows
+        all_opp_rows = fetch_opportunity_list_rows(limit=50)
+        filtered_opp_rows = filter_opportunity_list_rows_for_query(query=query, rows=all_opp_rows)
+        filtered_opp_rows = [
+            row for row in filtered_opp_rows
             if _can_access_opportunity_code(user_context, row.get("opportunity_code"))
         ]
-        if rows:
-            return build_opportunity_list_response(
-                query=query, rows=rows, limit=limit, embedder=embedder
+        if filtered_opp_rows:
+            specific_customer = extract_specific_customer_from_filtered(
+                query=query, all_rows=all_opp_rows, filtered_rows=filtered_opp_rows
             )
+            if specific_customer is not None:
+                if len(filtered_opp_rows) > 1:
+                    return build_opportunity_disambiguation_response(
+                        query=query, rows=filtered_opp_rows, customer_name=specific_customer, embedder=embedder
+                    )
+                if not is_status_query(normalized_query):
+                    return build_opportunity_list_response(
+                        query=query, rows=filtered_opp_rows, limit=limit, embedder=embedder
+                    )
+                # 단일 사업기회 + 상태 쿼리 → resolve_primary_opportunity 로 fall-through
+            else:
+                return build_opportunity_list_response(
+                    query=query, rows=filtered_opp_rows, limit=limit, embedder=embedder
+                )
 
     if is_module_revenue_query(normalized_query):
         if user_context is not None and not user_context.is_unrestricted():
@@ -523,6 +659,28 @@ def answer_targeted_domain_query(
                 embedder=embedder,
             )
 
+    # 도메인 키워드가 명시된 질의는 generic opportunity_status 응답으로 떨어뜨리지 않고
+    # discovery 라우팅(LLM)에게 양보 — generic snapshot 은 PRB/견적/유지보수 디테일을 안 담음
+    # status_query check 보다 먼저 평가 (멀티턴 followup query 도 여기서 잡힘)
+    domain_specific_keywords = (
+        "견적", "프로포잘", "제안서",
+        "유지보수 활동", "유지보수 이력", "유지보수 내역", "유지보수",
+        "활동", "회의", "미팅",
+        "결재", "결재선", "상신자", "결재 상태", "결재상태", "결재자",
+        "결재 진행", "결재 완료", "결재 대기", "상신",
+        "rfp 분석", "rfp 결과",
+        "prb 결과", "prb 의견", "prb 종합",
+        "입찰결과", "입찰 결과", "입찰",
+        "수주 결과", "수주결과", "수주보고", "수주 보고", "수주보고서", "수주",
+        "라이선스", "라이센스",
+        "고객지원", "고객 지원",
+        "청구", "수금", "미수금", "세금계산서",
+        "라이프사이클", "전체 라이프사이클",
+        "위험요인", "리스크", "이슈",
+    )
+    if any(kw in normalized_query for kw in domain_specific_keywords):
+        return None  # discovery 가 PRB/QUOTATION/CUSTOMER_SUPPORT chunk 활용해서 답변
+
     if is_status_query(normalized_query):
         snapshot = fetch_opportunity_snapshot(opportunity_code=opportunity_code)
         if snapshot is not None:
@@ -783,6 +941,25 @@ def answer_structured_query(
             return build_empty_structured_response(query=query, embedder=embedder)
         return build_won_summary_response(query=query, intent=intent, summary=summary, limit=limit, embedder=embedder)
 
+    if intent.intent_type == "period_summary" and intent.summary_domain == "billing":
+        if user_context is not None and not user_context.is_unrestricted():
+            return None
+        try:
+            rows = fetch_billing_rows(
+                start_at=intent.time_from,
+                end_at=intent.time_to,
+                limit=500,
+            )
+        except psycopg.Error as exc:
+            logger.warning("Structured billing-period query failed: %s", exc)
+            return build_structured_data_unavailable_response(query=query, embedder=embedder)
+        if not rows:
+            return build_empty_structured_response(query=query, embedder=embedder)
+        return build_billing_summary_response(
+            query=query, rows=rows, limit=limit, embedder=embedder,
+            time_label=intent.time_label,
+        )
+
     if intent.intent_type == "aggregate_total" and intent.metric_key and intent.metric_label:
         if user_context is not None and not user_context.is_unrestricted():
             return None
@@ -876,6 +1053,51 @@ def answer_graph_structured_extension(
 
     normalized_q = " ".join(query.lower().split())
 
+    people_response = answer_people_query(
+        query=query,
+        normalized_query=normalized_q,
+        limit=limit,
+        embedder=embedder,
+        user_context=user_context,
+    )
+    if people_response is not None:
+        return people_response
+
+    if is_billing_query(normalized_q):
+        billing_customer = extract_customer_name_for_billing(query=query)
+        billing_code = extract_business_codes(query)
+        opp_code_for_billing = billing_code[0] if billing_code else None
+        # 시간 필터 — graph_state.timeRange 활용
+        gs_time_range = getattr(graph_state, "timeRange", None)
+        billing_start_at = getattr(gs_time_range, "startAt", None) if gs_time_range else None
+        billing_end_at = getattr(gs_time_range, "endAt", None) if gs_time_range else None
+        billing_time_label = getattr(gs_time_range, "label", None) if gs_time_range else None
+        # 상태 필터 — answer_targeted_domain_query 와 동일
+        billing_statuses_g: list[str] | None = None
+        is_ratio_q = "비율" in normalized_q or "퍼센트" in normalized_q
+        if is_ratio_q:
+            billing_statuses_g = None
+        elif any(kw in normalized_q for kw in ("결재 안", "결재안", "결재 전", "미결재", "결재 대기", "상신만", "상신 만")):
+            billing_statuses_g = ["REQUESTED"]
+        elif any(kw in normalized_q for kw in ("결재 완료", "결재완료", "승인된", "승인 완료")):
+            billing_statuses_g = ["APPROVED", "ISSUED", "COLLECTED"]
+        elif "미수금" in normalized_q or "발행만" in normalized_q:
+            billing_statuses_g = ["ISSUED"]
+        elif "수금 완료" in normalized_q or "수금완료" in normalized_q:
+            billing_statuses_g = ["COLLECTED"]
+        billing_rows = fetch_billing_rows(
+            opportunity_code=opp_code_for_billing,
+            customer_name_term=billing_customer,
+            start_at=billing_start_at,
+            end_at=billing_end_at,
+            statuses=billing_statuses_g,
+        )
+        if billing_rows:
+            return build_billing_summary_response(
+                query=query, rows=billing_rows, limit=limit, embedder=embedder,
+                time_label=billing_time_label,
+            )
+
     if is_entity_count_query(normalized_q):
         if user_context is not None and not user_context.is_unrestricted():
             return None
@@ -888,12 +1110,19 @@ def answer_graph_structured_extension(
                 )
 
     if is_opportunity_list_query(normalized_q):
-        rows = fetch_opportunity_list_rows(limit=50)
-        rows = filter_opportunity_list_rows_for_query(query=query, rows=rows)
-        rows = [row for row in rows if _can_access_opportunity_code(user_context, row.get("opportunity_code"))]
-        if rows:
+        all_opp_rows = fetch_opportunity_list_rows(limit=50)
+        filtered_opp_rows = filter_opportunity_list_rows_for_query(query=query, rows=all_opp_rows)
+        filtered_opp_rows = [row for row in filtered_opp_rows if _can_access_opportunity_code(user_context, row.get("opportunity_code"))]
+        if filtered_opp_rows:
+            specific_customer = extract_specific_customer_from_filtered(
+                query=query, all_rows=all_opp_rows, filtered_rows=filtered_opp_rows
+            )
+            if specific_customer is not None and len(filtered_opp_rows) > 1:
+                return build_opportunity_disambiguation_response(
+                    query=query, rows=filtered_opp_rows, customer_name=specific_customer, embedder=embedder
+                )
             return build_opportunity_list_response(
-                query=query, rows=rows, limit=limit, embedder=embedder
+                query=query, rows=filtered_opp_rows, limit=limit, embedder=embedder
             )
 
     if is_module_revenue_query(normalized_q):
@@ -1928,7 +2157,15 @@ def build_detail_line(*, intent: StructuredQueryIntent, row: dict[str, Any]) -> 
 def build_empty_structured_response(*, query: str, embedder: EmbeddingModel) -> AnswerResponse:
     return AnswerResponse(
         query=query,
-        answer="조건에 맞는 정형 데이터가 없어 답변을 구성하지 못했습니다.",
+        answer=(
+            "조건에 맞는 정형 데이터를 바로 집계하지 못했어요. 😅\n\n"
+            "이렇게 시도해 보세요:\n"
+            "- 사업명/고객사명/사업 코드를 함께 적으면 더 정확합니다 (예: 'AUTO-OPP-2026-101')\n"
+            "- 기간을 명시하면 좋습니다 (예: '이번 달', '2026년 상반기')\n"
+            "- 분석/조언 질문은 '신한은행 PRB 위험요인 알려줘' 처럼 구체 도메인을 함께 적어주세요\n"
+            "- 액션이 필요하면 'X 담당자 Y로 수정해줘' 또는 'X 사업 PRB 보고서 작성해줘' 처럼 명령형으로\n\n"
+            "다시 질문해 주시면 도와드릴게요. 🙌"
+        ),
         embeddingModel=embedder.config.model_name,
         chatModel="structured-rule-engine",
         answerStatus="insufficient_evidence",
@@ -2033,16 +2270,31 @@ def build_opportunity_status_response(
     embedder: EmbeddingModel,
 ) -> AnswerResponse:
     canonical = adapt_opportunity_snapshot(snapshot)
+    # 상태별 한글 라벨로 풀어 자연스럽게
+    stage_label_map = {
+        "FINDING": "발굴", "ACTIVITY": "영업활동", "BID": "입찰 진행",
+        "CONTRACT": "계약 진행", "PROJECT": "프로젝트 수행", "MAINTENANCE": "유지보수",
+        "POST_SALES": "사후영업", "WON": "수주 완료", "LOST": "실주",
+    }
+    stage = canonical.currentStatus or ""
+    stage_kor = stage_label_map.get(stage.upper(), stage or "미기재")
+    intro = (
+        f"{canonical.opportunityName}은(는) 현재 **{stage_kor}** 단계예요."
+        if stage else
+        f"{canonical.opportunityName}의 현재 단계는 확인되지 않았어요."
+    )
     answer = "\n".join(
         [
-            f"핵심 결론: {canonical.opportunityName}의 현재 상태는 {canonical.currentStatus or '미기재'}입니다.",
+            intro,
             "",
-            f"고객사: {canonical.customerName or '미기재'}",
-            f"사업유형: {canonical.businessType or '미기재'}",
-            f"예상 사업비: {format_number(canonical.expectedAmount)}",
-            f"주요 내용: {canonical.mainContent or '미기재'}",
-            f"이슈: {canonical.issueContent or '미기재'}",
-            f"경쟁 상황: {canonical.competitorStatus or '미기재'}",
+            f"• 고객사: {canonical.customerName or '미기재'}",
+            f"• 사업 유형: {canonical.businessType or '미기재'}",
+            f"• 예상 사업비: {format_number(canonical.expectedAmount)}",
+            f"• 주요 내용: {canonical.mainContent or '미기재'}",
+            f"• 이슈: {canonical.issueContent or '특이 이슈 없음'}",
+            f"• 경쟁 상황: {canonical.competitorStatus or '미기재'}",
+            "",
+            "더 자세히 보려면 사용 근거의 사업기회 화면을 열어보세요.",
         ]
     )
     evidences = build_snapshot_evidences(
@@ -3140,7 +3392,31 @@ def filter_opportunity_list_rows_for_query(*, query: str, rows: list[dict[str, A
     if is_private_customer_query(normalized_query):
         return [row for row in rows if is_private_customer_row(row)]
 
+    # 특정 고객사 이름이 쿼리에 직접 언급된 경우 해당 고객사 사업기회만 반환
+    customer_filtered = [row for row in rows if _is_customer_name_in_query(row, query)]
+    if customer_filtered:
+        return customer_filtered
+
     return rows
+
+
+def _is_customer_name_in_query(row: dict[str, Any], query: str) -> bool:
+    customer_name = str(row.get("customer_name") or "").strip()
+    if not customer_name or len(customer_name) < 2:
+        return False
+    return customer_name in query
+
+
+def extract_specific_customer_from_filtered(*, query: str, all_rows: list[dict[str, Any]], filtered_rows: list[dict[str, Any]]) -> str | None:
+    """필터링 결과가 특정 고객사 이름으로 좁혀진 경우 그 고객사명 반환."""
+    if len(filtered_rows) == len(all_rows):
+        return None
+    customer_names = {str(row.get("customer_name") or "").strip() for row in filtered_rows}
+    if len(customer_names) == 1:
+        name = next(iter(customer_names))
+        if name and name in query:
+            return name
+    return None
 
 
 def is_public_customer_query(normalized_query: str) -> bool:
@@ -3203,6 +3479,287 @@ def build_opportunity_list_response(
     )
 
 
+def build_opportunity_disambiguation_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    customer_name: str,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    lines = [f"{customer_name}의 사업기회가 {len(rows)}건 있습니다. 어떤 사업기회를 알고 싶으신가요?", ""]
+    for i, row in enumerate(rows, 1):
+        amount = format_number(row.get("expected_amount")) if row.get("expected_amount") else "금액 미기재"
+        lines.append(
+            f"{i}. [{row.get('opportunity_code') or '-'}] {row.get('opportunity_name') or '미기재'}"
+            f" ({row.get('current_status') or '미기재'} / {amount})"
+        )
+    lines.append("")
+    lines.append("사업코드나 사업명을 포함해서 다시 질문해 주세요.")
+    evidences = build_status_list_evidences(rows=rows)
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
+def build_rfp_conversion_response(
+    *,
+    query: str,
+    conv: dict[str, Any],
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """RFP 분석 완료 → 수주 전환율 응답."""
+    rfp_count = int(conv.get("rfp_count") or 0)
+    won_count = int(conv.get("won_count") or 0)
+    pct = f"{won_count*100/rfp_count:.1f}%" if rfp_count else "—"
+    lines = [
+        f"RFP 분석을 완료한 사업기회 중 수주 전환율은 **{pct}** 입니다.",
+        "",
+        f"- RFP 분석 완료: {rfp_count}건",
+        f"- 그 중 수주 완료(계약/프로젝트/유지보수/사후영업 단계 도달): {won_count}건",
+        "",
+    ]
+    if rfp_count:
+        try:
+            ratio = won_count / rfp_count
+            if ratio >= 0.5:
+                lines.append("→ RFP 분석 후 수주 가능성이 높은 편입니다.")
+            elif ratio >= 0.2:
+                lines.append("→ RFP 분석 단계에서 추가 검토·대응이 필요합니다.")
+            else:
+                lines.append("→ RFP 분석 완료 후 수주 전환이 낮으니 사유 분석이 필요합니다.")
+        except ZeroDivisionError:
+            pass
+    lines.append("\n다음에 볼 것: 실주 사례를 보려면 '실주한 사업 알려줘' 로 질문하세요.")
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=[],
+    )
+
+
+def build_quarterly_trend_response(
+    *,
+    query: str,
+    trend: list[dict[str, Any]],
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """분기별 수주 추이 응답."""
+    if not trend:
+        return AnswerResponse(
+            query=query,
+            answer="최근 2년간 수주 데이터가 충분하지 않아 추이를 보여드릴 수 없어요.",
+            embeddingModel=embedder.config.model_name,
+            chatModel="structured-rule-engine",
+            excludedSourceTypes=[],
+            evidences=[],
+        )
+
+    # 분기별 출력
+    lines = ["분기별 수주 추이는 다음과 같아요.\n"]
+    lines.append("| 분기      | 수주 건수 | 계약 합계      |")
+    lines.append("|-----------|-----------|----------------|")
+    prev_count = None
+    for row in trend:
+        year = int(row.get("year") or 0)
+        quarter = int(row.get("quarter") or 0)
+        count = int(row.get("won_count") or 0)
+        amount = int(row.get("contract_total") or 0)
+        direction = ""
+        if prev_count is not None:
+            if count > prev_count:
+                direction = " ↑"
+            elif count < prev_count:
+                direction = " ↓"
+        lines.append(f"| {year}년 {quarter}Q | {count:>9,}{direction} | {format_number(amount):>14} |")
+        prev_count = count
+
+    # 추세 한 줄
+    if len(trend) >= 2:
+        first = int(trend[0].get("won_count") or 0)
+        last = int(trend[-1].get("won_count") or 0)
+        if last > first:
+            trend_msg = "전반적으로 증가 추세입니다."
+        elif last < first:
+            trend_msg = "전반적으로 감소 추세입니다."
+        else:
+            trend_msg = "전반적으로 안정 추세입니다."
+        lines.append(f"\n→ {trend_msg}")
+    lines.append("\n다음에 볼 것: 특정 분기 사업기회를 보려면 '2026년 1분기 수주 사업' 으로 질문하세요.")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="ORDER_REPORT",
+            sourceId=f"{int(row['year'])}-Q{int(row['quarter'])}",
+            title=f"{int(row['year'])}년 {int(row['quarter'])}분기 수주",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["quarterly_aggregate"],
+            content=f"won={row['won_count']} total={row['contract_total']}",
+            metadata={"aggregateType": "quarterly"},
+        )
+        for row in trend[-4:]
+    ]
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
+def build_segment_compare_response(
+    *,
+    query: str,
+    agg: dict[str, Any],
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """공공 vs 민간 segment 비교 응답."""
+    rows = agg.get("by_sector") or []
+    by_sector: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        sector = (row.get("sector") or "").upper()
+        if sector in ("PUBLIC", "PRIVATE"):
+            by_sector[sector] = row
+    public = by_sector.get("PUBLIC", {})
+    private = by_sector.get("PRIVATE", {})
+
+    pub_total = int(public.get("contract_total") or 0)
+    pri_total = int(private.get("contract_total") or 0)
+    total = pub_total + pri_total
+    pub_pct = f"{pub_total*100/total:.1f}%" if total else "—"
+    pri_pct = f"{pri_total*100/total:.1f}%" if total else "—"
+
+    pub_opp = int(public.get("opportunity_count") or 0)
+    pri_opp = int(private.get("opportunity_count") or 0)
+    pub_won = int(public.get("won_count") or 0)
+    pri_won = int(private.get("won_count") or 0)
+    pub_orders = int(public.get("order_count") or 0)
+    pri_orders = int(private.get("order_count") or 0)
+
+    lines = [
+        f"결론: 공공 부문 계약 합계 {format_number(pub_total)} ({pub_pct}) vs "
+        f"민간 부문 {format_number(pri_total)} ({pri_pct}).",
+        "",
+        "── 부문별 상세 비교 ──",
+        f"| 지표        | 공공 (PUBLIC) | 민간 (PRIVATE) |",
+        f"|-------------|---------------|----------------|",
+        f"| 사업기회 수 | {pub_opp:>13,} | {pri_opp:>13,} |",
+        f"| 수주(완료/진행) 사업기회 | {pub_won:>4,} | {pri_won:>4,} |",
+        f"| 수주보고서 건수 | {pub_orders:>11,} | {pri_orders:>11,} |",
+        f"| 계약 합계 금액 | {format_number(pub_total):>14} | {format_number(pri_total):>14} |",
+        f"| 계약 합계 비율 | {pub_pct:>13} | {pri_pct:>13} |",
+        "",
+    ]
+    if pub_total > pri_total:
+        lines.append("→ 공공 부문 계약 규모가 더 큽니다.")
+    elif pri_total > pub_total:
+        lines.append("→ 민간 부문 계약 규모가 더 큽니다.")
+    else:
+        lines.append("→ 두 부문 계약 규모가 비슷합니다.")
+    lines.append("\n다음에 볼 것: 특정 부문 사업기회 목록을 보려면 '공공 고객사 사업기회' 등으로 질문하세요.")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="COMPANY",
+            sourceId=f"sector:{sector}",
+            title=f"{sector} 부문 집계",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["sector_aggregate"],
+            content=f"opportunity={row.get('opportunity_count')} won={row.get('won_count')} contract_total={row.get('contract_total')}",
+            metadata={"snapshotBased": True, "aggregateType": "sector"},
+        )
+        for sector, row in by_sector.items()
+    ]
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
+def build_won_outstanding_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """수주 후 미수금 사업기회 응답."""
+    total_outstanding = sum(int(r.get("outstanding_total") or 0) for r in rows)
+    total_count = len(rows)
+    total_billing_count = sum(int(r.get("outstanding_count") or 0) for r in rows)
+    lines: list[str] = []
+    lines.append(f"결론: 수주 후 미수금이 남은 사업기회는 총 {total_count}건, 미수금 합계 {format_number(total_outstanding)}입니다.")
+    lines.append("")
+    lines.append(f"왜냐하면: 청구 중 status='ISSUED'(발행 완료, 수금 전) 건이 {total_billing_count}건 존재합니다.")
+    lines.append("")
+    lines.append("── 사업별 미수금 (큰 순) ──")
+    for r in rows[:10]:
+        code = r.get("opportunity_code") or "-"
+        name = r.get("opportunity_name") or ""
+        cust = r.get("customer_name") or ""
+        outstanding = int(r.get("outstanding_total") or 0)
+        count = int(r.get("outstanding_count") or 0)
+        collected = int(r.get("collected_total") or 0)
+        line = (
+            f"• [{code}] {name} ({cust})\n"
+            f"  미수금 {format_number(outstanding)} ({count}건) / 수금 완료 {format_number(collected)}"
+        )
+        lines.append(line)
+    if total_count > 10:
+        lines.append(f"\n... 외 {total_count - 10}건")
+    lines.append("")
+    lines.append(f"다음에 볼 것: 각 사업의 청구 페이지에서 발행일·결재선 확인 후 수금 독촉.")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="PROJECT_OPPORTUNITY",
+            sourceId=str(r.get("opportunity_code") or ""),
+            title=f"{r.get('opportunity_name') or '사업'} 미수금",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["structured_join"],
+            content=f"미수금 {r.get('outstanding_total')}원 / {r.get('outstanding_count')}건",
+            metadata={"snapshotBased": True, "joinType": "won_outstanding"},
+        )
+        for r in rows[:5]
+    ]
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
 def build_entity_count_response(
     *,
     query: str,
@@ -3221,6 +3778,12 @@ def build_entity_count_response(
         "prb": "PRB",
         "bid": "입찰 결과",
         "proposal": "제안서",
+        "license": "라이선스",
+        "order_report": "수주보고서",
+        "billing": "청구",
+        "user": "사용자",
+        "company_customer": "고객사",
+        "company_partner": "협력사",
     }
     label = label_map.get(entity_type, entity_type)
     return AnswerResponse(
@@ -3714,6 +4277,18 @@ _RFP_ROW_QUERY_STOPWORDS = {
     "rfp", "분석", "검토", "검토내용", "검토내용과", "지원", "지원여부", "여부", "공수", "내용",
     "알려줘", "보여줘", "요약", "요약해줘", "에서", "관련", "어떻게", "되니", "것", "들", "중",
     "사업", "사업의", "사업을", "사항", "세부", "조회", "정리", "지금", "현재",
+    # 도메인/워크플로 noise — opportunity_name 의 부분 토큰으로 잘못 매칭되지 않도록
+    "청구", "청구서", "수금", "미수금", "세금계산서", "발행",
+    "결재", "결재자", "결재선", "결재라인", "상신", "상신자", "승인", "승인자", "반려",
+    "라이선스", "라이센스", "계약", "계약서", "수주", "수주보고서", "보고서",
+    "고객지원", "지원", "유지보수", "프로젝트", "프로젝트의",
+    "시스템", "관리", "통합", "운영", "운영자산",
+    # 회사/파트너 관련 generic terms
+    "파트너", "파트너스", "파트너사", "협력사", "벤더", "회사", "기업",
+    # 시간/모호 generic terms
+    "이번달", "이번주", "올해", "작년", "최근", "오래된", "빠른", "느린",
+    "위험", "위험요인", "리스크", "이슈", "문제", "급한", "긴급",
+    "어떤", "어느", "무슨", "뭐야", "있어", "없어",
 }
 
 _RFP_ROW_QUERY_ALIASES: dict[str, tuple[str, ...]] = {
@@ -4198,6 +4773,10 @@ def resolve_primary_opportunity_with_fallback(
     scored.sort(key=lambda item: (-item[0], str(item[1].get("opportunity_code") or "")))
     if not scored:
         return None
+    # entity hint 가 약한 query (예: "진행 단계 알려줘") 는 random match 차단.
+    # 회사명 직접 매치(12점) 이상만 신뢰 — 토큰 점수(3점)만으로는 임의 사업 lock 위험.
+    if scored[0][0] < 12:
+        return None
     if len(scored) == 1 or scored[0][0] >= scored[1][0] + 3:
         return scored[0][1]
     return None
@@ -4451,6 +5030,185 @@ def is_opportunity_list_query(normalized_query: str) -> bool:
     return has_opp and has_list
 
 
+def is_billing_query(normalized_query: str) -> bool:
+    return any(kw in normalized_query for kw in (
+        "청구", "수금", "미수금", "세금계산서", "청구금액", "청구 금액",
+        "발행금액", "발행 금액", "수금현황", "수금 현황", "청구현황", "청구 현황",
+        "미수", "invoice",
+    ))
+
+
+_AMOUNT_UNIT = {"억": 100_000_000, "천만": 10_000_000, "만": 10_000, "원": 1}
+
+
+def _extract_billing_amount_range(normalized_query: str) -> tuple[int | None, int | None]:
+    """질문에서 "X억 이상" / "X천만원 이하" / "X원 이상" 같은 패턴을 추출.
+
+    반환: (min_amount, max_amount)
+    """
+    min_amount: int | None = None
+    max_amount: int | None = None
+    # X억/X천만/X만 + (이상|초과|이하|미만)
+    patterns = [
+        (re.compile(r"(\d+)\s*억\s*(이상|초과|넘는|넘게|이하|미만|이내|이내인)"), 100_000_000),
+        (re.compile(r"(\d+)\s*천\s*만\s*원?\s*(이상|초과|넘는|넘게|이하|미만|이내|이내인)"), 10_000_000),
+        (re.compile(r"(\d+)\s*만\s*원\s*(이상|초과|넘는|넘게|이하|미만|이내|이내인)"), 10_000),
+    ]
+    for pat, unit in patterns:
+        for match in pat.finditer(normalized_query):
+            value = int(match.group(1)) * unit
+            modifier = match.group(2)
+            if modifier in ("이상", "초과", "넘는", "넘게"):
+                if min_amount is None or value > min_amount:
+                    min_amount = value
+            else:  # 이하/미만/이내
+                if max_amount is None or value < max_amount:
+                    max_amount = value
+    return min_amount, max_amount
+
+
+def extract_customer_name_for_billing(*, query: str) -> str | None:
+    """쿼리에서 회사명으로 보이는 짧은 명사구를 추출 (2~10자, 조사 제외)."""
+    stop_words = {
+        "청구", "수금", "미수금", "세금계산서", "현황", "알려줘", "보여줘", "파악", "조회",
+        "금액", "발행", "총", "전체", "사업기회", "사업", "계약", "프로젝트",
+        "결재", "결재완료", "완료된", "완료", "비율", "승인", "승인된", "상신", "상신만",
+        "미결재", "대기", "대기중", "결재대기", "발행만", "발행한", "수금된", "수금한",
+        "확인", "리스트", "목록", "건수", "통계", "분포", "어떤", "이번",
+        # 시간 표현 stopwords
+        "지난달", "이번달", "올해", "작년", "지난해", "최근", "이번주", "지난주",
+        "1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월",
+        "1분기", "2분기", "3분기", "4분기", "상반기", "하반기", "분기",
+        "2024년", "2025년", "2026년", "2027년", "년도", "년", "월", "일",
+        # 단위
+        "억", "천만원", "만원", "원", "원이상", "원이하", "이상", "이하", "초과", "미만",
+    }
+    tokens = re.findall(r"[가-힣A-Za-z0-9]+", query)
+    for token in tokens:
+        if 2 <= len(token) <= 10 and token not in stop_words:
+            return token
+    return None
+
+
+_BILLING_STATUS_LABEL: dict[str, str] = {
+    "REQUESTED": "발행 요청",
+    "APPROVED": "결재 완료",
+    "ISSUED": "발행 완료(미수금)",
+    "COLLECTED": "수금 완료",
+}
+
+
+def build_billing_summary_response(
+    *,
+    query: str,
+    rows: list[dict[str, Any]],
+    limit: int,
+    embedder: EmbeddingModel,
+    time_label: str | None = None,
+) -> AnswerResponse:
+    from collections import defaultdict
+
+    total_billed = sum(
+        int(r["billing_amount"] or 0)
+        for r in rows if r.get("billing_status") in ("ISSUED", "COLLECTED")
+    )
+    total_collected = sum(
+        int(r["billing_amount"] or 0)
+        for r in rows if r.get("billing_status") == "COLLECTED"
+    )
+    total_uncollected = sum(
+        int(r["billing_amount"] or 0)
+        for r in rows if r.get("billing_status") == "ISSUED"
+    )
+    total_pending = sum(
+        int(r["billing_amount"] or 0)
+        for r in rows if r.get("billing_status") in ("REQUESTED", "APPROVED")
+    )
+    total_requested_count = sum(1 for r in rows if r.get("billing_status") == "REQUESTED")
+    total_approved_count = sum(1 for r in rows if r.get("billing_status") == "APPROVED")
+    total_issued_count = sum(1 for r in rows if r.get("billing_status") == "ISSUED")
+    total_collected_count = sum(1 for r in rows if r.get("billing_status") == "COLLECTED")
+    total_count = len(rows)
+    pct = lambda n, d: f"{(n/d*100):.1f}%" if d else "—"
+    ratio_collected = pct(total_collected_count, total_count)
+    ratio_approved_or_after = pct(total_approved_count + total_issued_count + total_collected_count, total_count)
+    ratio_uncollected = pct(total_issued_count, total_count)
+
+    # 사업 단위 집계
+    by_opp: dict[str, dict[str, Any]] = defaultdict(lambda: {
+        "opportunity_name": "", "customer_name": "",
+        "billed": 0, "collected": 0, "uncollected": 0, "pending": 0, "rows": 0,
+    })
+    for r in rows:
+        code = r.get("opportunity_code") or "미기재"
+        entry = by_opp[code]
+        entry["opportunity_name"] = r.get("opportunity_name") or ""
+        entry["customer_name"] = r.get("customer_name") or ""
+        entry["rows"] += 1
+        amount = int(r["billing_amount"] or 0)
+        status = r.get("billing_status")
+        if status == "COLLECTED":
+            entry["billed"] += amount
+            entry["collected"] += amount
+        elif status == "ISSUED":
+            entry["billed"] += amount
+            entry["uncollected"] += amount
+        elif status in ("REQUESTED", "APPROVED"):
+            entry["pending"] += amount
+
+    lines: list[str] = []
+    period_prefix = f"[{time_label}] " if time_label else ""
+    lines.append(f"{period_prefix}청구/수금 현황 ({len(rows)}건)")
+    lines.append("")
+    lines.append(f"■ 총 청구(발행) 금액: {format_number(total_billed)}")
+    lines.append(f"■ 수금 완료: {format_number(total_collected)} ({ratio_collected})")
+    lines.append(f"■ 미수금(발행 후 미수금): {format_number(total_uncollected)} ({ratio_uncollected})")
+    if total_pending:
+        lines.append(f"■ 청구 예정(결재 진행 중): {format_number(total_pending)}")
+    lines.append(f"■ 건수 분포: 요청 {total_requested_count} / 결재완료 {total_approved_count} / 발행 {total_issued_count} / 수금 {total_collected_count} (결재 완료 비율: {ratio_approved_or_after})")
+    lines.append("")
+    lines.append("── 사업별 상세 ──")
+    for code, entry in list(by_opp.items())[:limit]:
+        lines.append(
+            f"• [{code}] {entry['opportunity_name']} ({entry['customer_name']})"
+        )
+        if entry["billed"]:
+            lines.append(f"  청구 {format_number(entry['billed'])} / 수금 {format_number(entry['collected'])} / 미수금 {format_number(entry['uncollected'])}")
+        if entry["pending"]:
+            lines.append(f"  청구 예정 {format_number(entry['pending'])}")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="PROJECT_OPPORTUNITY",
+            sourceId=str(r.get("opportunity_code") or ""),
+            title=f"{r.get('opportunity_name') or '사업'} 청구 근거",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["structured_row"],
+            content=(
+                f"{r.get('opportunity_code')} / {r.get('customer_name')} / "
+                f"청구 {format_number(r.get('billing_amount'))} / "
+                f"상태: {_BILLING_STATUS_LABEL.get(r.get('billing_status') or '', r.get('billing_status') or '미기재')}"
+            ),
+            metadata={"opportunityCode": r.get("opportunity_code")},
+        )
+        for r in rows[:limit]
+    ]
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
 _COUNT_ENTITY_MAP: dict[str, str] = {
     "사업기회": "opportunity",
     "사업 기회": "opportunity",
@@ -4465,12 +5223,298 @@ _COUNT_ENTITY_MAP: dict[str, str] = {
     "prb": "prb",
     "입찰": "bid",
     "제안서": "proposal",
+    "라이선스": "license",
+    "라이센스": "license",
+    "수주보고서": "order_report",
+    "수주 보고서": "order_report",
+    "청구": "billing",
+    "고객사": "company_customer",
+    "협력사": "company_partner",
+    "파트너": "company_partner",
+    "사용자": "user",
+    "유저": "user",
 }
+
+
+# ──────────────────────────────────────────────────────────────────
+# 사람 메타 질문 핸들러 — "X 담당자 누구?" / "X 영업대표" / "X 참석자" / ...
+# ──────────────────────────────────────────────────────────────────
+
+# "사람" 을 묻는 의도가 있는 키워드 (적어도 1개는 포함되어야 함)
+_PEOPLE_INTENT_KEYWORDS: tuple[str, ...] = (
+    "담당자", "담당", "영업대표", "영업 대표", "영업담당", "영업 담당",
+    "pm", "프로젝트매니저", "프로젝트 매니저",
+    "본부장", "팀장", "수행pm", "수행 pm",
+    "참석자", "참석한", "회의 참가", "참가자",
+    "결재자", "승인자", "결재라인", "결재 라인",
+    "고객사 담당자", "고객 담당자", "발주처 담당자",
+    "누구", "누가",
+)
+
+
+_PEOPLE_DEFER_DOMAIN_KEYWORDS: tuple[str, ...] = (
+    "prb", "rfp", "견적", "수주보고", "수주 보고", "수주보고서",
+    "입찰결과", "입찰 결과", "계약서", "유지보수 견적", "제안서",
+    "프로젝트 결과", "결과보고서",
+)
+
+
+def is_people_query(normalized_query: str) -> bool:
+    # 도메인 키워드(PRB, RFP, 견적, 수주보고서 등)가 함께 등장하면 그 도메인의 전용 핸들러에게 양보.
+    # "PRB 참석자 의견" → people 핸들러로 가로채면 PRB 답변 못 함.
+    if any(kw in normalized_query for kw in _PEOPLE_DEFER_DOMAIN_KEYWORDS):
+        return False
+    return any(kw in normalized_query for kw in _PEOPLE_INTENT_KEYWORDS)
+
+
+def _extract_customer_name_for_people(*, query: str) -> str | None:
+    """쿼리에서 회사명으로 보이는 짧은 명사구를 추출.
+    `extract_customer_name_for_billing` 와 동일한 패턴.
+    """
+    stop_words = {
+        "담당자", "담당", "영업대표", "영업", "대표", "참석자", "참석", "참가자",
+        "본부장", "팀장", "pm", "프로젝트", "프로젝트매니저", "수행pm",
+        "결재자", "승인자", "결재라인", "라인", "회의",
+        "누구", "누가", "야", "알려줘", "보여줘", "있어", "뭐야",
+        "사업기회", "사업", "프로젝트", "고객사", "발주처",
+        "이", "저", "그", "은", "는",
+    }
+    tokens = re.findall(r"[가-힣A-Za-z0-9]+", query)
+    for token in tokens:
+        if 2 <= len(token) <= 10 and token.lower() not in stop_words:
+            return token
+    return None
+
+
+def answer_people_query(
+    *,
+    query: str,
+    normalized_query: str,
+    limit: int,
+    embedder: EmbeddingModel,
+    user_context: UserContext | None = None,
+) -> AnswerResponse | None:
+    """사람 메타 질문 답변.
+
+    1) 고객사명 추출 시도
+    2) 사업코드(AUTO-OPP-...) 추출 시도
+    3) 두 경우 모두 영업대표 + 활동 참석자 + 부서 정보 종합 답변
+    """
+    if not is_people_query(normalized_query):
+        return None
+
+    exact_codes = extract_business_codes(query)
+    customer_name = _extract_customer_name_for_people(query=query)
+
+    # 1) 사업코드 단건 — 그 사업 한정으로 사람 정보 정리
+    if exact_codes:
+        opp_code = exact_codes[0]
+        meta = fetch_opportunity_people_meta(opportunity_code=opp_code)
+        if meta is None:
+            return None
+        if not _can_access_opportunity_code(user_context, opp_code):
+            return None
+        attendees_rows = fetch_attendees_for_opportunity(opportunity_code=opp_code, limit_activities=20)
+        return build_people_response_single_opportunity(
+            query=query,
+            meta=meta,
+            attendees_rows=attendees_rows,
+            limit=limit,
+            embedder=embedder,
+        )
+
+    # 2) 고객사명 — 해당 고객사의 모든 사업기회 영업대표 + 각 사업의 최근 활동 참석자
+    if customer_name:
+        rows = fetch_people_for_customer(customer_name_term=customer_name, limit=50)
+        rows = [r for r in rows if _can_access_opportunity_code(user_context, r.get("opportunity_code"))]
+        if rows:
+            attendees_by_opp: dict[str, list[dict[str, Any]]] = {}
+            wants_attendees = any(kw in normalized_query for kw in ("참석자", "참석한", "참가자", "회의"))
+            if wants_attendees:
+                for r in rows[:5]:
+                    code = r.get("opportunity_code")
+                    if not code:
+                        continue
+                    attendees_by_opp[code] = fetch_attendees_for_opportunity(
+                        opportunity_code=code, limit_activities=6
+                    )
+            return build_people_response_for_customer(
+                query=query,
+                customer_name=customer_name,
+                rows=rows,
+                attendees_by_opp=attendees_by_opp,
+                limit=limit,
+                embedder=embedder,
+            )
+
+    return None
+
+
+def build_people_response_single_opportunity(
+    *,
+    query: str,
+    meta: dict[str, Any],
+    attendees_rows: list[dict[str, Any]],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    opp_code = meta.get("opportunity_code", "")
+    opp_name = meta.get("opportunity_name", "")
+    customer = meta.get("customer_name") or "미기재"
+    sales_rep = meta.get("sales_rep_name") or "미배정"
+    sales_rep_dept = meta.get("sales_rep_team") or meta.get("sales_rep_headquarters") or ""
+
+    lines: list[str] = []
+    lines.append(f"[{opp_code}] {opp_name} ({customer}) 관계자")
+    lines.append("")
+    lines.append(f"■ 영업대표: {sales_rep}" + (f" / {sales_rep_dept}" if sales_rep_dept else ""))
+
+    # 활동 참석자 집계 (자사 유저들 — 자주 등장한 사람 순)
+    from collections import Counter
+    name_counter: Counter[str] = Counter()
+    for row in attendees_rows:
+        names = row.get("attendee_names") or []
+        for n in names:
+            if n:
+                name_counter[n] += 1
+    if name_counter:
+        top = name_counter.most_common(8)
+        lines.append("■ 활동 참석자 (활동 횟수):")
+        for name, cnt in top:
+            lines.append(f"  - {name} ({cnt}회)")
+    else:
+        lines.append("■ 활동 참석자: 등록된 활동 없음")
+
+    # 최근 활동 3건의 참석자 / 일자
+    if attendees_rows:
+        lines.append("")
+        lines.append("■ 최근 활동 3건:")
+        for row in attendees_rows[:3]:
+            dt = row.get("activity_datetime")
+            type_ = row.get("activity_type") or ""
+            purpose = row.get("activity_purpose") or ""
+            names = ", ".join(row.get("attendee_names") or []) or "참석자 미기록"
+            lines.append(f"  - {dt} | {type_} / {purpose} | {names}")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="PROJECT_OPPORTUNITY",
+            sourceId=str(opp_code),
+            title=f"{opp_name} 관계자 정리",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["structured_row"],
+            content=f"{opp_code} / {customer} / 영업대표: {sales_rep}",
+            metadata={"opportunityCode": opp_code},
+        )
+    ]
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
+
+
+def build_people_response_for_customer(
+    *,
+    query: str,
+    customer_name: str,
+    rows: list[dict[str, Any]],
+    attendees_by_opp: dict[str, list[dict[str, Any]]],
+    limit: int,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """한 고객사의 모든 사업기회 영업대표 + (요청 시) 활동 참석자 종합."""
+    lines: list[str] = []
+    lines.append(f"{customer_name} 관련 사업기회 {len(rows)}건의 영업대표/관계자")
+    lines.append("")
+
+    for i, r in enumerate(rows, 1):
+        code = r.get("opportunity_code", "")
+        name = r.get("opportunity_name", "")
+        status = r.get("current_status") or "미기재"
+        rep = r.get("sales_rep_name") or "미배정"
+        rep_dept = r.get("sales_rep_team") or r.get("sales_rep_headquarters") or ""
+        rep_position = r.get("sales_rep_position") or ""
+        rep_phone = r.get("sales_rep_phone") or ""
+
+        lines.append(f"{i}. [{code}] {name} ({status})")
+        rep_info = f"   영업대표: {rep}"
+        if rep_dept:
+            rep_info += f" / {rep_dept}"
+        if rep_position:
+            rep_info += f" / {rep_position}"
+        if rep_phone:
+            rep_info += f" / {rep_phone}"
+        lines.append(rep_info)
+
+        # 참석자 요약 (요청에 해당하면)
+        att_rows = attendees_by_opp.get(code) or []
+        if att_rows:
+            from collections import Counter
+            cnt: Counter[str] = Counter()
+            for row in att_rows:
+                for n in row.get("attendee_names") or []:
+                    if n:
+                        cnt[n] += 1
+            if cnt:
+                top = ", ".join(f"{n}({c})" for n, c in cnt.most_common(5))
+                lines.append(f"   최근 활동 주요 참석자: {top}")
+
+    evidences = [
+        AnswerEvidence(
+            evidenceType="derived_summary_evidence",
+            sourceType="PROJECT_OPPORTUNITY",
+            sourceId=str(r.get("opportunity_code") or ""),
+            title=f"{r.get('opportunity_name') or '사업'} 관계자",
+            chunkIndex=0,
+            distance=0.0,
+            vectorScore=1.0,
+            keywordScore=1.0,
+            finalScore=1.0,
+            matchedBy=["structured_row"],
+            content=(
+                f"{r.get('opportunity_code')} / {r.get('customer_name')} / "
+                f"영업대표: {r.get('sales_rep_name') or '미배정'}"
+            ),
+            metadata={"opportunityCode": r.get("opportunity_code")},
+        )
+        for r in rows[:limit]
+    ]
+
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        excludedSourceTypes=[],
+        evidences=evidences,
+    )
 
 
 def is_entity_count_query(normalized_query: str) -> bool:
     has_count_kw = any(kw in normalized_query for kw in ["몇 개", "몇개", "몇 건", "몇건", "몇가지", "몇 가지", "갯수", "개수", "총 수", "총수", "총 건수", "건수"])
     has_entity_kw = any(kw in normalized_query.lower() for kw in _COUNT_ENTITY_MAP)
+    # status/금액 필터가 함께 있으면 single COUNT(*) 로는 답할 수 없으므로 fall-through
+    has_status_filter = any(
+        kw in normalized_query
+        for kw in (
+            "결재 진행", "결재진행", "결재 완료", "결재완료", "결재 대기", "결재대기",
+            "결재 안", "결재안", "미결재", "승인", "반려", "취소",
+            "수주 완료", "수주완료", "실주", "수주된", "진행 중", "진행중",
+            "완료된", "활성", "비활성",
+        )
+    )
+    if has_status_filter:
+        return False
     return has_count_kw and has_entity_kw
 
 

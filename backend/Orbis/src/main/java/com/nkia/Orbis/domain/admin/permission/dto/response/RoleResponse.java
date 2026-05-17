@@ -33,8 +33,8 @@ public class RoleResponse {
         public static PermissionResponse from(Permission permission) {
             return PermissionResponse.builder()
                     .permissionId(permission.getId())
-                    .domain(permission.getDomain().name())
-                    .action(permission.getAction().name())
+                    .domain(permission.getDomain().getDescription())
+                    .action(permission.getAction().getDescription())
                     .build();
         }
     }

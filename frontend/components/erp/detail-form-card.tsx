@@ -13,7 +13,7 @@ type DetailFormCardProps = {
   title: string
   fields: DetailField[]
   listHref: string
-  editHref: string
+  editHref?: string
   includeAttachment?: boolean
 }
 
@@ -42,9 +42,11 @@ export function DetailFormCard({ title, fields, listHref, editHref, includeAttac
           <Button variant="outline" asChild>
             <Link href={listHref}>목록</Link>
           </Button>
-          <Button asChild>
-            <Link href={editHref}>수정</Link>
-          </Button>
+          {editHref && (
+            <Button asChild>
+              <Link href={editHref}>수정</Link>
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
