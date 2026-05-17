@@ -3381,6 +3381,36 @@ def build_module_revenue_response(
     )
 
 
+_COMPANY_SUFFIX_PATTERN_FOR_FILTER = re.compile(
+    r"[가-힣A-Za-z0-9]{1,}("
+    r"증권|카드|은행|보험|화재|생명|"
+    r"전자|화학|통신|텔레콤|네트웍스|네트워크|시스템즈|솔루션|솔루션즈|"
+    r"건설|중공업|바이오|제약|에너지|디스플레이|모비스|모바일|"
+    r"항공|해운|로지스틱스|상사|코스메틱|글로벌|홀딩스|코퍼레이션|"
+    r"하이테크|인더스트리"
+    r")"
+)
+# 명시적 한국 회사명 prefix (가공 회사명 검출용 — 정부/대기업 prefix)
+_KOREAN_COMPANY_PREFIX = re.compile(
+    r"(삼성|현대|SK|LG|카카오|네이버|롯데|한화|GS|두산|효성|CJ|"
+    r"대한|한국|국가|정부|서울|부산|인천|대구|광주|울산|"
+    r"포스코|아모레|셀트리온|넷마블|엔씨|쿠팡|토스|당근|야놀자|직방)"
+)
+
+
+def _query_has_customer_candidate(query: str) -> bool:
+    """query 에 회사명 후보(suffix 또는 prefix 패턴) 가 있는지.
+
+    True 면 사용자가 명시적으로 회사를 지칭한 것 → DB 매칭 0건일 때는
+    "근거 없음" 답이 정확. False 면 일반 list 쿼리 가능성 → 전체 list 허용.
+    """
+    if _COMPANY_SUFFIX_PATTERN_FOR_FILTER.search(query):
+        return True
+    if _KOREAN_COMPANY_PREFIX.search(query):
+        return True
+    return False
+
+
 def filter_opportunity_list_rows_for_query(*, query: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized_query = " ".join(query.lower().split())
     if any(keyword in normalized_query for keyword in ("카드사", "카드회사", "신용카드")):
@@ -3396,6 +3426,12 @@ def filter_opportunity_list_rows_for_query(*, query: str, rows: list[dict[str, A
     customer_filtered = [row for row in rows if _is_customer_name_in_query(row, query)]
     if customer_filtered:
         return customer_filtered
+
+    # query 에 회사명 후보(suffix/prefix) 가 있는데 DB 매칭 0건이면 환각 차단:
+    # 전체 list 반환하지 않고 빈 list → 상위 분기에서 'fall-through' 되어
+    # discovery (LLM grounded) 로 "근거 없음" 정직 답.
+    if _query_has_customer_candidate(query):
+        return []
 
     return rows
 
