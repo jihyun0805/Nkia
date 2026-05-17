@@ -75,7 +75,7 @@ public class MaintenanceQuotation extends BaseEntity {
     @Builder
     public MaintenanceQuotation(String refNo, Project project, LocalDate quotationDate, String paymentTerms,
                                 Long totalAmount, LocalDate startDate, LocalDate endDate, Long monthlySupplyPrice,
-                                Long totalQuotationAmount, String specialNotes, Long spMaintenanceCost) {
+                                Long totalQuotationAmount, String specialNotes) {
         this.refNo = refNo;
         this.project = project;
         this.quotationDate = quotationDate;
