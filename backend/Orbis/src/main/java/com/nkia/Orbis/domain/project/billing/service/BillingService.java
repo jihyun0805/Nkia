@@ -26,6 +26,10 @@ import com.nkia.Orbis.domain.project.billing.dto.response.BillingListResponse;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.billing.entity.BillingStatus;
 import com.nkia.Orbis.domain.project.billing.repository.BillingRepository;
+import com.nkia.Orbis.domain.project.billinghistory.dto.response.BillingHistoryDetailResponse;
+import com.nkia.Orbis.domain.project.billinghistory.dto.response.BillingHistoryListResponse;
+import com.nkia.Orbis.domain.project.billinghistory.entity.BillingHistory;
+import com.nkia.Orbis.domain.project.billinghistory.repository.BillingHistoryRepository;
 import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
 import java.time.LocalDate;
 import java.util.List;
@@ -44,6 +48,7 @@ public class BillingService {
     private final BillingRepository billingRepository;
     private final OrderReportRepository orderReportRepository;
     private final UploadFileService uploadFileService;
+    private final BillingHistoryRepository billingHistoryRepository;
     private final UserRepository userRepository;
     private final WorkflowRepository workflowRepository;
     private final WorkflowService workflowService;
@@ -123,6 +128,8 @@ public class BillingService {
         }
 
         billing.collect(request.getCollectedAt());
+
+        saveHistory(billing);
     }
 
     /**
@@ -148,6 +155,12 @@ public class BillingService {
             log.error("Invalid UUID format for userId: {}", userIdStr, e);
             return "알 수 없는 유저";
         }
+    }
+
+    private void saveHistory(Billing billing) {
+        String requesterName = getUserNameFromId(billing.getCreatedBy());
+        BillingHistory history = BillingHistory.createSnapshot(billing, requesterName);
+        billingHistoryRepository.save(history);
     }
 
     /**
@@ -182,6 +195,10 @@ public class BillingService {
 
         if (oldImageId != null) {
             uploadFileService.getUploadFile(oldImageId).delete();
+        }
+
+        if (billing.getCollectedAt() != null) {
+            saveHistory(billing);
         }
 
         return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
@@ -257,5 +274,17 @@ public class BillingService {
                 )
                 .map(Workflow::getId)
                 .orElse(null);
+    }
+
+    public List<BillingHistoryListResponse> getBillingHistories(Long originalBillingId) {
+        return billingHistoryRepository.findByOriginalBillingIdOrderByCreatedAtDesc(originalBillingId).stream()
+                .map(BillingHistoryListResponse::from)
+                .toList();
+    }
+
+    public BillingHistoryDetailResponse getBillingHistoryDetail(Long historyId) {
+        BillingHistory history = billingHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_HISTORY_NOT_FOUND));
+        return BillingHistoryDetailResponse.from(history);
     }
 }
