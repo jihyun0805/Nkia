@@ -31,18 +31,22 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { BUSINESS_CARD_IMAGE_MAX_SIZE_LABEL, analyzeBusinessCard, assertBusinessCardImageSize } from "@/lib/business-card-ocr-api"
 import { RfpSummaryMarkdown } from "@/components/erp/rfp-summary-markdown"
 import { RFP_DOCUMENT_ACCEPT, assertRfpDocumentFile, summarizeRfpDocument } from "@/lib/rfp-summary-api"
-import { findingStatuses, type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
+import { type CustomerContact, type CustomerRecord, type FindingCategory, type OpportunityAttachment, type OpportunityRecord, type PartnerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   createBackendCompanyManager,
   deleteBackendCompanyManager,
   loadBackendCompanyManagers,
   loadBackendFindingData,
+  loadBackendProjectOpportunity,
+  loadBackendProductModules,
   mapPartnerCategory,
   resolveSalesRepresentativeId,
+  stageLabel,
   updateBackendCompany,
   updateBackendCompanyManager,
   updateBackendProjectOpportunity,
+  uploadBackendRfpFiles,
 } from "@/lib/finding-backend"
 import { currentUser, isSalesUser } from "@/lib/current-user"
 import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
@@ -50,8 +54,13 @@ import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
-const businessTypeOptions = ["EMS", "ITSM", "Automation", "WSS"]
-const customerGroupOptions = ["공공", "민간", "해외"]
+const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"]
+type OpportunityStage = "FINDING" | "PROMISING" | "PROGRESSING"
+const opportunityStatusOptions: Array<{ value: OpportunityStage; label: string }> = [
+  { value: "FINDING", label: "발굴" },
+  { value: "PROMISING", label: "유망" },
+  { value: "PROGRESSING", label: "진행중" },
+]
 const partnerTypeOptions = ["SI", "파트너", "기타"]
 
 type ContactDraft = {
@@ -68,6 +77,7 @@ type ContactDraft = {
 
 type RfpAttachmentDraft = OpportunityAttachment & {
   file?: File
+  fileId?: number
 }
 
 function createEmptyContactDraft(): ContactDraft {
@@ -131,14 +141,84 @@ function normalizeCompanyName(value: string) {
 
 function mapOpportunityProductClass(value: string) {
   const normalized = value.trim().toUpperCase()
-  if (normalized === "EMS" || normalized === "ITSM") return normalized
+  if (
+    normalized === "EMS" ||
+    normalized === "DASHBOARD" ||
+    normalized === "DATACENTER" ||
+    normalized === "RCA" ||
+    normalized === "DCA" ||
+    normalized === "ITSM" ||
+    normalized === "ITAM" ||
+    normalized === "SUPPORTING_TOOLS" ||
+    normalized === "CLOUD" ||
+    normalized === "BSM" ||
+    normalized === "E2E" ||
+    normalized === "ETC"
+  ) {
+    return normalized
+  }
   return "ETC"
 }
 
-function mapOpportunityStageFromStatus(value: string) {
-  if (value === "진행중") return "ACTIVITY"
-  if (value === "유망") return "BID"
+function toOpportunityStage(value: string): OpportunityStage {
+  const normalized = value.trim().toUpperCase()
+  if (normalized === "FINDING" || value === "발굴") return "FINDING"
+  if (normalized === "PROMISING" || value === "유망") return "PROMISING"
+  if (normalized === "PROGRESSING" || value === "진행중") return "PROGRESSING"
   return "FINDING"
+}
+
+function normalizeLookupText(value?: string | number | null) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u00A0]+/g, "")
+}
+
+function splitMultipleValues(value: string) {
+  return value
+    .split(/[,/|+\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function resolvePartnerCompanyIds(partnerNames: string[], backendPartners: PartnerRecord[]) {
+  const resolved = partnerNames.flatMap((partnerName) => {
+    const normalizedName = normalizeLookupText(partnerName)
+    if (!normalizedName) return []
+    const matched = backendPartners.find((partner) => {
+      const partnerId = normalizeLookupText(partner.backendId)
+      return normalizeLookupText(partner.name) === normalizedName || partnerId === normalizedName
+    })
+    return matched?.backendId != null ? [matched.backendId] : []
+  })
+
+  return Array.from(new Set(resolved))
+}
+
+function resolveProductModuleIds(moduleName: string, productModules: { id?: number; productName?: string }[]) {
+  const names = splitMultipleValues(moduleName)
+  if (names.length === 0) return []
+
+  const resolved = names.flatMap((name) => {
+    const normalizedName = normalizeLookupText(name)
+    if (!normalizedName) return []
+    const matched = productModules.find((module) => {
+      const moduleId = normalizeLookupText(module.id)
+      const productName = normalizeLookupText(module.productName)
+      return productName === normalizedName || moduleId === normalizedName || productName.includes(normalizedName) || normalizedName.includes(productName)
+    })
+    return matched?.id != null ? [matched.id] : []
+  })
+
+  return Array.from(new Set(resolved))
+}
+
+async function resolveRfpFileIds(attachments: RfpAttachmentDraft[]) {
+  const existingIds = attachments.map((attachment) => attachment.fileId).filter((value): value is number => typeof value === "number")
+  const newFiles = attachments.map((attachment) => attachment.file).filter((file): file is File => Boolean(file))
+  const uploadedIds = newFiles.length > 0 ? await uploadBackendRfpFiles(newFiles) : []
+  return Array.from(new Set([...existingIds, ...uploadedIds]))
 }
 
 function parseExpectedBudget(value?: string) {
@@ -295,7 +375,6 @@ export default function FindingEditPage() {
   const [partnerNames, setPartnerNames] = useState<string[]>([""])
   const [expectedDate, setExpectedDate] = useState("")
   const [expectedAmount, setExpectedAmount] = useState("")
-  const [customerGroup, setCustomerGroup] = useState("민간")
   const [salesRep, setSalesRep] = useState(isSalesUser(currentUser) ? currentUser.name : "")
   const [salesRepUserId, setSalesRepUserId] = useState<string | null>(null)
   const backendUsers = useBackendUsers()
@@ -304,7 +383,7 @@ export default function FindingEditPage() {
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
   const [decisionInfo, setDecisionInfo] = useState("")
-  const [status, setStatus] = useState("발굴")
+  const [status, setStatus] = useState<OpportunityStage>("FINDING")
   const [partnerType, setPartnerType] = useState("SI")
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
@@ -378,9 +457,9 @@ export default function FindingEditPage() {
       summary.push(`사업유형 → ${v.business_type}`)
     }
     if (v.stage) {
-      // stage 는 backend enum; 폼은 status 로 표시. 간단히 status 도 같이 동기화 (필요 시 mapping)
-      setStatus(v.stage)
-      summary.push(`현재 단계 → ${v.stage}`)
+      const stageValue = toOpportunityStage(v.stage)
+      setStatus(stageValue)
+      summary.push(`현재 단계 → ${stageValue}`)
     }
     if (summary.length > 0) {
       toast({
@@ -408,32 +487,88 @@ export default function FindingEditPage() {
 
         if (category === "opportunities") {
           const opportunity = data.opportunities.find((current) => current.id === id) ?? null
-          setItem(opportunity)
-          if (opportunity) {
-            const matchedCustomer = data.customers.find((customer) => customer.id === opportunity.customerCode) ?? null
+          const opportunityDetail = opportunity?.backendId ? await loadBackendProjectOpportunity(opportunity.backendId).catch(() => null) : null
+          const selectedOpportunity = opportunityDetail
+            ? {
+                ...(opportunity ?? {}),
+                backendId: opportunityDetail.id,
+                customerCode:
+                  opportunity?.customerCode ??
+                  data.customers.find((customer) => customer.backendId === opportunityDetail.customerCompanyId)?.id ??
+                  (opportunityDetail.customerCompanyId != null ? String(opportunityDetail.customerCompanyId) : ""),
+                createUserName: opportunityDetail.createUserName ?? opportunity?.createUserName,
+                name: opportunityDetail.opportunityName ?? opportunity?.name ?? "-",
+                customer: opportunityDetail.customerCompanyName ?? opportunity?.customer ?? "-",
+                registrant: opportunityDetail.createUserName ?? opportunity?.registrant ?? "-",
+                product: opportunityDetail.projectType ? String(opportunityDetail.projectType) : opportunity?.product ?? "-",
+                expectedAmount:
+                  opportunityDetail.expectedBudget != null
+                    ? opportunityDetail.expectedBudget.toLocaleString("ko-KR")
+                    : opportunity?.expectedAmount ?? "-",
+                expectedDate: opportunityDetail.expectedBidDate ?? opportunity?.expectedDate ?? "-",
+                competition: opportunityDetail.competitionStatus ?? opportunity?.competition ?? "-",
+                issue: opportunity?.issue ?? opportunityDetail.description ?? "-",
+                decisionInfo: opportunity?.decisionInfo ?? opportunityDetail.description ?? "-",
+                status: stageLabel(opportunityDetail.stage) ?? opportunity?.status ?? "-",
+                salesRepresentativeId: opportunityDetail.salesRepresentativeId ?? opportunity?.salesRepresentativeId,
+                salesRep: opportunityDetail.salesRepresentativeName ?? opportunity?.salesRep ?? "-",
+              }
+            : opportunity
+
+          setItem(selectedOpportunity as OpportunityRecord | PartnerRecord | null)
+          if (selectedOpportunity) {
+            const matchedCustomer = data.customers.find((customer) => customer.id === selectedOpportunity.customerCode) ?? null
+            const partnerText = selectedOpportunity.partner ?? "-"
             setSelectedCustomer(matchedCustomer)
-            setCustomerName(opportunity.customer)
-            setOpportunityName(opportunity.name)
-            setRegistrant(opportunity.registrant)
+            setCustomerName(selectedOpportunity.customer)
+            setOpportunityName(selectedOpportunity.name)
+            setRegistrant(selectedOpportunity.registrant)
             setPartnerNames(
-              Array.isArray(opportunity.partners) && opportunity.partners.length > 0
-                ? opportunity.partners
-                : opportunity.partner === "-"
+              Array.isArray(selectedOpportunity.partners) && selectedOpportunity.partners.length > 0
+                ? selectedOpportunity.partners
+                : partnerText === "-"
                   ? [""]
-                  : opportunity.partner.split(",").map((partner) => partner.trim()),
+                  : partnerText.split(",").map((partner) => partner.trim()),
             )
-            setExpectedDate(opportunity.expectedDate === "-" ? "" : opportunity.expectedDate)
-            setExpectedAmount(opportunity.expectedAmount === "-" ? "" : opportunity.expectedAmount)
-            setCustomerGroup(opportunity.category)
-            setSalesRep(opportunity.salesRep)
-            setSalesRepUserId(opportunity.salesRepresentativeId ?? null)
-            setBusinessType(opportunity.product)
-            setModuleName(opportunity.module === "-" ? "" : opportunity.module)
-            setIssue(opportunity.issue === "-" ? "" : opportunity.issue)
-            setCompetition(opportunity.competition === "-" ? "" : opportunity.competition)
-            setDecisionInfo(opportunity.decisionInfo === "-" ? "" : opportunity.decisionInfo)
-            setStatus(opportunity.status)
-            setRfpAttachments(opportunity.rfpAttachments ?? [])
+            setExpectedDate(selectedOpportunity.expectedDate === "-" ? "" : selectedOpportunity.expectedDate)
+            setExpectedAmount(selectedOpportunity.expectedAmount === "-" ? "" : selectedOpportunity.expectedAmount)
+            setSalesRep(selectedOpportunity.salesRep ?? "")
+            setSalesRepUserId(selectedOpportunity.salesRepresentativeId ?? null)
+            setBusinessType(selectedOpportunity.product ?? "")
+            setModuleName(
+              Array.isArray(selectedOpportunity.productModuleNames) && selectedOpportunity.productModuleNames.length > 0
+                ? selectedOpportunity.productModuleNames.join(", ")
+                : (selectedOpportunity.module ?? "-") === "-"
+                  ? ""
+                  : selectedOpportunity.module ?? "",
+            )
+            setIssue(selectedOpportunity.issue === "-" ? "" : selectedOpportunity.issue)
+            setCompetition(selectedOpportunity.competition === "-" ? "" : selectedOpportunity.competition)
+            setDecisionInfo(selectedOpportunity.decisionInfo === "-" ? "" : selectedOpportunity.decisionInfo)
+            setStatus(toOpportunityStage(opportunityDetail?.stage ?? selectedOpportunity.status))
+            setPartnerNames(
+              Array.isArray(selectedOpportunity.partnerCompanyNames) && selectedOpportunity.partnerCompanyNames.length > 0
+                ? selectedOpportunity.partnerCompanyNames
+                : Array.isArray(selectedOpportunity.partners) && selectedOpportunity.partners.length > 0
+                  ? selectedOpportunity.partners
+                  : partnerText === "-"
+                    ? [""]
+                    : partnerText.split(",").map((partner) => partner.trim()),
+            )
+            setRfpAttachments(
+              Array.isArray(selectedOpportunity.rfpFileIds) && selectedOpportunity.rfpFileIds.length > 0
+                ? selectedOpportunity.rfpFileIds.map((fileId, index) => ({
+                    id: String(fileId),
+                    name: selectedOpportunity.rfpFileNames?.[index] ?? `첨부파일 ${index + 1}`,
+                    size: selectedOpportunity.rfpFileSizes?.[index] ?? 0,
+                    contentType: "",
+                    dataUrl: "",
+                    summary: "",
+                    createdAt: "",
+                    fileId,
+                  }))
+                : selectedOpportunity.rfpAttachments ?? [],
+            )
           }
         }
 
@@ -471,7 +606,7 @@ export default function FindingEditPage() {
 
     const matchedSalesRep = backendUsers.find((user) => user.id === salesRep.trim() || user.name === salesRep.trim())
     if (matchedSalesRep) {
-      setSalesRepUserId(matchedSalesRep.id)
+      setSalesRepUserId(matchedSalesRep.id ?? null)
     }
   }, [backendUsers, category, salesRep, salesRepUserId])
 
@@ -721,6 +856,14 @@ export default function FindingEditPage() {
       return
     }
 
+    if (selectedCustomer.backendId == null) {
+      toast({
+        title: "사업기회 수정 실패",
+        description: "선택한 고객사의 백엔드 식별자를 찾지 못했습니다.",
+      })
+      return
+    }
+
     setSubmitting(true)
     ;(async () => {
       try {
@@ -734,11 +877,38 @@ export default function FindingEditPage() {
           return
         }
 
+        const matchedSalesRep = backendUsers.find((user) => user.id === salesRepresentativeId)
+        if (!matchedSalesRep) {
+          toast({
+            title: "사업기회 수정 확인",
+            description: "선택한 영업대표를 사용자 목록에서 찾지 못했습니다.",
+          })
+          setSubmitting(false)
+          return
+        }
+
+        const [productModules, rfpFileIds] = await Promise.all([
+          loadBackendProductModules().catch(() => []),
+          resolveRfpFileIds(rfpAttachments),
+        ])
+        const partnerCompanyIds = resolvePartnerCompanyIds(partnerNames, partners)
+        const productModuleIds = resolveProductModuleIds(moduleName, productModules)
+        const customerCompanyId = selectedCustomer.backendId
+        if (customerCompanyId == null) {
+          toast({
+            title: "사업기회 수정 실패",
+            description: "선택한 고객사의 백엔드 식별자를 찾지 못했습니다.",
+          })
+          setSubmitting(false)
+          return
+        }
+
         const updated = await updateBackendProjectOpportunity(currentOpportunity.backendId!, {
           opportunityName: opportunityName.trim(),
-          stage: mapOpportunityStageFromStatus(status),
+          stage: status,
           projectType: mapOpportunityProductClass(businessType),
           salesRepresentativeId,
+          customerCompanyId,
           expectedBidDate: expectedDate,
           expectedBudget: expectedAmount,
           description: buildOpportunityDescription({
@@ -747,6 +917,9 @@ export default function FindingEditPage() {
             decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
           }),
           competitionStatus: competition,
+          partnerCompanyIds,
+          productModuleIds,
+          rfpFileIds,
         })
 
         toast({
@@ -1120,7 +1293,6 @@ export default function FindingEditPage() {
                           const resolvedCustomer = customers.find((item) => item.id === customer?.id || item.name === customer?.name) ?? customer
                           setSelectedCustomer(resolvedCustomer ?? null)
                           setCustomerName(resolvedCustomer?.name ?? "")
-                          setCustomerGroup(resolvedCustomer?.category ?? "민간")
                         }}
                         onValueChange={setCustomerName}
                         onUnregisteredAttempt={() =>
@@ -1181,21 +1353,6 @@ export default function FindingEditPage() {
                       <Input value={opportunityName} onChange={(event) => setOpportunityName(event.target.value)} placeholder="사업명을 입력하세요" />
                     </div>
                     <div className="space-y-2">
-                      <Label>고객군</Label>
-                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="선택하세요" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customerGroupOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
                       <Label>등록자</Label>
                       <Input readOnly value={registrant} />
                     </div>
@@ -1234,14 +1391,14 @@ export default function FindingEditPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>상태</Label>
-                      <Select value={status} onValueChange={setStatus}>
+                      <Select value={status} onValueChange={(value) => setStatus(toOpportunityStage(value))}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
                         </SelectTrigger>
                         <SelectContent>
-                          {findingStatuses.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
+                          {opportunityStatusOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
                             </SelectItem>
                           ))}
                         </SelectContent>

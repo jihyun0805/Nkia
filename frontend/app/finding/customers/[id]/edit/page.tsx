@@ -30,7 +30,6 @@ import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   loadBackendCompanyManagers,
   loadBackendFindingData,
-  mapCustomerSector,
   updateBackendCompany,
   createBackendCompanyManager,
   updateBackendCompanyManager,
@@ -39,7 +38,21 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { Loader2, Plus, ScanLine, Trash2, X } from "lucide-react"
 
-const customerGroupOptions = ["공공", "민간", "해외"]
+const customerGroupOptions = [
+  { value: "PUBLIC", label: "공공" },
+  { value: "PRIVATE", label: "민간" },
+  { value: "OVERSEAS", label: "해외" },
+]
+
+type CustomerSector = "PUBLIC" | "PRIVATE" | "OVERSEAS"
+
+function mapCustomerSectorToEnum(value: string): CustomerSector {
+  const normalized = value.trim().toUpperCase()
+  if (normalized === "PUBLIC" || value === "공공") return "PUBLIC"
+  if (normalized === "PRIVATE" || value === "민간") return "PRIVATE"
+  if (normalized === "OVERSEAS" || value === "해외") return "OVERSEAS"
+  return "PRIVATE"
+}
 
 type ContactDraft = CustomerContact
 
@@ -156,7 +169,7 @@ function CustomerEditPageContent() {
     Awaited<ReturnType<typeof loadBackendCompanyManagers>>
   >([])
   const [customerName, setCustomerName] = useState("")
-  const [customerGroup, setCustomerGroup] = useState("민간")
+  const [customerGroup, setCustomerGroup] = useState<CustomerSector>("PRIVATE")
   const [address, setAddress] = useState("")
   const [memo, setMemo] = useState("")
   const [contacts, setContacts] = useState<ContactDraft[]>([createEmptyContactDraft()])
@@ -186,7 +199,7 @@ function CustomerEditPageContent() {
         }
 
         setCustomerName(current.name)
-        setCustomerGroup(current.category || "민간")
+        setCustomerGroup(mapCustomerSectorToEnum(current.category || "PRIVATE"))
         setAddress(current.address ?? "")
         setMemo(current.memo ?? "")
         setContacts(normalizeContacts(current))
@@ -375,7 +388,7 @@ function CustomerEditPageContent() {
     try {
       await updateBackendCompany(customer.backendId, {
         name: normalizedName,
-        sector: mapCustomerSector(customerGroup),
+        sector: mapCustomerSectorToEnum(customerGroup),
         address,
         memo,
       }, customer.id)
@@ -487,14 +500,14 @@ function CustomerEditPageContent() {
                     </div>
                     <div className="space-y-2">
                       <Label>고객군</Label>
-                      <Select value={customerGroup} onValueChange={setCustomerGroup}>
+                      <Select value={customerGroup} onValueChange={(value) => setCustomerGroup(mapCustomerSectorToEnum(value))}>
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
                         </SelectTrigger>
                         <SelectContent>
                           {customerGroupOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
