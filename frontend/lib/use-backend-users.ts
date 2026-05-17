@@ -17,7 +17,7 @@ async function fetchOnce(force = false): Promise<BackendUserSummary[]> {
   const sessionKey = getSessionKey()
   const isCacheValid = cachedUsers && cachedUsers.length > 0 && cachedSessionKey === sessionKey
 
-  if (!force && isCacheValid) return cachedUsers
+  if (!force && isCacheValid) return cachedUsers ?? []
   if (inflight) return inflight
 
   if (force) {
@@ -32,14 +32,14 @@ async function fetchOnce(force = false): Promise<BackendUserSummary[]> {
       return cachedUsers
     })
     .catch(() => {
-      cachedUsers = null
+      cachedUsers = []
       cachedSessionKey = null
       return cachedUsers
     })
     .finally(() => {
       inflight = null
     })
-  return inflight
+  return inflight ?? Promise.resolve([])
 }
 
 /** 자사 사용자 목록을 모듈 단위로 캐시해 폼 어디서나 즉시 사용. */
