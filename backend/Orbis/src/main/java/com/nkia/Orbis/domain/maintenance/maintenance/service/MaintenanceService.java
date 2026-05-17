@@ -72,7 +72,6 @@ public class MaintenanceService {
     /**
      * 유지보수 엔티티 생성
      */
-    @Transactional
     private Maintenance createMaintenanceEntity(MaintenanceCreateRequest dto, Project project, User salesRep,
             User primary, User secondary, User regularPm, UploadFile contractFile) {
         return Maintenance.builder()

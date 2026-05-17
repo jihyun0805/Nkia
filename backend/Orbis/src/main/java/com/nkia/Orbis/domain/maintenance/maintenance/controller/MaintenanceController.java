@@ -124,7 +124,7 @@ public class MaintenanceController {
     @PostMapping("/submit/{maintenanceId}")
     public ResponseEntity<ApiResponse<String>> submitMaintenance(
             @PathVariable("maintenanceId") Long maintenanceId,
-            @RequestBody SubmitRequest request
+            @RequestBody @Valid SubmitRequest request
     ) {
         maintenanceService.submitMaintenance(
                 maintenanceId,
