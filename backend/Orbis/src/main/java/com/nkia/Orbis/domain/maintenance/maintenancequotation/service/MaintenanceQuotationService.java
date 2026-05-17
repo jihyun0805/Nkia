@@ -12,6 +12,14 @@ import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowDomain;
 import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStatus;
 import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
 import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.dto.response.MaintenanceQuotationHistoryDetailResponse;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.dto.response.MaintenanceQuotationHistoryListResponse;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.entity.MaintenanceAmountReasonHistory;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.entity.MaintenancePackageCostHistory;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.entity.MaintenanceQuotationCoverHistory;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.entity.MaintenanceQuotationHistory;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.entity.MaintenanceServiceInfoHistory;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.repository.MaintenanceQuotationHistoryRepository;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationCreateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.MaintenanceQuotationCreateResponse;
@@ -31,6 +39,7 @@ import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import java.util.UUID;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -47,6 +56,7 @@ public class MaintenanceQuotationService {
     private final WorkflowRepository workflowRepository;
     private final WorkflowService workflowService;
     private final UserRepository userRepository;
+    private final MaintenanceQuotationHistoryRepository historyRepository;
 
     /**
      * 유지보수 견적서 등록
@@ -74,6 +84,8 @@ public class MaintenanceQuotationService {
     public MaintenanceQuotationDetailResponse update(Long id, MaintenanceQuotationUpdateRequest dto) {
         MaintenanceQuotation quotation = quotationRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
+
+        saveSnapshot(quotation);
 
         String nextVersionRefNo = generateNextVersionRefNo(quotation.getRefNo());
 
@@ -105,6 +117,27 @@ public class MaintenanceQuotationService {
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
 
         return MaintenanceQuotationDetailResponse.from(quotation, getWorkflowId(quotation.getId()));
+    }
+
+    public List<MaintenanceQuotationHistoryListResponse> getHistories(Long quotationId) {
+        MaintenanceQuotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
+
+        // baseRefNo = "NKIA-MA-20260516-01"
+        String baseRefNo = getBaseRefNo(quotation.getRefNo());
+
+        List<MaintenanceQuotationHistory> histories = historyRepository.findByRefNoStartingWithOrderByVersionDesc(baseRefNo);
+
+        return histories.stream()
+                .map(MaintenanceQuotationHistoryListResponse::from)
+                .toList();
+    }
+
+    public MaintenanceQuotationHistoryDetailResponse getHistoryDetail(Long historyId) {
+        MaintenanceQuotationHistory history = historyRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND)); // Or a new HISTORY_NOT_FOUND error
+
+        return MaintenanceQuotationHistoryDetailResponse.from(history);
     }
 
     private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project,
@@ -282,5 +315,39 @@ public class MaintenanceQuotationService {
             return String.join("-", parts);
         }
         return currentRefNo + "-02";
+    }
+
+    private void saveSnapshot(MaintenanceQuotation quotation) {
+        String baseRefNo = getBaseRefNo(quotation.getRefNo());
+        int nextVersion = (int) historyRepository.countByRefNoStartingWith(baseRefNo) + 1;
+
+        MaintenanceQuotationHistory history = MaintenanceQuotationHistory.create(quotation, nextVersion);
+
+        if (quotation.getCover() != null) {
+            history.setCover(MaintenanceQuotationCoverHistory.create(quotation.getCover()));
+        }
+
+        quotation.getPackageCosts().forEach(p -> 
+            history.addPackageCost(MaintenancePackageCostHistory.create(p))
+        );
+
+        quotation.getServiceInfos().forEach(s -> 
+            history.addServiceDetail(MaintenanceServiceInfoHistory.create(s))
+        );
+
+        quotation.getAmountReasons().forEach(a -> 
+            history.addCostBasis(MaintenanceAmountReasonHistory.create(a))
+        );
+
+        historyRepository.save(history);
+    }
+
+    private String getBaseRefNo(String refNo) {
+        // NKIA-MA-YYYYMMDD-01-01 -> NKIA-MA-YYYYMMDD-01
+        int lastDashIndex = refNo.lastIndexOf("-");
+        if (lastDashIndex > -1) {
+            return refNo.substring(0, lastDashIndex);
+        }
+        return refNo;
     }
 }
