@@ -31,10 +31,12 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -143,6 +145,7 @@ public class BillingService {
                     .map(User::getName)
                     .orElse(userIdStr);
         } catch (IllegalArgumentException e) {
+            log.error("Invalid UUID format for userId: {}", userIdStr, e);
             return userIdStr;
         }
     }
