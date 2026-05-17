@@ -429,7 +429,10 @@ ALWAYS_CONFIGS: tuple[DocumentConfig, ...] = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Orbis AI 재색인 스크립트")
-    parser.add_argument("--db-url", required=True, help="PostgreSQL connection URL")
+    parser.add_argument("--db-url", required=True, help="PostgreSQL connection URL (AI user)")
+    parser.add_argument("--backend-db-url", default=None,
+                        help="백엔드 owner 유저 URL. OID large object 권한 부여용. "
+                             "미지정 시 POSTGRES_USER/PASSWORD/HOST/PORT/DB env 로 자동 구성.")
     parser.add_argument("--ai-base-url", required=True, help="AI API base URL")
     parser.add_argument("--ai-internal-token", required=True, help="AI internal token")
     parser.add_argument("--batch-size", type=int, default=50, help="index API 배치 크기")
@@ -437,8 +440,64 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _grant_oid_to_ai_user(backend_db_url: str, ai_user: str) -> int:
+    """백엔드 owner 유저 connection 으로 모든 large object 에 AI user GRANT.
+
+    OID 컬럼 (description/key_success_factors 등) 은 backend 가 owner 라
+    AI 유저 (orbis_ai) 가 기본으로는 lo_get 접근 불가. 매 reindex 시작 시
+    GRANT 해줘야 새 OID 도 enrichment 가능.
+    """
+    try:
+        with psycopg.connect(backend_db_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    DO $$
+                    DECLARE oid_val oid;
+                    BEGIN
+                      FOR oid_val IN SELECT oid FROM pg_largeobject_metadata LOOP
+                        BEGIN
+                          EXECUTE format('GRANT SELECT ON LARGE OBJECT %s TO {ai_user}', oid_val);
+                        EXCEPTION WHEN OTHERS THEN NULL;
+                        END;
+                      END LOOP;
+                    END $$;
+                """)
+                cur.execute("SELECT count(*) AS n FROM pg_largeobject_metadata")
+                row = cur.fetchone()
+                return int(row[0] if isinstance(row, tuple) else row.get("count", row.get("n", 0)))
+    except Exception as exc:
+        print(f"[reindex] OID GRANT 실패 (large object enrichment 비활성): {exc}", flush=True)
+        return -1
+
+
+def _resolve_backend_db_url(args_url: str | None) -> str | None:
+    if args_url:
+        return args_url
+    import os as _os
+    user = _os.environ.get("POSTGRES_USER")
+    pw = _os.environ.get("POSTGRES_PASSWORD")
+    host = _os.environ.get("POSTGRES_HOST", "orbis_postgres")
+    port = _os.environ.get("POSTGRES_PORT", "5432")
+    db = _os.environ.get("POSTGRES_DB", "orbis_db")
+    if not (user and pw):
+        return None
+    from urllib.parse import quote_plus
+    return f"postgresql://{quote_plus(user)}:{quote_plus(pw)}@{host}:{port}/{db}"
+
+
 def main() -> int:
     args = parse_args()
+    # OID large object enrichment 을 위해 backend owner 권한 GRANT
+    backend_url = _resolve_backend_db_url(args.backend_db_url)
+    if backend_url:
+        from urllib.parse import urlparse
+        ai_user = urlparse(args.db_url).username or "orbis_ai"
+        granted_count = _grant_oid_to_ai_user(backend_url, ai_user)
+        if granted_count >= 0:
+            print(f"[reindex] OID GRANT ok (large_objects={granted_count} → {ai_user})", flush=True)
+    else:
+        print("[reindex] backend-db-url 미설정 — OID enrichment 비활성", flush=True)
+
     with psycopg.connect(args.db_url, row_factory=dict_row) as conn:
         existing_tables = fetch_existing_tables(conn)
         documents = build_documents(
@@ -575,14 +634,21 @@ def fetch_table_rows(
         rows = [dict(record["row"]) for record in cur.fetchall()]
 
     # OID 컬럼 텍스트로 enrichment (large object → readable text)
+    # to_jsonb 는 OID 를 string ("18394") 으로 직렬화 — int/str 둘 다 처리.
     oid_cols = _OID_TEXT_COLUMNS.get(table)
     if oid_cols:
         for row in rows:
             for col in oid_cols:
                 value = row.get(col)
-                # to_jsonb 가 OID 를 정수로 직렬화. 양수 OID 만 풀음.
+                oid_int: int | None = None
                 if isinstance(value, int) and value > 0:
-                    text = _read_oid_text(conn, value)
+                    oid_int = value
+                elif isinstance(value, str) and value.isdigit():
+                    n = int(value)
+                    if n > 0:
+                        oid_int = n
+                if oid_int is not None:
+                    text = _read_oid_text(conn, oid_int)
                     if text:
                         row[col] = text
     return rows
