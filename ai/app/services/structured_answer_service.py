@@ -2271,10 +2271,20 @@ def build_opportunity_status_response(
 ) -> AnswerResponse:
     canonical = adapt_opportunity_snapshot(snapshot)
     # 상태별 한글 라벨로 풀어 자연스럽게
+    # backend ProjectOpportunityStage 9종 + WON/LOST 매핑.
+    # S14P31S106-336 신규 3종 (PROMISING/PROGRESSING) 추가.
     stage_label_map = {
-        "FINDING": "발굴", "ACTIVITY": "영업활동", "BID": "입찰 진행",
-        "CONTRACT": "계약 진행", "PROJECT": "프로젝트 수행", "MAINTENANCE": "유지보수",
-        "POST_SALES": "사후영업", "WON": "수주 완료", "LOST": "실주",
+        "FINDING": "발굴",
+        "PROMISING": "유망",          # 영업 진행도 — 신규
+        "PROGRESSING": "진행중",       # 영업 진행도 — 신규
+        "ACTIVITY": "영업활동",
+        "BID": "입찰 진행",
+        "CONTRACT": "계약 진행",
+        "PROJECT": "프로젝트 수행",
+        "MAINTENANCE": "유지보수",
+        "POST_SALES": "사후영업",
+        "WON": "수주 완료",
+        "LOST": "실주",
     }
     stage = canonical.currentStatus or ""
     stage_kor = stage_label_map.get(stage.upper(), stage or "미기재")
