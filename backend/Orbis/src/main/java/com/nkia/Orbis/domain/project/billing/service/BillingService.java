@@ -130,19 +130,21 @@ public class BillingService {
         OrderReport report = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
 
-        String userName = userIdStr;
+        return convertToFormInitResponse(report, getUserNameFromId(userIdStr));
+    }
 
+    private String getUserNameFromId(String userIdStr) {
+        if (userIdStr == null || userIdStr.isBlank()) {
+            return userIdStr;
+        }
         try {
             UUID userUuid = UUID.fromString(userIdStr);
-            User user = userRepository.findById(userUuid).orElse(null);
-            if (user != null) {
-                userName = user.getName();
-            }
+            return userRepository.findById(userUuid)
+                    .map(User::getName)
+                    .orElse(userIdStr);
         } catch (IllegalArgumentException e) {
-            // 예외 무시
+            return userIdStr;
         }
-
-        return convertToFormInitResponse(report, userName);
     }
 
     /**
@@ -179,7 +181,7 @@ public class BillingService {
             uploadFileService.getUploadFile(oldImageId).delete();
         }
 
-        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()));
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
     }
 
     /**
@@ -204,7 +206,7 @@ public class BillingService {
         List<Billing> billings = billingRepository.findAllByOrderByIdDesc();
 
         return billings.stream()
-                .map(BillingListResponse::from)
+                .map(billing -> BillingListResponse.from(billing, getUserNameFromId(billing.getCreatedBy())))
                 .toList();
     }
 
@@ -215,7 +217,7 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
-        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()));
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
     }
 
     @Transactional
