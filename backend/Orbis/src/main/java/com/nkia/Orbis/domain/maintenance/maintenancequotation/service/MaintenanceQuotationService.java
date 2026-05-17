@@ -29,6 +29,9 @@ import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import java.util.UUID;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,7 +54,9 @@ public class MaintenanceQuotationService {
     @Transactional
     public MaintenanceQuotationCreateResponse register(MaintenanceQuotationCreateRequest dto) {
         Project project = findProject(dto.getProjectId());
-        MaintenanceQuotation quotation = createQuotationEntity(dto, project);
+
+        String newRefNo = generateNewRefNo(dto.getQuotationDate());
+        MaintenanceQuotation quotation = createQuotationEntity(dto, project, newRefNo);
 
         mapSubEntities(dto, quotation);
 
@@ -70,8 +75,10 @@ public class MaintenanceQuotationService {
         MaintenanceQuotation quotation = quotationRepository.findById(id)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
 
-        updateBasicInfo(quotation, dto);
-        
+        String nextVersionRefNo = generateNextVersionRefNo(quotation.getRefNo());
+
+        updateBasicInfo(quotation, dto, nextVersionRefNo);
+
         updateCoverEntity(quotation, dto.getCoverInfo());
 
         refreshChildEntities(quotation, dto);
@@ -100,9 +107,10 @@ public class MaintenanceQuotationService {
         return MaintenanceQuotationDetailResponse.from(quotation, getWorkflowId(quotation.getId()));
     }
 
-    private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project) {
+    private MaintenanceQuotation createQuotationEntity(MaintenanceQuotationCreateRequest dto, Project project,
+            String refNo) {
         return MaintenanceQuotation.builder()
-                .refNo(dto.getRefNo())
+                .refNo(refNo)
                 .project(project)
                 .quotationDate(dto.getQuotationDate())
                 .paymentTerms(dto.getPaymentTerms())
@@ -115,7 +123,8 @@ public class MaintenanceQuotationService {
                 .build();
     }
 
-    private MaintenanceQuotationCover createCoverEntity(MaintenanceQuotation quotation, MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
+    private MaintenanceQuotationCover createCoverEntity(MaintenanceQuotation quotation,
+            MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
         User salesRep = getUser(coverInfo.getSalesRepresentativeId());
 
         return MaintenanceQuotationCover.builder()
@@ -127,14 +136,12 @@ public class MaintenanceQuotationService {
     }
 
     private void mapSubEntities(MaintenanceQuotationCreateRequest dto, MaintenanceQuotation quotation) {
-        dto.getPackageCosts().forEach(p ->
-                quotation.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
+        dto.getPackageCosts()
+                .forEach(p -> quotation.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
 
-        dto.getServiceInfos().forEach(s ->
-                quotation.addServiceDetail(createServiceInfo(s)));
+        dto.getServiceInfos().forEach(s -> quotation.addServiceDetail(createServiceInfo(s)));
 
-        dto.getAmountReasons().forEach(a ->
-                quotation.addCostBasis(createAmountReason(a)));
+        dto.getAmountReasons().forEach(a -> quotation.addCostBasis(createAmountReason(a)));
     }
 
     private Project findProject(Long projectId) {
@@ -186,21 +193,22 @@ public class MaintenanceQuotationService {
     }
 
     @Transactional
-    private void updateBasicInfo(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {
+    private void updateBasicInfo(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto, String newRefNo) {
+        q.updateRefNo(newRefNo);
         q.updateInfo(dto.getPaymentTerms(), dto.getTotalAmount(),
                 dto.getStartDate(), dto.getEndDate(),
                 dto.getMonthlySupplyPrice(), dto.getTotalQuotationAmount(),
                 dto.getSpecialNotes());
     }
 
-    private void updateCoverEntity(MaintenanceQuotation quotation, MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
+    private void updateCoverEntity(MaintenanceQuotation quotation,
+            MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
         if (quotation.getCover() != null && coverInfo != null) {
             User salesRep = getUser(coverInfo.getSalesRepresentativeId());
             quotation.getCover().updateInfo(
                     coverInfo.getProposalType(),
                     coverInfo.getProductFamily(),
-                    salesRep
-            );
+                    salesRep);
         }
     }
 
@@ -219,8 +227,7 @@ public class MaintenanceQuotationService {
     @Transactional
     public void submitMaintenanceQuotation(
             Long quotationId,
-            UUID firstApproverId
-    ) {
+            UUID firstApproverId) {
         MaintenanceQuotation quotation = quotationRepository.findById(quotationId)
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.QUOTATION_NOT_FOUND));
 
@@ -234,8 +241,7 @@ public class MaintenanceQuotationService {
                 WorkflowDomain.MAINTENANCE_QUOTATION,
                 quotation.getId(),
                 requesterId,
-                firstApproverId
-        );
+                firstApproverId);
 
         quotation.submit();
     }
@@ -246,9 +252,35 @@ public class MaintenanceQuotationService {
                 .findByWorkflowDomainAndTargetIdAndStatus(
                         WorkflowDomain.MAINTENANCE_QUOTATION,
                         quotationId,
-                        WorkflowStatus.IN_PROGRESS
-                )
+                        WorkflowStatus.IN_PROGRESS)
                 .map(Workflow::getId)
                 .orElse(null);
+    }
+
+    private String generateNewRefNo(LocalDate quotationDate) {
+        String datePart = quotationDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String prefix = "NKIA-MA-" + datePart + "-";
+
+        Optional<String> lastRefNo = quotationRepository.findLastRefNoIncludingDeleted(prefix);
+
+        int nextQuotationNumber = lastRefNo.map(refNo -> {
+            String[] parts = refNo.split("-");
+            if (parts.length >= 4) {
+                return Integer.parseInt(parts[3]) + 1;
+            }
+            return 1;
+        }).orElse(1);
+
+        return prefix + String.format("%02d", nextQuotationNumber) + "-01";
+    }
+
+    private String generateNextVersionRefNo(String currentRefNo) {
+        String[] parts = currentRefNo.split("-");
+        if (parts.length >= 5) {
+            int nextVersion = Integer.parseInt(parts[4]) + 1;
+            parts[4] = String.format("%02d", nextVersion);
+            return String.join("-", parts);
+        }
+        return currentRefNo + "-02";
     }
 }
