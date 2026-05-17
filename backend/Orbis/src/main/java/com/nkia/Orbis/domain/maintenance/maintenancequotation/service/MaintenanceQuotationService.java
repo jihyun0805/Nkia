@@ -158,7 +158,10 @@ public class MaintenanceQuotationService {
 
     private MaintenanceQuotationCover createCoverEntity(MaintenanceQuotation quotation,
             MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
-        User salesRep = getUser(coverInfo.getSalesRepresentativeId());
+        if (coverInfo == null) {
+            return null;
+        }
+        User salesRep = coverInfo.getSalesRepresentativeId() != null ? getUser(coverInfo.getSalesRepresentativeId()) : null;
 
         return MaintenanceQuotationCover.builder()
                 .quotation(quotation)
@@ -169,20 +172,32 @@ public class MaintenanceQuotationService {
     }
 
     private void mapSubEntities(MaintenanceQuotationCreateRequest dto, MaintenanceQuotation quotation) {
-        dto.getPackageCosts()
-                .forEach(p -> quotation.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
+        if (dto.getPackageCosts() != null) {
+            dto.getPackageCosts()
+                    .forEach(p -> quotation.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
+        }
 
-        dto.getServiceInfos().forEach(s -> quotation.addServiceDetail(createServiceInfo(s)));
+        if (dto.getServiceInfos() != null) {
+            dto.getServiceInfos().forEach(s -> quotation.addServiceDetail(createServiceInfo(s)));
+        }
 
-        dto.getAmountReasons().forEach(a -> quotation.addCostBasis(createAmountReason(a)));
+        if (dto.getAmountReasons() != null) {
+            dto.getAmountReasons().forEach(a -> quotation.addCostBasis(createAmountReason(a)));
+        }
     }
 
     private Project findProject(Long projectId) {
+        if (projectId == null) {
+            throw new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND);
+        }
         return projectRepository.findById(projectId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.PROJECT_NOT_FOUND));
     }
 
     private User getUser(UUID userId) {
+        if (userId == null) {
+            return null;
+        }
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
     }
@@ -190,12 +205,14 @@ public class MaintenanceQuotationService {
     /**
      * 서비스 내역 하위 엔티티 생성
      */
-    @Transactional
     private MaintenanceServiceInfo createServiceInfo(MaintenanceQuotationCreateRequest.ServiceInfoRequest s) {
+        if (s == null) {
+            return null;
+        }
         return MaintenanceServiceInfo.builder()
                 .productModule(getProductModuleOrNull(s.getProductId()))
-                .category(ServiceCategory.fromDescription(s.getCategory()))
-                .item(ServiceItem.fromDescription(s.getItem()))
+                .category(s.getCategory() != null ? ServiceCategory.fromDescription(s.getCategory()) : null)
+                .item(s.getItem() != null ? ServiceItem.fromDescription(s.getItem()) : null)
                 .content(s.getContent())
                 .build();
     }
@@ -203,8 +220,10 @@ public class MaintenanceQuotationService {
     /**
      * 금액 산출 근거 하위 엔티티 생성
      */
-    @Transactional
     private MaintenanceAmountReason createAmountReason(MaintenanceQuotationCreateRequest.AmountReasonRequest c) {
+        if (c == null) {
+            return null;
+        }
         return MaintenanceAmountReason.builder()
                 .productModule(getProductModuleOrNull(c.getProductId()))
                 .quantity(c.getQuantity())
@@ -225,8 +244,10 @@ public class MaintenanceQuotationService {
                 .orElseThrow(() -> new ApiException(MaintenanceErrorCode.MODULE_NOT_FOUND));
     }
 
-    @Transactional
     private void updateBasicInfo(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto, String newRefNo) {
+        if (q == null || dto == null) {
+            return;
+        }
         q.updateRefNo(newRefNo);
         q.updateInfo(dto.getPaymentTerms(), dto.getTotalAmount(),
                 dto.getStartDate(), dto.getEndDate(),
@@ -236,25 +257,45 @@ public class MaintenanceQuotationService {
 
     private void updateCoverEntity(MaintenanceQuotation quotation,
             MaintenanceQuotationCreateRequest.CoverInfoRequest coverInfo) {
-        if (quotation.getCover() != null && coverInfo != null) {
-            User salesRep = getUser(coverInfo.getSalesRepresentativeId());
+        if (quotation == null || coverInfo == null) {
+            return;
+        }
+        User salesRep = coverInfo.getSalesRepresentativeId() != null ? getUser(coverInfo.getSalesRepresentativeId()) : null;
+        if (quotation.getCover() != null) {
             quotation.getCover().updateInfo(
                     coverInfo.getProposalType(),
                     coverInfo.getProductFamily(),
                     salesRep);
+        } else {
+            MaintenanceQuotationCover cover = MaintenanceQuotationCover.builder()
+                    .quotation(quotation)
+                    .proposalType(coverInfo.getProposalType())
+                    .productFamily(coverInfo.getProductFamily())
+                    .salesRepresentative(salesRep)
+                    .build();
+            quotation.setCover(cover);
         }
     }
 
     private void refreshChildEntities(MaintenanceQuotation q, MaintenanceQuotationUpdateRequest dto) {
+        if (q == null || dto == null) {
+            return;
+        }
         q.getPackageCosts().clear();
-        dto.getPackageCosts()
-                .forEach(p -> q.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
+        if (dto.getPackageCosts() != null) {
+            dto.getPackageCosts()
+                    .forEach(p -> q.addPackageCost(new MaintenancePackageCost(p.getPackageName(), p.getAmount())));
+        }
 
         q.getServiceInfos().clear();
-        dto.getServiceInfos().forEach(s -> q.addServiceDetail(createServiceInfo(s)));
+        if (dto.getServiceInfos() != null) {
+            dto.getServiceInfos().forEach(s -> q.addServiceDetail(createServiceInfo(s)));
+        }
 
         q.getAmountReasons().clear();
-        dto.getAmountReasons().forEach(a -> q.addCostBasis(createAmountReason(a)));
+        if (dto.getAmountReasons() != null) {
+            dto.getAmountReasons().forEach(a -> q.addCostBasis(createAmountReason(a)));
+        }
     }
 
     @Transactional
