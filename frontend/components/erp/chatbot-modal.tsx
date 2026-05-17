@@ -71,10 +71,10 @@ const TYPEWRITER_INTERVAL_MS = 20
 const TYPEWRITER_CHARS_PER_TICK = 6
 
 const EXAMPLE_PROMPTS = [
-  "키움증권 실주 이유 알려줘",
-  "국민은행 견적서 요약해줘",
+  "대한적십자사 실주 이유 알려줘",
   "롯데카드 사업기회 진행 상황 알려줘",
-  "올해 계약된 프로젝트와 계약 금액 알려줘",
+  "공공 고객 사업기회 알려줘",
+  "예상 사업비가 가장 큰 사업 TOP3 알려줘",
   "현재 진행 중인 사업기회 목록 알려줘",
 ]
 
