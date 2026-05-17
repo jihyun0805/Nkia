@@ -13,7 +13,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -40,9 +39,7 @@ public class MaintenanceQuotationCoverHistory extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ProductFamily productFamily;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sales_representative_id")
-    private User salesRepresentative;
+    private String salesRepresentativeName;
 
     public static MaintenanceQuotationCoverHistory create(MaintenanceQuotationCover cover) {
         if (cover == null) return null;
@@ -50,7 +47,7 @@ public class MaintenanceQuotationCoverHistory extends BaseEntity {
         MaintenanceQuotationCoverHistory history = new MaintenanceQuotationCoverHistory();
         history.proposalType = cover.getProposalType();
         history.productFamily = cover.getProductFamily();
-        history.salesRepresentative = cover.getSalesRepresentative();
+        history.salesRepresentativeName = cover.getSalesRepresentative() != null ? cover.getSalesRepresentative().getName() : null;
         return history;
     }
 

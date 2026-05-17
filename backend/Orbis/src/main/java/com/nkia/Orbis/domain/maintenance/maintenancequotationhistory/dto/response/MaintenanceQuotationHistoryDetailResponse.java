@@ -80,7 +80,7 @@ public class MaintenanceQuotationHistoryDetailResponse {
                     .productFamily(entity.getProductFamily() != null ? entity.getProductFamily().getDescription() : null)
                     .totalQuotationAmount(entity.getHistory().getTotalQuotationAmount())
                     .quotationDate(entity.getHistory().getQuotationDate())
-                    .salesRepresentative(entity.getSalesRepresentative() != null ? entity.getSalesRepresentative().getName() : null)
+                    .salesRepresentative(entity.getSalesRepresentativeName())
                     .build();
         }
     }
