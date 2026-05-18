@@ -50,6 +50,18 @@ export interface RoleRequest {
   permissions: string[];
 }
 
+export interface Permission {
+  permissionId: number;
+  domain: string;
+  action: string;
+}
+
+export interface RoleResponse {
+  roleId: number;
+  roleName: string;
+  permissions: Permission[];
+}
+
 export interface WorkflowTemplateListResponse {
   id: number;
   workflowDomain: string;
