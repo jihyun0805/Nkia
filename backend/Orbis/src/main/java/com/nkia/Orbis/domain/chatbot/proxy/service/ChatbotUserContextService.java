@@ -41,7 +41,13 @@ public class ChatbotUserContextService {
             PermissionAction.MANAGE
     );
     private static final Set<Position> UNRESTRICTED_POSITIONS = EnumSet.of(Position.HEAD_DIRECTOR);
-    private static final Set<Position> DEPARTMENT_SCOPED_POSITIONS = EnumSet.of(Position.TEAM_LEADER);
+    // READ 권한을 가진 일반 직원(TEAM_MEMBER)도 같은 부서 데이터는 챗봇에서 볼 수 있어야
+    // 한다는 정책 (2026-05-18). 본인 담당(OWN) 만이던 기존 룰이 READ 권한과 어긋나
+    // 빈 화이트리스트로 답변이 잘리는 회귀를 차단.
+    private static final Set<Position> DEPARTMENT_SCOPED_POSITIONS = EnumSet.of(
+            Position.TEAM_LEADER,
+            Position.TEAM_MEMBER
+    );
 
     private static final String SOURCE_TYPE_ATTACHMENT = "ATTACHMENT";
     private static final String SOURCE_TYPE_PROJECT_OPPORTUNITY = "PROJECT_OPPORTUNITY";
@@ -225,6 +231,12 @@ public class ChatbotUserContextService {
 
     private AccessScope resolveAccessScope(User user) {
         if (hasAdminRole(user) || UNRESTRICTED_POSITIONS.contains(user.getPosition())) {
+            return AccessScope.UNRESTRICTED;
+        }
+        // backend 가 부여한 PROJECT_OPPORTUNITY READ 권한을 chatbot 에서도 그대로
+        // 반영. READ 권한이 있는데 OWN scope 으로 자르면 권한과 응답이 어긋난다
+        // (예: USER role 이 모든 도메인 READ 부여 → 모든 사업기회 조회 가능해야).
+        if (collectReadableDomains(user).contains(PermissionDomain.PROJECT_OPPORTUNITY)) {
             return AccessScope.UNRESTRICTED;
         }
         if (user.getDepartment() != null && DEPARTMENT_SCOPED_POSITIONS.contains(user.getPosition())) {
