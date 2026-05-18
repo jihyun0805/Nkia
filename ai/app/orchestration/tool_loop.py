@@ -366,6 +366,15 @@ def _try_fast_path(
             dom = "quotation"
         elif upper.startswith("NKIA-MA"):
             dom = "maintenance_quotation"
+
+        # 다른 도메인 키워드 (RFP/PRB/견적/계약/유지보수/입찰/제안서/청구 등) 가
+        # 함께 있으면 단순 단건 조회로 끝내지 말고 RAG/structured path 에 양보.
+        # 예: "AUTO-OPP-2026-119 RFP 분석해줘" 은 RFP 본문이 필요하지 사업기회
+        # snapshot 만 답하면 안 됨.
+        cross_domain_hit = _detect_domain(query)
+        if cross_domain_hit and cross_domain_hit != dom:
+            return None
+
         result = execute_tool("lookup_entity", {"domain": dom, "code": code}, user_context)
         if result.get("ok") and result.get("rows"):
             return _build_fast_response(query, "lookup_entity", {"domain": dom, "code": code}, result, embedder)
