@@ -148,3 +148,92 @@ export const updateMaintenanceQuotation = async (id: number, data: MaintenanceQu
 export const deleteMaintenanceQuotation = async (id: number): Promise<ApiResponse<void>> => {
   return await customInstance({ url: `/maintenances/quotations/${id}`, method: "delete" });
 };
+
+// ---------------------------------------------------------------------------
+// Maintenance Contract (유지보수 계약) – /maintenances endpoints
+// ---------------------------------------------------------------------------
+
+export interface MaintenanceCreateRequest {
+  projectId: number;
+  salesRep: string; // UUID
+  managerPrimary?: string | null;
+  managerSecondary?: string | null;
+  category?: string | null;
+  type: "FREE" | "PAID";
+  contractAmount?: number;
+  annualAmount?: number;
+  rate?: number;
+  contractDate?: string | null;
+  startDate: string;
+  endDate: string;
+  isRemote?: boolean;
+  inspectionCycle?: string | null;
+  importance?: string;
+  location?: string | null;
+  reportSubmitted?: boolean;
+  regularPm?: string | null;
+  productFamily?: string;
+  apVersion?: string | null;
+  apCount?: number;
+  esVersion?: string | null;
+  esCount?: number;
+  dbVersion?: string | null;
+  dbHaStatus?: boolean;
+  aclPatchStatus?: boolean;
+  vulnPatchStatus?: boolean;
+  upgradePlan?: string | null;
+  remarks?: string | null;
+  contractFileId?: number | null;
+}
+
+export interface MaintenanceDetailResponse {
+  id: number;
+  projectName: string;
+  customerName: string;
+  type: "FREE" | "PAID";
+  category: string | null;
+  salesRepName: string | null;
+  managerPrimaryName: string | null;
+  managerSecondaryName: string | null;
+  regularPm: string | null;
+  isRemote: boolean;
+  inspectionCycle: string | null;
+  importance: string | null;
+  reportSubmitted: boolean;
+  location: string | null;
+  rate: number | null;
+  contractAmount: number | null;
+  annualAmount: number | null;
+  contractDate: string | null;
+  startDate: string;
+  endDate: string;
+  productFamily: string | null;
+  apVersion: string | null;
+  apCount: number | null;
+  esVersion: string | null;
+  esCount: number | null;
+  dbVersion: string | null;
+  dbHaStatus: boolean;
+  aclPatchStatus: boolean;
+  vulnPatchStatus: boolean;
+  upgradePlan: string | null;
+  remarks: string | null;
+  contractFileId: number | null;
+}
+
+export const createMaintenance = async (data: MaintenanceCreateRequest): Promise<ApiResponse<MaintenanceDetailResponse>> => {
+  return await customInstance({ url: "/maintenances", method: "post", data });
+};
+
+export const getMaintenanceDetail = async (id: number): Promise<ApiResponse<MaintenanceDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/${id}`, method: "get" });
+};
+
+export const updateMaintenance = async (id: number, data: Partial<MaintenanceCreateRequest>): Promise<ApiResponse<MaintenanceDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/${id}`, method: "put", data });
+};
+
+export const deleteMaintenance = async (id: number): Promise<ApiResponse<void>> => {
+  return await customInstance({ url: `/maintenances/${id}`, method: "delete" });
+};
+

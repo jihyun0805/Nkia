@@ -12,7 +12,7 @@ import { ProjectSelector } from "@/components/erp/project/project-selector";
 import { type ProjectListResponse } from "@/lib/api/project-api";
 import { UserPicker } from "@/components/erp/user-picker";
 import { useBackendUsers } from "@/lib/use-backend-users";
-import { createMaintenance, type ApiResponse } from "@/lib/api/maintenance";
+import { createMaintenance, type MaintenanceCreateRequest, type ApiResponse } from "@/lib/api/maintenance";
 import type { BackendUserSummary } from "@/lib/workflow-backend";
 import { customInstance } from "@/lib/api/customAxios";
 import { toast } from "sonner";
@@ -139,9 +139,9 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
       }
 
       // 2. Submit maintenance registration
-      const payload = {
+      const payload: MaintenanceCreateRequest = {
         projectId: selectedProject.id,
-        salesRep: salesRep.id,
+        salesRep: salesRep.id ?? "",
         managerPrimary: engineerMain?.id || null,
         managerSecondary: engineerSub?.id || null,
         category: category || null,
