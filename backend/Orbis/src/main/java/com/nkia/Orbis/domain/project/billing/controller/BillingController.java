@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.project.billing.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
-import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCollectRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingCreateRequest;
 import com.nkia.Orbis.domain.project.billing.dto.request.BillingIssueRequest;
@@ -62,6 +61,7 @@ public class BillingController {
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BILLING', 'CREATE')")
     public ResponseEntity<ApiResponse<Long>> register(@Valid @RequestBody BillingCreateRequest request) {
         Long billingId = billingService.registerBilling(request);
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(billingId));
     }
@@ -143,21 +143,6 @@ public class BillingController {
 
         BillingDetailResponse response = billingService.getBillingDetail(billingId);
         return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    @Operation(summary = "세금계산서 결재 상신")
-    @PostMapping("/submit/{billingId}")
-    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BILLING', 'UPDATE')")
-    public ResponseEntity<ApiResponse<String>> submitBilling(
-            @PathVariable Long billingId,
-            @RequestBody SubmitRequest request
-    ) {
-        billingService.submitBilling(
-                billingId,
-                request.getFirstApproverId()
-        );
-
-        return ResponseEntity.ok(ApiResponse.success("세금계산서 결재 상신 완료"));
     }
 
     @Operation(summary = "특정 청구 건의 이력 목록 조회", description = "특정 청구(Billing)의 스냅샷 이력 목록을 최신순으로 조회합니다.")

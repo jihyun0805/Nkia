@@ -25,12 +25,15 @@ public class BillingListResponse {
 
     public static BillingListResponse from(Billing billing, String requesterName) {
         return BillingListResponse.builder()
-                .customerName(billing.getOrderReport().getFinalCustomerCompany().getName())
-                .projectName(billing.getOrderReport().getProjectOpportunity().getOpportunityName())
+                .customerName(billing.getOrderReport() != null && billing.getOrderReport().getFinalCustomerCompany() != null
+                        ? billing.getOrderReport().getFinalCustomerCompany().getName() : null)
+                .projectName(billing.getOrderReport() != null && billing.getOrderReport().getProjectOpportunity() != null
+                        ? billing.getOrderReport().getProjectOpportunity().getOpportunityName() : null)
                 .billingAmount(billing.getBillingAmount())
                 .issuedAt(billing.getIssuedAt())
                 .collectedAt(billing.getCollectedAt())
-                .salesRepName(billing.getOrderReport().getPm().getName())
+                .salesRepName(billing.getOrderReport() != null && billing.getOrderReport().getPm() != null
+                        ? billing.getOrderReport().getPm().getName() : null)
                 .requesterName(requesterName)
                 .build();
     }

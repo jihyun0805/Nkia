@@ -29,6 +29,7 @@ import { type CustomerContact, type CustomerRecord } from "@/lib/finding-data"
 import { validateManagerContacts } from "@/lib/finding-contact-validation"
 import {
   loadBackendCompanyManagers,
+  loadBackendCompany,
   loadBackendFindingData,
   updateBackendCompany,
   createBackendCompanyManager,
@@ -191,6 +192,8 @@ function CustomerEditPageContent() {
 
         setCustomers(data.customers)
         const current = data.customers.find((item) => item.id === id) ?? null
+        const backendCompany = current?.backendId ? await loadBackendCompany(current.backendId).catch(() => null) : null
+        if (cancelled) return
         setCustomer(current)
 
         if (!current) {
@@ -200,8 +203,8 @@ function CustomerEditPageContent() {
 
         setCustomerName(current.name)
         setCustomerGroup(mapCustomerSectorToEnum(current.category || "PRIVATE"))
-        setAddress(current.address ?? "")
-        setMemo(current.memo ?? "")
+        setAddress(backendCompany?.address ?? current.address ?? "")
+        setMemo(backendCompany?.memo ?? current.memo ?? "")
         setContacts(normalizeContacts(current))
 
         if (current.backendId) {
@@ -384,9 +387,15 @@ function CustomerEditPageContent() {
       return
     }
 
+    const originalCustomerName = customer.name ?? normalizedName
+    const originalCustomerGroup = mapCustomerSectorToEnum(customer.category || customerGroup)
+    const originalAddress = customer.address ?? ""
+    const originalMemo = customer.memo ?? ""
+    const originalContacts = normalizeContacts(customer)
+
     setSubmitting(true)
     try {
-      await updateBackendCompany(customer.backendId, {
+      await updateBackendCompany(customer.backendId, "CUSTOMER", {
         name: normalizedName,
         sector: mapCustomerSectorToEnum(customerGroup),
         address,
@@ -399,6 +408,17 @@ function CustomerEditPageContent() {
       })
       router.push(`/finding/customers/${customer.id}?tab=${searchParams.get("tab") ?? "customers"}`)
     } catch (error) {
+      try {
+        await updateBackendCompany(customer.backendId, "CUSTOMER", {
+          name: originalCustomerName,
+          sector: originalCustomerGroup,
+          address: originalAddress,
+          memo: originalMemo,
+        }, customer.id)
+        await syncBackendManagers(customer.id, customer.backendId, originalContacts)
+      } catch {
+        // Restore is best-effort only; the original error is still reported below.
+      }
       toast({
         title: "고객사 수정 실패",
         description: error instanceof Error ? error.message : "수정에 실패했습니다.",

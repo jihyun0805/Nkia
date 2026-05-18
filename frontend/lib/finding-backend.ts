@@ -66,11 +66,25 @@ export type ProjectOpportunitySummaryResponse = {
   competitionStatus?: string;
   partnerCompanyIds?: number[];
   partnerCompanyNames?: string[];
+  partnerCompanies?: Array<{
+    id?: number;
+    name?: string;
+  }>;
   productModuleIds?: number[];
   productModuleNames?: string[];
+  productModules?: Array<{
+    id?: number;
+    productName?: string;
+  }>;
   rfpFileIds?: number[];
   rfpFileNames?: string[];
   rfpFileSizes?: number[];
+  rfpFiles?: Array<{
+    id?: number;
+    originalFileName?: string;
+    fileName?: string;
+    size?: number;
+  }>;
 };
 
 type OpportunityDisplayOverride = {
@@ -101,7 +115,6 @@ export type FindingBackendData = {
 };
 
 const opportunityDisplayOverrideStorageKey = "orbis.project-opportunity-display-overrides";
-const companyDisplayOverrideStorageKey = "orbis.company-display-overrides";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -159,43 +172,6 @@ function getOpportunityDisplayOverride(opportunityCode?: string) {
   const normalizedCode = opportunityCode?.trim();
   if (!normalizedCode) return null;
   return loadOpportunityDisplayOverrides()[normalizedCode] ?? null;
-}
-
-function loadCompanyDisplayOverrides() {
-  if (!isBrowser()) return {} as Record<string, CompanyDisplayOverride>;
-
-  const stored = window.localStorage.getItem(companyDisplayOverrideStorageKey);
-  if (!stored) return {} as Record<string, CompanyDisplayOverride>;
-
-  try {
-    const parsed = JSON.parse(stored) as Record<string, CompanyDisplayOverride>;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveCompanyDisplayOverrides(overrides: Record<string, CompanyDisplayOverride>) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(companyDisplayOverrideStorageKey, JSON.stringify(overrides));
-}
-
-function setCompanyDisplayOverride(companyCode?: string, override?: CompanyDisplayOverride) {
-  const normalizedCode = companyCode?.trim();
-  if (!normalizedCode) return;
-
-  const overrides = loadCompanyDisplayOverrides();
-  overrides[normalizedCode] = {
-    ...overrides[normalizedCode],
-    ...override,
-  };
-  saveCompanyDisplayOverrides(overrides);
-}
-
-function getCompanyDisplayOverride(companyCode?: string) {
-  const normalizedCode = companyCode?.trim();
-  if (!normalizedCode) return null;
-  return loadCompanyDisplayOverrides()[normalizedCode] ?? null;
 }
 
 function normalizeLookupText(value?: string | number | null) {
@@ -530,13 +506,44 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
   const opportunities: OpportunityRecord[] = projectOpportunities.map((item, index) => {
     const parsedDescription = parseOpportunityDescription(item.description);
     const displayOverride = getOpportunityDisplayOverride(item.opportunityCode);
-    const partnerCompanyIds = Array.isArray(item.partnerCompanyIds) ? item.partnerCompanyIds.filter((value): value is number => typeof value === "number") : [];
-    const partnerCompanyNames = Array.isArray(item.partnerCompanyNames) ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string") : [];
-    const productModuleIds = Array.isArray(item.productModuleIds) ? item.productModuleIds.filter((value): value is number => typeof value === "number") : [];
-    const productModuleNames = Array.isArray(item.productModuleNames) ? item.productModuleNames.filter((value): value is string => typeof value === "string") : [];
-    const rfpFileIds = Array.isArray(item.rfpFileIds) ? item.rfpFileIds.filter((value): value is number => typeof value === "number") : [];
-    const rfpFileNames = Array.isArray(item.rfpFileNames) ? item.rfpFileNames.filter((value): value is string => typeof value === "string") : [];
-    const rfpFileSizes = Array.isArray(item.rfpFileSizes) ? item.rfpFileSizes.filter((value): value is number => typeof value === "number") : [];
+    const nestedPartnerCompanies = Array.isArray(item.partnerCompanies) ? item.partnerCompanies : [];
+    const nestedProductModules = Array.isArray(item.productModules) ? item.productModules : [];
+    const nestedRfpFiles = Array.isArray(item.rfpFiles) ? item.rfpFiles : [];
+    const partnerCompanyIds = Array.isArray(item.partnerCompanyIds) && item.partnerCompanyIds.length > 0
+      ? item.partnerCompanyIds.filter((value): value is number => typeof value === "number")
+      : nestedPartnerCompanies
+          .map((partner) => partner.id)
+          .filter((value): value is number => typeof value === "number");
+    const partnerCompanyNames = Array.isArray(item.partnerCompanyNames) && item.partnerCompanyNames.length > 0
+      ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string")
+      : nestedPartnerCompanies
+          .map((partner) => partner.name)
+          .filter((value): value is string => typeof value === "string");
+    const productModuleIds = Array.isArray(item.productModuleIds) && item.productModuleIds.length > 0
+      ? item.productModuleIds.filter((value): value is number => typeof value === "number")
+      : nestedProductModules
+          .map((module) => module.id)
+          .filter((value): value is number => typeof value === "number");
+    const productModuleNames = Array.isArray(item.productModuleNames) && item.productModuleNames.length > 0
+      ? item.productModuleNames.filter((value): value is string => typeof value === "string")
+      : nestedProductModules
+          .map((module) => module.productName)
+          .filter((value): value is string => typeof value === "string");
+    const rfpFileIds = Array.isArray(item.rfpFileIds) && item.rfpFileIds.length > 0
+      ? item.rfpFileIds.filter((value): value is number => typeof value === "number")
+      : nestedRfpFiles
+          .map((file) => file.id)
+          .filter((value): value is number => typeof value === "number");
+    const rfpFileNames = Array.isArray(item.rfpFileNames) && item.rfpFileNames.length > 0
+      ? item.rfpFileNames.filter((value): value is string => typeof value === "string")
+      : nestedRfpFiles
+          .map((file) => file.originalFileName ?? file.fileName)
+          .filter((value): value is string => typeof value === "string");
+    const rfpFileSizes = Array.isArray(item.rfpFileSizes) && item.rfpFileSizes.length > 0
+      ? item.rfpFileSizes.filter((value): value is number => typeof value === "number")
+      : nestedRfpFiles
+          .map((file) => file.size)
+          .filter((value): value is number => typeof value === "number");
     const partnerDisplay = partnerCompanyNames.length > 0 ? partnerCompanyNames.join(", ") : "-";
     const moduleDisplay = productModuleNames.length > 0 ? productModuleNames.join(", ") : parsedDescription.moduleName || "-";
     return {
@@ -587,7 +594,6 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
 
   const customers: CustomerRecord[] = customerCompanies.map((company) => {
     const managers = customerManagersByCode.get(company.code ?? "") ?? [];
-    const displayOverride = getCompanyDisplayOverride(company.code);
     return {
       id: buildCustomerRecordCode(company),
       backendId: company.id,
@@ -599,7 +605,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       phone: firstContactPhone(managers),
       contacts: toContacts(managers),
       address: company.address ?? "",
-      memo: displayOverride?.memo?.trim() || company.memo || `진행중 사업기회 ${company.id != null ? (customerOppCount.get(String(company.id)) ?? 0) : 0}건 / 계약 ${company.id != null ? (customerContractCount.get(String(company.id)) ?? 0) : 0}건`,
+      memo: company.memo ?? "",
       aliases: [company.code ?? "", company.name ?? ""].filter(Boolean),
       attachments: [],
       contactName: managers[0]?.name ?? "",
@@ -614,7 +620,6 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
   const partners: PartnerRecord[] = partnerCompanies.map((company) => {
     const managers = partnerManagersByCode.get(company.code ?? "") ?? [];
     const projectsCount = 0;
-    const displayOverride = getCompanyDisplayOverride(company.code);
     return {
       id: company.code ?? `PTN-${company.id ?? ""}`,
       backendId: company.id,
@@ -626,7 +631,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       phone: firstContactPhone(managers),
       contacts: toContacts(managers),
       address: company.address ?? "",
-      memo: displayOverride?.memo?.trim() || company.memo || `진행중 사업기회 0건 / 진행중 프로젝트 ${projectsCount}건`,
+      memo: company.memo ?? "",
       attachments: [],
       contactName: managers[0]?.name ?? "",
       position: managers[0]?.position ?? "",
@@ -646,6 +651,13 @@ export function canUseFindingBackend() {
 
 export async function loadBackendCompanyManagers(companyId: number) {
   return loadCompanyManagers(companyId);
+}
+
+export async function loadBackendCompany(companyId: number) {
+  return fetchList<CompanySummaryResponse>(
+    `${getBackendApiBaseUrl()}/companies/${companyId}`,
+    "회사 상세를 불러오지 못했습니다.",
+  );
 }
 
 export async function resolveSalesRepresentativeId(salesRepName: string) {
@@ -709,7 +721,6 @@ export async function createBackendCompany(input: {
 
   const created = await findCompanyByCode(input.companyType, input.code);
   if (typeof created?.id === "number") {
-    setCompanyDisplayOverride(input.code, { memo: input.memo });
     return created.id;
   }
 
@@ -718,6 +729,7 @@ export async function createBackendCompany(input: {
 
 export async function updateBackendCompany(
   companyId: number,
+  companyType: "CUSTOMER" | "PARTNER",
   input: {
     name: string;
     sector?: "PUBLIC" | "PRIVATE" | "OVERSEAS" | null;
@@ -735,6 +747,7 @@ export async function updateBackendCompany(
     },
     credentials: "include",
     body: JSON.stringify({
+      companyType,
       name: input.name,
       sector: input.sector ?? null,
       category: input.category ?? null,
@@ -743,7 +756,6 @@ export async function updateBackendCompany(
     }),
   });
 
-  setCompanyDisplayOverride(companyCode, { memo: input.memo });
   await normalizeVoidResponse(response, "회사를 수정하지 못했습니다.");
   return true;
 }

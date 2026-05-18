@@ -656,6 +656,10 @@ export default function ActivityDetailPage() {
                         </Select>
                       </div>
                     </div>
+                    <div className="space-y-2">
+                      <Label>요청 제목</Label>
+                      <Input value={requestItem.title ?? "-"} readOnly disabled className={detailFieldClassName} />
+                    </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>요청자</Label>

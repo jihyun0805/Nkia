@@ -12,7 +12,7 @@ export interface ApiResponse<T> {
 export type OrderReportType = "NEW" | "RENEWAL" | "MAINTENANCE_ONLY";
 export type CodeType = "DIRECT" | "INDIRECT";
 export type ApprovalStatus = "PENDING" | "IN_PROGRESS" | "APPROVED" | "REJECTED";
-export type VisitCycle = "MONTHLY" | "QUARTERLY" | "BIANNUAL" | "ANNUAL" | "AS_NEEDED";
+export type VisitCycle = "MONTHLY" | "QUARTERLY" | "SEMI_ANNUAL" | "ANNUAL" | "AS_NEEDED";
 export type ProductClass = "EMS" | "ITSM" | "DASHBOARD" | "DATACENTER" | "RCA" | "DCA" | "ITAM" | "ETC";
 
 export interface OrderReportMaintenanceRequest {
@@ -57,6 +57,7 @@ export interface LicenseFromOrderReportRequest {
 
 export interface OrderReportRequest {
   type: OrderReportType;
+  vatType?: "INCLUDED" | "EXCLUDED";
   quotationProvided: boolean;
   contractProvided: boolean;
   purchaseOrderProvided: boolean;
@@ -167,6 +168,7 @@ export interface OrderReportResponse {
   id: number;
   workflowId: number;
   status: ApprovalStatus;
+  vatType?: string;
   orderReportCode: string;
   totalAmount: number;
   paymentCondition: string;

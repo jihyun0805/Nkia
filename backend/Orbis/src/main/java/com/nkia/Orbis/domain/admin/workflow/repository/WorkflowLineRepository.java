@@ -19,4 +19,6 @@ public interface WorkflowLineRepository extends JpaRepository<WorkflowLine, Long
     );
 
     Optional<WorkflowLine> findByWorkflowIdAndStepOrder(Long workflowId, Integer stepOrder);
+
+    Optional<WorkflowLine> findFirstByWorkflowIdOrderByWorkflowStepAsc(Long workflowId);
 }

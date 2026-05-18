@@ -22,7 +22,8 @@ public record CompanyCreateRequest(
 
         Sector sector,
         CompanyCategory category,
-        String address
+        String address,
+        String memo
 ) {
     public Company toEntity() {
         return Company.builder()
@@ -33,6 +34,7 @@ public record CompanyCreateRequest(
                 .sector(this.sector)
                 .category(this.category)
                 .address(this.address)
+                .memo(this.memo)
                 .build();
     }
 }

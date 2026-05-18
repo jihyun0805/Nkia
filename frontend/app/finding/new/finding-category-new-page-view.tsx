@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
+import { ProductModuleMultiPicker } from "@/components/erp/product-module-multi-picker"
 import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
@@ -39,6 +40,7 @@ import {
   buildCompanyCode,
   createBackendCompany,
   createBackendCompanyManager,
+  deleteBackendCompany,
   createBackendProjectOpportunity,
   loadBackendFindingData,
   loadBackendProductModules,
@@ -51,6 +53,11 @@ import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-r
 
 type CustomerSector = "PUBLIC" | "PRIVATE" | "OVERSEAS"
 type OpportunityStage = "FINDING" | "PROMISING" | "PROGRESSING"
+type BackendProductModuleSummary = {
+  id?: number
+  productName?: string
+  productClass?: string
+}
 
 const customerGroupOptions = [
   { value: "PUBLIC", label: "공공" },
@@ -63,7 +70,6 @@ const opportunityStatusOptions: Array<{ value: OpportunityStage; label: string }
   { value: "PROGRESSING", label: "진행중" },
 ]
 const partnerTypeOptions = ["SI", "파트너", "기타"]
-const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"]
 
 type ContactDraft = {
   name: string
@@ -147,12 +153,14 @@ function createAutoBusinessRegistrationNumber(prefix: "CUS" | "PTN", code: strin
 }
 
 function buildOpportunityDescription(params: {
-  moduleName: string
+  moduleNames: string[]
   issue: string
   decisionInfo: string
 }) {
+  const normalizedModuleNames = params.moduleNames.map((value) => value.trim()).filter(Boolean)
   return JSON.stringify({
-    moduleName: params.moduleName.trim(),
+    moduleName: normalizedModuleNames.join(", "),
+    moduleNames: normalizedModuleNames,
     issue: params.issue.trim(),
     decisionInfo: params.decisionInfo.trim(),
   })
@@ -223,8 +231,8 @@ function resolvePartnerCompanyIds(partnerNames: string[], backendPartners: Partn
   return Array.from(new Set(resolved))
 }
 
-function resolveProductModuleIds(moduleName: string, productModules: { id?: number; productName?: string }[]) {
-  const names = splitMultipleValues(moduleName)
+function resolveProductModuleIds(moduleNames: string[], productModules: { id?: number; productName?: string }[]) {
+  const names = moduleNames.map((item) => item.trim()).filter(Boolean)
   if (names.length === 0) return []
 
   const resolved = names.flatMap((name) => {
@@ -368,6 +376,17 @@ export function FindingCategoryNewPageView({
   const [backendCustomers, setBackendCustomers] = useState<CustomerRecord[]>([])
   const [backendPartners, setBackendPartners] = useState<PartnerRecord[]>([])
   const [backendUsers, setBackendUsers] = useState<BackendUserSummary[]>([])
+  const [backendProductModules, setBackendProductModules] = useState<BackendProductModuleSummary[]>([])
+
+  const businessTypeOptions = useMemo(
+    () =>
+      backendProductModules.reduce<string[]>((options, product) => {
+        const productClass = product.productClass?.trim()
+        if (!productClass || options.includes(productClass)) return options
+        return [...options, productClass]
+      }, []),
+    [backendProductModules],
+  )
 
   const customerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
     () =>
@@ -419,7 +438,7 @@ export function FindingCategoryNewPageView({
   const [expectedAmount, setExpectedAmount] = useState("")
   const [opportunitySalesRepUserId, setOpportunitySalesRepUserId] = useState<string>("")
   const [businessType, setBusinessType] = useState("")
-  const [moduleName, setModuleName] = useState("")
+  const [moduleNames, setModuleNames] = useState<string[]>([])
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
   const [opportunityStatus, setOpportunityStatus] = useState<OpportunityStage>("FINDING")
@@ -438,16 +457,22 @@ export function FindingCategoryNewPageView({
     const sync = async () => {
       setLoadingBackend(true)
       try {
-        const [data, users] = await Promise.all([loadBackendFindingData(), loadBackendUsers().catch(() => [])])
+        const [data, users, productModules] = await Promise.all([
+          loadBackendFindingData(),
+          loadBackendUsers().catch(() => []),
+          loadBackendProductModules().catch(() => []),
+        ])
         if (cancelled) return
         setBackendCustomers(data.customers)
         setBackendPartners(data.partners)
         setBackendUsers(Array.isArray(users) ? users : [])
+        setBackendProductModules(Array.isArray(productModules) ? (productModules as BackendProductModuleSummary[]) : [])
       } catch {
         if (!cancelled) {
           setBackendCustomers([])
           setBackendPartners([])
           setBackendUsers([])
+          setBackendProductModules([])
         }
       } finally {
         if (!cancelled) {
@@ -614,9 +639,10 @@ export function FindingCategoryNewPageView({
 
     setSubmitting(true)
     void (async () => {
+      let companyId: number | null = null
       try {
         const code = buildCompanyCode("CUS")
-        const companyId = await createBackendCompany({
+        companyId = await createBackendCompany({
           companyType: "CUSTOMER",
           code,
           name: normalizedName,
@@ -643,6 +669,17 @@ export function FindingCategoryNewPageView({
         })
         router.push(`/finding/customers/${code}?tab=customers`)
       } catch (error) {
+        if (companyId != null) {
+          await deleteBackendCompany(companyId).catch(() => null)
+        }
+        const message = error instanceof Error ? error.message : ""
+        if (message.includes("중복") || message.includes("duplicate") || message.includes("already exists") || message.includes("이미 등록")) {
+          toast({
+            title: "고객사 중복 등록",
+            description: "이미 등록된 동일한 이름의 고객사가 있습니다.",
+          })
+          return
+        }
         toast({
           title: "고객사 등록 실패",
           description: error instanceof Error ? error.message : "등록에 실패했습니다.",
@@ -688,9 +725,10 @@ export function FindingCategoryNewPageView({
 
     setSubmitting(true)
     void (async () => {
+      let companyId: number | null = null
       try {
         const code = buildCompanyCode("PTN")
-        const companyId = await createBackendCompany({
+        companyId = await createBackendCompany({
           companyType: "PARTNER",
           code,
           name: normalizedName,
@@ -717,6 +755,9 @@ export function FindingCategoryNewPageView({
         })
         router.push("/finding?tab=partners")
       } catch (error) {
+        if (companyId != null) {
+          await deleteBackendCompany(companyId).catch(() => null)
+        }
         const message = error instanceof Error ? error.message : ""
         if (message.includes("중복") || message.includes("duplicate") || message.includes("already exists") || message.includes("이미 등록")) {
           toast({
@@ -1053,7 +1094,7 @@ export function FindingCategoryNewPageView({
             resolveRfpFileIds(rfpAttachments),
           ])
           const partnerCompanyIds = resolvePartnerCompanyIds(opportunityPartnerNames, backendPartners)
-          const productModuleIds = resolveProductModuleIds(moduleName, productModules)
+          const productModuleIds = resolveProductModuleIds(moduleNames, productModules)
 
           const result = await createBackendProjectOpportunity({
             opportunityName: opportunityName.trim(),
@@ -1064,7 +1105,7 @@ export function FindingCategoryNewPageView({
             expectedBidDate: expectedDate || undefined,
             expectedBudget: expectedAmount || undefined,
             description: buildOpportunityDescription({
-              moduleName,
+              moduleNames,
               issue,
               decisionInfo: buildDecisionInfoFromCustomer(resolvedCustomer),
             }),
@@ -1078,7 +1119,7 @@ export function FindingCategoryNewPageView({
             title: "사업기회 등록 완료",
             description: `${result.opportunityName ?? opportunityName} 사업기회가 등록되었습니다.`,
           })
-          router.push(`/finding/opportunities/${result.opportunityCode ?? customerRouteId}?tab=opportunities`)
+          router.push(`/finding/opportunities/${result.id ?? customerRouteId}?tab=opportunities`)
         } catch (error) {
           toast({
             title: "사업기회 등록 실패",
@@ -1203,11 +1244,17 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>예상 예산 또는 매출</Label>
-                        <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="예: 8억" />
+                        <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="예: 800,000" />
                       </div>
                       <div className="space-y-2">
                         <Label>사업 구분 *</Label>
-                        <Select value={businessType} onValueChange={setBusinessType}>
+                        <Select
+                          value={businessType}
+                          onValueChange={(value) => {
+                            setBusinessType(value)
+                            setModuleNames([])
+                          }}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="선택하세요" />
                           </SelectTrigger>
@@ -1233,12 +1280,18 @@ export function FindingCategoryNewPageView({
                               </SelectItem>
                             ))}
                           </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>납품 모듈</Label>
-                        <Input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="납품 모듈을 입력하세요" />
-                      </div>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>납품 모듈</Label>
+                      <ProductModuleMultiPicker
+                        value={moduleNames}
+                        onValueChange={setModuleNames}
+                        placeholder={businessType ? "제품명을 선택하세요" : "사업 구분을 먼저 선택하세요"}
+                        disabled={!businessType}
+                        productClassFilter={businessType}
+                      />
+                    </div>
                       <div className="space-y-2 md:col-span-2">
                         <Label>주요 사업 내용 및 주요 이슈 내용</Label>
                         <Textarea value={issue} onChange={(event) => setIssue(event.target.value)} rows={4} placeholder="주요 사업 내용 및 주요 이슈 내용을 입력하세요" />

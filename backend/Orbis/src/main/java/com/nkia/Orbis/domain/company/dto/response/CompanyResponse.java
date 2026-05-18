@@ -12,7 +12,8 @@ public record CompanyResponse(
         String businessRegistrationNumber,
         String sector,
         String category,
-        String address
+        String address,
+        String memo
 ) {
     public static CompanyResponse from(Company company) {
         return CompanyResponse.builder()
@@ -24,6 +25,7 @@ public record CompanyResponse(
                 .sector(company.getSector() != null ? company.getSector().name() : null)
                 .category(company.getCategory() != null ? company.getCategory().name() : null)
                 .address(company.getAddress())
+                .memo(company.getMemo())
                 .build();
     }
 }

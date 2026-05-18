@@ -89,6 +89,7 @@ export default function ActivityEditPage() {
   const [requestForm, setRequestForm] = useState({
     date: "",
     type: "",
+    title: "",
     requester: "",
     receiver: "",
     customerCode: "",
@@ -247,6 +248,7 @@ export default function ActivityEditPage() {
     setRequestForm({
       date: request.date,
       type: request.type,
+      title: request.title ?? "",
       requester: request.requestUserName ?? request.requester ?? currentUser.name,
       receiver: request.targetUserName ?? request.receiver ?? "",
       customerCode: normalizedCustomer?.id ?? request.customerCode ?? "",
@@ -394,7 +396,7 @@ export default function ActivityEditPage() {
     if (!requestForm.customer) {
       toast({
         title: "활동 요청 필수값 확인",
-        description: "고객사, 요청 유형, 담당자, 활동일, 요청 내용을 입력해주십시오.",
+        description: "요청 제목, 고객사, 요청 유형, 담당자, 활동일, 요청 내용을 입력해주십시오.",
       })
       return
     }
@@ -502,6 +504,7 @@ export default function ActivityEditPage() {
                     {[
                       { label: "요청일", key: "date", type: "date" },
                       { label: "요청 유형 *", key: "type" },
+                      { label: "요청 제목 *", key: "title" },
                       { label: "요청자", key: "requester" },
                       { label: "담당자 *", key: "receiver" },
                       { label: "고객사 *", key: "customer" },
@@ -533,6 +536,12 @@ export default function ActivityEditPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                        ) : field.key === "title" ? (
+                          <Input
+                            value={requestForm.title}
+                            onChange={(event) => setRequestForm((prev) => ({ ...prev, title: event.target.value }))}
+                            placeholder="요청 제목을 입력하세요"
+                          />
                         ) : field.key === "requester" ? (
                           <Input value={currentUser.name} readOnly />
                         ) : field.key === "receiver" ? (

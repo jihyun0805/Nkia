@@ -9,11 +9,67 @@ export type UserLike = {
   departmentName?: string
 }
 
-const POSITION_LABELS: Record<string, string> = {
+export const POSITION_LABELS: Record<string, string> = {
   TEAM_MEMBER: "팀원",
   TEAM_LEADER: "팀장",
   HEAD_DIRECTOR: "본부장",
 }
+
+export const WORKFLOW_DOMAIN_LABELS: Record<string, string> = {
+  QUOTATION: "견적",
+  MAINTENANCE_QUOTATION: "유지보수 견적",
+  ORDER_REPORT: "수주보고",
+  CONTRACT: "계약",
+  PURCHASE_CONTRACT: "매입 계약",
+  FREE_MAINTENANCE_CONTRACT: "무상 유지보수 계약",
+  PAID_MAINTENANCE_CONTRACT: "유상 유지보수 계약",
+  LICENSE: "라이선스",
+  BILLING: "청구 및 수금",
+  CUSTOMER_SUPPORT: "고객지원",
+  PRB: "PRB",
+  PRB_RESULT: "PRB 결과",
+  BID_RESULT: "입찰 결과",
+}
+
+export const permissionDomains = [
+  { label: "사업 기회", value: "PROJECT_OPPORTUNITY" },
+  { label: "고객사/협력사", value: "COMPANY" },
+  { label: "영업 활동", value: "SALES_ACTIVITY" },
+  { label: "영업 활동 요청", value: "SALES_ACTIVITY_REQUEST" },
+  { label: "견적", value: "QUOTATION" },
+  { label: "제안", value: "PROPOSAL" },
+  { label: "RFP 분석 결과", value: "RFP_ANALYSE_RESULT" },
+  { label: "PRB", value: "PRB" },
+  { label: "PRB 결과", value: "PRB_RESULT" },
+  { label: "입찰 결과", value: "BID_RESULT" },
+  { label: "수주보고", value: "ORDER_REPORT" },
+  { label: "계약", value: "CONTRACT" },
+  { label: "매입 계약", value: "PURCHASE_CONTRACT" },
+  { label: "라이선스", value: "LICENSE" },
+  { label: "사업", value: "PROJECT" },
+  { label: "사업 결과", value: "PROJECT_RESULT" },
+  { label: "청구/수금", value: "BILLING" },
+  { label: "예상매출", value: "ESTIMATED_REVENUE" },
+  { label: "유지보수", value: "MAINTENANCE" },
+  { label: "유지보수 견적", value: "MAINTENANCE_QUOTATION" },
+  { label: "고객지원", value: "CUSTOMER_SUPPORT" },
+  { label: "제품 모듈", value: "PRODUCT_MODULE" },
+  { label: "부서", value: "DEPARTMENT" },
+  { label: "결재 프로세스", value: "WORKFLOW_TEMPLATE" },
+  { label: "결재 상신", value: "WORKFLOW" },
+  { label: "권한", value: "PERMISSION" },
+  { label: "사용자 계정", value: "USER" },
+] as const;
+
+export const permissionActions = [
+  { label: "조회", value: "READ" },
+  { label: "생성", value: "CREATE" },
+  { label: "수정", value: "UPDATE" },
+  { label: "삭제", value: "DELETE" },
+  { label: "승인", value: "APPROVE" },
+  { label: "내보내기", value: "EXPORT" },
+  { label: "관리", value: "MANAGE" },
+] as const;
 
 export function normalizeLookupText(value: string) {
   return value.trim().toLowerCase()

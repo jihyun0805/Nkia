@@ -13,6 +13,10 @@ public class SalesActivityRequestListResponse {
 
     private String title;
 
+    private Long companyId;
+
+    private String companyName;
+
     private Long salesActivityId;
 
     private UUID targetUserId;
@@ -26,6 +30,8 @@ public class SalesActivityRequestListResponse {
             SalesActivityRequest salesActivityRequest) {
         return SalesActivityRequestListResponse.builder()
                 .id(salesActivityRequest.getId())
+                .companyId(salesActivityRequest.getCompany().getId())
+                .companyName(salesActivityRequest.getCompany().getName())
                 .title(salesActivityRequest.getTitle())
                 .salesActivityId(
                         salesActivityRequest.getSalesActivity() != null ? salesActivityRequest.getSalesActivity()

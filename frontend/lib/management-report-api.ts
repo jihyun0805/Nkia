@@ -56,6 +56,7 @@ export type ReportEvidence = {
   sourceId: string
   title?: string | null
   content?: string | null
+  metadata?: Record<string, unknown> | null
   finalScore?: number | null
 }
 

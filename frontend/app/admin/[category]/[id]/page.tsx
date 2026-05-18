@@ -11,6 +11,7 @@ import { adminApi } from "@/lib/api/admin-api"
 import { getAdminItem } from "@/lib/admin-data"
 import { Loader2 } from "lucide-react"
 import { format } from "date-fns"
+import { permissionDomains, permissionActions } from "@/lib/user-utils";
 
 export default function AdminDetailPage() {
   const params = useParams()
@@ -25,7 +26,9 @@ export default function AdminDetailPage() {
     async function fetchData() {
       try {
         setLoading(true)
+
         let res: any = null
+
         if (category === "users") {
           res = await adminApi.getUser(id).catch(() => null)
         } else if (category === "permissions") {
@@ -38,13 +41,31 @@ export default function AdminDetailPage() {
           res = await adminApi.getDepartment(id).catch(() => null)
         }
 
-        if (res && res.data) {
-          setData(res.data)
-        } else {
-          // fallback to mock data
-          const mockData = getAdminItem(category as any, id)
-          if (mockData) {
-            setData(mockData)
+        const d = res?.data?.data ?? res?.data
+
+        if (d) {
+          if (category === "permissions") {
+            setData({
+              ...d,
+              permissions: (d.permissions || []).map((p: any) => {
+                const domain = permissionDomains.find(
+                  (item) => item.label === p.domain || item.value === p.domain
+                )
+                const action = permissionActions.find(
+                  (item) => item.label === p.action || item.value === p.action
+                )
+
+                return {
+                  ...p,
+                  domain: domain?.label ?? p.domain,
+                  action: action?.label ?? p.action,
+                  domainValue: domain?.value ?? p.domain,
+                  actionValue: action?.value ?? p.action,
+                }
+              }),
+            })
+          } else {
+            setData(d)
           }
         }
       } catch (e) {
@@ -53,6 +74,7 @@ export default function AdminDetailPage() {
         setLoading(false)
       }
     }
+
     fetchData()
   }, [category, id])
 
@@ -81,19 +103,25 @@ export default function AdminDetailPage() {
         { label: "생성일", value: data.createdAt ? format(new Date(data.createdAt), "yyyy-MM-dd HH:mm") : "-" },
       ]
     }
-    if (category === "permissions") {
-      return [
-        { label: "권한 ID", value: data.id.toString() },
-        { label: "권한명", value: data.name },
-        { label: "권한 목록", value: data.permissions?.join(", ") || "없음" },
-      ]
-    }
     if (category === "workflow") {
+      const stepsText =
+        data.steps?.length > 0
+          ? [...data.steps]
+              .sort((a, b) => a.stepOrder - b.stepOrder)
+              .map(
+                (step) =>
+                  `${step.stepOrder}단계 | ${step.stepName} | ${step.approverPosition} | ${
+                    step.required ? "필수" : "선택"
+                  } | ${step.active ? "활성" : "비활성"}`
+              )
+              .join("\n")
+          : "등록된 단계 없음"
       return [
         { label: "워크플로우 ID", value: data.id.toString() },
         { label: "템플릿명", value: data.name },
         { label: "도메인(단계)", value: data.workflowDomain },
         { label: "상태", value: data.active ? "활성" : "비활성" },
+        { label: "결재 단계", value: stepsText },
       ]
     }
     if (category === "products") {
@@ -161,14 +189,129 @@ export default function AdminDetailPage() {
               <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : !data ? (
               <div className="text-center p-8 text-muted-foreground">데이터를 찾을 수 없습니다.</div>
-            ) : (
-              <DetailFormCard 
-                title={`${label} 상세`} 
-                fields={getFields()} 
-                listHref="/admin" 
-                editHref={`/admin/${category}/${id}/edit`} 
-              />
-            )}
+            ) : category === "workflow" ? (
+              <div className="rounded-xl border bg-white p-6 shadow-sm space-y-6">
+                <h2 className="text-xl font-bold">워크플로우 템플릿 상세</h2>
+
+                <div className="grid gap-4 md:grid-cols-2">
+
+                  <div>
+                    <div className="mb-2 font-semibold">템플릿명</div>
+                    <div className="rounded-md border p-3">{data.name}</div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 font-semibold">도메인(단계)</div>
+                    <div className="rounded-md border p-3">{data.workflowDomain}</div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 font-semibold">상태</div>
+                    <div className="rounded-md border p-3">
+                      {data.active ? "활성" : "비활성"}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="space-y-3">
+                    <div className="font-semibold">결재 단계</div>
+
+                    {data.steps?.map((step, index) => (
+                      <div
+                        key={step.id ?? index}
+                        className="rounded-lg border p-4 space-y-2"
+                      >
+                        <div className="font-bold">
+                          {step.stepOrder}단계 - {step.stepName}
+                        </div>
+
+                        <div className="grid gap-2 text-sm md:grid-cols-2">
+                          <div>결재 직급: {step.approverPosition}</div>
+                          <div>필수 여부: {step.required ? "필수" : "선택"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 border-t pt-6">
+                  <Link href="/admin">
+                    <button className="rounded-md border px-5 py-2">목록</button>
+                  </Link>
+
+                  <Link href={`/admin/${category}/${id}/edit`}>
+                    <button className="rounded-md bg-red-600 px-5 py-2 text-white">
+                      수정
+                    </button>
+                  </Link>
+                </div>
+              </div>
+
+              ) : category === "permissions" ? (
+                <div className="rounded-xl border bg-white p-6 shadow-sm space-y-6">
+                  <h2 className="text-xl font-bold">권한 그룹 상세</h2>
+
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <div className="font-semibold">권한명</div>
+                      <div className="rounded-md border p-3">
+                        {data.roleName}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="font-semibold">권한 목록</div>
+
+                      <div className="space-y-4">
+                        {permissionDomains.map((domain) => (
+                          <div key={domain.value} className="rounded-lg border p-4">
+                            <div className="mb-3 font-bold">{domain.label}</div>
+
+                            <div className="flex flex-wrap gap-4">
+                              {permissionActions.map((action) => {
+                              const checked = data.permissions?.some((p: any) => {
+                                return p.domainValue === domain.value && p.actionValue === action.value
+                              })
+
+                                return (
+                                  <label
+                                    key={`${domain.value}-${action.value}`}
+                                    className="flex items-center gap-2 text-sm"
+                                  >
+                                    <input type="checkbox" checked={!!checked} readOnly />
+                                    {action.label}
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 border-t pt-6">
+                    <Link href="/admin">
+                      <button className="rounded-md border px-5 py-2">목록</button>
+                    </Link>
+
+                    <Link href={`/admin/${category}/${id}/edit`}>
+                      <button className="rounded-md bg-red-600 px-5 py-2 text-white">
+                        수정
+                      </button>
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <DetailFormCard 
+                  title={`${label} 상세`} 
+                  fields={getFields()} 
+                  listHref="/admin" 
+                  editHref={`/admin/${category}/${id}/edit`} 
+                />
+              )}
+
             {(category === "products" || category === "departments") && !loading && data && (
               <div className="flex justify-end pt-4">
                 <button onClick={handleDelete} className="text-red-500 hover:underline text-sm font-medium">
