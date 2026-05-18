@@ -777,11 +777,16 @@ export default function ActivityDetailPage() {
                   <Button variant="outline" asChild>
                     <Link href={listHref}>목록</Link>
                   </Button>
-                  {requestItem && (
-                    <Button variant="outline" asChild>
-                      <Link href={`/activity/new/activities?requestId=${id}`}>활동 등록</Link>
-                    </Button>
-                  )}
+                  {requestItem &&
+                    (requestItem.salesActivityId ? (
+                      <Button variant="outline" asChild>
+                        <Link href={`/activity/activities/${requestItem.salesActivityId}`}>활동 보기</Link>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" asChild>
+                        <Link href={`/activity/new/activities?requestId=${id}`}>활동 등록</Link>
+                      </Button>
+                    ))}
                   {requestItem && requestItem.type === "RFP 분석" && requestItem.receiver === currentUser.name && (
                     <Button asChild className="bg-red-600 hover:bg-red-700">
                       <Link href={`/bid/new/rfp?requestId=${id}`}>RFP 분석 실행</Link>

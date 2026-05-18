@@ -54,6 +54,7 @@ type SalesActivityBackendItem = {
   projectOpportunityName?: string
   companyId?: number
   companyName?: string
+  createdByName?: string
   createUserName?: string
   activityType?: string
   activityPurpose?: string
@@ -355,7 +356,7 @@ function mapBackendActivityRecord(
   const customerId = activity.companyId ?? opportunity?.customerCompanyId
   const opportunityId = activity.projectOpportunityId ?? opportunity?.id
   const attendeeUserIds = activity.attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
-  const registrantName = activity.createUserName?.trim() || extras.registrant?.trim() || ""
+  const registrantName = activity.createdByName?.trim() || activity.createUserName?.trim() || extras.registrant?.trim() || ""
   const registrantUser = findUserByToken(users, extras.registrant ?? "")
   const requesterUser = findUserByToken(users, extras.requesterUserId ?? extras.requester ?? "")
   const requesterUserId = requesterUser?.id?.trim() ?? extras.requesterUserId ?? ""

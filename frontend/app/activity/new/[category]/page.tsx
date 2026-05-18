@@ -518,6 +518,15 @@ function ActivityCategoryNewPageContent() {
         return
       }
 
+      if (linkedRequest?.salesActivityId) {
+        toast({
+          title: "이미 연결된 활동 요청",
+          description: "이 요청은 이미 활동에 연결되어 있습니다. 기존 활동 상세로 이동합니다.",
+        })
+        router.push(`/activity/activities/${linkedRequest.salesActivityId}`)
+        return
+      }
+
       if (selectedActivityCustomer?.backendId && isActivityOpportunityLoading) {
         toast({
           title: "사업기회 조회 중",

@@ -47,7 +47,7 @@ import { currentUser } from "@/lib/current-user"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
-import { loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
+import { loadBackendActivityRecord, loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import {
   deleteBackendQuotationRecord,
@@ -66,6 +66,7 @@ export default function ActivityEditPage() {
   const id = params.id
   const backendUsers = useBackendUsers()
   const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
+  const [activityDetail, setActivityDetail] = useState<ActivityRecord | null | undefined>(undefined)
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [activityCustomer, setActivityCustomer] = useState("")
@@ -108,6 +109,33 @@ export default function ActivityEditPage() {
       scrollContainer.scrollTo(0, 0)
     }
   }
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (category !== "activities") {
+      setActivityDetail(undefined)
+      return
+    }
+
+    setActivityDetail(undefined)
+
+    loadBackendActivityRecord(id)
+      .then((record) => {
+        if (!cancelled) {
+          setActivityDetail(record)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityDetail(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category, id])
 
   useEffect(() => {
     let cancelled = false
@@ -176,10 +204,10 @@ export default function ActivityEditPage() {
   }, [])
 
   const item = useMemo(() => {
-    if (category === "activities") return activityRecords.find((entry) => entry.id === id) ?? null
+    if (category === "activities") return activityDetail ?? activityRecords.find((entry) => entry.id === id) ?? null
     if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
     return requests.find((entry) => entry.id === id) ?? null
-  }, [activityRecords, category, id, quotations, requests])
+  }, [activityDetail, activityRecords, category, id, quotations, requests])
 
   useEffect(() => {
     if (category !== "activities" || !item) return
