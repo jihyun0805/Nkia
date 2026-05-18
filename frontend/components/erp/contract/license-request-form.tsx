@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { productData } from "@/lib/product-data";
 import { licenseApi, type LicenseRequest, type LicenseType } from "@/lib/api/contract-api";
 import { toast } from "sonner";
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete";
+import { type CustomerRecord } from "@/lib/finding-data";
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete";
+import { type EntitySuggestion } from "@/lib/entity-suggestions-api";
+import { currentUser } from "@/lib/current-user";
+import { adminApi } from "@/lib/api/admin-api";
 
 export interface LicenseRequestFormProps {
   onSuccess: () => void;
@@ -17,7 +24,7 @@ export interface LicenseRequestFormProps {
   inheritedData?: {
     customerId?: string;
     customerName?: string;
-    customerCompanyId?: number; // 백엔드 숫자 ID
+    customerCompanyId?: number;
     opportunityId?: string;
     opportunityName?: string;
   } | null;
@@ -25,11 +32,11 @@ export interface LicenseRequestFormProps {
 
 interface ModuleRow {
   id: number;
-  productModuleId: string; // 백엔드 productModuleId
+  productModuleId: string;
   category: string;
   group: string;
   module: string;
-  quantity: number;
+  quantity: number | string;
   licenseType: LicenseType | "";
   startDate: string;
   endDate: string;
@@ -37,7 +44,45 @@ interface ModuleRow {
 
 export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: LicenseRequestFormProps) {
   const [customerCompanyId, setCustomerCompanyId] = useState<string>(inheritedData?.customerCompanyId?.toString() || "");
+  const [customerName, setCustomerName] = useState<string>(inheritedData?.customerName || "");
+  const [opportunityName, setOpportunityName] = useState<string>(inheritedData?.opportunityName || "");
+  const [opportunityId, setOpportunityId] = useState<string>(inheritedData?.opportunityId || "");
+  const [remarks, setRemarks] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    adminApi
+      .getProducts()
+      .then((res) => {
+        setDbProducts(res.data || []);
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleCustomerSelect = (customer: CustomerRecord | null) => {
+    if (customer) {
+      setCustomerName(customer.name);
+      setCustomerCompanyId(customer.backendId?.toString() || "");
+      setOpportunityName("");
+      setOpportunityId("");
+    } else {
+      setCustomerName("");
+      setCustomerCompanyId("");
+      setOpportunityName("");
+      setOpportunityId("");
+    }
+  };
+
+  const handleOpportunitySelect = (suggestion: EntitySuggestion | null) => {
+    if (suggestion) {
+      setOpportunityName(suggestion.label);
+      setOpportunityId(suggestion.id.toString());
+    } else {
+      setOpportunityName("");
+      setOpportunityId("");
+    }
+  };
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -48,7 +93,7 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
       category: "",
       group: "",
       module: "",
-      quantity: 1,
+      quantity: "",
       licenseType: "",
       startDate: today,
       endDate: "",
@@ -64,7 +109,7 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
         category: "",
         group: "",
         module: "",
-        quantity: 1,
+        quantity: "",
         licenseType: "",
         startDate: today,
         endDate: "",
@@ -90,6 +135,13 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
           } else if (field === "group") {
             newMod.module = "";
             newMod.productModuleId = "";
+          } else if (field === "module") {
+            const matched = dbProducts.find((p) => p.productClass === m.category && p.productGroup === m.group && p.productName === value);
+            if (matched) {
+              newMod.productModuleId = matched.id.toString();
+            } else {
+              newMod.productModuleId = "";
+            }
           }
           return newMod;
         }
@@ -107,8 +159,28 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
       return;
     }
 
+    const currentOpportunityName = inheritedData?.opportunityName ?? opportunityName;
+    if (!currentOpportunityName) {
+      toast.error("사업명을 입력해 주세요.");
+      return;
+    }
+
+    // 각 라이선스 행의 수량 검증
+    for (let i = 0; i < modules.length; i++) {
+      const m = modules[i];
+      const q = typeof m.quantity === "number" ? m.quantity : parseInt(m.quantity);
+      if (isNaN(q) || q <= 0) {
+        toast.error(`${i + 1}번째 라이선스의 수량을 올바르게 입력해주세요.`);
+        return;
+      }
+    }
+
     // 각 모듈마다 별도의 라이선스 생성 요청
-    const validModules = modules.filter((m) => m.productModuleId && m.quantity > 0 && m.licenseType && m.startDate);
+    const validModules = modules.filter((m) => {
+      const q = typeof m.quantity === "number" ? m.quantity : parseInt(m.quantity);
+      return m.productModuleId && !isNaN(q) && q > 0 && m.licenseType && m.startDate;
+    });
+
     if (validModules.length === 0) {
       toast.error("라이선스 요청 정보를 올바르게 입력해주세요.");
       return;
@@ -120,7 +192,7 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
         validModules.map((m) => {
           const payload: LicenseRequest = {
             productModuleId: parseInt(m.productModuleId),
-            quantity: m.quantity,
+            quantity: typeof m.quantity === "number" ? m.quantity : parseInt(m.quantity) || 1,
             licenseType: m.licenseType as LicenseType,
             customerCompanyId: companyId,
             startDate: m.startDate,
@@ -140,7 +212,7 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
   };
 
   return (
-    <Card className="max-w-5xl mx-auto shadow-sm mt-8">
+    <Card className="w-full shadow-sm mt-8">
       <CardHeader className="border-b bg-muted/20">
         <CardTitle className="text-xl">라이선스 발행 요청</CardTitle>
         <CardDescription className="mt-1">정식 구매 또는 임시 사용(BMT, PoC 등)을 위한 라이선스 발행을 요청합니다. 결재 프로세스가 완료되면 자동으로 라이선스가 생성됩니다.</CardDescription>
@@ -149,52 +221,60 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="customerName">고객사</Label>
-              <Input
-                id="customerName"
-                value={inheritedData?.customerName || ""}
-                readOnly={!!inheritedData?.customerName}
-                placeholder="고객사명"
-                className={inheritedData?.customerName ? "bg-muted/30" : ""}
-              />
+              <Label htmlFor="customerName">
+                고객사 <span className="text-red-500">*</span>
+              </Label>
+              {inheritedData?.customerName ? (
+                <Input id="customerName" value={inheritedData.customerName} readOnly placeholder="고객사명" className="bg-muted/30" />
+              ) : (
+                <CustomerAutocomplete value={customerName} onSelect={handleCustomerSelect} onValueChange={setCustomerName} placeholder="고객사명을 검색하여 선택하세요" />
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="customerCompanyId">
-                고객사 ID <span className="text-red-500">*</span>
+              <Label htmlFor="opportunityName">
+                사업명 <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="customerCompanyId"
-                type="number"
-                min="1"
-                required
-                value={customerCompanyId}
-                onChange={(e) => setCustomerCompanyId(e.target.value)}
-                readOnly={!!inheritedData?.customerCompanyId}
-                placeholder="백엔드 고객사 숫자 ID"
-                className={inheritedData?.customerCompanyId ? "bg-muted/30" : ""}
-              />
+              {inheritedData?.opportunityName ? (
+                <Input id="opportunityName" value={inheritedData.opportunityName} readOnly placeholder="사업명" className="bg-muted/30" />
+              ) : (
+                <EntityAutocomplete
+                  value={opportunityName}
+                  target="opportunities"
+                  onValueChange={setOpportunityName}
+                  onSelect={handleOpportunitySelect}
+                  disabled={!customerName}
+                  placeholder={customerName ? "사업명을 입력하세요" : "고객사를 먼저 선택하세요"}
+                  emptyMessage="등록된 사업기회가 없습니다."
+                  filterSuggestion={(suggestion) =>
+                    !customerName ||
+                    [suggestion.metadata?.customerCompanyName, suggestion.metadata?.customerName]
+                      .filter((value): value is string => typeof value === "string")
+                      .some((value) => value.trim().toLowerCase() === customerName.trim().toLowerCase())
+                  }
+                />
+              )}
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label className="text-base">
-                요청 라이선스 목록 <span className="text-red-500">*</span>
+                요청 라이선스 제품 모듈 및 수량 <span className="text-red-500">*</span>
               </Label>
               <Button type="button" variant="outline" size="sm" onClick={handleAddModule}>
                 <Plus className="w-4 h-4 mr-2" />
-                모듈 추가
+                추가
               </Button>
             </div>
-            <div className="border rounded-md overflow-hidden">
-              <table className="w-full text-sm text-left">
+            <div className="border rounded-md overflow-x-auto">
+              <table className="w-full text-sm text-left min-w-[1100px] table-fixed">
                 <thead className="bg-muted text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3 font-medium w-[14%]">제품분류</th>
-                    <th className="px-3 py-3 font-medium w-[18%]">제품군</th>
-                    <th className="px-3 py-3 font-medium w-[22%]">제품명</th>
-                    <th className="px-3 py-3 font-medium w-[10%]">수량</th>
-                    <th className="px-3 py-3 font-medium w-[12%]">라이선스유형</th>
+                    <th className="px-3 py-3 font-medium w-[20%]">제품군</th>
+                    <th className="px-3 py-3 font-medium w-[28%]">제품명</th>
+                    <th className="px-3 py-3 font-medium w-[6%]">수량</th>
+                    <th className="px-3 py-3 font-medium w-[8%]">라이선스유형</th>
                     <th className="px-3 py-3 font-medium w-[10%]">시작일</th>
                     <th className="px-3 py-3 font-medium w-[10%]">종료일</th>
                     <th className="px-3 py-3 font-medium w-[4%] text-center">삭제</th>
@@ -249,7 +329,18 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
                         </Select>
                       </td>
                       <td className="px-2 py-2">
-                        <Input type="number" min="1" value={mod.quantity} onChange={(e) => handleModuleChange(mod.id, "quantity", parseInt(e.target.value) || 1)} required />
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={mod.quantity}
+                          onChange={(e) => {
+                            const cleanVal = e.target.value.replace(/[^0-9]/g, "");
+                            handleModuleChange(mod.id, "quantity", cleanVal);
+                          }}
+                          required
+                          className="text-center"
+                        />
                       </td>
                       <td className="px-2 py-2">
                         <Select value={mod.licenseType} onValueChange={(val) => handleModuleChange(mod.id, "licenseType", val)}>
@@ -259,7 +350,7 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
                           <SelectContent>
                             <SelectItem value="PERMANENT">영구</SelectItem>
                             <SelectItem value="SUBSCRIPTION">구독</SelectItem>
-                            <SelectItem value="TRIAL">임시(Trial)</SelectItem>
+                            <SelectItem value="TRIAL">임시</SelectItem>
                           </SelectContent>
                         </Select>
                       </td>
@@ -286,13 +377,29 @@ export function LicenseRequestForm({ onSuccess, onCancel, inheritedData }: Licen
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-muted-foreground">* 제품 모듈 ID는 제품명 선택 후 자동 매핑됩니다. productModuleId 직접 입력이 필요한 경우 담당자에게 문의하세요.</p>
           </div>
 
-          <div className="p-4 rounded-lg bg-muted/30 border">
+          <div className="space-y-2">
+            <Label htmlFor="remarks">기타 특기 사항</Label>
+            <Textarea
+              id="remarks"
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="라이선스 발행과 관련된 요청사항이나 특기 사항을 입력해주세요 (예: BMT 테스트용 라이선스 발급 요청)"
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-6 p-4 rounded-lg bg-muted/30 border">
             <div className="space-y-2">
-              <Label>요청일 (자동)</Label>
+              <Label className="text-muted-foreground">요청일</Label>
               <div className="font-medium">{today}</div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">요청자</Label>
+              <div className="font-medium">
+                {currentUser.name} ({currentUser.role})
+              </div>
             </div>
           </div>
 
