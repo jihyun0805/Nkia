@@ -43,6 +43,7 @@ import {
   loadBackendProductModules,
   mapPartnerCategory,
   resolveSalesRepresentativeId,
+  saveRfpAttachmentSummariesForOpportunity,
   stageLabel,
   updateBackendCompany,
   updateBackendCompanyManager,
@@ -224,10 +225,13 @@ function resolveProductModuleIds(moduleNames: string[], productModules: { id?: n
 }
 
 async function resolveRfpFileIds(attachments: RfpAttachmentDraft[]) {
-  const existingIds = attachments.map((attachment) => attachment.fileId).filter((value): value is number => typeof value === "number")
-  const newFiles = attachments.map((attachment) => attachment.file).filter((file): file is File => Boolean(file))
-  const uploadedIds = newFiles.length > 0 ? await uploadBackendRfpFiles(newFiles) : []
-  return Array.from(new Set([...existingIds, ...uploadedIds]))
+  const newAttachments = attachments.filter((attachment) => attachment.fileId == null && attachment.file)
+  const uploadedIds = newAttachments.length > 0 ? await uploadBackendRfpFiles(newAttachments.map((attachment) => attachment.file!)) : []
+  const uploadedIdByAttachmentId = new Map(newAttachments.map((attachment, index) => [attachment.id, uploadedIds[index]]))
+  const orderedIds = attachments
+    .map((attachment) => attachment.fileId ?? uploadedIdByAttachmentId.get(attachment.id))
+    .filter((value): value is number => typeof value === "number")
+  return Array.from(new Set(orderedIds))
 }
 
 function parseExpectedBudget(value?: string) {
@@ -997,6 +1001,15 @@ export default function FindingEditPage() {
           productModuleIds,
           rfpFileIds,
         })
+        saveRfpAttachmentSummariesForOpportunity(
+          updated,
+          rfpAttachments.map((attachment, index) => ({
+            fileId: attachment.fileId ?? rfpFileIds[index],
+            name: attachment.name,
+            size: attachment.size,
+            summary: attachment.summary,
+          })),
+        )
 
         toast({
           title: "사업기회 수정 완료",
