@@ -34,6 +34,7 @@ type BackendRequestListItem = {
 }
 
 type RequestCreateInput = {
+  title: string
   customerCode: string
   customer: string
   opportunityCode: string
@@ -283,7 +284,7 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
     throw new Error("입력한 담당자명을 백엔드 사용자에서 찾을 수 없습니다.")
   }
 
-  const title = `${input.customer} ${input.type}`.trim() || `${input.type} 요청`
+  const title = input.title.trim() || `${input.customer} ${input.type}`.trim() || `${input.type} 요청`
   const payload: BackendSalesActivityRequestCreatePayload = {
     title,
     targetUserId,
@@ -305,7 +306,7 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
 
   const saved = await parseApiResponse<BackendRequestResponse>(response, "활동 요청을 저장하지 못했습니다.")
   const localIndex = loadLocalRequestIndex()
-  const fallbackTitle = `${input.customer} ${input.type}`.trim() || `${input.type} 요청`
+  const fallbackTitle = title
   const merged: ActivityRequestRecord = {
     id: String(saved.id ?? `${Date.now()}`),
     title: saved.title ?? fallbackTitle,
@@ -317,6 +318,7 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
     date: input.date || saved.activityDateTime?.slice(0, 10) || today(),
     requester: input.requester,
     receiver: input.receiver,
+    title: input.title,
     type: input.type,
     customerCode: input.customerCode,
     customer: input.customer,
