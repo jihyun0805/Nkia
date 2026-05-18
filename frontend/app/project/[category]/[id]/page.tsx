@@ -96,13 +96,13 @@ function ProjectDetail({ id }: { id: number }) {
         {/* 관련 문서 */}
         <div className="border-t pt-4 flex gap-4 text-sm">
           {data.orderReportId && (
-            <Link href="/contract?tab=orders" className="text-blue-600 hover:underline">
-              수주보고서 #{data.orderReportId}
+            <Link href={`/contract/orders/${data.orderReportId}`} className="text-blue-600 hover:underline">
+              수주보고서 바로가기
             </Link>
           )}
           {data.contractId && (
-            <Link href="/contract?tab=contracts" className="text-blue-600 hover:underline">
-              계약 #{data.contractId}
+            <Link href={`/contract/contracts/${data.contractId}`} className="text-blue-600 hover:underline">
+              계약서 바로가기
             </Link>
           )}
         </div>
@@ -192,7 +192,7 @@ function BillingDetail({ id }: { id: number }) {
         {/* 관련 문서 */}
         <div className="border-t pt-4 flex gap-4 text-sm">
           {data.orderReportId && (
-            <Link href="/contract?tab=orders" className="text-blue-600 hover:underline">
+            <Link href={`/contract/orders/${data.orderReportId}`} className="text-blue-600 hover:underline">
               수주보고서 #{data.orderReportId}
             </Link>
           )}

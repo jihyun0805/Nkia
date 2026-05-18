@@ -16,6 +16,7 @@ import { projectApi, type ProjectDetailResponse } from "@/lib/api/project-api";
 import { UserPicker } from "@/components/erp/user-picker";
 import { useBackendUsers } from "@/lib/use-backend-users";
 import type { BackendUserSummary } from "@/lib/workflow-backend";
+import { customAxiosInstance } from "@/lib/api/customAxios";
 
 interface EditFormValues {
   startDate: string;
@@ -34,6 +35,7 @@ export default function ProjectEditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resultFile, setResultFile] = useState<File | null>(null);
 
   const { register, handleSubmit, reset, setValue } = useForm<EditFormValues>({
     defaultValues: {
@@ -46,6 +48,26 @@ export default function ProjectEditPage() {
   const projectUsers = useBackendUsers();
   const [pmUser, setPmUser] = useState<BackendUserSummary | null>(null);
   const [salesRepUser, setSalesRepUser] = useState<BackendUserSummary | null>(null);
+
+  // 사용자 목록이 로드되거나 사업 정보가 변경될 때 PM 및 영업대표 자동 매칭
+  useEffect(() => {
+    if (data && projectUsers.length > 0) {
+      if (data.pmName) {
+        const matchingPm = projectUsers.find((u) => u.name === data.pmName);
+        if (matchingPm) {
+          setPmUser(matchingPm);
+          setValue("managerId", matchingPm.id ?? "");
+        }
+      }
+      if (data.salesRepName) {
+        const matchingSalesRep = projectUsers.find((u) => u.name === data.salesRepName);
+        if (matchingSalesRep) {
+          setSalesRepUser(matchingSalesRep);
+          setValue("salesRepresentativeId", matchingSalesRep.id ?? "");
+        }
+      }
+    }
+  }, [data, projectUsers, setValue]);
 
   useEffect(() => {
     if (isNaN(numericId)) return;
@@ -67,22 +89,50 @@ export default function ProjectEditPage() {
   }, [numericId, reset]);
 
   const onSubmit = async (formData: EditFormValues) => {
+    if (!formData.startDate) {
+      alert("사업 개시일을 입력해주세요.");
+      return;
+    }
+    if (!formData.endDate) {
+      alert("사업 완료일을 입력해주세요.");
+      return;
+    }
     if (!formData.managerId.trim()) {
-      alert("PM(담당자) UUID를 입력해주세요.");
+      alert("PM을 선택해주세요.");
       return;
     }
     if (!formData.salesRepresentativeId.trim()) {
-      alert("영업대표 UUID를 입력해주세요.");
+      alert("영업대표를 선택해주세요.");
       return;
     }
 
     setIsSubmitting(true);
     try {
+      let fileId: number | undefined = undefined;
+
+      // 1. 결과보고서 파일 업로드 진행
+      if (resultFile) {
+        const formDataObj = new FormData();
+        formDataObj.append("file", resultFile);
+
+        const uploadRes = await customAxiosInstance.post("/files/upload", formDataObj, {
+          params: { category: "PROJECT_RESULT" },
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        fileId = uploadRes.data?.data;
+      }
+
+      // 새 파일이 업로드되지 않은 경우 기존 결과보고서 파일 ID 보존
+      const finalFileId = fileId || data?.resultReport?.id || null;
+
       await projectApi.updateProjectWithReport(numericId, {
         startDate: formData.startDate || undefined,
         endDate: formData.endDate || undefined,
         managerId: formData.managerId.trim(),
         salesRepresentativeId: formData.salesRepresentativeId.trim(),
+        fileId: finalFileId,
       });
       alert("사업 정보가 수정되었습니다.");
       router.push(`/project/results/${rawId}`);
@@ -157,14 +207,14 @@ export default function ProjectEditPage() {
                     <div className="grid grid-cols-2 gap-6">
                       {/* 사업개시일 */}
                       <div className="space-y-2">
-                        <Label htmlFor="startDate">사업개시일</Label>
-                        <Input id="startDate" type="date" {...register("startDate")} />
+                        <Label htmlFor="startDate">사업개시일 *</Label>
+                        <Input id="startDate" type="date" {...register("startDate", { required: true })} />
                       </div>
 
                       {/* 사업완료일 */}
                       <div className="space-y-2">
-                        <Label htmlFor="endDate">사업완료일</Label>
-                        <Input id="endDate" type="date" {...register("endDate")} />
+                        <Label htmlFor="endDate">사업완료일 *</Label>
+                        <Input id="endDate" type="date" {...register("endDate", { required: true })} />
                       </div>
 
                       {/* PM */}
@@ -198,10 +248,35 @@ export default function ProjectEditPage() {
                         <input type="hidden" {...register("salesRepresentativeId", { required: true })} />
                         <p className="text-xs text-muted-foreground">현재: {data?.salesRepName ?? "미배정"}</p>
                       </div>
+
+                      {/* 결과보고서 파일 첨부 */}
+                      <div className="space-y-2 col-span-2">
+                        <Label htmlFor="resultFile">결과보고서 파일 첨부</Label>
+                        <Input
+                          id="resultFile"
+                          type="file"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              setResultFile(e.target.files[0]);
+                            } else {
+                              setResultFile(null);
+                            }
+                          }}
+                          className="cursor-pointer"
+                        />
+                        {data?.resultReport && (
+                          <p className="text-xs text-muted-foreground">
+                            현재 파일: <span className="font-semibold text-blue-600">{data.resultReport.fileName}</span> (새 파일을 첨부하면 기존 파일이 교체됩니다)
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          * 사업 수행 완료 후 작성된 결과보고서 파일을 첨부해 주십시오. (선택사항)
+                        </p>
+                      </div>
                     </div>
 
                     <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-3 text-sm text-blue-700 dark:text-blue-300">
-                      * 결과보고서 첨부는 파일 업로드 API 연동 후 별도 처리됩니다.
+                      * 입력하신 정보를 바탕으로 사업 정보 및 결과보고서가 안전하게 수정됩니다.
                     </div>
 
                     <div className="flex justify-end gap-2 border-t pt-6">
