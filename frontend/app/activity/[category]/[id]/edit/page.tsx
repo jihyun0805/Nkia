@@ -546,6 +546,7 @@ export default function ActivityEditPage() {
                   <ActivityFormFields
                     defaultValues={{
                       ...(item as ActivityRecord),
+                      activityMode: activityForm.activityMode || (item as ActivityRecord).activityMode,
                       requester: activityRequester,
                       registrant: activityRegistrant,
                       activityContent: activityForm.activityContent || (item as ActivityRecord).activityContent,

@@ -742,6 +742,7 @@ function ActivityCategoryNewPageContent() {
                 {category === "activities" && (
                   <ActivityFormFields
                     defaultValues={{
+                      activityMode: activityForm.activityMode,
                       requester: linkedRequest?.requester ?? "",
                       requestId: linkedRequest?.id ?? linkedRequestId,
                       activityContent: linkedRequest?.type ?? "",
