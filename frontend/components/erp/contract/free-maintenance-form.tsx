@@ -1,384 +1,407 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Search } from "lucide-react";
-import { OrderReportSelector } from "@/components/erp/contract/order-report-selector";
-import { type OrderReportListResponse } from "@/lib/api/contract-api";
+import { Search } from "lucide-react";
+import { ProjectSelector } from "@/components/erp/project/project-selector";
+import { type ProjectListResponse } from "@/lib/api/project-api";
 import { UserPicker } from "@/components/erp/user-picker";
 import { useBackendUsers } from "@/lib/use-backend-users";
+import { createMaintenance } from "@/lib/api/maintenance";
 import type { BackendUserSummary } from "@/lib/workflow-backend";
+import { toast } from "sonner";
 
 export interface FreeMaintenanceFormProps {
   onSuccess: () => void;
   onCancel: () => void;
-  inheritedData?: {
-    customerId: string;
-    customerName: string;
-    opportunityId: string;
-    opportunityName: string;
-    orderReportId?: string;
-    contractId?: string;
-  } | null;
+  inheritedData?: any;
 }
 
 export function FreeMaintenanceForm({ onSuccess, onCancel, inheritedData }: FreeMaintenanceFormProps) {
-  const [data, setData] = useState<any>(inheritedData);
-  const [amount, setAmount] = useState<string>("0");
-  const [annualAmount, setAnnualAmount] = useState<string>("0");
+  const [selectedProject, setSelectedProject] = useState<ProjectListResponse | null>(null);
   const users = useBackendUsers();
+
+  // User picker states
+  const [salesRep, setSalesRep] = useState<BackendUserSummary | null>(null);
   const [engineerMain, setEngineerMain] = useState<BackendUserSummary | null>(null);
   const [engineerSub, setEngineerSub] = useState<BackendUserSummary | null>(null);
   const [regularPm, setRegularPm] = useState<BackendUserSummary | null>(null);
-  const [salesRep, setSalesRep] = useState<BackendUserSummary | null>(null);
 
-  // 선택된 데이터가 없으면 수주보고서 선택 유도
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const numericValue = e.target.value.replace(/[^0-9]/g, "");
-    setAmount(numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+  // Field states
+  const [category, setCategory] = useState<string>("");
+  const [isRemote, setIsRemote] = useState<string>("false");
+  const [inspectionCycle, setInspectionCycle] = useState<string>("NONE");
+  const [importance, setImportance] = useState<string>("MEDIUM");
+  const [location, setLocation] = useState<string>("");
+  const [rate, setRate] = useState<string>("0");
+  const [contractDate, setContractDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [reportSubmitted, setReportSubmitted] = useState<string>("false");
+
+  // Product technical specs
+  const [productFamily, setProductFamily] = useState<string>("EMS");
+  const [apVersion, setApVersion] = useState<string>("");
+  const [apCount, setApCount] = useState<string>("0");
+  const [esVersion, setEsVersion] = useState<string>("");
+  const [esCount, setEsCount] = useState<string>("0");
+  const [dbVersion, setDbVersion] = useState<string>("");
+  const [dbHaStatus, setDbHaStatus] = useState<string>("false");
+  const [aclPatchStatus, setAclPatchStatus] = useState<string>("false");
+  const [vulnPatchStatus, setVulnPatchStatus] = useState<string>("false");
+  const [upgradePlan, setUpgradePlan] = useState<string>("");
+  const [remarks, setRemarks] = useState<string>("");
+
+  const [submitting, setSubmitting] = useState(false);
+
+  // Prefill PM and Sales Rep when a project is selected
+  const handleSelectProject = (project: ProjectListResponse) => {
+    setSelectedProject(project);
+    if (project.startDate) setStartDate(project.startDate);
+    if (project.endDate) setEndDate(project.endDate);
+
+    // Auto-resolve salesRep and engineerMain from backend users list if names match
+    if (project.salesRepresentativeName) {
+      const foundSalesRep = users.find((u) => u.name === project.salesRepresentativeName);
+      if (foundSalesRep) setSalesRep(foundSalesRep);
+    }
+    if (project.pmName) {
+      const foundPm = users.find((u) => u.name === project.pmName);
+      if (foundPm) setEngineerMain(foundPm);
+    }
   };
-  const handleAnnualAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const numericValue = e.target.value.replace(/[^0-9]/g, "");
-    setAnnualAmount(numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedProject) {
+      toast.error("사업을 선택해주세요.");
+      return;
+    }
+    if (!salesRep) {
+      toast.error("영업대표를 지정해주세요.");
+      return;
+    }
+    if (!startDate || !endDate) {
+      toast.error("유지보수 시작일과 종료일은 필수입니다.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        projectId: selectedProject.id,
+        salesRep: salesRep.id,
+        managerPrimary: engineerMain?.id || null,
+        managerSecondary: engineerSub?.id || null,
+        category: category || null,
+        type: "FREE",
+        contractAmount: 0,
+        annualAmount: 0,
+        rate: parseFloat(rate) || 0.0,
+        contractDate: contractDate || null,
+        startDate: startDate,
+        endDate: endDate,
+        isRemote: isRemote === "true",
+        inspectionCycle,
+        importance,
+        location: location || null,
+        reportSubmitted: reportSubmitted === "true",
+        regularPm: regularPm?.id || null,
+        productFamily,
+        apVersion: apVersion || null,
+        apCount: parseInt(apCount) || 0,
+        esVersion: esVersion || null,
+        esCount: parseInt(esCount) || 0,
+        dbVersion: dbVersion || null,
+        dbHaStatus: dbHaStatus === "true",
+        aclPatchStatus: aclPatchStatus === "true",
+        vulnPatchStatus: vulnPatchStatus === "true",
+        upgradePlan: upgradePlan || null,
+        remarks: remarks || null,
+        contractFileId: null,
+      };
+
+      const res = await createMaintenance(payload);
+      if (res.success || res.result === "SUCCESS") {
+        toast.success("무상유지보수 계약이 등록되었습니다.");
+        onSuccess();
+      } else {
+        toast.error(res.message || "등록에 실패했습니다.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("등록 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="space-y-2 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+      <div className="space-y-2 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl shadow-sm">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-blue-900">수주보고서 연결</h3>
-            <p className="text-xs text-blue-700">무상유지보수 등록의 기반이 되는 수주보고서를 선택해주세요.</p>
+            <h3 className="text-sm font-bold text-blue-900">사업(PJT) 연결</h3>
+            <p className="text-xs text-blue-700">무상유지보수 계약 대상이 되는 등록된 사업을 선택해주세요.</p>
           </div>
-          <OrderReportSelector
-            onSelect={(report: OrderReportListResponse) => {
-              setData({
-                customerId: report.finalCustomerCompanyId?.toString() || "",
-                customerName: report.finalCustomerCompanyName || "",
-                opportunityId: report.projectOpportunityId?.toString() || "",
-                opportunityName: report.projectName || "",
-                orderReportId: report.id,
-                orderReportNumericId: report.id,
-              });
-            }}
+          <ProjectSelector
+            onSelect={handleSelectProject}
             trigger={
-              <Button variant="outline" size="sm" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100">
+              <Button variant="outline" size="sm" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 shadow-sm transition-all duration-200">
                 <Search className="w-4 h-4 mr-2" />
-                {data?.orderReportId || data?.contractId ? "수주보고서 변경" : "수주보고서 찾기"}
+                {selectedProject ? "사업 변경" : "사업 찾기"}
               </Button>
             }
           />
         </div>
-        {(data?.orderReportId || data?.contractId) && (
-          <div className="mt-3 text-xs bg-white p-2 rounded border border-blue-200 flex items-center justify-between">
+        {selectedProject && (
+          <div className="mt-3 text-xs bg-white p-3 rounded-lg border border-blue-100 shadow-inner flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="font-bold text-blue-800">[연결됨]</span>
-              <span className="text-slate-600">
-                {data.opportunityName} ({data.customerName})
+              <span className="font-extrabold text-blue-800">[연결됨]</span>
+              <span className="text-slate-700 font-medium">
+                {selectedProject.projectName} ({selectedProject.customerName})
               </span>
             </div>
-            <Button variant="ghost" size="sm" className="h-6 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setData(null)}>
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50 font-bold" onClick={() => setSelectedProject(null)}>
               연결 해제
             </Button>
           </div>
         )}
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader className="border-b bg-muted/20">
-          <CardTitle className="text-xl">무상유지보수 계약 등록</CardTitle>
-          <CardDescription className="mt-1">시스템에 정보를 입력하는 것으로 발효됩니다.</CardDescription>
+      <Card className="shadow-md border-slate-100 overflow-hidden">
+        <CardHeader className="border-b bg-slate-50/75 py-5">
+          <CardTitle className="text-lg font-bold text-slate-800">무상유지보수 계약 등록</CardTitle>
+          <CardDescription className="text-xs">시스템에 상세 정보를 입력하는 것으로 계약이 발효됩니다.</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          <form
-            className="space-y-6"
-            onSubmit={(e) => {
-              e.preventDefault();
-              onSuccess();
-            }}
-          >
-            <div className="grid grid-cols-2 gap-6 p-4 rounded-lg bg-muted/30 border">
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">고객사</Label>
-                <div className="font-medium">
-                  {data?.customerName || "미선택"} {data?.customerId && <span className="text-xs text-muted-foreground ml-1">({data.customerId})</span>}
+          <form className="space-y-8" onSubmit={handleSubmit}>
+            {/* 기본 및 관련자 설정 */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-slate-700 border-l-4 border-blue-500 pl-2">1. 기본 및 관련자 정보</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-medium">고객사</Label>
+                  <Input readOnly value={selectedProject?.customerName || "미선택"} className="bg-slate-50 text-slate-600 font-semibold" />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">사업명</Label>
-                <div className="font-medium">
-                  {data?.opportunityName || "미선택"} {data?.opportunityId && <span className="text-xs text-muted-foreground ml-1">({data.opportunityId})</span>}
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-medium">사업명</Label>
+                  <Input readOnly value={selectedProject?.projectName || "미선택"} className="bg-slate-50 text-slate-600 font-semibold" />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">승계된 문서</Label>
-                <div className="font-medium">{data?.contractId || data?.orderReportId || "없음"}</div>
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-medium flex items-center">
+                    영업대표 <span className="text-red-500 ml-1">*</span>
+                  </Label>
+                  <UserPicker value={salesRep?.name ?? ""} users={users} onSelect={setSalesRep} placeholder="이름으로 영업대표 검색" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-medium">유지보수 담당자 (정)</Label>
+                  <UserPicker value={engineerMain?.name ?? ""} users={users} onSelect={setEngineerMain} placeholder="이름으로 검색" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-medium">유지보수 담당자 (부)</Label>
+                  <UserPicker value={engineerSub?.name ?? ""} users={users} onSelect={setEngineerSub} placeholder="이름으로 검색" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-medium">정기 PM</Label>
+                  <UserPicker value={regularPm?.name ?? ""} users={users} onSelect={setRegularPm} placeholder="이름으로 검색" />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 mt-8 border-t pt-6">
-              <div className="space-y-2">
-                <Label htmlFor="siteName">
-                  사이트명 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="siteName" defaultValue={data?.customerName || ""} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="engineerMain">변경(정)</Label>
-                <UserPicker
-                  value={engineerMain?.name ?? ""}
-                  users={users}
-                  onSelect={setEngineerMain}
-                  placeholder="이름으로 검색"
-                />
-                <input type="hidden" name="engineerMainId" value={engineerMain?.id ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="engineerSub">변경(부)</Label>
-                <UserPicker
-                  value={engineerSub?.name ?? ""}
-                  users={users}
-                  onSelect={setEngineerSub}
-                  placeholder="이름으로 검색"
-                />
-                <input type="hidden" name="engineerSubId" value={engineerSub?.id ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="type">
-                  구분 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="type" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="remote">
-                  원격 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="remote">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="O">O</SelectItem>
-                    <SelectItem value="X">X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="inspectionCycle">
-                  점검주기 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="inspectionCycle">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="월">월</SelectItem>
-                    <SelectItem value="분기">분기</SelectItem>
-                    <SelectItem value="반기">반기</SelectItem>
-                    <SelectItem value="없음">없음</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="importance">
-                  중요도 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="importance">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="상">상</SelectItem>
-                    <SelectItem value="중">중</SelectItem>
-                    <SelectItem value="하">하</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="paymentType">유무상</Label>
-                <Input id="paymentType" value="무상" disabled />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">
-                  위치 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="location" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="rate">요율</Label>
-                <div className="relative">
-                  <Input id="rate" type="number" step="0.01" className="pr-8 text-right" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+            {/* 계약 범위 및 일정 */}
+            <div className="space-y-4 pt-6 border-t">
+              <h3 className="text-sm font-bold text-slate-700 border-l-4 border-blue-500 pl-2">2. 계약 범위 및 일정</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category" className="text-slate-600 font-medium">구분 (카테고리)</Label>
+                  <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="예: 공공, 금융, 일반 등" />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="amount">계약금액</Label>
-                <div className="relative">
-                  <Input id="amount" type="text" className="pr-8 text-right" value={amount} onChange={handleAmountChange} disabled />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span>
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-medium">유무상 구분</Label>
+                  <Input readOnly value="무상" className="bg-slate-50 text-slate-600 font-semibold" />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="annualAmount">연간 유지보수 금액</Label>
-                <div className="relative">
-                  <Input id="annualAmount" type="text" className="pr-8 text-right" value={annualAmount} onChange={handleAnnualAmountChange} disabled />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">원</span>
+                <div className="space-y-2">
+                  <Label htmlFor="remote" className="text-slate-600 font-medium">원격 지원 여부</Label>
+                  <Select value={isRemote} onValueChange={setIsRemote}>
+                    <SelectTrigger id="remote">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">O (예)</SelectItem>
+                      <SelectItem value="false">X (아니오)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="contractDate">
-                  계약일 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="contractDate" type="date" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="project">도입PJT</Label>
-                <Input id="project" value={data?.opportunityName ? `${data.opportunityName} (${data.opportunityId})` : "미선택"} disabled />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="startDate">
-                  시작일 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="startDate" type="date" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endDate">
-                  종료일 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="endDate" type="date" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="estimateContract">견적 및 계약</Label>
-                <Input id="estimateContract" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reportSubmission">
-                  보고서 제출여부 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="reportSubmission">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="O">O</SelectItem>
-                    <SelectItem value="X">X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="regularPm">정기 PM</Label>
-                <UserPicker
-                  value={regularPm?.name ?? ""}
-                  users={users}
-                  onSelect={setRegularPm}
-                  placeholder="이름으로 검색"
-                />
-                <input type="hidden" name="regularPmId" value={regularPm?.id ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="productFamily">
-                  제품군 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="productFamily" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apVersion">
-                  AP버전 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="apVersion" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="aclPatch">
-                  ACL 패치여부 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="aclPatch">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="O">O</SelectItem>
-                    <SelectItem value="X">X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="monitorVulnerability">
-                  모니터템플릿 취약점 패치여부 <span className="text-red-500">*</span>
-                </Label>
-                <Select required>
-                  <SelectTrigger id="monitorVulnerability">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="O">O</SelectItem>
-                    <SelectItem value="X">X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ltsUpgradePlan">LTS 8.4.0 업그레이드 계획</Label>
-                <Input id="ltsUpgradePlan" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apCount">
-                  AP수 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="apCount" type="number" min="0" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="esCount">
-                  ES수 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="esCount" type="number" min="0" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="esVersion">
-                  ES버전 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="esVersion" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dbHa">
-                  DB HA <span className="text-red-500">*</span>
-                </Label>
-                <Input id="dbHa" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dbVersion">
-                  DB버전 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="dbVersion" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="salesRep">
-                  영업 <span className="text-red-500">*</span>
-                </Label>
-                <UserPicker
-                  value={salesRep?.name ?? ""}
-                  users={users}
-                  onSelect={setSalesRep}
-                  placeholder="이름으로 영업담당자 검색"
-                />
-                <input type="hidden" name="salesRepId" value={salesRep?.id ?? ""} required />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="remarks">비고</Label>
-                <Textarea id="remarks" rows={3} />
+                <div className="space-y-2">
+                  <Label htmlFor="inspectionCycle" className="text-slate-600 font-medium">점검 주기</Label>
+                  <Select value={inspectionCycle} onValueChange={setInspectionCycle}>
+                    <SelectTrigger id="inspectionCycle">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MONTHLY">월 (MONTHLY)</SelectItem>
+                      <SelectItem value="QUARTERLY">분기 (QUARTERLY)</SelectItem>
+                      <SelectItem value="SEMI_ANNUALLY">반기 (SEMI_ANNUALLY)</SelectItem>
+                      <SelectItem value="NONE">없음 (NONE)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="importance" className="text-slate-600 font-medium">중요도</Label>
+                  <Select value={importance} onValueChange={setImportance}>
+                    <SelectTrigger id="importance">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HIGH">상 (HIGH)</SelectItem>
+                      <SelectItem value="MEDIUM">중 (MEDIUM)</SelectItem>
+                      <SelectItem value="LOW">하 (LOW)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location" className="text-slate-600 font-medium">설치 위치</Label>
+                  <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="예: 목동 IDC, 본사 전산실 등" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rate" className="text-slate-600 font-medium">유지보수 요율 (%)</Label>
+                  <Input id="rate" type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="text-right" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contractDate" className="text-slate-600 font-medium">계약일</Label>
+                  <Input id="contractDate" type="date" value={contractDate} onChange={(e) => setContractDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate" className="text-slate-600 font-medium flex items-center">
+                    계약 시작일 <span className="text-red-500 ml-1">*</span>
+                  </Label>
+                  <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate" className="text-slate-600 font-medium flex items-center">
+                    계약 종료일 <span className="text-red-500 ml-1">*</span>
+                  </Label>
+                  <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reportSubmitted" className="text-slate-600 font-medium">보고서 제출 여부</Label>
+                  <Select value={reportSubmitted} onValueChange={setReportSubmitted}>
+                    <SelectTrigger id="reportSubmitted">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">O (제출)</SelectItem>
+                      <SelectItem value="false">X (미제출)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-6 mt-8 border-t">
-              <Button type="button" variant="outline" onClick={onCancel} className="w-24">
+            {/* 제품 기술 명세 */}
+            <div className="space-y-4 pt-6 border-t">
+              <h3 className="text-sm font-bold text-slate-700 border-l-4 border-blue-500 pl-2">3. 제품 및 시스템 사양</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="productFamily" className="text-slate-600 font-medium">제품군</Label>
+                  <Select value={productFamily} onValueChange={setProductFamily}>
+                    <SelectTrigger id="productFamily">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EMS">EMS</SelectItem>
+                      <SelectItem value="ITSM">ITSM</SelectItem>
+                      <SelectItem value="Automation">Automation</SelectItem>
+                      <SelectItem value="WSS">WSS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apVersion" className="text-slate-600 font-medium">AP 버전</Label>
+                  <Input id="apVersion" value={apVersion} onChange={(e) => setApVersion(e.target.value)} placeholder="예: 8.3.2" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apCount" className="text-slate-600 font-medium">AP 코어/수량</Label>
+                  <Input id="apCount" type="number" min="0" value={apCount} onChange={(e) => setApCount(e.target.value)} className="text-right" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="esVersion" className="text-slate-600 font-medium">ES 버전</Label>
+                  <Input id="esVersion" value={esVersion} onChange={(e) => setEsVersion(e.target.value)} placeholder="예: 7.10.2" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="esCount" className="text-slate-600 font-medium">ES 노드/수량</Label>
+                  <Input id="esCount" type="number" min="0" value={esCount} onChange={(e) => setEsCount(e.target.value)} className="text-right" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dbVersion" className="text-slate-600 font-medium">DB 버전</Label>
+                  <Input id="dbVersion" value={dbVersion} onChange={(e) => setDbVersion(e.target.value)} placeholder="예: PostgreSQL 14" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dbHaStatus" className="text-slate-600 font-medium">DB HA 여부</Label>
+                  <Select value={dbHaStatus} onValueChange={setDbHaStatus}>
+                    <SelectTrigger id="dbHaStatus">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">O (Active-Standby 등)</SelectItem>
+                      <SelectItem value="false">X (Single)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="aclPatchStatus" className="text-slate-600 font-medium">ACL 패치 여부</Label>
+                  <Select value={aclPatchStatus} onValueChange={setAclPatchStatus}>
+                    <SelectTrigger id="aclPatchStatus">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">O (패치됨)</SelectItem>
+                      <SelectItem value="false">X (미패치)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vulnPatchStatus" className="text-slate-600 font-medium">취약점 패치 여부</Label>
+                  <Select value={vulnPatchStatus} onValueChange={setVulnPatchStatus}>
+                    <SelectTrigger id="vulnPatchStatus">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">O (패치됨)</SelectItem>
+                      <SelectItem value="false">X (미패치)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upgradePlan" className="text-slate-600 font-medium">LTS 업그레이드 계획</Label>
+                  <Input id="upgradePlan" value={upgradePlan} onChange={(e) => setUpgradePlan(e.target.value)} placeholder="예: 2026년 4분기 업그레이드 예정" />
+                </div>
+              </div>
+            </div>
+
+            {/* 비고 */}
+            <div className="space-y-4 pt-6 border-t">
+              <h3 className="text-sm font-bold text-slate-700 border-l-4 border-blue-500 pl-2">4. 기타 특이사항</h3>
+              <div className="space-y-2">
+                <Label htmlFor="remarks" className="text-slate-600 font-medium">비고</Label>
+                <Textarea id="remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} placeholder="계약 관련 특이사항 혹은 이력 사항 기재" />
+              </div>
+            </div>
+
+            {/* 하단 버튼 */}
+            <div className="flex justify-end gap-3 pt-6 border-t">
+              <Button type="button" variant="outline" onClick={onCancel} className="w-24" disabled={submitting}>
                 취소
               </Button>
-              <Button type="submit" className="w-24">
-                등록 완료
+              <Button type="submit" className="w-28 bg-blue-600 hover:bg-blue-700" disabled={submitting}>
+                {submitting ? "등록 중..." : "등록 완료"}
               </Button>
             </div>
           </form>
