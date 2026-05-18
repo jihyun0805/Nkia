@@ -70,6 +70,13 @@ function toProposalType(requestType: string): ProposalType {
   return requestType === "SI 제안서 작성" ? "SI 제안" : "자체 제안"
 }
 
+function normalizeLookupText(value?: string | null) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\-_.()/]/g, "")
+}
+
 function getMissingCodeMessage(field: "customer" | "opportunity") {
   if (field === "customer") return "고객사 코드가 선택되지 않았습니다. 선택 후 다시 시도해주십시오."
   return "사업기회 코드가 선택되지 않았습니다. 선택 후 다시 시도해주십시오."
@@ -236,6 +243,44 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     initialRequestAppliedRef.current = false
   }, [initialRequestId])
 
+  function resolveCustomerFromRequest(request: ActivityRequestRecord) {
+    const byCode = request.customerCode
+      ? findingData.customers.find((item) => item.id === request.customerCode)
+      : null
+    if (byCode) return byCode
+
+    const byName = request.customer
+      ? findingData.customers.find((item) => normalizeLookupText(item.name) === normalizeLookupText(request.customer))
+      : null
+    if (byName) return byName
+
+    return null
+  }
+
+  function resolveOpportunityFromRequest(request: ActivityRequestRecord, customerCode?: string) {
+    const byCode = request.opportunityCode
+      ? findingData.opportunities.find((item) => item.id === request.opportunityCode)
+      : null
+    if (byCode) return byCode
+
+    const customerScoped = request.opportunity
+      ? findingData.opportunities.find(
+          (item) =>
+            (item.customerCode === (customerCode ?? request.customerCode ?? "") ||
+              normalizeLookupText(item.customer) === normalizeLookupText(request.customer)) &&
+            normalizeLookupText(item.name) === normalizeLookupText(request.opportunity),
+        )
+      : null
+    if (customerScoped) return customerScoped
+
+    const byName = request.opportunity
+      ? findingData.opportunities.find((item) => normalizeLookupText(item.name) === normalizeLookupText(request.opportunity))
+      : null
+    if (byName) return byName
+
+    return null
+  }
+
   const completedRequestIds = new Set(
     proposals
       .map((proposal) => {
@@ -292,25 +337,24 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     }
   }, [initialRequestId, proposalDetail, requests, findingData.customers, findingData.opportunities])
 
-  const customerOpportunities = findingData.opportunities.filter((item) => item.customerCode === form.customerCode)
   function applyRequest(request: ActivityRequestRecord) {
-    const matchedOpportunity = request.opportunityCode
-      ? findingData.opportunities.find((item) => item.id === request.opportunityCode) ?? null
-      : null
-    const matchedCustomer = request.customerCode
-      ? findingData.customers.find((item) => item.id === request.customerCode) ?? null
-      : findingData.customers.find((item) => item.id === (matchedOpportunity?.customerCode ?? "")) ?? null
+    const matchedCustomer = resolveCustomerFromRequest(request)
+    const matchedOpportunity = resolveOpportunityFromRequest(request, matchedCustomer?.id)
+    const resolvedCustomerCode = matchedCustomer?.id ?? matchedOpportunity?.customerCode ?? request.customerCode ?? ""
+    const resolvedCustomerName = matchedCustomer?.name ?? request.customer ?? ""
+    const resolvedOpportunityCode = matchedOpportunity?.id ?? request.opportunityCode ?? ""
+    const resolvedOpportunityName = matchedOpportunity?.name ?? request.opportunity ?? ""
 
-      setForm((current) => ({
-        ...current,
-        requestId: request.id,
-        customerCode: request.customerCode ?? matchedOpportunity?.customerCode ?? current.customerCode,
-        customerName: request.customer ?? matchedCustomer?.name ?? current.customerName,
-        opportunityCode: request.opportunityCode ?? current.opportunityCode,
-        opportunityName: request.opportunity ?? matchedOpportunity?.name ?? current.opportunityName,
-        proposalType: toProposalType(request.type),
-        productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
-        requestDate: request.date,
+    setForm((current) => ({
+      ...current,
+      requestId: request.id,
+      customerCode: resolvedCustomerCode || current.customerCode,
+      customerName: resolvedCustomerName || current.customerName,
+      opportunityCode: resolvedOpportunityCode || current.opportunityCode,
+      opportunityName: resolvedOpportunityName || current.opportunityName,
+      proposalType: toProposalType(request.type),
+      productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
+      requestDate: request.date,
       proposalDeadline: request.dueDate,
       salesRep: matchedOpportunity?.salesRep ?? current.salesRep,
       contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
@@ -325,58 +369,6 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     }
 
     applyRequest(matchedRequest)
-  }
-
-  const handleCustomerChange = (customerCode: string) => {
-    const matchedCustomer = findingData.customers.find((item) => item.id === customerCode) ?? null
-    const matchedOpportunity = findingData.opportunities.find((item) => item.id === form.opportunityCode && item.customerCode === customerCode) ?? null
-    setForm((current) => ({
-      ...current,
-      customerCode,
-      customerName: matchedCustomer?.name ?? current.customerName,
-      opportunityCode:
-        findingData.opportunities.find((item) => item.id === current.opportunityCode && item.customerCode === customerCode)?.id ?? "",
-      opportunityName: matchedOpportunity?.name ?? current.opportunityName,
-      contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
-    }))
-  }
-
-  const handleCustomerNameChange = (customerName: string) => {
-    const matchedCustomer = findingData.customers.find((item) => item.name === customerName) ?? null
-    setForm((current) => ({
-      ...current,
-      customerName,
-      customerCode: matchedCustomer?.id ?? current.customerCode,
-      contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
-      opportunityCode:
-        matchedCustomer && current.opportunityCode
-          ? findingData.opportunities.find((item) => item.id === current.opportunityCode && item.customerCode === matchedCustomer.id)?.id ?? ""
-          : current.opportunityCode,
-    }))
-  }
-
-  const handleOpportunityChange = (opportunityCode: string) => {
-    const matchedOpportunity = findingData.opportunities.find((item) => item.id === opportunityCode) ?? null
-    setForm((current) => ({
-      ...current,
-      opportunityCode,
-      opportunityName: matchedOpportunity?.name ?? current.opportunityName,
-      customerCode: matchedOpportunity?.customerCode ?? current.customerCode,
-      productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
-      salesRep: matchedOpportunity?.salesRep ?? current.salesRep,
-    }))
-  }
-
-  const handleOpportunityNameChange = (opportunityName: string) => {
-    const matchedOpportunity = findingData.opportunities.find((item) => item.name === opportunityName) ?? null
-    setForm((current) => ({
-      ...current,
-      opportunityName,
-      opportunityCode: matchedOpportunity?.id ?? current.opportunityCode,
-      customerCode: matchedOpportunity?.customerCode ?? current.customerCode,
-      productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
-      salesRep: matchedOpportunity?.salesRep ?? current.salesRep,
-    }))
   }
 
   const handleComplete = () => {
@@ -433,11 +425,11 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
   return (
     <>
       <Card>
-        <CardHeader>
+      <CardHeader>
         <CardTitle>{proposalId ? "제안서 수정" : "제안서 등록"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>활동 요청 코드 *</Label>
               <Select value={form.requestId} onValueChange={handleRequestChange}>
@@ -454,12 +446,20 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
               </Select>
             </div>
             <div className="space-y-2">
+              <Label>고객사코드 *</Label>
+              <Input value={form.customerCode} readOnly className="text-foreground" />
+            </div>
+            <div className="space-y-2">
+              <Label>사업기회코드 *</Label>
+              <Input value={form.opportunityCode} readOnly className="text-foreground" />
+            </div>
+            <div className="space-y-2">
               <Label>고객사명 *</Label>
-              <Input value={form.customerName} readOnly />
+              <Input value={form.customerName} readOnly className="text-foreground" />
             </div>
             <div className="space-y-2">
               <Label>사업명 *</Label>
-              <Input value={form.opportunityName} readOnly />
+              <Input value={form.opportunityName} readOnly className="text-foreground" />
             </div>
             <div className="space-y-2">
               <Label>제안형태</Label>
@@ -515,7 +515,7 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
             </div>
             <div className="space-y-2">
               <Label>담당자</Label>
-              <Input value={currentUser.name} readOnly />
+              <Input value={currentUser.name} readOnly className="text-foreground" />
             </div>
           </div>
 
