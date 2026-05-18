@@ -54,15 +54,16 @@ public class SalesActivityService {
                 request.getStatus()
         );
 
-        if (salesActivityRequest != null) {
-            salesActivityRequest.setSalesActivity(salesActivity);
-        }
-
-        addAttendees(salesActivity, request.getAttendeeUserIds());
-
         SalesActivity saved = salesActivityRepository.save(salesActivity);
 
-        return SalesActivityResponse.from(saved, getCreatedByName(saved.getCreatedBy()));
+        if (salesActivityRequest != null) {
+            salesActivityRequest.setSalesActivity(saved);
+        }
+
+        addAttendees(saved, request.getAttendeeUserIds());
+        SalesActivity updated = salesActivityRepository.save(saved);
+
+        return SalesActivityResponse.from(updated, getCreatedByName(updated.getCreatedBy()));
     }
 
     private SalesActivityRequest findSalesActivityRequestOrNull(Long salesActivityRequestId) {
