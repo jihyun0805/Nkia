@@ -1110,7 +1110,10 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
           .report-body p { margin: 6px 0; color: #374151; }
           .report-body ul { margin: 6px 0 12px; padding-left: 18px; }
           .report-body .md-table { margin: 8px 0 14px; }
-          table { width: 100%; border-collapse: collapse; page-break-inside: avoid; }
+          table { width: 100%; border-collapse: collapse; break-inside: auto; page-break-inside: auto; }
+          thead { display: table-header-group; }
+          tbody { display: table-row-group; }
+          tr { break-inside: avoid; page-break-inside: avoid; }
           th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
           th { background: #f3f4f6; font-weight: 700; }
           li { margin-bottom: 8px; }
