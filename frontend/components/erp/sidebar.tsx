@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Orbit, UserStar, LogOut } from "lucide-react";
 import { logout } from "@/lib/api/generated/auth/auth";
-import { clearAuthSession, loadAuthSession, subscribeAuthSession, type AuthSession } from "@/lib/auth-session";
+import { clearAuthSession, loadAuthSession, subscribeAuthSession, initTokenRefreshScheduler, type AuthSession } from "@/lib/auth-session";
 
 const menuItems = [
   {
@@ -60,6 +60,11 @@ export function Sidebar() {
   useEffect(() => {
     const currentSession = loadAuthSession();
     setSession(currentSession);
+
+    // 유효한 세션이 있으면 토큰 갱신 스케줄러 시작
+    if (currentSession) {
+      initTokenRefreshScheduler();
+    }
 
     // 보호된 페이지에서 세션이 없으면 로그인 페이지로 리다이렉트
     if (!currentSession && pathname !== "/") {

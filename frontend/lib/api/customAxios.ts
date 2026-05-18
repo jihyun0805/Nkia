@@ -58,7 +58,7 @@ customAxiosInstance.interceptors.response.use(
         // Refresh Token 없으면 로그아웃 처리
         clearAuthSession();
         if (typeof window !== "undefined") {
-          window.location.href = "/login";
+          window.location.href = "/";
         }
         return Promise.reject(error);
       }
@@ -92,7 +92,7 @@ customAxiosInstance.interceptors.response.use(
         // Refresh 실패 시 로그아웃
         clearAuthSession();
         if (typeof window !== "undefined") {
-          window.location.href = "/login";
+          window.location.href = "/";
         }
         return Promise.reject(refreshError);
       } finally {
