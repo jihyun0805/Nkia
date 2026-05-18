@@ -262,6 +262,62 @@ export function ActivityFormFields({
   }
 
   useEffect(() => {
+    const nextRows = splitDelimitedValues(resolvedAttendees)
+    if (nextRows.length === 0) {
+      return
+    }
+
+    const hasOnlyEmptyRows = attendeeRows.length === 0 || attendeeRows.every((item) => !item.trim())
+    if (!hasOnlyEmptyRows) {
+      return
+    }
+
+    setAttendeeRows(nextRows)
+  }, [resolvedAttendees])
+
+  useEffect(() => {
+    if (typeof values?.activityMode === "string" && values.activityMode && values.activityMode !== activityMode) {
+      setActivityMode(values.activityMode)
+    }
+  }, [activityMode, values?.activityMode])
+
+  useEffect(() => {
+    if (typeof values?.activityContent === "string" && values.activityContent && values.activityContent !== activityContent) {
+      setActivityContent(values.activityContent)
+    }
+  }, [activityContent, values?.activityContent])
+
+  useEffect(() => {
+    if (typeof values?.location === "string" && values.location && values.location !== location) {
+      setLocation(values.location)
+    }
+  }, [location, values?.location])
+
+  useEffect(() => {
+    if (typeof values?.date === "string" && values.date && values.date !== date) {
+      setDate(values.date)
+    }
+  }, [date, values?.date])
+
+  useEffect(() => {
+    if (typeof values?.content === "string" && values.content && values.content !== content) {
+      setContent(values.content)
+    }
+  }, [content, values?.content])
+
+  useEffect(() => {
+    if (typeof values?.issues === "string" && values.issues && values.issues !== issues) {
+      setIssues(values.issues)
+    }
+  }, [issues, values?.issues])
+
+  useEffect(() => {
+    if (typeof values?.nextAction === "string" && values.nextAction && values.nextAction !== nextAction) {
+      setNextAction(values.nextAction)
+    }
+  }, [nextAction, values?.nextAction])
+
+  useEffect(() => {
     if (typeof requesterValue !== "string" || !onRequesterChange) return
     if (!requester) return
     if (resolvedRequester !== requester) {

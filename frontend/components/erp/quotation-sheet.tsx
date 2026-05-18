@@ -1,14 +1,23 @@
 "use client"
 
-import { Fragment } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { currentUser } from "@/lib/current-user"
 import { type QuotationRecord } from "@/lib/activity-data"
-import { getCustomerByName } from "@/lib/finding-data"
+import { adminApi, type ProductModuleResponse } from "@/lib/api/admin-api"
+import { getCustomerByCode, getCustomerByName, normalizeCustomerKeyword, type CustomerRecord } from "@/lib/finding-data"
+import {
+  loadBackendFindingData,
+  loadBackendProjectOpportunitiesByCustomer,
+  type ProjectOpportunitySummaryResponse,
+} from "@/lib/finding-backend"
+import type { EntitySuggestion } from "@/lib/entity-suggestions-api"
 
 export type QuotationFormState = Omit<QuotationRecord, "id">
 
@@ -229,16 +238,27 @@ function getFixedCustomizingItem(index: number) {
   return customizingItemLabels[index] ?? ""
 }
 
+function isManualCustomizingRow(index: number) {
+  return index >= 4
+}
+
 function normalizeCustomizingRows(rows: QuotationFormState["customizingRows"] | undefined) {
   return Array.from({ length: 6 }, (_, index) => {
     const row = rows?.[index]
+    const laborRate = parseCurrency(row?.laborRate ?? "")
+    const manMonth = parseQuantity(row?.manMonth ?? "")
+    const manualSupplyAmount = row?.supplyAmount?.trim() ?? ""
     return {
       id: row?.id ?? `CUSTOM-${index + 1}`,
       rowNo: String(index + 1),
       item: row?.item?.trim() || getFixedCustomizingItem(index),
       laborRate: row?.laborRate ?? "",
       manMonth: row?.manMonth ?? "",
-      supplyAmount: row?.supplyAmount ?? "",
+      supplyAmount: isManualCustomizingRow(index)
+        ? manualSupplyAmount
+        : laborRate > 0 && manMonth > 0
+          ? formatNumber(laborRate * manMonth)
+          : manualSupplyAmount,
     }
   })
 }
@@ -269,6 +289,88 @@ function defaultTemplateText() {
     faxLabel: "FAX :",
     fax: "02-2057-8725",
     contactLabel: "담당자:",
+  }
+}
+
+function getProductGroupChoices(products: ProductModuleResponse[]) {
+  const seen = new Set<string>()
+  return products
+    .map((product) => {
+      const productGroup = product.productGroup?.trim() ?? ""
+      if (!productGroup || seen.has(productGroup)) return null
+      seen.add(productGroup)
+      const productClasses = products
+        .filter((item) => (item.productGroup?.trim() ?? "") === productGroup)
+        .map((item) => item.productClass?.toString().trim() ?? "")
+        .filter((value, index, array) => value && array.indexOf(value) === index)
+
+      return {
+        value: productGroup,
+        label: productGroup,
+        subtitle: productClasses.join(" · ") || null,
+      }
+    })
+    .filter((item): item is { value: string; label: string; subtitle: string | null } => item !== null)
+}
+
+function getProductNameChoices(products: ProductModuleResponse[], group: string) {
+  const normalizedGroup = group.trim()
+  return products
+    .filter((product) => (product.productGroup?.trim() ?? "") === normalizedGroup)
+    .map((product) => ({
+      value: product.productName?.trim() ?? "",
+      label: product.productName?.trim() ?? "",
+      subtitle: [product.productGroup?.trim(), product.productClass?.toString().trim()].filter(Boolean).join(" · ") || null,
+    }))
+    .filter((item): item is { value: string; label: string; subtitle: string | null } => Boolean(item.value))
+}
+
+function resolveProductModulePrice(products: ProductModuleResponse[], category?: string, module?: string) {
+  const normalizedCategory = category?.trim() ?? ""
+  const normalizedModule = module?.trim() ?? ""
+  if (!normalizedCategory || !normalizedModule) return null
+
+  return (
+    products.find((product) => {
+      const productGroup = product.productGroup?.trim() ?? ""
+      const productName = product.productName?.trim() ?? ""
+      return productGroup === normalizedCategory && productName === normalizedModule
+    }) ?? null
+  )
+}
+
+function syncSolutionRowValues(
+  row: NonNullable<QuotationFormState["solutionRows"]>[number],
+  products: ProductModuleResponse[],
+) {
+  const matchedProduct = resolveProductModulePrice(products, row.category, row.module)
+  const quantity = parseQuantity(row.quantity)
+  const consumerUnitPrice = parseCurrency(
+    matchedProduct?.unitPrice != null ? String(matchedProduct.unitPrice) : row.consumerUnitPrice,
+  )
+  const rawSupplyUnitPrice = row.supplyUnitPrice.trim()
+  const supplyUnitPrice = rawSupplyUnitPrice === "" ? null : parseCurrency(rawSupplyUnitPrice)
+  const effectiveSupplyUnitPrice =
+    supplyUnitPrice === null
+      ? null
+      : consumerUnitPrice > 0 && supplyUnitPrice >= consumerUnitPrice
+        ? Math.max(0, consumerUnitPrice - 1)
+        : supplyUnitPrice
+  const consumerTotal = consumerUnitPrice * quantity
+  const supplyTotal = (effectiveSupplyUnitPrice ?? 0) * quantity
+  const discountRate = effectiveSupplyUnitPrice === null ? 0 : calculateDiscountRate(consumerUnitPrice, effectiveSupplyUnitPrice)
+
+  return {
+    ...row,
+    category: row.category.trim(),
+    module: row.module.trim(),
+    quantity: row.quantity.replace(/[^\d.]/g, ""),
+    consumerUnitPrice: formatNumber(consumerUnitPrice),
+    consumerTotal: formatNumber(consumerTotal),
+    supplyUnitPrice: effectiveSupplyUnitPrice === null ? "" : formatNumber(effectiveSupplyUnitPrice),
+    supplyTotal: formatNumber(supplyTotal),
+    discountRate: formatDiscountValue(discountRate),
+    note: row.note.trim(),
   }
 }
 
@@ -472,6 +574,156 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
   const lineRowTextClass = "text-[18px] font-bold leading-none"
   const refRowTextClass = "text-[17px] font-normal leading-none"
   const supplierLineTextClass = "text-[14px] font-normal leading-7"
+  const [backendCustomers, setBackendCustomers] = useState<CustomerRecord[]>([])
+  const [backendProducts, setBackendProducts] = useState<ProductModuleResponse[]>([])
+  useEffect(() => {
+    let cancelled = false
+
+    void loadBackendFindingData()
+      .then((data) => {
+        if (cancelled) return
+        setBackendCustomers(data.customers)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBackendCustomers([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void adminApi
+      .getProducts()
+      .then((response) => {
+        if (cancelled) return
+        setBackendProducts(Array.isArray(response?.data) ? response.data : [])
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBackendProducts([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const selectedCustomer = useMemo(() => {
+    const normalizedCustomerName = normalizeCustomerKeyword(form.customer)
+    const normalizedCustomerCode = form.customerCode?.trim().toLowerCase() ?? ""
+
+    const localCustomer =
+      getCustomerByName(form.customer) ?? (form.customerCode ? getCustomerByCode(form.customerCode) : null)
+    if (localCustomer?.backendId) return localCustomer
+
+    const backendCustomer =
+      backendCustomers.find((customer) => {
+        const customerName = normalizeCustomerKeyword(customer.name)
+        const customerCode = customer.id.trim().toLowerCase()
+        const aliases = customer.aliases ?? []
+
+        if (normalizedCustomerCode && customerCode === normalizedCustomerCode) return true
+        if (normalizedCustomerName && customerName === normalizedCustomerName) return true
+        return aliases.some((alias) => normalizeCustomerKeyword(alias) === normalizedCustomerName)
+      }) ?? null
+
+    return backendCustomer ?? localCustomer ?? null
+  }, [backendCustomers, form.customer, form.customerCode])
+  const selectedCustomerBackendId = selectedCustomer?.backendId
+  const [customerOpportunityOptions, setCustomerOpportunityOptions] = useState<ProjectOpportunitySummaryResponse[]>([])
+  const [customerOpportunityLoading, setCustomerOpportunityLoading] = useState(false)
+  const productGroupChoices = useMemo(() => getProductGroupChoices(backendProducts), [backendProducts])
+  const productNameChoicesByGroup = useMemo(() => {
+    return backendProducts.reduce<Record<string, { value: string; label: string; subtitle: string | null }[]>>((acc, product) => {
+      const group = product.productGroup?.trim() ?? ""
+      if (!group) return acc
+      if (!acc[group]) acc[group] = []
+      const nextName = product.productName?.trim() ?? ""
+      if (!nextName || acc[group].some((item) => item.value === nextName)) return acc
+      acc[group].push({
+        value: nextName,
+        label: nextName,
+        subtitle: [product.productGroup?.trim(), product.productClass?.toString().trim()].filter(Boolean).join(" · ") || null,
+      })
+      return acc
+    }, {})
+  }, [backendProducts])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (readOnly || !selectedCustomerBackendId) {
+      setCustomerOpportunityOptions([])
+      setCustomerOpportunityLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setCustomerOpportunityLoading(true)
+    void loadBackendProjectOpportunitiesByCustomer(selectedCustomerBackendId)
+      .then((options) => {
+        if (cancelled) return
+        setCustomerOpportunityOptions(options)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCustomerOpportunityOptions([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setCustomerOpportunityLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [readOnly, selectedCustomerBackendId])
+
+  useEffect(() => {
+    if (backendProducts.length === 0) return
+
+    updateForm((prev) => ({
+      ...prev,
+      solutionRows: (prev.solutionRows ?? []).map((row) => syncSolutionRowValues(row, backendProducts)),
+    }))
+    // backendProducts가 늦게 도착해도 소비자가/합계가 화면에 바로 보이도록 한 번만 동기화한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendProducts])
+
+  const customerOpportunitySuggestions = useMemo<EntitySuggestion[]>(() => {
+    return customerOpportunityOptions
+      .map((opportunity) => {
+        const code = String(opportunity.opportunityCode ?? opportunity.id ?? "").trim()
+        const label = String(opportunity.opportunityName ?? opportunity.opportunityCode ?? "").trim()
+        const customerName = String(opportunity.customerCompanyName ?? selectedCustomer?.name ?? "").trim()
+
+        if (!label) return null
+
+        return {
+          type: "PROJECT_OPPORTUNITY",
+          id: String(opportunity.id ?? code ?? label),
+          code: code || null,
+          label,
+          subtitle: [code, customerName, opportunity.stage].filter(Boolean).join(" | "),
+          score: 100,
+          matchedBy: "prefix",
+          metadata: {
+            backendId: opportunity.id,
+            opportunityCode: code,
+            opportunityName: label,
+            customerCompanyId: opportunity.customerCompanyId,
+            customerCompanyName: customerName,
+          },
+        } satisfies EntitySuggestion
+      })
+      .filter((item): item is EntitySuggestion => item !== null)
+  }, [customerOpportunityOptions, selectedCustomer?.name])
   const singlePageEstimatedHeight =
     SINGLE_PAGE_STATIC_HEIGHT +
     SINGLE_PAGE_ACTION_HEIGHT +
@@ -510,6 +762,179 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
       opportunity: customer && prev.customer !== value ? "" : prev.opportunity,
       opportunityCode: customer && prev.customer !== value ? "" : prev.opportunityCode,
     }))
+  }
+
+  const handleOpportunityChange = (value: string) => {
+    updateForm((prev) => ({
+      ...prev,
+      opportunity: value,
+      opportunityCode: "",
+    }))
+  }
+
+  const handleOpportunitySelect = (suggestion: EntitySuggestion | null) => {
+    updateForm((prev) => ({
+      ...prev,
+      opportunity: suggestion?.label ?? "",
+      opportunityCode:
+        String(
+          suggestion?.metadata?.opportunityCode ??
+            suggestion?.code ??
+            suggestion?.metadata?.backendId ??
+            suggestion?.id ??
+            "",
+        ).trim(),
+    }))
+  }
+
+  const updateSolutionRow = (rowIndex: number, updater: (row: NonNullable<QuotationFormState["solutionRows"]>[number]) => NonNullable<QuotationFormState["solutionRows"]>[number]) => {
+    updateForm((prev) => ({
+      ...prev,
+      solutionRows: (prev.solutionRows ?? []).map((entry, entryIndex) => {
+        if (entryIndex !== rowIndex) return entry
+        return syncSolutionRowValues(updater(entry), backendProducts)
+      }),
+    }))
+  }
+
+  const handleSolutionGroupChange = (rowIndex: number, value: string) => {
+    updateSolutionRow(rowIndex, (row) => ({
+      ...row,
+      category: value,
+      module: row.category === value ? row.module : "",
+      consumerUnitPrice: "",
+      consumerTotal: "",
+      supplyTotal: "",
+      discountRate: "",
+    }))
+  }
+
+  const handleSolutionModuleChange = (rowIndex: number, value: string) => {
+    updateSolutionRow(rowIndex, (row) => ({
+      ...row,
+      module: value,
+    }))
+  }
+
+  const renderSolutionField = (
+    row: NonNullable<QuotationFormState["solutionRows"]>[number],
+    rowIndex: number,
+    fieldKey:
+      | "rowNo"
+      | "category"
+      | "module"
+      | "quantity"
+      | "consumerUnitPrice"
+      | "consumerTotal"
+      | "supplyUnitPrice"
+      | "supplyTotal"
+      | "discountRate"
+      | "note",
+    align: string,
+    compactTextClass: string,
+  ) => {
+    const isComputed = fieldKey === "consumerUnitPrice" || fieldKey === "consumerTotal" || fieldKey === "supplyTotal" || fieldKey === "discountRate"
+
+    if (readOnly || isComputed) {
+      return (
+        <div className={`${align} ${readOnlyTableCellClass}`}>
+          {["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(fieldKey)
+            ? formatMaybeDash(row[fieldKey] as string)
+            : fieldKey === "discountRate"
+              ? formatDiscountRate(row.discountRate)
+              : (row[fieldKey] as string) || "-"}
+        </div>
+      )
+    }
+
+    if (fieldKey === "category") {
+      return (
+        <Select value={row.category || ""} onValueChange={(value) => handleSolutionGroupChange(rowIndex, value)}>
+          <SelectTrigger className={`${compactTextClass} ${align} h-7 w-full rounded-none border-0 bg-transparent px-0 shadow-none focus:ring-0`}>
+            <SelectValue placeholder="구분 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            {productGroupChoices.length > 0 ? (
+              productGroupChoices.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  <div className="flex min-w-0 flex-col">
+                    <span>{option.label}</span>
+                    {option.subtitle ? <span className="text-xs text-muted-foreground">{option.subtitle}</span> : null}
+                  </div>
+                </SelectItem>
+              ))
+            ) : (
+              <SelectItem value="__empty_group__" disabled>
+                등록된 제품군이 없습니다.
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      )
+    }
+
+    if (fieldKey === "module") {
+      const moduleOptions = productNameChoicesByGroup[row.category.trim()] ?? []
+      return (
+        <Select
+          value={row.module || ""}
+          onValueChange={(value) => handleSolutionModuleChange(rowIndex, value)}
+          disabled={!row.category.trim()}
+        >
+          <SelectTrigger className={`${compactTextClass} ${align} h-7 w-full rounded-none border-0 bg-transparent px-0 shadow-none focus:ring-0`}>
+            <SelectValue placeholder={row.category.trim() ? "납품 모듈 선택" : "구분을 먼저 선택하세요"} />
+          </SelectTrigger>
+          <SelectContent>
+            {row.category.trim() ? (
+              moduleOptions.length > 0 ? (
+                moduleOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div className="flex min-w-0 flex-col">
+                      <span>{option.label}</span>
+                      {option.subtitle ? <span className="text-xs text-muted-foreground">{option.subtitle}</span> : null}
+                    </div>
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="__empty_module__" disabled>
+                  등록된 납품 모듈이 없습니다.
+                </SelectItem>
+              )
+            ) : (
+              <SelectItem value="__select_group_first__" disabled>
+                구분을 먼저 선택하세요.
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      )
+    }
+
+    return (
+      <Textarea
+        value={(row[fieldKey] as string) ?? ""}
+        onChange={(event) =>
+          updateForm((prev) => ({
+            ...prev,
+            solutionRows: (prev.solutionRows ?? []).map((entry, entryIndex) =>
+              entryIndex === rowIndex
+                ? {
+                    ...entry,
+                    [fieldKey]:
+                      fieldKey === "quantity"
+                        ? event.target.value.replace(/[^\d.]/g, "")
+                        : fieldKey === "discountRate"
+                          ? event.target.value.replace(/[^\d.]/g, "")
+                          : event.target.value,
+                  }
+                : entry,
+            ),
+          }))
+        }
+        className={`${tableCellTextareaClass} ${align} text-[12px]`}
+        rows={1}
+      />
+    )
   }
 
   return (
@@ -644,10 +1069,35 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
             {readOnly ? (
               <span className={`ml-1 break-words ${lineRowTextClass}`}>{form.opportunity || "-"}</span>
             ) : (
-              <Input
+              <EntityAutocomplete
                 value={form.opportunity}
-                onChange={(event) => updateForm((prev) => ({ ...prev, opportunity: event.target.value }))}
-                className={`${inlineLineInputClass} ml-1 min-w-[240px] flex-1 ${lineRowTextClass}`}
+                target="opportunities"
+                onValueChange={handleOpportunityChange}
+                onSelect={handleOpportunitySelect}
+                placeholder={
+                  selectedCustomerBackendId
+                    ? customerOpportunityLoading
+                      ? "사업기회를 불러오는 중입니다"
+                      : "사업기회를 선택하세요"
+                    : "고객사를 먼저 선택하세요"
+                }
+                disabled={!selectedCustomerBackendId || customerOpportunityLoading}
+                allowCustomValue={false}
+                emptyMessage={
+                  selectedCustomerBackendId
+                    ? "등록된 사업기회가 없습니다."
+                    : "고객사를 먼저 선택하세요"
+                }
+                localCandidates={customerOpportunitySuggestions}
+                inputClassName={`${inlineLineInputClass} ml-1 min-w-[240px] flex-1 ${lineRowTextClass}`}
+                filterSuggestion={(suggestion) => {
+                  const metadataCompanyId = Number(suggestion.metadata.customerCompanyId ?? 0)
+                  const metadataCompanyName = String(suggestion.metadata.customerCompanyName ?? "")
+                  return (
+                    metadataCompanyId === selectedCustomerBackendId ||
+                    (metadataCompanyName && metadataCompanyName === selectedCustomer?.name)
+                  )
+                }}
               />
             )}
           </div>
@@ -777,57 +1227,24 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 {solutionRows.map((row, index) => (
                   <Fragment key={row.id || `solution-${index}`}>
                     <tr>
-                    {[
-                      { key: "rowNo", align: "text-center" },
-                      { key: "category", align: "" },
-                      { key: "module", align: "" },
-                      { key: "quantity", align: "text-center" },
-                      { key: "consumerUnitPrice", align: "text-right" },
-                      { key: "consumerTotal", align: "text-right" },
-                      { key: "supplyUnitPrice", align: "text-right" },
-                      { key: "supplyTotal", align: "text-right" },
-                      { key: "discountRate", align: "text-center" },
-                      { key: "note", align: "text-center" },
-                    ].map((field, fieldIndex) => {
-                      const isComputed = field.key === "consumerTotal" || field.key === "supplyTotal"
-                      return (
+                      {(
+                        [
+                          { key: "rowNo", align: "text-center" },
+                          { key: "category", align: "" },
+                          { key: "module", align: "" },
+                          { key: "quantity", align: "text-center" },
+                          { key: "consumerUnitPrice", align: "text-right" },
+                          { key: "consumerTotal", align: "text-right" },
+                          { key: "supplyUnitPrice", align: "text-right" },
+                          { key: "supplyTotal", align: "text-right" },
+                          { key: "discountRate", align: "text-center" },
+                          { key: "note", align: "text-center" },
+                        ] as const
+                      ).map((field, fieldIndex) => (
                         <td key={field.key} className={`border-r border-b border-black ${fieldIndex === 9 ? "border-r-0" : ""} px-1 py-1`}>
-                          {readOnly || isComputed ? (
-                            <div className={`${field.align} ${readOnlyTableCellClass}`}>
-                              {["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
-                                ? formatMaybeDash(row[field.key as keyof typeof row] as string)
-                                : field.key === "discountRate"
-                                  ? formatDiscountRate(row.discountRate)
-                                  : (row[field.key as keyof typeof row] as string) || "-"}
-                            </div>
-                          ) : (
-                            <Textarea
-                              value={(row[field.key as keyof typeof row] as string) ?? ""}
-                              onChange={(event) =>
-                                updateForm((prev) => ({
-                                  ...prev,
-                                  solutionRows: (prev.solutionRows ?? []).map((entry, entryIndex) =>
-                                    entryIndex === index
-                                      ? {
-                                          ...entry,
-                                          [field.key]:
-                                            field.key === "quantity"
-                                              ? event.target.value.replace(/[^\d.]/g, "")
-                                              : field.key === "discountRate"
-                                                ? event.target.value.replace(/[^\d.]/g, "")
-                                                : event.target.value,
-                                        }
-                                      : entry,
-                                  ),
-                                }))
-                              }
-                              className={`${tableCellTextareaClass} ${field.align} text-[12px]`}
-                              rows={1}
-                            />
-                          )}
+                          {renderSolutionField(row, index, field.key, field.align, "text-[12px]")}
                         </td>
-                      )
-                    })}
+                      ))}
                     </tr>
                   </Fragment>
                 ))}
@@ -904,7 +1321,9 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 </tr>
               </thead>
               <tbody>
-                {customizingRows.map((row, index) => (
+                {customizingRows.map((row, index) => {
+                  const manualRow = isManualCustomizingRow(index)
+                  return (
                   <tr key={row.id || `custom-${index}`}>
                     <td className="border-b border-r border-black px-1 py-1">
                       <div className={`text-center ${readOnlyTableCellClass}`}>{row.rowNo || String(index + 1)}</div>
@@ -915,9 +1334,9 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                       ) : (
                         <div className="px-1 py-1 text-[12px]">{row.item || getFixedCustomizingItem(index) || "-"}</div>
                         )}
-                      </td>
+                    </td>
                     <td className="border-b border-r border-black px-1 py-1">
-                      {readOnly ? (
+                      {readOnly || manualRow ? (
                         <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.laborRate)}</div>
                       ) : (
                         <Textarea
@@ -936,7 +1355,7 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                       )}
                     </td>
                     <td className="border-b border-r border-black px-1 py-1">
-                      {readOnly ? (
+                      {readOnly || manualRow ? (
                         <div className={`text-center ${readOnlyTableCellClass}`}>{row.manMonth || "-"}</div>
                       ) : (
                         <Textarea
@@ -957,26 +1376,26 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                     <td className="border-b border-black px-1 py-1">
                       {readOnly ? (
                         <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.supplyAmount)}</div>
-                      ) : (
-                        <Textarea
+                      ) : manualRow ? (
+                        <Input
                           value={row.supplyAmount === "-" ? "" : row.supplyAmount}
                           onChange={(event) =>
                             updateForm((prev) => ({
                               ...prev,
                               customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                                entryIndex === index
-                                  ? { ...entry, supplyAmount: event.target.value === "-" ? "-" : event.target.value.replace(/[^\d.]/g, "") }
-                                  : entry,
+                                entryIndex === index ? { ...entry, supplyAmount: event.target.value.replace(/[^\d]/g, "") } : entry,
                               ),
                             }))
                           }
-                          className={`${tableCellTextareaClass} text-right text-[12px]`}
-                          rows={1}
+                          className="h-7 rounded-none border-0 bg-transparent px-0 text-right text-[12px] shadow-none focus-visible:ring-0"
                         />
+                      ) : (
+                        <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.supplyAmount)}</div>
                       )}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
                 <tr className="bg-slate-200 font-bold">
                   <td colSpan={4} className="border-r border-t border-black py-2 text-center">
                     2. 인건비-커스터마이징 합계
@@ -1036,54 +1455,22 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                 return (
                 <Fragment key={row.id || `solution-${index}`}>
                   <tr>
-                    {[
-                      { key: "rowNo", align: "text-center" },
-                      { key: "category", align: "" },
-                      { key: "module", align: "" },
-                      { key: "quantity", align: "text-center" },
-                      { key: "consumerUnitPrice", align: "text-right" },
-                      { key: "consumerTotal", align: "text-right" },
-                      { key: "supplyUnitPrice", align: "text-right" },
-                      { key: "supplyTotal", align: "text-right" },
-                      { key: "discountRate", align: "text-center" },
-                      { key: "note", align: "text-center" },
-                    ].map((field, fieldIndex) => (
+                    {(
+                      [
+                        { key: "rowNo", align: "text-center" },
+                        { key: "category", align: "" },
+                        { key: "module", align: "" },
+                        { key: "quantity", align: "text-center" },
+                        { key: "consumerUnitPrice", align: "text-right" },
+                        { key: "consumerTotal", align: "text-right" },
+                        { key: "supplyUnitPrice", align: "text-right" },
+                        { key: "supplyTotal", align: "text-right" },
+                        { key: "discountRate", align: "text-center" },
+                        { key: "note", align: "text-center" },
+                      ] as const
+                    ).map((field, fieldIndex) => (
                       <td key={field.key} className={`border-r border-b border-black ${fieldIndex === 9 ? "border-r-0" : ""} px-1 py-1`}>
-                        {readOnly ? (
-                          <div className={`${field.align} ${readOnlyTableCellClass}`}>
-                            {["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
-                              ? formatMaybeDash(row[field.key as keyof typeof row] as string)
-                              : field.key === "discountRate"
-                                ? formatDiscountRate(row.discountRate)
-                              : (row[field.key as keyof typeof row] as string) || "-"}
-                          </div>
-                        ) : (
-                          <Textarea
-                            value={
-                              ["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
-                                ? ((row[field.key as keyof typeof row] as string) ?? "")
-                                : (row[field.key as keyof typeof row] as string)
-                            }
-                            onChange={(event) =>
-                              updateForm((prev) => ({
-                                ...prev,
-                                solutionRows: (prev.solutionRows ?? []).map((entry, entryIndex) =>
-                                  entryIndex === index
-                                    ? {
-                                        ...entry,
-                                        [field.key]:
-                                          ["consumerUnitPrice", "consumerTotal", "supplyUnitPrice", "supplyTotal"].includes(field.key)
-                                            ? event.target.value.replace(/[^\d]/g, "")
-                                            : event.target.value,
-                                      }
-                                    : entry,
-                                ),
-                              }))
-                            }
-                            className={`${tableCellTextareaClass} ${field.align} text-[12px]`}
-                            rows={1}
-                          />
-                        )}
+                        {renderSolutionField(row, index, field.key, field.align, "text-[12px]")}
                       </td>
                     ))}
                   </tr>
@@ -1170,6 +1557,9 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
               <tbody>
                 {chunk.map((row) => {
                   const index = customizingRows.findIndex((entry) => entry.id === row.id)
+                  const mergeMiddleCells = index === 4
+                  const skipMiddleCells = index === 5
+                  const manualRow = isManualCustomizingRow(index)
                   return (
                 <tr key={row.id || `custom-${index}`}>
                   <td className="border-b border-r border-black px-1 py-1">
@@ -1182,67 +1572,81 @@ export function QuotationSheet({ mode, form, referenceId, onChange }: QuotationS
                       <div className="px-1 py-1 text-[12px]">{row.item || getFixedCustomizingItem(index) || "-"}</div>
                     )}
                   </td>
-                  <td className="border-b border-r border-black px-1 py-1">
-                    {readOnly ? (
-                      <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.laborRate)}</div>
-                    ) : (
-                      <Textarea
-                        value={row.laborRate === "-" ? "" : row.laborRate}
-                        onChange={(event) =>
-                          updateForm((prev) => ({
-                            ...prev,
-                            customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                              entryIndex === index ? { ...entry, laborRate: event.target.value.replace(/[^\d.]/g, "") } : entry,
-                            ),
-                          }))
-                        }
-                        className={`${tableCellTextareaClass} text-right text-[12px]`}
-                        rows={1}
-                      />
-                    )}
-                  </td>
-                  <td className="border-b border-r border-black px-1 py-1">
-                    {readOnly ? (
-                      <div className={`text-center ${readOnlyTableCellClass}`}>{row.manMonth || "-"}</div>
-                    ) : (
-                      <Textarea
-                        value={row.manMonth}
-                        onChange={(event) =>
-                          updateForm((prev) => ({
-                            ...prev,
-                            customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                              entryIndex === index ? { ...entry, manMonth: event.target.value.replace(/[^\d.]/g, "") } : entry,
-                            ),
-                          }))
-                        }
-                        className={`${tableCellTextareaClass} text-center text-[12px]`}
-                        rows={1}
-                      />
-                    )}
-                  </td>
+                  {skipMiddleCells ? null : (
+                    <td
+                      className="border-b border-r border-black px-1 py-1 align-middle"
+                      rowSpan={mergeMiddleCells ? 2 : 1}
+                    >
+                      {readOnly ? (
+                        <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.laborRate)}</div>
+                      ) : manualRow ? (
+                        <div className={`text-right ${readOnlyTableCellClass}`}>-</div>
+                      ) : (
+                        <Textarea
+                          value={row.laborRate === "-" ? "" : row.laborRate}
+                          onChange={(event) =>
+                            updateForm((prev) => ({
+                              ...prev,
+                              customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, laborRate: event.target.value.replace(/[^\d.]/g, "") } : entry,
+                              ),
+                            }))
+                          }
+                          className={`${tableCellTextareaClass} text-right text-[12px]`}
+                          rows={1}
+                        />
+                      )}
+                    </td>
+                  )}
+                  {skipMiddleCells ? null : (
+                    <td
+                      className="border-b border-r border-black px-1 py-1 align-middle"
+                      rowSpan={mergeMiddleCells ? 2 : 1}
+                    >
+                      {readOnly ? (
+                        <div className={`text-center ${readOnlyTableCellClass}`}>{row.manMonth || "-"}</div>
+                      ) : manualRow ? (
+                        <div className={`text-center ${readOnlyTableCellClass}`}>-</div>
+                      ) : (
+                        <Textarea
+                          value={row.manMonth}
+                          onChange={(event) =>
+                            updateForm((prev) => ({
+                              ...prev,
+                              customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, manMonth: event.target.value.replace(/[^\d.]/g, "") } : entry,
+                              ),
+                            }))
+                          }
+                          className={`${tableCellTextareaClass} text-center text-[12px]`}
+                          rows={1}
+                        />
+                      )}
+                    </td>
+                  )}
                   <td className="border-b border-black px-1 py-1">
                     {readOnly ? (
                       <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.supplyAmount)}</div>
-                    ) : (
-                      <Textarea
+                    ) : manualRow ? (
+                      <Input
                         value={row.supplyAmount === "-" ? "" : row.supplyAmount}
                         onChange={(event) =>
                           updateForm((prev) => ({
                             ...prev,
                             customizingRows: normalizeCustomizingRows(prev.customizingRows).map((entry, entryIndex) =>
-                              entryIndex === index
-                                ? { ...entry, supplyAmount: event.target.value === "-" ? "-" : event.target.value.replace(/[^\d.]/g, "") }
-                                : entry,
+                              entryIndex === index ? { ...entry, supplyAmount: event.target.value.replace(/[^\d]/g, "") } : entry,
                             ),
                           }))
                         }
-                        className={`${tableCellTextareaClass} text-right text-[12px]`}
-                        rows={1}
+                        className="h-7 rounded-none border-0 bg-transparent px-0 text-right text-[12px] shadow-none focus-visible:ring-0"
                       />
+                    ) : (
+                      <div className={`text-right ${readOnlyTableCellClass}`}>{formatMaybeDash(row.supplyAmount)}</div>
                     )}
                   </td>
                 </tr>
-                )})}
+                  )
+                })}
                 {chunkIndex === customizingChunks.length - 1 && (
                 <tr className="bg-slate-200 font-bold">
                   <td colSpan={4} className="border-r border-t border-black py-2 text-center">

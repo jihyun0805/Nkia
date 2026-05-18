@@ -1,6 +1,7 @@
 import { customInstance } from "@/lib/api/customAxios";
 
 export interface MaintenanceListResponse {
+  id: number;
   customerName: string;
   projectName: string;
   productFamilyName: string;
@@ -25,7 +26,10 @@ export interface IntegratedSupportListResponse {
 }
 
 export interface ApiResponse<T> {
-  success: boolean;
+  success?: boolean;
+  result?: "SUCCESS" | "ERROR" | string;
+  message?: string;
+  errorCode?: string;
   data: T;
   error?: {
     code: string;
