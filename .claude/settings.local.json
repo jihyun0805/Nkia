@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\자율PJT\\\\S14P31S106\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(xargs grep -l \"quotation\\\\|견적\")",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(npx tsc *)",
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(Remove-Item *)"
+    ]
+  }
+}
