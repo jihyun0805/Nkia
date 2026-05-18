@@ -71,11 +71,12 @@ const TYPEWRITER_INTERVAL_MS = 20
 const TYPEWRITER_CHARS_PER_TICK = 6
 
 const EXAMPLE_PROMPTS = [
-  "대한적십자사 실주 이유 알려줘",
-  "롯데카드 사업기회 진행 상황 알려줘",
-  "공공 고객 사업기회 알려줘",
   "예상 사업비가 가장 큰 사업 TOP3 알려줘",
-  "현재 진행 중인 사업기회 목록 알려줘",
+  "유지보수 견적 평균 금액은?",
+  "사업기회는 총 몇 건이야?",
+  "솔루션컨설팅팀 직원 알려줘",
+  "공공 고객 사업기회 알려줘",
+  "롯데카드 사업기회 진행 상황 알려줘",
 ]
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
