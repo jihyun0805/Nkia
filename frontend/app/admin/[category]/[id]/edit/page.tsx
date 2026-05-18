@@ -15,6 +15,10 @@ import { adminApi } from "@/lib/api/admin-api"
 import { getAdminItem } from "@/lib/admin-data"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
+import {
+  POSITION_LABELS,
+  WORKFLOW_DOMAIN_LABELS,
+} from "@/lib/user-utils"
 
 export default function AdminEditPage() {
   const router = useRouter()
@@ -53,7 +57,7 @@ export default function AdminEditPage() {
           res = await adminApi.getDepartment(id).catch(() => null)
         }
 
-        let d = res?.data
+        let d = res?.data?.data ?? res?.data
         if (!d) {
           d = getAdminItem(category as any, id)
         }
@@ -79,6 +83,7 @@ export default function AdminEditPage() {
               name: d.name || "",
               workflowDomain: d.workflowDomain || "",
               active: d.active !== undefined ? d.active.toString() : "true",
+              steps: d.steps || [],
             })
           } else if (category === "products") {
             setFormData({
@@ -239,7 +244,29 @@ export default function AdminEditPage() {
                     {category === "workflow" && (
                       <>
                         <div className="space-y-2"><Label>템플릿명 *</Label><Input value={formData.name || ""} onChange={(e) => handleInputChange("name", e.target.value)} /></div>
-                        <div className="space-y-2"><Label>워크플로우 도메인 *</Label><Input value={formData.workflowDomain || ""} onChange={(e) => handleInputChange("workflowDomain", e.target.value)} /></div>
+                        <div className="space-y-2">
+                          <Label>워크플로우 도메인 *</Label>
+                          <Select
+                            value={formData.workflowDomain || ""}
+                            onValueChange={(value) =>
+                              handleInputChange("workflowDomain", value)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="도메인 선택" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              {Object.entries(WORKFLOW_DOMAIN_LABELS).map(
+                                ([key, label]) => (
+                                  <SelectItem key={key} value={key}>
+                                    {label}
+                                  </SelectItem>
+                                )
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="space-y-2">
                           <Label>활성 상태 *</Label>
                           <Select value={formData.active} onValueChange={(v) => handleInputChange("active", v)}>
@@ -249,6 +276,104 @@ export default function AdminEditPage() {
                               <SelectItem value="false">비활성</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+                        <div className="space-y-3">
+                          <Label>결재 단계</Label>
+
+                          {formData.steps?.length > 0 ? (
+                            <div className="space-y-3">
+                              {[...formData.steps]
+                                .sort((a, b) => a.stepOrder - b.stepOrder)
+                                .map((step, index) => (
+                                  <div
+                                    key={step.id ?? index}
+                                    className="rounded-lg border bg-muted/30 p-4 space-y-3"
+                                  >
+                                    <div className="font-semibold">
+                                      {step.stepOrder}단계
+                                    </div>
+
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                      <div className="space-y-2">
+                                        <Label>단계명</Label>
+                                        <Input
+                                          value={step.stepName}
+                                          onChange={(e) => {
+                                            const updated = [...formData.steps]
+                                            updated[index] = {
+                                              ...updated[index],
+                                              stepName: e.target.value,
+                                            }
+                                            setFormData({ ...formData, steps: updated })
+                                          }}
+                                        />
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <Label>결재자 직급</Label>
+                                        <Select
+                                          value={step.approverPosition}
+                                          onValueChange={(value) => {
+                                            const updated = [...formData.steps]
+
+                                            updated[index] = {
+                                              ...updated[index],
+                                              approverPosition: value,
+                                            }
+
+                                            setFormData({
+                                              ...formData,
+                                              steps: updated,
+                                            })
+                                          }}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="결재자 직급 선택" />
+                                          </SelectTrigger>
+
+                                          <SelectContent>
+                                            {Object.entries(POSITION_LABELS).map(([key, label]) => (
+                                              <SelectItem key={key} value={key}>
+                                                {label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <Label>필수 여부</Label>
+                                        <Select
+                                          value={step.required ? "true" : "false"}
+                                          onValueChange={(value) => {
+                                            const updated = [...formData.steps]
+                                            updated[index] = {
+                                              ...updated[index],
+                                              required: value === "true",
+                                            }
+                                            setFormData({ ...formData, steps: updated })
+                                          }}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="true">필수</SelectItem>
+                                            <SelectItem value="false">선택</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                                
+                                }
+                            </div>
+                          ) : (
+                            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                              등록된 단계가 없습니다.
+                            </div>
+                          )}
                         </div>
                       </>
                     )}

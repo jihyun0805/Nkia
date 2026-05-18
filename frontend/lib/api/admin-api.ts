@@ -57,10 +57,35 @@ export interface WorkflowTemplateListResponse {
   active: boolean;
 }
 
-export interface WorkflowTemplateCreateRequest {
+export interface WorkflowStepResponse {
+  id: number;
+  stepOrder: number;
+  stepName: string;
+  approverPosition: string;
+  required: boolean;
+  active: boolean;
+}
+
+export interface WorkflowTemplateResponse {
+  id: number;
   workflowDomain: string;
   name: string;
   active: boolean;
+  steps: WorkflowStepResponse[];
+}
+
+export interface WorkflowStepCreateRequest {
+  stepOrder: number
+  stepName: string
+  approverPosition: string
+  required: boolean
+  active: boolean
+}
+
+export interface WorkflowTemplateCreateRequest {
+  workflowDomain: string
+  name: string
+  steps: WorkflowStepCreateRequest[]
 }
 
 export interface WorkflowTemplateUpdateRequest {
@@ -120,7 +145,7 @@ export const adminApi = {
 
   // Workflow Templates
   getWorkflows: () => customInstance<ApiResponse<WorkflowTemplateListResponse[]>>({ url: '/admin/workflow-templates', method: 'GET' }),
-  getWorkflow: (id: string) => customInstance<ApiResponse<WorkflowTemplateListResponse>>({ url: `/admin/workflow-templates/${id}`, method: 'GET' }),
+  getWorkflow: (id: string) => customInstance<ApiResponse<WorkflowTemplateResponse>>({ url: `/admin/workflow-templates/${id}`, method: 'GET' }),
   createWorkflow: (data: WorkflowTemplateCreateRequest) => customInstance<ApiResponse<WorkflowTemplateListResponse>>({ url: '/admin/workflow-templates', method: 'POST', data }),
   updateWorkflow: (id: string, data: WorkflowTemplateUpdateRequest) => customInstance<ApiResponse<WorkflowTemplateListResponse>>({ url: `/admin/workflow-templates/${id}`, method: 'PUT', data }),
 
