@@ -1,5 +1,7 @@
 package com.nkia.Orbis.domain.admin.user.repository;
 
+import com.nkia.Orbis.domain.admin.permission.entity.PermissionAction;
+import com.nkia.Orbis.domain.admin.permission.entity.PermissionDomain;
 import com.nkia.Orbis.domain.admin.permission.entity.Role;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import java.util.List;
@@ -32,4 +34,16 @@ public interface UserRepository extends JpaRepository<User, UUID> {
                 WHERE r = :role
             """)
     List<User> findByRole(@Param("role") Role role);
+
+    @Query("""
+                SELECT DISTINCT u
+                FROM User u
+                JOIN u.roles r
+                JOIN r.permissions p
+                WHERE p.domain = :domain AND p.action = :action
+            """)
+    List<User> findByPermissionDomainAndAction(
+            @Param("domain") PermissionDomain domain,
+            @Param("action") PermissionAction action
+    );
 }

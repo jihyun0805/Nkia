@@ -5,6 +5,8 @@ import com.nkia.Orbis.common.exception.errorcode.ContractErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.SecurityUtil;
+import com.nkia.Orbis.domain.admin.permission.entity.PermissionAction;
+import com.nkia.Orbis.domain.admin.permission.entity.PermissionDomain;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.domain.admin.workflow.entity.Workflow;
@@ -72,6 +74,8 @@ public class BillingService {
 
         Billing savedBilling = billingRepository.save(billing);
 
+        this.submitBilling(billing.getId(), request.getInvoiceManager());
+
         return savedBilling.getId();
     }
 
@@ -99,16 +103,24 @@ public class BillingService {
     private void sendCollectionRequestAlarm(Long billingId) {
         User sender = userRepository.findById(UUID.fromString(SecurityUtil.getCurrentUserId()))
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
-        User receiver = userRepository.findByEmail("admin@admin.com")
-                .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
-        eventPublisher.publishEvent(new AlarmEvent(
-                sender,
-                receiver,
-                AlarmType.BILLING_COLLECTION_REQUEST,
-                "세금계산서가 발행되었습니다. 수금 결과를 확정하시겠습니까?",
-                billingId
-        ));
+        List<User> receivers = userRepository.findByPermissionDomainAndAction(
+                PermissionDomain.BILLING,
+                PermissionAction.MANAGE
+        );
+
+        if (receivers.isEmpty()) {
+            log.warn("No user found with BILLING - MANAGE permission. Alarm not sent.");
+        } else {
+            for (User receiver : receivers) {
+                eventPublisher.publishEvent(new AlarmEvent(
+                        sender,
+                        receiver,
+                        AlarmType.BILLING_COLLECTION_REQUEST,
+                        "세금계산서가 발행되었습니다. 수금 결과를 확정하시겠습니까?",
+                        billingId));
+            }
+        }
     }
 
     /**
@@ -201,7 +213,8 @@ public class BillingService {
             saveHistory(billing);
         }
 
-        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()),
+                getUserNameFromId(billing.getCreatedBy()));
     }
 
     /**
@@ -237,14 +250,14 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
-        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()),
+                getUserNameFromId(billing.getCreatedBy()));
     }
 
     @Transactional
     public void submitBilling(
             Long billingId,
-            UUID firstApproverId
-    ) {
+            UUID firstApproverId) {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
@@ -258,8 +271,7 @@ public class BillingService {
                 WorkflowDomain.BILLING,
                 billing.getId(),
                 requesterId,
-                firstApproverId
-        );
+                firstApproverId);
 
         billing.submit();
     }
@@ -270,8 +282,7 @@ public class BillingService {
                 .findByWorkflowDomainAndTargetIdAndStatus(
                         WorkflowDomain.BILLING,
                         billingId,
-                        WorkflowStatus.IN_PROGRESS
-                )
+                        WorkflowStatus.IN_PROGRESS)
                 .map(Workflow::getId)
                 .orElse(null);
     }
