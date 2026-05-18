@@ -201,6 +201,15 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
       return;
     }
 
+    if (!_data.startDate) {
+      alert("사업 개시일을 입력해 주세요.");
+      return;
+    }
+    if (!_data.endDate) {
+      alert("사업 완료일을 입력해 주세요.");
+      return;
+    }
+
     const finalManagerId = _data.managerId || pmUser?.id;
     if (!finalManagerId) {
       alert("PM을 선택해 주세요.");
@@ -411,14 +420,14 @@ export function ProjectResultForm({ onSuccess, onCancel, inheritedData }: Projec
 
               {/* 사업개시일 */}
               <div className="space-y-2">
-                <Label htmlFor="startDate">사업개시일</Label>
-                <Input id="startDate" type="date" {...register("startDate")} placeholder="사업개시일 선택" />
+                <Label htmlFor="startDate">사업개시일 *</Label>
+                <Input id="startDate" type="date" {...register("startDate", { required: true })} placeholder="사업개시일 선택" />
               </div>
 
               {/* 사업완료일 */}
               <div className="space-y-2">
-                <Label htmlFor="endDate">사업완료일</Label>
-                <Input id="endDate" type="date" {...register("endDate")} placeholder="사업완료일 선택" />
+                <Label htmlFor="endDate">사업완료일 *</Label>
+                <Input id="endDate" type="date" {...register("endDate", { required: true })} placeholder="사업완료일 선택" />
               </div>
 
               {/* PM 이름 */}
