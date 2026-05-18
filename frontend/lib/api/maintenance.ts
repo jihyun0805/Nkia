@@ -49,63 +49,102 @@ export const getSupportHistoryList = async (): Promise<ApiResponse<IntegratedSup
   return await customInstance({ url: "/maintenances/customer-supports/activities/integrated-status", method: "get" });
 };
 
-export interface MaintenanceDetailResponse {
-  id: number;
-  workflowId: number | null;
-  status: string | null;
-  projectId: number | null;
-  projectName: string;
-  customerName: string;
-  salesRepName: string | null;
-  managerPrimaryName: string | null;
-  managerSecondaryName: string | null;
-  regularPm: string | null;
-  type: "FREE" | "PAID";
-  isRemote: boolean;
-  category: string | null;
-  contractAmount: number | null;
-  annualAmount: number | null;
-  contractDate: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  reportSubmitted: boolean;
-  inspectionCycle: "MONTHLY" | "QUARTERLY" | "SEMI_ANNUALLY" | "NONE" | null;
-  importance: "HIGH" | "MEDIUM" | "LOW" | null;
-  location: string | null;
-  rate: number | null;
-  productFamily: "EMS" | "ITSM" | "Automation" | "WSS" | null;
-  apVersion: string | null;
-  aclPatchStatus: boolean;
-  vulnPatchStatus: boolean;
-  upgradePlan: string | null;
-  apCount: number | null;
-  esCount: number | null;
-  esVersion: string | null;
-  dbHaStatus: boolean;
-  dbVersion: string | null;
-  remarks: string | null;
-  contractFileId: number | null;
-  createdBy: string | null;
-  updatedBy: string | null;
-  createdAt: string | null;
+export interface MaintenanceQuotationCreateRequest {
+  projectId: number;
+  quotationDate: string; // YYYY-MM-DD
+  paymentTerms: string;
+  totalAmount: number;
+  startDate: string;
+  endDate: string;
+  monthlySupplyPrice: number;
+  totalQuotationAmount: number;
+  specialNotes?: string;
+  coverInfo?: {
+    salesRepresentativeId: string; // UUID
+    proposalType: "SELF" | "SI";
+    productFamily: "EMS" | "ITSM" | "AUTOMATION" | "WSS";
+  };
+  packageCosts?: Array<{
+    packageName: string;
+    amount: number;
+  }>;
+  serviceInfos?: Array<{
+    productId?: number;
+    category: string;
+    item: string;
+    content: string;
+  }>;
+  amountReasons?: Array<{
+    productId?: number;
+    quantity: number;
+    amount: number;
+    months: number;
+    remarks?: string;
+  }>;
 }
 
-export const getMaintenanceDetail = async (id: number): Promise<ApiResponse<MaintenanceDetailResponse>> => {
-  return await customInstance({ url: `/maintenances/${id}`, method: "get" });
+export interface MaintenanceQuotationCreateResponse {
+  id: number;
+  refNo: string;
+  quotationDate: string;
+  totalQuotationAmount: number;
+}
+
+export interface MaintenanceQuotationDetailResponse {
+  id: number;
+  workflowId: number;
+  status: string;
+  companyName: string;
+  projectName: string;
+  refNo: string;
+  quotationDate: string;
+  paymentTerms: string;
+  totalAmount: number;
+  startDate: string;
+  endDate: string;
+  monthlySupplyPrice: number;
+  totalQuotationAmount: number;
+  specialNotes: string | null;
+  coverInfo: {
+    customerName: string;
+    projectName: string;
+    proposalType: string;
+    productFamily: string;
+    totalQuotationAmount: number;
+    quotationDate: string;
+    salesRepresentative: string;
+  } | null;
+  packageCosts: Array<{ packageName: string; amount: number }>;
+  serviceInfos: Array<{
+    productId: number | null;
+    productName: string;
+    category: string;
+    item: string;
+    content: string;
+  }>;
+  amountReasons: Array<{
+    productId: number | null;
+    productCategory: string;
+    productName: string;
+    quantity: number;
+    amount: number;
+    months: number;
+    remarks: string | null;
+  }>;
+}
+
+export const createMaintenanceQuotation = async (data: MaintenanceQuotationCreateRequest): Promise<ApiResponse<MaintenanceQuotationCreateResponse>> => {
+  return await customInstance({ url: "/maintenances/quotations", method: "post", data });
 };
 
-export const createMaintenance = async (data: any): Promise<ApiResponse<number>> => {
-  return await customInstance({ url: "/maintenances", method: "post", data });
+export const getMaintenanceQuotationDetail = async (id: number): Promise<ApiResponse<MaintenanceQuotationDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/quotations/${id}`, method: "get" });
 };
 
-export const updateMaintenance = async (id: number, data: any): Promise<ApiResponse<MaintenanceDetailResponse>> => {
-  return await customInstance({ url: `/maintenances/${id}`, method: "put", data });
+export const updateMaintenanceQuotation = async (id: number, data: MaintenanceQuotationCreateRequest): Promise<ApiResponse<MaintenanceQuotationDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/quotations/${id}`, method: "put", data });
 };
 
-export const deleteMaintenance = async (id: number): Promise<ApiResponse<void>> => {
-  return await customInstance({ url: `/maintenances/${id}`, method: "delete" });
-};
-
-export const submitMaintenanceApproval = async (id: number, request: { firstApproverId: string }): Promise<ApiResponse<string>> => {
-  return await customInstance({ url: `/maintenances/submit/${id}`, method: "post", data: request });
+export const deleteMaintenanceQuotation = async (id: number): Promise<ApiResponse<void>> => {
+  return await customInstance({ url: `/maintenances/quotations/${id}`, method: "delete" });
 };
