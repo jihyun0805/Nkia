@@ -2,11 +2,12 @@ export const MAX_HISTORY_MESSAGES = 8
 export const DEFAULT_LIMIT = 5
 
 export const EXAMPLE_PROMPTS = [
-  "키움증권 실주 이유 알려줘",
-  "국민은행 견적서 요약해줘",
+  "예상 사업비가 가장 큰 사업 TOP3 알려줘",
+  "유지보수 견적 평균 금액은?",
+  "사업기회는 총 몇 건이야?",
+  "솔루션컨설팅팀 직원 알려줘",
+  "공공 고객 사업기회 알려줘",
   "롯데카드 사업기회 진행 상황 알려줘",
-  "올해 계약된 프로젝트와 계약 금액 알려줘",
-  "현재 진행 중인 사업기회 목록 알려줘",
 ]
 
 export const SOURCE_TYPE_LABELS: Record<string, string> = {
