@@ -792,9 +792,16 @@ export default function FindingEditPage() {
         return
       }
 
+      const originalPartnerName = currentPartner.name ?? normalizedName
+      const originalPartnerType = currentPartner.type ?? partnerType
+      const originalPartnerAddress = currentPartner.address ?? ""
+      const originalPartnerMemo = currentPartner.memo ?? ""
+      const originalContacts = toContactDrafts(currentPartner)
+
       setSubmitting(true)
       ;(async () => {
         try {
+          const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
           await updateBackendCompany(currentPartner.backendId!, {
             name: normalizedName,
             category: mapPartnerCategory(partnerType),
@@ -802,7 +809,6 @@ export default function FindingEditPage() {
             memo,
           }, currentPartner.id)
 
-          const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
           const sortedManagers = [...existingManagers].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
           for (let index = 0; index < filledContacts.length; index += 1) {
             const contact = filledContacts[index]
@@ -837,6 +843,45 @@ export default function FindingEditPage() {
           })
           router.push(`/finding/partners/${currentPartner.id}?tab=${tab}`)
         } catch (error) {
+          try {
+            await updateBackendCompany(currentPartner.backendId!, {
+              name: originalPartnerName,
+              category: mapPartnerCategory(originalPartnerType),
+              address: originalPartnerAddress,
+              memo: originalPartnerMemo,
+            }, currentPartner.id)
+
+            const restoredManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
+            const sortedRestoredManagers = [...restoredManagers].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+            for (let index = 0; index < originalContacts.length; index += 1) {
+              const contact = originalContacts[index]
+              const payload = {
+                name: contact.name.trim(),
+                email: contact.email?.trim() || "",
+                mobilePhone: contact.mobilePhone?.trim() || undefined,
+                officePhone: contact.landlinePhone?.trim() || undefined,
+                department: contact.department?.trim() || undefined,
+                position: contact.position?.trim() || undefined,
+                role: contact.duty?.trim() || undefined,
+                memo: contact.memo?.trim() || undefined,
+              }
+
+              const managerId = sortedRestoredManagers[index]?.id
+              if (managerId != null) {
+                await updateBackendCompanyManager(managerId, payload)
+              } else {
+                await createBackendCompanyManager(currentPartner.backendId!, payload)
+              }
+            }
+
+            for (const manager of sortedRestoredManagers.slice(originalContacts.length)) {
+              if (manager.id != null) {
+                await deleteBackendCompanyManager(manager.id)
+              }
+            }
+          } catch {
+            // Restore best-effort only; original error still reports the failed save.
+          }
           toast({
             title: "협력사 수정 실패",
             description: error instanceof Error ? error.message : "수정에 실패했습니다.",

@@ -101,7 +101,6 @@ export type FindingBackendData = {
 };
 
 const opportunityDisplayOverrideStorageKey = "orbis.project-opportunity-display-overrides";
-const companyDisplayOverrideStorageKey = "orbis.company-display-overrides";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -159,43 +158,6 @@ function getOpportunityDisplayOverride(opportunityCode?: string) {
   const normalizedCode = opportunityCode?.trim();
   if (!normalizedCode) return null;
   return loadOpportunityDisplayOverrides()[normalizedCode] ?? null;
-}
-
-function loadCompanyDisplayOverrides() {
-  if (!isBrowser()) return {} as Record<string, CompanyDisplayOverride>;
-
-  const stored = window.localStorage.getItem(companyDisplayOverrideStorageKey);
-  if (!stored) return {} as Record<string, CompanyDisplayOverride>;
-
-  try {
-    const parsed = JSON.parse(stored) as Record<string, CompanyDisplayOverride>;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveCompanyDisplayOverrides(overrides: Record<string, CompanyDisplayOverride>) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(companyDisplayOverrideStorageKey, JSON.stringify(overrides));
-}
-
-function setCompanyDisplayOverride(companyCode?: string, override?: CompanyDisplayOverride) {
-  const normalizedCode = companyCode?.trim();
-  if (!normalizedCode) return;
-
-  const overrides = loadCompanyDisplayOverrides();
-  overrides[normalizedCode] = {
-    ...overrides[normalizedCode],
-    ...override,
-  };
-  saveCompanyDisplayOverrides(overrides);
-}
-
-function getCompanyDisplayOverride(companyCode?: string) {
-  const normalizedCode = companyCode?.trim();
-  if (!normalizedCode) return null;
-  return loadCompanyDisplayOverrides()[normalizedCode] ?? null;
 }
 
 function normalizeLookupText(value?: string | number | null) {
@@ -587,7 +549,6 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
 
   const customers: CustomerRecord[] = customerCompanies.map((company) => {
     const managers = customerManagersByCode.get(company.code ?? "") ?? [];
-    const displayOverride = getCompanyDisplayOverride(company.code);
     return {
       id: buildCustomerRecordCode(company),
       backendId: company.id,
@@ -599,7 +560,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       phone: firstContactPhone(managers),
       contacts: toContacts(managers),
       address: company.address ?? "",
-      memo: displayOverride?.memo?.trim() || company.memo || `진행중 사업기회 ${company.id != null ? (customerOppCount.get(String(company.id)) ?? 0) : 0}건 / 계약 ${company.id != null ? (customerContractCount.get(String(company.id)) ?? 0) : 0}건`,
+      memo: company.memo || `진행중 사업기회 ${company.id != null ? (customerOppCount.get(String(company.id)) ?? 0) : 0}건 / 계약 ${company.id != null ? (customerContractCount.get(String(company.id)) ?? 0) : 0}건`,
       aliases: [company.code ?? "", company.name ?? ""].filter(Boolean),
       attachments: [],
       contactName: managers[0]?.name ?? "",
@@ -614,7 +575,6 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
   const partners: PartnerRecord[] = partnerCompanies.map((company) => {
     const managers = partnerManagersByCode.get(company.code ?? "") ?? [];
     const projectsCount = 0;
-    const displayOverride = getCompanyDisplayOverride(company.code);
     return {
       id: company.code ?? `PTN-${company.id ?? ""}`,
       backendId: company.id,
@@ -626,7 +586,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       phone: firstContactPhone(managers),
       contacts: toContacts(managers),
       address: company.address ?? "",
-      memo: displayOverride?.memo?.trim() || company.memo || `진행중 사업기회 0건 / 진행중 프로젝트 ${projectsCount}건`,
+      memo: company.memo || `진행중 사업기회 0건 / 진행중 프로젝트 ${projectsCount}건`,
       attachments: [],
       contactName: managers[0]?.name ?? "",
       position: managers[0]?.position ?? "",
@@ -709,7 +669,6 @@ export async function createBackendCompany(input: {
 
   const created = await findCompanyByCode(input.companyType, input.code);
   if (typeof created?.id === "number") {
-    setCompanyDisplayOverride(input.code, { memo: input.memo });
     return created.id;
   }
 
@@ -743,7 +702,6 @@ export async function updateBackendCompany(
     }),
   });
 
-  setCompanyDisplayOverride(companyCode, { memo: input.memo });
   await normalizeVoidResponse(response, "회사를 수정하지 못했습니다.");
   return true;
 }

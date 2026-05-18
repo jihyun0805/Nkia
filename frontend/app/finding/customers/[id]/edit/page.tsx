@@ -384,6 +384,12 @@ function CustomerEditPageContent() {
       return
     }
 
+    const originalCustomerName = customer.name ?? normalizedName
+    const originalCustomerGroup = mapCustomerSectorToEnum(customer.category || customerGroup)
+    const originalAddress = customer.address ?? ""
+    const originalMemo = customer.memo ?? ""
+    const originalContacts = normalizeContacts(customer)
+
     setSubmitting(true)
     try {
       await updateBackendCompany(customer.backendId, {
@@ -399,6 +405,17 @@ function CustomerEditPageContent() {
       })
       router.push(`/finding/customers/${customer.id}?tab=${searchParams.get("tab") ?? "customers"}`)
     } catch (error) {
+      try {
+        await updateBackendCompany(customer.backendId, {
+          name: originalCustomerName,
+          sector: originalCustomerGroup,
+          address: originalAddress,
+          memo: originalMemo,
+        }, customer.id)
+        await syncBackendManagers(customer.id, customer.backendId, originalContacts)
+      } catch {
+        // Restore is best-effort only; the original error is still reported below.
+      }
       toast({
         title: "고객사 수정 실패",
         description: error instanceof Error ? error.message : "수정에 실패했습니다.",

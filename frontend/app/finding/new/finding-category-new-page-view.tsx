@@ -40,6 +40,7 @@ import {
   buildCompanyCode,
   createBackendCompany,
   createBackendCompanyManager,
+  deleteBackendCompany,
   createBackendProjectOpportunity,
   loadBackendFindingData,
   loadBackendProductModules,
@@ -638,9 +639,10 @@ export function FindingCategoryNewPageView({
 
     setSubmitting(true)
     void (async () => {
+      let companyId: number | null = null
       try {
         const code = buildCompanyCode("CUS")
-        const companyId = await createBackendCompany({
+        companyId = await createBackendCompany({
           companyType: "CUSTOMER",
           code,
           name: normalizedName,
@@ -667,6 +669,17 @@ export function FindingCategoryNewPageView({
         })
         router.push(`/finding/customers/${code}?tab=customers`)
       } catch (error) {
+        if (companyId != null) {
+          await deleteBackendCompany(companyId).catch(() => null)
+        }
+        const message = error instanceof Error ? error.message : ""
+        if (message.includes("중복") || message.includes("duplicate") || message.includes("already exists") || message.includes("이미 등록")) {
+          toast({
+            title: "고객사 중복 등록",
+            description: "이미 등록된 동일한 이름의 고객사가 있습니다.",
+          })
+          return
+        }
         toast({
           title: "고객사 등록 실패",
           description: error instanceof Error ? error.message : "등록에 실패했습니다.",
@@ -712,9 +725,10 @@ export function FindingCategoryNewPageView({
 
     setSubmitting(true)
     void (async () => {
+      let companyId: number | null = null
       try {
         const code = buildCompanyCode("PTN")
-        const companyId = await createBackendCompany({
+        companyId = await createBackendCompany({
           companyType: "PARTNER",
           code,
           name: normalizedName,
@@ -741,6 +755,9 @@ export function FindingCategoryNewPageView({
         })
         router.push("/finding?tab=partners")
       } catch (error) {
+        if (companyId != null) {
+          await deleteBackendCompany(companyId).catch(() => null)
+        }
         const message = error instanceof Error ? error.message : ""
         if (message.includes("중복") || message.includes("duplicate") || message.includes("already exists") || message.includes("이미 등록")) {
           toast({
