@@ -123,18 +123,6 @@ export function getActivityRequests() {
   const requests = normalizeRequests(readStorage<ActivityRequestRecord[]>(REQUESTS_STORAGE_KEY, cloneRequests()))
 
   if (isBrowser()) {
-    const hasLegacyMock = requests.some(
-      (item) =>
-        item.id.startsWith("REQ-2026-") ||
-        item.customerCode?.startsWith("CUS-") === true ||
-        item.opportunityCode?.startsWith("OPP-") === true,
-    )
-
-    if (hasLegacyMock) {
-      window.localStorage.removeItem(REQUESTS_STORAGE_KEY)
-      return []
-    }
-
     writeStorage(REQUESTS_STORAGE_KEY, requests)
   }
 

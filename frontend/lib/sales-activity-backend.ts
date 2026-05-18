@@ -364,6 +364,7 @@ function mapBackendActivityRecord(
     id: String(activity.id ?? index + 1),
     date,
     requestId: activity.salesActivityRequestId != null ? String(activity.salesActivityRequestId) : undefined,
+    salesActivityRequestId: activity.salesActivityRequestId,
     projectOpportunityId: opportunityId,
     registrant:
       registrantName ||

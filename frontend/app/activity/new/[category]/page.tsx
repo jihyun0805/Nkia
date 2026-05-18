@@ -24,7 +24,6 @@ import {
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { ActivityFormFields } from "@/components/erp/searchable-activity-form-fields"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
-import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
@@ -33,10 +32,9 @@ import {
   type CustomerRecord,
   getCustomerByCode,
   getCustomerByName,
-  getOpportunitiesByCustomerName,
   hasRegisteredCustomer,
 } from "@/lib/finding-data"
-import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
+import { loadBackendFindingData, loadBackendProjectOpportunitiesByCustomer, type FindingBackendData, type ProjectOpportunitySummaryResponse } from "@/lib/finding-backend"
 import { toast } from "@/hooks/use-toast"
 import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { X } from "lucide-react"
@@ -73,25 +71,6 @@ function findCustomerByNameOrCode(
   )
 }
 
-function getOpportunitiesForCustomer(
-  findingData: FindingBackendData,
-  customerName: string,
-  customerCode: string,
-) {
-  const normalizedName = normalizeLookupText(customerName)
-  const normalizedCode = normalizeLookupText(customerCode)
-
-  return findingData.opportunities.filter((opportunity) => {
-    const opportunityCustomerCode = normalizeLookupText(opportunity.customerCode)
-    const opportunityCustomerName = normalizeLookupText(opportunity.customer)
-
-    return (
-      (normalizedCode && opportunityCustomerCode === normalizedCode) ||
-      (normalizedName && opportunityCustomerName === normalizedName)
-    )
-  })
-}
-
 function ActivityCategoryNewPageContent() {
   const params = useParams<{ category: ActivityCategory }>()
   const router = useRouter()
@@ -107,6 +86,8 @@ function ActivityCategoryNewPageContent() {
   const [activityRegistrant, setActivityRegistrant] = useState("")
   const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
   const [activityRequests, setActivityRequests] = useState<ActivityRequestRecord[]>([])
+  const [activityOpportunityOptions, setActivityOpportunityOptions] = useState<ProjectOpportunitySummaryResponse[]>([])
+  const [isActivityOpportunityLoading, setIsActivityOpportunityLoading] = useState(false)
   const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
   const [findingData, setFindingData] = useState<FindingBackendData>(emptyFindingData)
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
@@ -121,6 +102,8 @@ function ActivityCategoryNewPageContent() {
     issues: "",
     nextAction: "",
   })
+  const [requestOpportunityOptions, setRequestOpportunityOptions] = useState<ProjectOpportunitySummaryResponse[]>([])
+  const [isRequestOpportunityLoading, setIsRequestOpportunityLoading] = useState(false)
   const [form, setForm] = useState({
     date: "",
     type: "",
@@ -134,6 +117,40 @@ function ActivityCategoryNewPageContent() {
     dueDate: "",
     content: "",
   })
+  const matchedCustomer = category === "requests" ? getCustomerByName(form.customer) : null
+  const selectedRequestCustomer =
+    category === "requests"
+      ? findCustomerByNameOrCode(findingData.customers, form.customer, form.customerCode) ?? matchedCustomer
+      : null
+  const selectedActivityCustomer =
+    category === "activities"
+      ? findCustomerByNameOrCode(findingData.customers, activityCustomer, activityCustomerCode)
+      : null
+  const requestOpportunitySelectOptions = requestOpportunityOptions.filter(
+    (item): item is ProjectOpportunitySummaryResponse & { id: number } => typeof item.id === "number",
+  )
+  const linkedRequestBackendId =
+    linkedRequest?.backendId ??
+    (linkedRequestId && /^\d+$/.test(linkedRequestId) ? Number(linkedRequestId) : undefined)
+  const resolveSelectedActivityOpportunity = (value: string, code?: string) => {
+    const normalizedValue = value.trim().toLowerCase()
+    const normalizedCode = code?.trim().toLowerCase()
+    if ((!normalizedValue || normalizedValue === "미확인") && !normalizedCode) return null
+
+    return (
+      activityOpportunityOptions.find((item) => {
+        const candidates = [item.opportunityCode, String(item.id), item.opportunityName]
+          .filter((candidate): candidate is string => typeof candidate === "string")
+          .map((candidate) => candidate.trim().toLowerCase())
+
+        if (normalizedCode && candidates.includes(normalizedCode)) {
+          return true
+        }
+
+        return normalizedValue ? candidates.includes(normalizedValue) : false
+      }) ?? null
+    )
+  }
 
   // 챗봇 create_draft (sales_activity / quotation) prefill — category 별로 다르게 매핑
   const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -272,6 +289,74 @@ function ActivityCategoryNewPageContent() {
   }, [category, linkedRequestId])
 
   useEffect(() => {
+    if (category !== "requests") return
+
+    let cancelled = false
+
+    if (!selectedRequestCustomer?.backendId) {
+      setRequestOpportunityOptions([])
+      setIsRequestOpportunityLoading(false)
+      return
+    }
+
+    setIsRequestOpportunityLoading(true)
+    void loadBackendProjectOpportunitiesByCustomer(selectedRequestCustomer.backendId)
+      .then((opportunities) => {
+        if (!cancelled) {
+          setRequestOpportunityOptions(opportunities)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRequestOpportunityOptions([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsRequestOpportunityLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category, selectedRequestCustomer?.backendId])
+
+  useEffect(() => {
+    if (category !== "activities") return
+
+    let cancelled = false
+
+    if (!selectedActivityCustomer?.backendId) {
+      setActivityOpportunityOptions([])
+      setIsActivityOpportunityLoading(false)
+      return
+    }
+
+    setIsActivityOpportunityLoading(true)
+    void loadBackendProjectOpportunitiesByCustomer(selectedActivityCustomer.backendId)
+      .then((opportunities) => {
+        if (!cancelled) {
+          setActivityOpportunityOptions(opportunities)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityOpportunityOptions([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsActivityOpportunityLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category, selectedActivityCustomer?.backendId])
+
+  useEffect(() => {
     if (category !== "activities") return
 
     let cancelled = false
@@ -285,7 +370,29 @@ function ActivityCategoryNewPageContent() {
       }
 
       const request = requests.find((item) => item.id === selectedActivityRequestId) ?? null
-      setLinkedRequest(request)
+      if (request) {
+        setLinkedRequest(request)
+        return
+      }
+
+      const requestId = Number.parseInt(selectedActivityRequestId, 10)
+      if (Number.isNaN(requestId)) {
+        setLinkedRequest(null)
+        return
+      }
+
+      void loadBackendActivityRequest(requestId)
+        .then((detail) => {
+          if (!cancelled) {
+            setLinkedRequest(detail)
+            setActivityRequests((current) => [detail, ...current.filter((item) => item.id !== detail.id)])
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setLinkedRequest(null)
+          }
+        })
     }
 
     loadBackendActivityRequests()
@@ -310,6 +417,22 @@ function ActivityCategoryNewPageContent() {
     }
   }, [category, selectedActivityRequestId])
 
+  useEffect(() => {
+    if (category !== "activities") return
+    if (!linkedRequestId || !linkedRequest) return
+
+    setActivityRequester(linkedRequest.requester ?? "")
+    setActivityCustomer(linkedRequest.customer ?? "")
+    setActivityCustomerCode(linkedRequest.customerCode ?? "")
+    setActivityOpportunity(linkedRequest.opportunity ?? "")
+    setActivityOpportunityCode(linkedRequest.opportunityCode ?? "")
+    setActivityForm((prev) => ({
+      ...prev,
+      date: linkedRequest.dueDate || linkedRequest.date || prev.date,
+      activityContent: linkedRequest.type ?? prev.activityContent,
+    }))
+  }, [category, linkedRequest, linkedRequestId])
+
   if (!categories.includes(category)) {
     return null
   }
@@ -323,10 +446,6 @@ function ActivityCategoryNewPageContent() {
 
   const targetCustomer =
     category === "activities" ? activityCustomer : category === "quotations" ? quotationForm.customer : form.customer
-  const matchedCustomer = category === "requests" ? getCustomerByName(form.customer) : null
-  const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(form.customer) : []
-  const activityOpportunityOptions = getOpportunitiesForCustomer(findingData, activityCustomer, activityCustomerCode)
-
   const matchesCustomerName = (customers: CustomerRecord[], customerName: string) => {
     const normalized = customerName.trim().toLowerCase()
     if (!normalized) return false
@@ -399,23 +518,31 @@ function ActivityCategoryNewPageContent() {
         return
       }
 
-      if (activityOpportunityOptions.length > 1 && !activityOpportunityCode) {
+      if (selectedActivityCustomer?.backendId && isActivityOpportunityLoading) {
         toast({
-          title: "사업기회 선택 필요",
-          description: "선택한 고객사에 연결된 사업기회가 여러 개 있습니다. 사업기회를 선택해주십시오.",
+          title: "사업기회 조회 중",
+          description: "고객사에 연결된 사업기회를 불러오는 중입니다. 잠시 후 다시 시도해주십시오.",
         })
         return
       }
 
-      const opportunityName = activityOpportunity === "미확인" ? "" : activityOpportunity
-      const localRequestId = Number.parseInt((linkedRequest?.id ?? linkedRequestId).replace(/[^\d]/g, ""), 10)
-      const salesActivityRequestId = Number.isNaN(localRequestId) ? undefined : localRequestId
+      const selectedActivityOpportunity = resolveSelectedActivityOpportunity(activityOpportunity, activityOpportunityCode)
 
+      if (selectedActivityCustomer?.backendId && !selectedActivityOpportunity) {
+        toast({
+          title: "사업기회 선택 필요",
+          description: "선택한 고객사에 연결된 사업기회를 목록에서 선택해주십시오.",
+        })
+        return
+      }
+
+      const opportunityName = activityOpportunity === "미확인" ? "" : selectedActivityOpportunity?.opportunityName ?? activityOpportunity
       try {
         const created = await createBackendActivityRecord({
           customerName: activityCustomer,
+          projectOpportunityId: selectedActivityOpportunity?.id,
           opportunityName,
-          opportunityCode: activityOpportunityCode,
+          opportunityCode: selectedActivityOpportunity?.opportunityCode ?? activityOpportunityCode,
           registrant: activityRegistrant,
           requester: activityRequester,
           activityMode: activityForm.activityMode,
@@ -428,7 +555,7 @@ function ActivityCategoryNewPageContent() {
           attendees: activityForm.attendees,
           status: "완료",
           requestId: (linkedRequest?.id ?? linkedRequestId) || undefined,
-          salesActivityRequestId,
+          salesActivityRequestId: linkedRequestBackendId,
         })
         toast({
           title: "영업활동 등록 완료",
@@ -459,9 +586,26 @@ function ActivityCategoryNewPageContent() {
       return
     }
 
+    if (!selectedRequestCustomer?.backendId) {
+      toast({
+        title: "고객사 확인 필요",
+        description: "등록된 고객사를 선택해야 활동 요청을 저장할 수 있습니다.",
+      })
+      return
+    }
+
+    if (selectedRequestCustomer?.backendId && isRequestOpportunityLoading) {
+      toast({
+        title: "사업기회 조회 중",
+        description: "고객사에 연결된 사업기회를 불러오는 중입니다. 잠시 후 다시 시도해주십시오.",
+      })
+      return
+    }
+
     try {
       const created = await createBackendActivityRequest({
         ...form,
+        companyId: selectedRequestCustomer.backendId,
       })
       toast({
         title: "활동 요청 등록 완료",
@@ -481,11 +625,8 @@ function ActivityCategoryNewPageContent() {
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
     setActivityCustomer(customer?.name ?? "")
     setActivityCustomerCode(customer?.id ?? "")
-    const matchedOpportunities = customer ? getOpportunitiesForCustomer(findingData, customer.name, customer.id) : []
-    const preservedOpportunity = matchedOpportunities.find((item) => item.name === activityOpportunity || item.id === activityOpportunityCode) ?? null
-    const nextOpportunity = matchedOpportunities.length === 1 ? matchedOpportunities[0] : preservedOpportunity
-    setActivityOpportunity(nextOpportunity?.name ?? "")
-    setActivityOpportunityCode(nextOpportunity?.id ?? "")
+    setActivityOpportunity("")
+    setActivityOpportunityCode("")
   }
 
   const handleActivityCustomerValueChange = (value: string) => {
@@ -495,23 +636,19 @@ function ActivityCategoryNewPageContent() {
       findCustomerByNameOrCode(findingData.customers, value, value)
     const nextCustomerCode = matchedCustomer?.id ?? ""
     setActivityCustomerCode(nextCustomerCode)
-
-    const matchedOpportunities = matchedCustomer
-      ? getOpportunitiesForCustomer(findingData, matchedCustomer.name, nextCustomerCode)
-      : value
-        ? getOpportunitiesForCustomer(findingData, value, nextCustomerCode)
-        : []
-    const preservedOpportunity =
-      matchedOpportunities.find((item) => item.name === activityOpportunity || item.id === activityOpportunityCode) ?? null
-    const nextOpportunity = matchedOpportunities.length === 1 ? matchedOpportunities[0] : preservedOpportunity
-    setActivityOpportunity(nextOpportunity?.name ?? "")
-    setActivityOpportunityCode(nextOpportunity?.id ?? "")
+    setActivityOpportunity("")
+    setActivityOpportunityCode("")
   }
 
   const handleActivityOpportunityChange = (value: string) => {
-    const opportunity = activityOpportunityOptions.find((item) => item.name === value)
+    const normalizedValue = value.trim().toLowerCase()
+    const opportunity = activityOpportunityOptions.find((item) => {
+      return [item.opportunityCode, String(item.id), item.opportunityName]
+        .filter((candidate): candidate is string => typeof candidate === "string")
+        .some((candidate) => candidate.trim().toLowerCase() === normalizedValue)
+    })
     setActivityOpportunity(value)
-    setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
+    setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.opportunityCode ?? (opportunity?.id != null ? String(opportunity.id) : ""))
   }
 
   const handleActivityOpportunitySuggestionSelect = (suggestion: EntitySuggestion | null) => {
@@ -522,6 +659,46 @@ function ActivityCategoryNewPageContent() {
 
     setActivityOpportunity(suggestion.label)
     setActivityOpportunityCode(suggestion.code || suggestion.id)
+  }
+
+  const handleRequestCustomerSelection = (customer: CustomerRecord | null) => {
+    setForm((prev) => {
+      const nextCustomer = customer?.name ?? ""
+      const nextCustomerCode = customer?.id ?? ""
+
+      return {
+        ...prev,
+        customer: nextCustomer,
+        customerCode: nextCustomerCode,
+        opportunity: "",
+        opportunityCode: "",
+      }
+    })
+  }
+
+  const handleRequestCustomerValueChange = (value: string) => {
+    const matched = findCustomerByNameOrCode(findingData.customers, value, value)
+    setForm((prev) => {
+      const nextCustomer = value
+      const nextCustomerCode = matched?.id ?? ""
+
+      return {
+        ...prev,
+        customer: nextCustomer,
+        customerCode: nextCustomerCode,
+        opportunity: "",
+        opportunityCode: "",
+      }
+    })
+  }
+
+  const handleRequestOpportunityChange = (value: string) => {
+    const opportunity = requestOpportunitySelectOptions.find((item) => String(item.id) === value)
+    setForm((prev) => ({
+      ...prev,
+      opportunity: value === "미확인" ? "미확인" : opportunity?.opportunityName ?? value,
+      opportunityCode: value === "미확인" ? "" : String(opportunity?.id ?? value),
+    }))
   }
 
   const receiverUser = findUserByToken(backendUsers, form.receiver)
@@ -561,6 +738,9 @@ function ActivityCategoryNewPageContent() {
                       activityContent: linkedRequest?.type ?? "",
                       opportunity: linkedRequest?.opportunity ?? "",
                     }}
+                    requestTitle={linkedRequest?.title ?? ""}
+                    requesterLocked={Boolean(linkedRequestId)}
+                    requestLocked={Boolean(linkedRequestId)}
                     registrantValue={activityRegistrant}
                     onRegistrantChange={setActivityRegistrant}
                     customerValue={activityCustomer}
@@ -572,6 +752,7 @@ function ActivityCategoryNewPageContent() {
                     opportunityOptions={activityOpportunityOptions}
                     onOpportunityChange={handleActivityOpportunityChange}
                     onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
+                    opportunitySelectionOnly
                     requestValue={selectedActivityRequestId}
                     requestOptions={activityRequests}
                     onRequestChange={setSelectedActivityRequestId}
@@ -632,25 +813,8 @@ function ActivityCategoryNewPageContent() {
                         <Label>고객사 *</Label>
                         <CustomerAutocomplete
                           value={form.customer}
-                          onValueChange={(value) => {
-                            const matched = getCustomerByName(value)
-                            setForm((prev) => ({
-                              ...prev,
-                              customer: value,
-                              customerCode: matched?.id ?? prev.customerCode,
-                              opportunity: matched ? "미확인" : prev.opportunity,
-                              opportunityCode: matched ? "" : prev.opportunityCode,
-                            }))
-                          }}
-                          onSelect={(customer) => {
-                            setForm((prev) => ({
-                              ...prev,
-                              customer: customer?.name ?? "",
-                              customerCode: customer?.id ?? "",
-                              opportunity: customer ? "미확인" : "",
-                              opportunityCode: "",
-                            }))
-                          }}
+                          onValueChange={handleRequestCustomerValueChange}
+                          onSelect={handleRequestCustomerSelection}
                           placeholder="고객사를 입력하세요"
                           onUnregisteredAttempt={() => setIsCustomerAlertOpen(true)}
                         />
@@ -659,37 +823,31 @@ function ActivityCategoryNewPageContent() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label>사업기회</Label>
-                        <EntityAutocomplete
-                          value={form.opportunity}
-                          target="opportunities"
-                          onValueChange={(value) => {
-                            setForm((prev) => ({
-                              ...prev,
-                              opportunity: value,
-                              opportunityCode: "",
-                            }))
-                          }}
-                          onSelect={(suggestion) => {
-                            if (!suggestion) {
-                              setForm((prev) => ({ ...prev, opportunityCode: "" }))
-                              return
-                            }
-                            setForm((prev) => ({
-                              ...prev,
-                              opportunity: suggestion.label,
-                              opportunityCode: suggestion.code || suggestion.id,
-                            }))
-                          }}
-                          disabled={!matchedCustomer}
-                          allowCustomValue
-                          placeholder={matchedCustomer ? "사업기회를 입력하세요" : "고객사를 먼저 입력하세요"}
-                          emptyMessage="등록된 사업기회가 없습니다."
-                          filterSuggestion={(suggestion) =>
-                            !matchedCustomer ||
-                            suggestion.metadata.customerCode === matchedCustomer.id ||
-                            suggestion.metadata.customerId === matchedCustomer.id
-                          }
-                        />
+                        <Select
+                          value={form.opportunityCode || "미확인"}
+                          onValueChange={selectedRequestCustomer ? handleRequestOpportunityChange : undefined}
+                          disabled={!selectedRequestCustomer || isRequestOpportunityLoading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                !selectedRequestCustomer
+                                  ? "고객사를 먼저 입력하세요"
+                                  : isRequestOpportunityLoading
+                                    ? "사업기회를 불러오는 중입니다"
+                                    : "사업기회를 선택하세요"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {requestOpportunitySelectOptions.map((item) => (
+                              <SelectItem key={item.id} value={String(item.id)}>
+                                {item.opportunityName ?? item.opportunityCode ?? item.id}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="미확인">미확인</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
