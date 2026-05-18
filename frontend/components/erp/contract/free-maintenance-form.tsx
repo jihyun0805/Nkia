@@ -12,7 +12,7 @@ import { ProjectSelector } from "@/components/erp/project/project-selector";
 import { type ProjectListResponse } from "@/lib/api/project-api";
 import { UserPicker } from "@/components/erp/user-picker";
 import { useBackendUsers } from "@/lib/use-backend-users";
-import { createMaintenance } from "@/lib/api/maintenance";
+import { createMaintenance, type MaintenanceCreateRequest } from "@/lib/api/maintenance";
 import type { BackendUserSummary } from "@/lib/workflow-backend";
 import { toast } from "sonner";
 
@@ -94,9 +94,9 @@ export function FreeMaintenanceForm({ onSuccess, onCancel, inheritedData }: Free
 
     setSubmitting(true);
     try {
-      const payload = {
+      const payload: MaintenanceCreateRequest = {
         projectId: selectedProject.id,
-        salesRep: salesRep.id,
+        salesRep: salesRep.id ?? "",
         managerPrimary: engineerMain?.id || null,
         managerSecondary: engineerSub?.id || null,
         category: category || null,
