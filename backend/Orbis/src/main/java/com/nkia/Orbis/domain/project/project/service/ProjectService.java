@@ -59,6 +59,21 @@ public class ProjectService {
     }
 
     /**
+     * 수주보고서 객체로부터 직접 사업 생성 및 등록 (내부 호출용)
+     */
+    @Transactional
+    public void createProjectFromOrderReport(OrderReport report) {
+        if (projectRepository.existsByOrderReport(report)) {
+            throw new ApiException(ProjectErrorCode.PROJECT_ALREADY_REGISTERED);
+        }
+
+        Project project = createProject(report);
+        Project savedProject = projectRepository.save(project);
+
+        projectHistoryRepository.save(ProjectHistory.createSnapshot(savedProject, null));
+    }
+
+    /**
      * 사업 생성
      */
     @Transactional
@@ -66,12 +81,16 @@ public class ProjectService {
         String pjtNumber = generatePjtNumber(LocalDate.now());
         ProjectCode code = determineProjectCode(report);
 
+        String opportunityName = (report.getProjectOpportunity() != null && report.getProjectOpportunity().getOpportunityName() != null)
+                ? report.getProjectOpportunity().getOpportunityName()
+                : "미지정 사업명";
+
         Project project = Project.builder()
                 .orderReport(report)
                 .code(code)
-                .type(code.getType())
-                .pjtName(report.getProjectOpportunity().getOpportunityName())
-                .totalAmount(report.getTotalAmount())
+                .type(code != null ? code.getType() : null)
+                .pjtName(opportunityName)
+                .totalAmount(report.getTotalAmount() != null ? report.getTotalAmount() : 0L)
                 .salesRepresentative(report.getPm())
                 .build();
 
@@ -173,9 +192,13 @@ public class ProjectService {
             return ProjectCode.SERVICE;
         }
 
+        if (report.getCodeType() == null) {
+            throw new ApiException(ProjectErrorCode.INVALID_PROJECT_CODE);
+        }
+
         try {
             return ProjectCode.valueOf(report.getCodeType().name());
-        } catch (IllegalArgumentException | NullPointerException e) {
+        } catch (IllegalArgumentException e) {
             throw new ApiException(ProjectErrorCode.INVALID_PROJECT_CODE);
         }
     }
