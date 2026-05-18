@@ -15,8 +15,24 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from app.core.config import settings as _settings
 from app.models.user_context import UserContext
-from app.repositories.backend_query_repository import build_backend_database_url
+from app.repositories.backend_query_repository import (
+    build_backend_database_url as _build_owner_database_url,
+)
+from app.tools.domain_registry import DomainSpec, get_domain
+
+
+def build_backend_database_url() -> str:
+    """tool executor 전용 read-only connection URL.
+
+    AI 는 public schema 에서 SELECT 만 가능해야 한다는 보안 요구를 충족.
+    AI_DATABASE_URL (orbis_ai user — SELECT only) 우선, 미설정 시 owner 로 fallback.
+    """
+    url = getattr(_settings, "ai_database_url", None)
+    if url:
+        return url
+    return _build_owner_database_url()
 
 logger = logging.getLogger(__name__)
 
@@ -39,80 +55,20 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # 화이트리스트 (SQL Injection 방지)
 # ---------------------------------------------------------------------------
-
-_ALLOWED_DOMAINS: frozenset[str] = frozenset({
-    "project_opportunity",
-    "quotation",
-    "maintenance_quotation",
-    "order_report",
-    "contract",
-    "billing",
-    "sales_activity",
-    "rfp_analyze_result",
-    "prb",
-    "prb_result",
-    "bid_result",
-    "license",
-    "customer_support",
-    "users",
-    "department",
-})
+# 도메인별 컬럼/공개 여부 매핑은 app.tools.domain_registry 가 단일 출처.
 
 _ALLOWED_OPS: frozenset[str] = frozenset({"sum", "avg", "min", "max", "count"})
-
-_ALLOWED_SORT_DIRS: frozenset[str] = frozenset({"asc", "desc", "ASC", "DESC"})
-
-# 도메인별 공개(권한 제한 없음) 목록
-_PUBLIC_DOMAINS: frozenset[str] = frozenset({"users", "department"})
-
-# 도메인별 status 컬럼 매핑
-_STATUS_COLUMN: dict[str, str] = {
-    "project_opportunity": "current_status",
-    "license": "license_status",
-}
-
-# 도메인별 날짜 컬럼 매핑
-_DATE_COLUMN: dict[str, str] = {
-    "quotation": "quotation_date",
-    "maintenance_quotation": "start_date",
-    "contract": "contract_start_date",
-    "billing": "billing_date",
-    "sales_activity": "activity_date_time",
-    "order_report": "created_at",
-    "project_opportunity": "created_at",
-    "rfp_analyze_result": "created_at",
-    "prb": "meeting_date",
-    "prb_result": "created_at",
-    "bid_result": "created_at",
-    "license": "created_at",
-    "customer_support": "created_at",
-}
-
-# lookup_entity 도메인별 code 컬럼 매핑
-_CODE_COLUMN: dict[str, str] = {
-    "project_opportunity": "opportunity_code",
-    "quotation": "quotation_code",
-    "contract": "contract_code",
-    "bid_result": "bid_result_code",
-    "order_report": "won_report_code",
-    "rfp_analyze_result": "rfp_analysis_code",
-    "prb": "prb_code",
-    "prb_result": "prb_result_code",
-    "license": "license_code",
-    "maintenance_quotation": "ref_no",
-    "users": "id",
-    "department": "id",
-}
 
 
 # ---------------------------------------------------------------------------
 # 내부 유틸
 # ---------------------------------------------------------------------------
 
-def _validate_domain(domain: str) -> str:
-    if domain not in _ALLOWED_DOMAINS:
+def _validate_domain(domain: str) -> DomainSpec:
+    spec = get_domain(domain)
+    if spec is None:
         raise ValueError(f"허용되지 않은 domain: {domain!r}")
-    return domain
+    return spec
 
 
 def _validate_op(op: str) -> str:
@@ -156,37 +112,28 @@ def _opportunity_codes_from_context(user_context: UserContext) -> list[str] | No
 
 
 def _build_permission_clause(
-    domain: str,
+    spec: DomainSpec,
     user_context: UserContext | None,
     params: list[Any],
 ) -> str:
     """권한 WHERE 절 반환. 제한 없으면 빈 문자열."""
     if user_context is None or user_context.is_unrestricted():
         return ""
-    if domain in _PUBLIC_DOMAINS:
+    if spec.is_public:
         return ""
 
     codes = _opportunity_codes_from_context(user_context)
     if codes is None:
         return ""
-    if not codes:
-        # 접근 가능한 opportunity 가 아예 없음 → 결과 없음을 강제
-        if domain == "project_opportunity":
-            params.append(["__NEVER__"])
-            return " AND opportunity_code = ANY(%s)"
-        params.append(["__NEVER__"])
-        return (
-            " AND project_opportunity_id IN "
-            "(SELECT id FROM project_opportunity WHERE opportunity_code = ANY(%s))"
-        )
 
-    params.append(codes)
-    if domain == "project_opportunity":
+    is_opportunity_table = spec.name == "project_opportunity"
+    if not codes:
+        params.append(["__NEVER__"])
+    else:
+        params.append(codes)
+
+    if is_opportunity_table:
         return " AND opportunity_code = ANY(%s)"
-    # 그 외 도메인은 project_opportunity_id FK 보유 (quotation/order_report/contract/
-    # billing/rfp_analyze_result/prb/prb_result/proposal/bid_result/license/
-    # maintenance/maintenance_quotation/customer_support/sales_activity).
-    # FK subquery 로 권한 적용.
     return (
         " AND project_opportunity_id IN "
         "(SELECT id FROM project_opportunity WHERE opportunity_code = ANY(%s))"
@@ -206,7 +153,7 @@ def _aggregate_metric(
 ) -> dict[str, Any]:
     """SELECT op(metric) FROM domain WHERE ... AND deleted=false"""
     try:
-        domain = _validate_domain(domain)
+        spec = _validate_domain(domain)
         op = _validate_op(op)
     except ValueError as exc:
         return _err(str(exc))
@@ -214,15 +161,13 @@ def _aggregate_metric(
     params: list[Any] = []
     where_clauses = ["deleted = false"]
 
-    # filters 처리
-    _apply_filters(domain, filters, where_clauses, params)
+    _apply_filters(spec, filters, where_clauses, params)
 
-    # 권한
-    perm_clause = _build_permission_clause(domain, user_context, params)
+    perm_clause = _build_permission_clause(spec, user_context, params)
     if perm_clause:
         where_clauses.append(perm_clause.lstrip(" AND "))
 
-    if user_context and not user_context.is_unrestricted():
+    if user_context and not user_context.is_unrestricted() and not spec.is_public:
         codes = _opportunity_codes_from_context(user_context)
         if codes is not None and len(codes) == 0:
             return {
@@ -233,20 +178,17 @@ def _aggregate_metric(
                 "error": "접근 가능한 데이터 없음",
             }
 
-    # SELECT 절 구성
     if op == "count":
         select_expr = "COUNT(*) AS count, COUNT(*) AS _count_n"
     else:
         if not metric:
             return _err("op이 count가 아닐 때 metric 은 필수입니다")
-        # metric 은 컬럼명으로 사용 — whitelist 검사를 DB schema 에 위임하지 않고
-        # 간단히 identifier 패턴 검사
         if not _is_safe_identifier(metric):
             return _err(f"허용되지 않은 metric 컬럼명: {metric!r}")
         select_expr = f"{op.upper()}({metric}) AS {op}, COUNT(*) AS _count_n"
 
     where_sql = " AND ".join(where_clauses)
-    sql = f"SELECT {select_expr} FROM {domain} WHERE {where_sql}"
+    sql = f"SELECT {select_expr} FROM {spec.name} WHERE {where_sql}"
 
     try:
         with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
@@ -264,7 +206,7 @@ def _aggregate_metric(
 
     metric_label = "건수" if op == "count" else metric
     if val is None:
-        summary = f"{domain} {metric_label} {op} = 데이터 없음"
+        summary = f"{spec.name} {metric_label} {op} = 데이터 없음"
     else:
         try:
             val_int = int(val)
@@ -272,7 +214,7 @@ def _aggregate_metric(
         except (TypeError, ValueError):
             formatted = str(val)
         suffix = "건" if op == "count" else "원"
-        summary = f"{domain} {metric_label} {op} = {formatted}{suffix} ({n:,}건)"
+        summary = f"{spec.name} {metric_label} {op} = {formatted}{suffix} ({n:,}건)"
 
     result_row = {op: val, "_count_n": n}
     return {
@@ -294,7 +236,7 @@ def _list_entities(
 ) -> dict[str, Any]:
     """SELECT * FROM domain WHERE ... ORDER BY sort_by sort_dir LIMIT top_n"""
     try:
-        domain = _validate_domain(domain)
+        spec = _validate_domain(domain)
         sort_dir = _validate_sort_dir(sort_dir)
     except ValueError as exc:
         return _err(str(exc))
@@ -304,7 +246,7 @@ def _list_entities(
 
     top_n = max(1, min(int(top_n or 10), 200))
 
-    if user_context and not user_context.is_unrestricted():
+    if user_context and not user_context.is_unrestricted() and not spec.is_public:
         codes = _opportunity_codes_from_context(user_context)
         if codes is not None and len(codes) == 0:
             return {
@@ -318,9 +260,9 @@ def _list_entities(
     params: list[Any] = []
     where_clauses = ["deleted = false"]
 
-    _apply_filters(domain, filters, where_clauses, params)
+    _apply_filters(spec, filters, where_clauses, params)
 
-    perm_clause = _build_permission_clause(domain, user_context, params)
+    perm_clause = _build_permission_clause(spec, user_context, params)
     if perm_clause:
         where_clauses.append(perm_clause.lstrip(" AND "))
 
@@ -329,7 +271,7 @@ def _list_entities(
     # TOP 으로 튀어오르는 회귀 방지 위해 항상 NULLS LAST 강제.
     null_pos = "NULLS LAST"
     order_sql = f"ORDER BY {sort_by} {sort_dir} {null_pos}" if sort_by else ""
-    sql = f"SELECT * FROM {domain} WHERE {where_sql} {order_sql} LIMIT {top_n}"
+    sql = f"SELECT * FROM {spec.name} WHERE {where_sql} {order_sql} LIMIT {top_n}"
 
     try:
         with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
@@ -342,7 +284,7 @@ def _list_entities(
     return {
         "ok": True,
         "rows": [dict(r) for r in rows],
-        "summary": f"{domain} 상위 {len(rows)}건",
+        "summary": f"{spec.name} 상위 {len(rows)}건",
         "metric_value": None,
         "error": None,
     }
@@ -355,21 +297,18 @@ def _lookup_entity(
 ) -> dict[str, Any]:
     """domain 별 code 컬럼으로 단건 조회."""
     try:
-        domain = _validate_domain(domain)
+        spec = _validate_domain(domain)
     except ValueError as exc:
         return _err(str(exc))
 
-    code_col = _CODE_COLUMN.get(domain)
-    if not code_col:
-        return _err(f"domain {domain!r} 에 대한 code 컬럼 매핑 없음")
+    if not spec.code_column:
+        return _err(f"domain {spec.name!r} 에 대한 code 컬럼 매핑 없음")
 
-    # 권한: project_opportunity 는 code 자체가 opportunity_code 이므로 직접 확인
-    if user_context and not user_context.is_unrestricted() and domain not in _PUBLIC_DOMAINS:
+    if user_context and not user_context.is_unrestricted() and not spec.is_public:
         codes = _opportunity_codes_from_context(user_context)
         if codes is not None:
             # project_opportunity 는 code == opportunity_code
-            # 나머지 도메인은 JOIN 없이 단건이라 opportunity_code 컬럼이 있을 때 추가 필터
-            if domain == "project_opportunity":
+            if spec.name == "project_opportunity":
                 if code not in codes:
                     return {
                         "ok": False,
@@ -387,8 +326,8 @@ def _lookup_entity(
                     "error": "접근 가능한 데이터 없음",
                 }
 
-    deleted_clause = "" if domain in _PUBLIC_DOMAINS else " AND deleted = false"
-    sql = f"SELECT * FROM {domain} WHERE {code_col} = %s{deleted_clause} LIMIT 1"
+    deleted_clause = "" if spec.is_public else " AND deleted = false"
+    sql = f"SELECT * FROM {spec.name} WHERE {spec.code_column} = %s{deleted_clause} LIMIT 1"
     params: list[Any] = [code]
 
     try:
@@ -403,7 +342,7 @@ def _lookup_entity(
         return {
             "ok": True,
             "rows": [],
-            "summary": f"{domain} {code} 조회 결과 없음",
+            "summary": f"{spec.name} {code} 조회 결과 없음",
             "metric_value": None,
             "error": None,
         }
@@ -462,7 +401,7 @@ def _search_documents(
 # ---------------------------------------------------------------------------
 
 def _apply_filters(
-    domain: str,
+    spec: DomainSpec,
     filters: dict[str, Any],
     where_clauses: list[str],
     params: list[Any],
@@ -470,23 +409,19 @@ def _apply_filters(
     if not filters:
         return
 
-    # status
     status_val = filters.get("status")
     if status_val is not None:
-        col = _STATUS_COLUMN.get(domain, "status")
-        where_clauses.append(f"{col} = %s")
+        where_clauses.append(f"{spec.status_column} = %s")
         params.append(status_val)
 
-    # time_from / time_to
     time_from = filters.get("time_from")
     time_to = filters.get("time_to")
-    date_col = _DATE_COLUMN.get(domain)
-    if date_col:
+    if spec.date_column:
         if time_from is not None:
-            where_clauses.append(f"{date_col} >= %s")
+            where_clauses.append(f"{spec.date_column} >= %s")
             params.append(time_from)
         if time_to is not None:
-            where_clauses.append(f"{date_col} <= %s")
+            where_clauses.append(f"{spec.date_column} <= %s")
             params.append(time_to)
 
     # customer_name: 도메인에 customer_name 컬럼이 있으면 LIKE 검색

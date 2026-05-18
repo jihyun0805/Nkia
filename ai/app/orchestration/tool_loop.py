@@ -15,6 +15,7 @@ from app.embeddings.model import EmbeddingModel
 from app.llm.gms_client import GmsChatClient, GmsChatConfig, strip_json_code_fence
 from app.models.user_context import UserContext
 from app.schemas.answer import AnswerEvidence, AnswerResponse, ConversationMessage
+from app.tools.domain_registry import get_domain
 from app.tools.executor import execute_tool
 from app.tools.specs import all_tool_specs_for_llm
 
@@ -195,17 +196,11 @@ _DOMAIN_KEYWORDS: dict[str, str] = {
     "고객지원": "customer_support",
 }
 
-# domain 의 기본 metric 컬럼 (op=avg/sum/max/min 일 때)
-_DEFAULT_METRIC: dict[str, str] = {
-    "quotation": "total_price",
-    "maintenance_quotation": "total_amount",
-    "order_report": "total_amount",
-    "contract": "contract_amount",
-    "billing": "bill_amount",
-    "project_opportunity": "expected_budget",
-    "bid_result": "bid_amount",
-    "license": "total_price",
-}
+def _default_metric_for(domain: str) -> str | None:
+    """fast-path 에서 사용할 default metric 컬럼 (op=avg/sum/max/min)."""
+    spec = get_domain(domain)
+    return spec.default_metric if spec else None
+
 
 _AGG_KEYWORDS: dict[str, str] = {
     "평균": "avg", "평균값": "avg",
@@ -379,7 +374,7 @@ def _try_fast_path(
     op = _detect_agg_op(query)
     dom = _detect_domain(query)
     if op and dom:
-        metric = _DEFAULT_METRIC.get(dom) if op != "count" else None
+        metric = _default_metric_for(dom) if op != "count" else None
         args = {"domain": dom, "op": op, "filters": {}}
         if metric:
             args["metric"] = metric
@@ -395,7 +390,7 @@ def _try_fast_path(
             top_n = max(1, min(int(n_str), 20))
         except (TypeError, ValueError):
             top_n = 5
-        sort_by = _DEFAULT_METRIC.get(dom, "id")
+        sort_by = _default_metric_for(dom) or "id"
         args = {"domain": dom, "sort_by": sort_by, "sort_dir": "desc", "top_n": top_n, "filters": {}}
         result = execute_tool("list_entities", args, user_context)
         if result.get("ok"):

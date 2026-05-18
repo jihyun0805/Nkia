@@ -2,34 +2,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.tools.domain_registry import DOMAIN_NAMES
+
 
 @dataclass(slots=True)
 class ToolSpec:
     name: str
     description: str  # 한국어, 사용 예 1-2개 포함
     json_schema: dict[str, Any]  # OpenAI/Anthropic function-calling 표준 호환
-
-
-# ---------------------------------------------------------------------------
-# Domain enum (실제 Orbis backend table 명)
-# ---------------------------------------------------------------------------
-_DOMAIN_ENUM: list[str] = [
-    "quotation",
-    "maintenance_quotation",
-    "order_report",
-    "contract",
-    "billing",
-    "project_opportunity",
-    "sales_activity",
-    "rfp_analyze_result",
-    "prb",
-    "prb_result",
-    "bid_result",
-    "license",
-    "customer_support",
-    "users",
-    "department",
-]
 
 # ---------------------------------------------------------------------------
 # Tool specifications
@@ -47,7 +27,7 @@ TOOLS: list[ToolSpec] = [
             "properties": {
                 "domain": {
                     "type": "string",
-                    "enum": _DOMAIN_ENUM,
+                    "enum": DOMAIN_NAMES,
                     "description": "집계 대상 도메인(테이블)명.",
                 },
                 "metric": {
@@ -89,7 +69,7 @@ TOOLS: list[ToolSpec] = [
             "properties": {
                 "domain": {
                     "type": "string",
-                    "enum": _DOMAIN_ENUM,
+                    "enum": DOMAIN_NAMES,
                     "description": "조회 대상 도메인(테이블)명.",
                 },
                 "sort_by": {
@@ -138,7 +118,7 @@ TOOLS: list[ToolSpec] = [
             "properties": {
                 "domain": {
                     "type": "string",
-                    "enum": _DOMAIN_ENUM,
+                    "enum": DOMAIN_NAMES,
                     "description": "조회 대상 도메인(테이블)명.",
                 },
                 "code": {
@@ -168,7 +148,7 @@ TOOLS: list[ToolSpec] = [
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": _DOMAIN_ENUM,
+                        "enum": DOMAIN_NAMES,
                     },
                     "description": (
                         "검색 범위를 제한할 소스 타입 목록. "
