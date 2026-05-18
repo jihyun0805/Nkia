@@ -4,13 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api/generated/auth/auth";
 import { customInstance } from "@/lib/api/customAxios";
-import { saveAuthSession, loadAuthSession } from "@/lib/auth-session";
+import { saveAuthSession, loadAuthSession, clearAuthSession, isTokenExpired, hasValidAccessToken, initTokenRefreshScheduler } from "@/lib/auth-session";
+import { getBackendApiBaseUrl } from "@/lib/api-base-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,12 +20,76 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
-  // 이미 로그인된 상태 -> 메인으로 리다이렉트
+  // 기존 세션 유효성 검증 후 자동 리다이렉트 또는 로그인 페이지 표시
   useEffect(() => {
-    if (loadAuthSession()) {
-      router.replace("/dashboard");
+    async function validateExistingSession() {
+      const session = loadAuthSession();
+
+      // 세션이 없으면 로그인 페이지 표시
+      if (!session) {
+        setIsCheckingSession(false);
+        return;
+      }
+
+      // accessToken이 아직 유효하면 → 서버에 확인 후 리다이렉트
+      if (!isTokenExpired(session.accessToken)) {
+        try {
+          // 실제 서버에 토큰 유효성 확인
+          const baseUrl = getBackendApiBaseUrl();
+          const res = await fetch(`${baseUrl}/user/me`, {
+            headers: { Authorization: `Bearer ${session.accessToken}` },
+          });
+
+          if (res.ok) {
+            // 유효한 세션 → 토큰 갱신 스케줄러 시작 후 대시보드로
+            initTokenRefreshScheduler();
+            router.replace("/dashboard");
+            return;
+          }
+        } catch {
+          // 네트워크 오류 등 → 세션 정리
+        }
+      }
+
+      // accessToken 만료 → refreshToken으로 갱신 시도
+      if (session.refreshToken && !isTokenExpired(session.refreshToken)) {
+        try {
+          const baseUrl = getBackendApiBaseUrl();
+          const res = await fetch(`${baseUrl}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken: session.refreshToken }),
+          });
+
+          if (res.ok) {
+            const result = await res.json();
+            const newAccessToken = result?.data?.accessToken;
+            const newRefreshToken = result?.data?.refreshToken;
+
+            if (newAccessToken) {
+              saveAuthSession({
+                ...session,
+                accessToken: newAccessToken,
+                refreshToken: newRefreshToken || session.refreshToken,
+                issuedAt: new Date().toISOString(),
+              });
+              router.replace("/dashboard");
+              return;
+            }
+          }
+        } catch {
+          // 갱신 실패 → 세션 정리
+        }
+      }
+
+      // 모든 검증 실패 → 세션 정리하고 로그인 페이지 표시
+      clearAuthSession();
+      setIsCheckingSession(false);
     }
+
+    validateExistingSession();
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -86,6 +151,18 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  // 세션 검증 중일 때 로딩 표시
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">세션 확인 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">

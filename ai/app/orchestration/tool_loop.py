@@ -370,9 +370,26 @@ def _try_fast_path(
         if result.get("ok") and result.get("rows"):
             return _build_fast_response(query, "lookup_entity", {"domain": dom, "code": code}, result, embedder)
 
-    # 2) 집계 (X 평균/합계/카운트)
-    op = _detect_agg_op(query)
     dom = _detect_domain(query)
+    op = _detect_agg_op(query)
+    topn_match = _TOPN_RE.search(query)
+
+    # 2) TOP N 우선 (TOPN 키워드가 있으면 list. "가장 큰 TOP3" 같이 agg op 와 충돌 시 list 가 자연스러움)
+    if topn_match and dom:
+        n_str = topn_match.group(1) or topn_match.group(2)
+        try:
+            top_n = max(1, min(int(n_str), 20))
+        except (TypeError, ValueError):
+            top_n = 5
+        # 정렬 방향: "작은/적은/낮은" 등 ASC 키워드 우선
+        sort_dir = "asc" if op == "min" else "desc"
+        sort_by = _default_metric_for(dom) or "id"
+        args = {"domain": dom, "sort_by": sort_by, "sort_dir": sort_dir, "top_n": top_n, "filters": {}}
+        result = execute_tool("list_entities", args, user_context)
+        if result.get("ok"):
+            return _build_fast_response(query, "list_entities", args, result, embedder)
+
+    # 3) 집계 (TOPN 없을 때만 — 단일 max/min/avg/sum/count)
     if op and dom:
         metric = _default_metric_for(dom) if op != "count" else None
         args = {"domain": dom, "op": op, "filters": {}}
@@ -381,20 +398,6 @@ def _try_fast_path(
         result = execute_tool("aggregate_metric", args, user_context)
         if result.get("ok"):
             return _build_fast_response(query, "aggregate_metric", args, result, embedder)
-
-    # 3) TOP N (상위 N건)
-    topn_match = _TOPN_RE.search(query)
-    if topn_match and dom:
-        n_str = topn_match.group(1) or topn_match.group(2)
-        try:
-            top_n = max(1, min(int(n_str), 20))
-        except (TypeError, ValueError):
-            top_n = 5
-        sort_by = _default_metric_for(dom) or "id"
-        args = {"domain": dom, "sort_by": sort_by, "sort_dir": "desc", "top_n": top_n, "filters": {}}
-        result = execute_tool("list_entities", args, user_context)
-        if result.get("ok"):
-            return _build_fast_response(query, "list_entities", args, result, embedder)
 
     return None
 
