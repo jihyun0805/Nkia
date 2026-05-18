@@ -41,7 +41,7 @@ public class SalesActivityRequest extends BaseEntity {
     private Company company;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sales_activity_id", unique = true)
+    @JoinColumn(name = "sales_activity_id")
     private SalesActivity salesActivity;
 
     @ManyToOne(fetch = FetchType.LAZY)
