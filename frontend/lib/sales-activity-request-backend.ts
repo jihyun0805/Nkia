@@ -4,6 +4,7 @@ import { getBackendApiBaseUrl } from "@/lib/api-base-url"
 import { buildAuthHeaders } from "@/lib/auth-session"
 import { getActivityRequests } from "@/lib/activity-request-workflow"
 import { type ActivityAttachment, type ActivityRequestRecord } from "@/lib/activity-data"
+import { getCustomerByCode } from "@/lib/finding-data"
 import { getPresalesUsers } from "@/lib/admin-data"
 import { loadBackendUsers } from "@/lib/workflow-backend"
 import type {
@@ -14,7 +15,10 @@ import type {
 import { SalesActivityCreateRequestActivityType } from "@/lib/api/generated/model/salesActivityCreateRequestActivityType"
 
 type BackendRequestResponse = SalesActivityRequestResponse & {
+  backendId?: number
   title?: string
+  companyId?: number
+  companyName?: string
   requestUserId?: string
   requestUserName?: string
   targetUserName?: string
@@ -23,6 +27,8 @@ type BackendRequestResponse = SalesActivityRequestResponse & {
 type BackendRequestListItem = {
   id?: number
   title?: string
+  companyId?: number
+  companyName?: string
   salesActivityId?: number
   requestUserId?: string
   requestUserName?: string
@@ -35,6 +41,7 @@ type BackendRequestListItem = {
 
 type RequestCreateInput = {
   title: string
+  companyId: number
   customerCode: string
   customer: string
   opportunityCode: string
@@ -50,6 +57,7 @@ type RequestCreateInput = {
 
 type BackendSalesActivityRequestCreatePayload = SalesActivityRequestCreateRequest & {
   title: string
+  companyId: number
   activityType: typeof SalesActivityCreateRequestActivityType.EMAIL
 }
 
@@ -113,23 +121,6 @@ function activityPurposeEnum(value: string) {
   return ACTIVITY_PURPOSE_TO_ENUM[value] ?? "ETC"
 }
 
-function extractCustomerFromTitle(title?: string, purposeLabel?: string) {
-  const normalizedTitle = title?.trim() ?? ""
-  const normalizedPurpose = purposeLabel?.trim() ?? ""
-
-  if (!normalizedTitle) return ""
-  if (!normalizedPurpose) return normalizedTitle
-
-  const suffixes = [` ${normalizedPurpose}`, `${normalizedPurpose} 요청`]
-  for (const suffix of suffixes) {
-    if (normalizedTitle.endsWith(suffix)) {
-      return normalizedTitle.slice(0, -suffix.length).trim()
-    }
-  }
-
-  return normalizedTitle
-}
-
 function normalizeLookupText(value: string) {
   return value.trim().toLowerCase()
 }
@@ -188,11 +179,17 @@ function mergeRequest(
     "-"
   const content = backendRequest.requestContent ?? local?.content ?? ""
   const title = backendRequest.title ?? local?.title ?? `${purposeLabel} 요청`
-  const customer = local?.customer?.trim() || extractCustomerFromTitle(title, purposeLabel) || title
+  const customerFromBackend = backendRequest.companyName?.trim() ?? ""
+  const customerFromCode =
+    local?.customerCode ? getCustomerByCode(local.customerCode)?.name ?? "" : ""
+  const localCustomer = local?.customer?.trim() ?? ""
+  const customer = customerFromBackend || customerFromCode || (localCustomer && localCustomer !== title.trim() ? localCustomer : "")
   const opportunity = local?.opportunity ?? (content.trim() ? content : "미확인")
+  const customerCode = local?.customerCode ?? (backendRequest.companyId != null ? String(backendRequest.companyId) : "")
 
   return {
     id: String(backendRequest.id ?? local?.id ?? `REQ-${Date.now()}`),
+    backendId: typeof backendRequest.id === "number" ? backendRequest.id : local?.backendId,
     title,
     salesActivityId: backendRequest.salesActivityId != null ? String(backendRequest.salesActivityId) : local?.salesActivityId,
     requestUserId: backendRequest.requestUserId ?? local?.requestUserId,
@@ -203,7 +200,7 @@ function mergeRequest(
     requester,
     receiver,
     type: local?.type ?? purposeLabel,
-    customerCode: local?.customerCode ?? "",
+    customerCode,
     customer,
     opportunityCode: local?.opportunityCode ?? "",
     opportunity,
@@ -247,6 +244,12 @@ async function fetchRequestDetail(id: number) {
   return parseApiResponse<BackendRequestResponse>(response, "활동 요청 상세를 불러오지 못했습니다.")
 }
 
+export async function loadBackendActivityRequest(id: number) {
+  const localIndex = loadLocalRequestIndex()
+  const detail = await fetchRequestDetail(id)
+  return mergeRequest(detail, localIndex.get(String(id)))
+}
+
 export async function loadBackendActivityRequests() {
   const localIndex = loadLocalRequestIndex()
   const backendRequests = await fetchRequestList()
@@ -287,6 +290,7 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
   const title = input.title.trim() || `${input.customer} ${input.type}`.trim() || `${input.type} 요청`
   const payload: BackendSalesActivityRequestCreatePayload = {
     title,
+    companyId: input.companyId,
     targetUserId,
     activityPurpose: activityPurposeEnum(input.type),
     activityType: SalesActivityCreateRequestActivityType.EMAIL,
@@ -318,7 +322,7 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
     date: input.date || saved.activityDateTime?.slice(0, 10) || today(),
     requester: input.requester,
     receiver: input.receiver,
-    title: input.title,
+    title: saved.title ?? fallbackTitle,
     type: input.type,
     customerCode: input.customerCode,
     customer: input.customer,

@@ -45,7 +45,7 @@ import {
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
 import { deleteBackendActivityRecord, loadBackendActivityRecord } from "@/lib/sales-activity-backend"
-import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
+import { loadBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { deleteBackendQuotationRecord, loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import {
@@ -108,7 +108,9 @@ export default function ActivityDetailPage() {
   const id = params.id
   const [activityRecord, setActivityRecord] = useState<ActivityRecord | null | undefined>(undefined)
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
+  const [requestDetail, setRequestDetail] = useState<ActivityRequestRecord | null | undefined>(undefined)
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
+  const [isRequestsLoaded, setIsRequestsLoaded] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isActivityDeleteDialogOpen, setIsActivityDeleteDialogOpen] = useState(false)
   const [isVersionDeleteDialogOpen, setIsVersionDeleteDialogOpen] = useState(false)
@@ -161,10 +163,14 @@ export default function ActivityDetailPage() {
       .then((items) => {
         if (!cancelled) {
           setRequests(items)
+          setIsRequestsLoaded(true)
         }
       })
       .catch(() => {
         sync()
+        if (!cancelled) {
+          setIsRequestsLoaded(true)
+        }
       })
 
     const unsubscribe = subscribeWorkflowUpdates(sync)
@@ -173,6 +179,35 @@ export default function ActivityDetailPage() {
       unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (category !== "requests") return
+
+    let cancelled = false
+    setRequestDetail(undefined)
+
+    const requestId = Number(id)
+    if (Number.isNaN(requestId)) {
+      setRequestDetail(null)
+      return
+    }
+
+    loadBackendActivityRequest(requestId)
+      .then((request) => {
+        if (!cancelled) {
+          setRequestDetail(request)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRequestDetail(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category, id])
 
   useEffect(() => {
     let cancelled = false
@@ -197,8 +232,8 @@ export default function ActivityDetailPage() {
   const item = useMemo(() => {
     if (category === "activities") return activityRecord ?? null
     if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
-    return requests.find((entry) => entry.id === id) ?? null
-  }, [activityRecord, category, id, quotations, requests])
+    return requestDetail ?? requests.find((entry) => entry.id === id) ?? null
+  }, [activityRecord, category, id, quotations, requests, requestDetail])
   const categoryLabel = getCategoryLabel(category)
   const isRequest = category === "requests"
   const isQuotation = category === "quotations"
@@ -447,8 +482,36 @@ export default function ActivityDetailPage() {
     )
   }
 
+  if (category === "requests" && requestDetail === undefined) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title={`${categoryLabel} 상세`} description={`${categoryLabel} 건을 페이지에서 확인합니다`} />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto flex max-w-6xl items-center justify-center py-24 text-sm text-muted-foreground">
+              활동요청 상세를 불러오는 중입니다.
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
   if (!item) {
-    return null
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title={`${categoryLabel} 상세`} description={`${categoryLabel} 건을 페이지에서 확인합니다`} />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto flex max-w-6xl items-center justify-center py-24 text-sm text-muted-foreground">
+              {category === "requests" ? "활동요청 정보를 찾을 수 없습니다." : `${categoryLabel} 정보를 찾을 수 없습니다.`}
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   const quotationBreadcrumbValue = quotationItem?.refNumber?.trim() || quotationItem?.quotationCode?.trim() || item.id

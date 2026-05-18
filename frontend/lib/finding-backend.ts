@@ -461,6 +461,14 @@ async function loadProjectOpportunities() {
   return payload.content ?? [];
 }
 
+export async function loadBackendProjectOpportunitiesByCustomer(companyId: number) {
+  const payload = await fetchList<PageResponse<ProjectOpportunitySummaryResponse>>(
+    `${getBackendApiBaseUrl()}/project-opportunities/customer/${companyId}?size=2000`,
+    "고객사별 사업기회 목록을 불러오지 못했습니다.",
+  );
+  return payload.content ?? [];
+}
+
 export async function loadBackendProjectOpportunity(id: number) {
   const payload = await fetchList<ProjectOpportunitySummaryResponse>(
     `${getBackendApiBaseUrl()}/project-opportunities/${id}`,
