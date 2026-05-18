@@ -5,6 +5,7 @@ import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityPurpose;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.ActivityType;
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
+import com.nkia.Orbis.domain.company.entity.Company;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,6 +36,10 @@ public class SalesActivityRequest extends BaseEntity {
     @Column(nullable = false)
     private String title;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    private Company company;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sales_activity_id", unique = true)
     private SalesActivity salesActivity;
@@ -61,6 +66,7 @@ public class SalesActivityRequest extends BaseEntity {
 
     public static SalesActivityRequest create(
             String title,
+            Company company,
             User targetUser,
             User requestUser,
             ActivityPurpose activityPurpose,
@@ -70,6 +76,7 @@ public class SalesActivityRequest extends BaseEntity {
     ) {
         SalesActivityRequest salesActivityRequest = new SalesActivityRequest();
         salesActivityRequest.title = title;
+        salesActivityRequest.company = company;
         salesActivityRequest.targetUser = targetUser;
         salesActivityRequest.requestUser = requestUser;
         salesActivityRequest.activityPurpose = activityPurpose;
