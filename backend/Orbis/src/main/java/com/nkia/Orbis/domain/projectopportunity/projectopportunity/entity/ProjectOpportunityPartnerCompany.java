@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -29,4 +30,10 @@ public class ProjectOpportunityPartnerCompany extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id")
     private Company company;
+
+    @Builder
+    public ProjectOpportunityPartnerCompany(ProjectOpportunity projectOpportunity, Company company) {
+        this.projectOpportunity = projectOpportunity;
+        this.company = company;
+    }
 }

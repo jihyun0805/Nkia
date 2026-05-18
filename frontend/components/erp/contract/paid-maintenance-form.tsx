@@ -111,7 +111,7 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-muted-foreground">도입PJT (사업기회)</Label>
+                <Label className="text-muted-foreground">사업명</Label>
                 <div className="font-medium">
                   {data?.opportunityName || "미선택"} {data?.opportunityId && <span className="text-xs text-muted-foreground ml-1">({data.opportunityId})</span>}
                 </div>
@@ -127,10 +127,6 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 mt-8 border-t pt-6">
-              <div className="space-y-2">
-                <Label htmlFor="no">No</Label>
-                <Input id="no" placeholder="자동생성" disabled />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="siteName">
                   사이트명 <span className="text-red-500">*</span>
@@ -380,24 +376,6 @@ export function PaidMaintenanceForm({ onSuccess, onCancel, inheritedData }: Paid
                   placeholder="이름으로 영업담당자 검색"
                 />
                 <input type="hidden" name="salesRepId" value={salesRep?.id ?? ""} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customerContactName">
-                  고객 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="customerContactName" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="contactNumber">
-                  연락처 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="contactNumber" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">
-                  이메일 <span className="text-red-500">*</span>
-                </Label>
-                <Input id="email" type="email" required />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="remarks">비고</Label>

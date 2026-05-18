@@ -4,6 +4,8 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UploadFileErrorCode;
 import com.nkia.Orbis.domain.project.project.entity.Project;
+import com.nkia.Orbis.domain.project.project.entity.ProjectHistory;
+import com.nkia.Orbis.domain.project.project.repository.ProjectHistoryRepository;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.project.projectresultreport.dto.request.ProjectResultReportCreateRequest;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ProjectResultReportService {
     private final ProjectRepository projectRepository;
+    private final ProjectHistoryRepository projectHistoryRepository;
     private final ProjectResultReportRepository reportRepository;
     private final UploadFileRepository uploadFileRepository;
 
@@ -32,8 +35,11 @@ public class ProjectResultReportService {
         UploadFile resultReportFile = getUploadFile(dto.getFileId());
 
         ProjectResultReport report = ProjectResultReport.create(project, resultReportFile);
+        ProjectResultReport savedReport = reportRepository.save(report);
 
-        return reportRepository.save(report).getId();
+        projectHistoryRepository.save(ProjectHistory.createSnapshot(project, savedReport));
+
+        return savedReport.getId();
     }
 
     /**
@@ -56,9 +62,12 @@ public class ProjectResultReportService {
 
         if (report != null) {
             report.updateResultReport(uploadFile);
+            reportRepository.save(report);
+            projectHistoryRepository.save(ProjectHistory.createSnapshot(project, report));
         } else {
             ProjectResultReport newReport = ProjectResultReport.create(project, uploadFile);
             reportRepository.save(newReport);
+            projectHistoryRepository.save(ProjectHistory.createSnapshot(project, newReport));
         }
     }
 
@@ -70,7 +79,11 @@ public class ProjectResultReportService {
         ProjectResultReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.RESULT_REPORT_NOT_FOUND));
 
+        Project project = report.getProject();
         report.delete();
+
+        // 삭제 후 상태로 스냅샷 저장
+        projectHistoryRepository.save(ProjectHistory.createSnapshot(project, null));
     }
 
     private Project getValidProject(Long projectId) {

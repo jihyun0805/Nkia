@@ -10,6 +10,8 @@ import com.nkia.Orbis.domain.project.billing.dto.response.BillingDetailResponse;
 import com.nkia.Orbis.domain.project.billing.dto.response.BillingFormInitResponse;
 import com.nkia.Orbis.domain.project.billing.dto.response.BillingListResponse;
 import com.nkia.Orbis.domain.project.billing.service.BillingService;
+import com.nkia.Orbis.domain.project.billinghistory.dto.response.BillingHistoryDetailResponse;
+import com.nkia.Orbis.domain.project.billinghistory.dto.response.BillingHistoryListResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -147,7 +149,7 @@ public class BillingController {
     @PostMapping("/submit/{billingId}")
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BILLING', 'UPDATE')")
     public ResponseEntity<ApiResponse<String>> submitBilling(
-            @PathVariable("billingId") Long billingId,
+            @PathVariable Long billingId,
             @RequestBody SubmitRequest request
     ) {
         billingService.submitBilling(
@@ -156,5 +158,21 @@ public class BillingController {
         );
 
         return ResponseEntity.ok(ApiResponse.success("세금계산서 결재 상신 완료"));
+    }
+
+    @Operation(summary = "특정 청구 건의 이력 목록 조회", description = "특정 청구(Billing)의 스냅샷 이력 목록을 최신순으로 조회합니다.")
+    @GetMapping("/{billingId}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BILLING', 'READ')")
+    public ResponseEntity<ApiResponse<List<BillingHistoryListResponse>>> getBillingHistories(@PathVariable Long billingId) {
+        List<BillingHistoryListResponse> response = billingService.getBillingHistories(billingId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "특정 청구 이력 상세 조회", description = "청구 이력(BillingHistory)의 상세 정보를 조회합니다.")
+    @GetMapping("/histories/{historyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BILLING', 'READ')")
+    public ResponseEntity<ApiResponse<BillingHistoryDetailResponse>> getBillingHistoryDetail(@PathVariable Long historyId) {
+        BillingHistoryDetailResponse response = billingService.getBillingHistoryDetail(historyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

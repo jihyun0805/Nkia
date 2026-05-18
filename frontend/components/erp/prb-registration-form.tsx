@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { toast } from "@/hooks/use-toast"
 import { notifyPrbApprovalRequested } from "@/lib/activity-request-workflow"
 import {
@@ -34,8 +35,12 @@ import {
   type PrbStatus,
 } from "@/lib/bid-data"
 import { currentUser } from "@/lib/current-user"
-import { getCustomers, getOpportunities } from "@/lib/finding-data"
+import { loadBackendFindingData } from "@/lib/finding-backend"
+import { type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 import { deleteBackendPrb, loadBackendPrbs, saveBackendPrb } from "@/lib/prb-backend"
+import { useBackendUsers } from "@/lib/use-backend-users"
+import type { BackendUserSummary } from "@/lib/workflow-backend"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 
 type PrbRegistrationFormProps = {
   prbId?: string
@@ -54,6 +59,7 @@ type PrbFormState = {
   proposalDeadline: string
   reviewer: string
   nextApprover: string
+  salesRepresentativeId: string
   formData: Record<string, string>
   personnelItems: PrbLineItem[]
   productCostItems: PrbLineItem[]
@@ -62,7 +68,6 @@ type PrbFormState = {
   expenseItems: PrbLineItem[]
 }
 
-const reviewerOptions = ["영업팀장", "본부장", "사업본부장"]
 const personnelRateMap: Record<string, string> = {
   "차/부장": "5,599,050",
   "과장": "3,965,700",
@@ -77,6 +82,11 @@ const expenseGroupRowSpans: Record<string, number> = {
   "고객 관리": 2,
   "예비비 및 리스크 비용": 3,
 }
+const bidTypeOptions = [
+  "자체 입찰 / 자체 평가",
+  "조달 입찰 / 조달 평가",
+  "조달 위탁 / 자체 평가",
+] as const
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -101,8 +111,9 @@ function createEmptyForm(): PrbFormState {
     opportunity: "",
     rfpAnalysisId: "",
     proposalDeadline: "",
-    reviewer: "본부장",
-    nextApprover: "본부장",
+    reviewer: "",
+    nextApprover: "",
+    salesRepresentativeId: "",
     formData: {
       reportDate: today(),
       prbDate: today(),
@@ -178,6 +189,7 @@ function cloneForm(record: PrbRecord): PrbFormState {
     proposalDeadline: record.proposalDeadline,
     reviewer: record.reviewer,
     nextApprover: record.nextApprover,
+    salesRepresentativeId: record.salesRepresentativeId ?? "",
     formData: { ...base.formData, ...record.formData },
     personnelItems: record.personnelItems.length > 0 ? record.personnelItems : base.personnelItems,
     productCostItems: record.productItems.length > 0 ? record.productItems : base.productCostItems,
@@ -191,24 +203,37 @@ function FieldInput({
   value,
   onChange,
   multiline = false,
+  type = "text",
   className = "",
+  readOnly = false,
 }: {
   value: string
   onChange: (value: string) => void
   multiline?: boolean
+  type?: "text" | "date"
   className?: string
+  readOnly?: boolean
 }) {
   if (multiline) {
     return (
       <Textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        readOnly={readOnly}
         className={`min-h-20 resize-none border-0 shadow-none focus-visible:ring-0 ${className}`}
       />
     )
   }
 
-  return <Input value={value} onChange={(event) => onChange(event.target.value)} className={`border-0 shadow-none focus-visible:ring-0 ${className}`} />
+  return (
+    <Input
+      type={type}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      readOnly={readOnly}
+      className={`border-0 shadow-none focus-visible:ring-0 ${readOnly ? "bg-muted/30" : ""} ${className}`}
+    />
+  )
 }
 
 function SectionRow({ title }: { title: string }) {
@@ -221,6 +246,17 @@ function SectionRow({ title }: { title: string }) {
   )
 }
 
+function resolveUserId(value: string, users: BackendUserSummary[]) {
+  const normalized = value.trim()
+  if (!normalized) return ""
+  return users.find(
+    (user) =>
+      user.id === normalized ||
+      user.employeeNumber === normalized ||
+      user.name === normalized,
+  )?.id ?? ""
+}
+
 export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, readOnly = false, allowDelete = false }: PrbRegistrationFormProps) {
   const router = useRouter()
   const [form, setForm] = useState<PrbFormState>(createEmptyForm())
@@ -230,10 +266,30 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   const [sourcePrb, setSourcePrb] = useState<PrbRecord | null>(null)
   const [revisionHistory, setRevisionHistory] = useState<PrbRecord[]>([])
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-
-  const customers = useMemo(() => getCustomers(), [])
-  const opportunities = useMemo(() => getOpportunities(), [])
+  const [customers, setCustomers] = useState<CustomerRecord[]>([])
+  const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
+  const users = useBackendUsers()
+  const selectedReviewerId = resolveUserId(form.reviewer, users)
   const rfpAnalyses = useMemo(() => getRfpAnalyses(), [])
+
+  useEffect(() => {
+    let cancelled = false
+    void loadBackendFindingData()
+      .then((data) => {
+        if (cancelled) return
+        setCustomers(data.customers)
+        setOpportunities(data.opportunities)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCustomers([])
+        setOpportunities([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const sync = () => {
@@ -261,6 +317,96 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     void loadBackendPrbs().catch(() => undefined)
     return subscribePrbUpdates(sync)
   }, [cloneFromId, prbId])
+
+  useEffect(() => {
+    if (!users.length) return
+
+    setForm((current) => {
+      const next = { ...current, formData: { ...current.formData } }
+      const nextReviewer = resolveUserId(next.reviewer, users)
+      const nextSalesRep = resolveUserId(next.salesRepresentativeId || next.formData.salesLeader, users)
+      let changed = false
+
+      if (nextReviewer && nextReviewer !== next.reviewer) {
+        next.reviewer = nextReviewer
+        next.nextApprover = nextReviewer
+        changed = true
+      }
+
+      if (nextSalesRep && nextSalesRep !== next.salesRepresentativeId) {
+        next.salesRepresentativeId = nextSalesRep
+        changed = true
+      }
+
+      if (!changed) return current
+      return next
+    })
+  }, [users])
+
+  // 챗봇 create_draft action (예: "X 사업기회 견적서랑 RFP 분석으로 PRB 보고서 작성해줘")
+  // 으로 페이지가 열렸을 때 query param 의 chatbotPrefill_<slot> 값을 폼에 자동 반영.
+  const { values: chatbotPrefillValues, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+
+  useEffect(() => {
+    if (!hasChatbotPrefill) return
+    if (prefillAppliedRef.current) return
+    if (prbId || cloneFromId) return  // 기존 PRB 로드 시 prefill 비활성
+    prefillAppliedRef.current = true
+
+    const slot = chatbotPrefillValues
+    const summary: string[] = []
+    const safeSet = (label: string, key: string, mapper?: (v: string) => void) => {
+      if (!slot[key]) return
+      if (mapper) mapper(slot[key])
+      summary.push(`${label}: ${slot[key].slice(0, 30)}`)
+    }
+
+    // top-level 필드
+    setForm((current) => {
+      const next = { ...current, formData: { ...current.formData } }
+      if (slot.customer_name) {
+        next.customer = slot.customer_name
+      }
+      if (slot.opportunity_code) {
+        next.opportunityCode = slot.opportunity_code
+      }
+      if (slot.opportunity_name) {
+        next.opportunity = slot.opportunity_name
+      }
+      if (slot.submission_deadline) {
+        next.proposalDeadline = slot.submission_deadline
+        next.formData.proposalDeadlineDate = slot.submission_deadline
+      }
+      // formData 필드들
+      if (slot.title) next.formData.projectName = slot.title
+      if (slot.background) next.formData.businessOverview = slot.background
+      if (slot.expected_win_rate) next.formData.expectedOrderRate = slot.expected_win_rate
+      if (slot.sales_representative) next.formData.salesLeader = slot.sales_representative
+      if (slot.decision_target) next.formData.decisionTarget = slot.decision_target
+      if (slot.risk_summary) next.formData.riskSummary = slot.risk_summary
+      if (slot.recommendation) next.formData.recommendation = slot.recommendation
+      if (slot.decision_options) next.formData.decisionOptions = slot.decision_options
+      if (slot.estimated_revenue) next.formData.estimatedRevenue = slot.estimated_revenue
+      if (slot.estimated_profit_rate) next.formData.estimatedProfitRate = slot.estimated_profit_rate
+      return next
+    })
+
+    // 슬롯 키별 요약
+    for (const [k, v] of Object.entries(slot)) {
+      if (v) summary.push(`${k}: ${String(v).slice(0, 20)}`)
+    }
+
+    if (summary.length > 0) {
+      toast({
+        title: "챗봇이 PRB 보고서 초안 슬롯 prefill",
+        description: `${summary.slice(0, 6).join(" / ")}${summary.length > 6 ? " 외 " + (summary.length - 6) + "개" : ""} — 확인 후 저장하세요.`,
+      })
+    }
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill])
 
   const availableRfpAnalyses = rfpAnalyses.filter(
     (item) =>
@@ -346,6 +492,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       opportunityCode: form.opportunityCode,
       opportunity: form.opportunity || form.formData.projectName,
       rfpAnalysisId: form.rfpAnalysisId,
+      salesRepresentativeId: form.salesRepresentativeId || currentUser.id,
       author: currentUser.name,
       reviewer: form.reviewer,
       nextApprover: nextStatus === "검토 중" ? "팀장" : form.nextApprover,
@@ -368,7 +515,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       indirectItems: form.expenseItems,
       generalItems: [],
       approvalLines: [
-        { role: "영업대표", name: currentUser.name },
+        { role: "영업대표", name: form.formData.salesLeader || currentUser.name },
         { role: "팀장", name: "팀장" },
         { role: "본부장", name: "본부장" },
         { role: "배포", name: "권한 보유자" },
@@ -505,23 +652,25 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2">작성일자</th>
-            <td className="px-1 py-1"><FieldInput value={form.formData.reportDate} onChange={(value) => updateFormData("reportDate", value)} /></td>
+            <td className="px-1 py-1"><FieldInput type="date" value={form.formData.reportDate} onChange={(value) => updateFormData("reportDate", value)} readOnly /></td>
             <th className="bg-slate-50 px-3 py-2">PRB 일자</th>
-            <td className="px-1 py-1"><FieldInput value={form.formData.prbDate} onChange={(value) => updateFormData("prbDate", value)} /></td>
+            <td className="px-1 py-1"><FieldInput type="date" value={form.formData.prbDate} onChange={(value) => updateFormData("prbDate", value)} /></td>
             <th className="bg-slate-50 px-3 py-2">관리번호</th>
-            <td className="px-1 py-1"><FieldInput value={form.formData.controlNumber} onChange={(value) => updateFormData("controlNumber", value)} /></td>
+            <td className="px-1 py-1"><FieldInput value={form.formData.controlNumber} onChange={(value) => updateFormData("controlNumber", value)} readOnly /></td>
             <th className="bg-slate-50 px-3 py-2">검토자</th>
             <td className="px-2 py-1">
-              <Select value={form.nextApprover} onValueChange={(value) => setForm((current) => ({ ...current, reviewer: value, nextApprover: value }))}>
-                <SelectTrigger className="border-0 shadow-none focus:ring-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {reviewerOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <UserIdPicker
+                value={selectedReviewerId}
+                users={users}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    reviewer: value,
+                    nextApprover: value,
+                  }))
+                }
+                placeholder="검토자를 선택해주세요."
+              />
             </td>
           </tr>
 
@@ -578,33 +727,75 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2">영업대표</th>
-            <td className="px-1 py-1"><FieldInput value={form.formData.salesLeader} onChange={(value) => updateFormData("salesLeader", value)} className="text-center" /></td>
-            <td colSpan={2} className="px-1 py-1"><FieldInput value={form.formData.salesDepartment} onChange={(value) => updateFormData("salesDepartment", value)} className="text-center" /></td>
+            <td className="px-1 py-1">
+              <UserIdPicker
+                value={form.salesRepresentativeId}
+                users={users}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    salesRepresentativeId: value,
+                    formData: {
+                      ...current.formData,
+                      salesLeader: users.find((user) => user.id === value)?.name ?? "",
+                    },
+                  }))
+                }
+                placeholder="영업대표를 선택해주세요."
+              />
+            </td>
+            <td colSpan={2} className="px-1 py-1"><FieldInput value={form.formData.salesDepartment} onChange={(value) => updateFormData("salesDepartment", value)} className="text-center" readOnly /></td>
             <th className="bg-slate-50 px-3 py-2">담당부서</th>
-            <td className="px-1 py-1"><FieldInput value={form.formData.ownerDepartment} onChange={(value) => updateFormData("ownerDepartment", value)} className="text-center" /></td>
+            <td className="px-1 py-1"><FieldInput value={form.formData.ownerDepartment} onChange={(value) => updateFormData("ownerDepartment", value)} className="text-center" readOnly /></td>
             <td colSpan={2} className="px-2 py-1 text-center">{status}</td>
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2">입찰 구분</th>
-            <td colSpan={2} className="px-2 py-1 text-center">자체 입찰 / 자체 평가</td>
+            <td colSpan={2} className="px-1 py-1">
+              <Select value={form.formData.bidType} onValueChange={(value) => updateFormData("bidType", value)}>
+                <SelectTrigger className="border-0 shadow-none focus:ring-0">
+                  <SelectValue placeholder="입찰 구분 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bidTypeOptions.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </td>
             <td colSpan={2} className="px-2 py-1 text-center">조달 입찰 / 조달 평가</td>
-            <td colSpan={3} className="px-2 py-1 text-center">조달 위탁 / 자체 평가</td>
+            <td colSpan={3} className="px-1 py-1">
+              <Select value={form.formData.bidType} onValueChange={(value) => updateFormData("bidType", value)}>
+                <SelectTrigger className="border-0 shadow-none focus:ring-0">
+                  <SelectValue placeholder="입찰 구분 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bidTypeOptions.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </td>
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2">사전 규격 공고일</th>
-            <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.preliminaryNoticeDate} onChange={(value) => updateFormData("preliminaryNoticeDate", value)} /></td>
+            <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.preliminaryNoticeDate} onChange={(value) => updateFormData("preliminaryNoticeDate", value)} /></td>
             <th className="bg-slate-50 px-3 py-2">정식 공고 공고일</th>
-            <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.officialNoticeDate} onChange={(value) => updateFormData("officialNoticeDate", value)} /></td>
+            <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.officialNoticeDate} onChange={(value) => updateFormData("officialNoticeDate", value)} /></td>
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2">가격 투찰일</th>
-            <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.priceBidDate} onChange={(value) => updateFormData("priceBidDate", value)} /></td>
+            <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.priceBidDate} onChange={(value) => updateFormData("priceBidDate", value)} /></td>
             <th className="bg-slate-50 px-3 py-2">제안서 마감일</th>
-            <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.proposalDeadlineDate} onChange={(value) => updateFormData("proposalDeadlineDate", value)} /></td>
+            <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.proposalDeadlineDate} onChange={(value) => updateFormData("proposalDeadlineDate", value)} /></td>
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2">제안 발표일</th>
-            <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.proposalPresentationDate} onChange={(value) => updateFormData("proposalPresentationDate", value)} /></td>
+            <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.proposalPresentationDate} onChange={(value) => updateFormData("proposalPresentationDate", value)} /></td>
             <th className="bg-slate-50 px-3 py-2">기술 : 가격 평가 비율</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.evaluationRatio} onChange={(value) => updateFormData("evaluationRatio", value)} /></td>
           </tr>

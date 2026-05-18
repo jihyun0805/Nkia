@@ -6,6 +6,7 @@ import com.nkia.Orbis.domain.admin.user.dto.request.SignupRequest;
 import com.nkia.Orbis.domain.admin.user.dto.request.UserUpdateRequest;
 import com.nkia.Orbis.domain.admin.user.dto.response.MyInfoResponse;
 import com.nkia.Orbis.domain.admin.user.dto.response.UserResponse;
+import com.nkia.Orbis.domain.admin.user.dto.response.UserSearchResponse;
 import com.nkia.Orbis.domain.admin.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -93,6 +94,14 @@ public class UserController {
         UUID userId = UUID.fromString(SecurityUtil.getCurrentUserId());
 
         MyInfoResponse response = userService.getMyInfo(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "사용자 검색용 목록 조회")
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<List<UserSearchResponse>>> getUsersForSearch() {
+        List<UserSearchResponse> response = userService.getUsersForSearch();
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

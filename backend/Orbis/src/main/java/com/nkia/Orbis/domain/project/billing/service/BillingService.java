@@ -26,15 +26,21 @@ import com.nkia.Orbis.domain.project.billing.dto.response.BillingListResponse;
 import com.nkia.Orbis.domain.project.billing.entity.Billing;
 import com.nkia.Orbis.domain.project.billing.entity.BillingStatus;
 import com.nkia.Orbis.domain.project.billing.repository.BillingRepository;
+import com.nkia.Orbis.domain.project.billinghistory.dto.response.BillingHistoryDetailResponse;
+import com.nkia.Orbis.domain.project.billinghistory.dto.response.BillingHistoryListResponse;
+import com.nkia.Orbis.domain.project.billinghistory.entity.BillingHistory;
+import com.nkia.Orbis.domain.project.billinghistory.repository.BillingHistoryRepository;
 import com.nkia.Orbis.domain.uploadfile.service.UploadFileService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -42,6 +48,7 @@ public class BillingService {
     private final BillingRepository billingRepository;
     private final OrderReportRepository orderReportRepository;
     private final UploadFileService uploadFileService;
+    private final BillingHistoryRepository billingHistoryRepository;
     private final UserRepository userRepository;
     private final WorkflowRepository workflowRepository;
     private final WorkflowService workflowService;
@@ -121,6 +128,8 @@ public class BillingService {
         }
 
         billing.collect(request.getCollectedAt());
+
+        saveHistory(billing);
     }
 
     /**
@@ -130,19 +139,28 @@ public class BillingService {
         OrderReport report = orderReportRepository.findById(orderReportId)
                 .orElseThrow(() -> new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND));
 
-        String userName = userIdStr;
+        return convertToFormInitResponse(report, getUserNameFromId(userIdStr));
+    }
 
+    private String getUserNameFromId(String userIdStr) {
+        if (userIdStr == null || userIdStr.isBlank()) {
+            return "알 수 없는 유저";
+        }
         try {
             UUID userUuid = UUID.fromString(userIdStr);
-            User user = userRepository.findById(userUuid).orElse(null);
-            if (user != null) {
-                userName = user.getName();
-            }
+            return userRepository.findById(userUuid)
+                    .map(User::getName)
+                    .orElse(userIdStr);
         } catch (IllegalArgumentException e) {
-            // 예외 무시
+            log.error("Invalid UUID format for userId: {}", userIdStr, e);
+            return "알 수 없는 유저";
         }
+    }
 
-        return convertToFormInitResponse(report, userName);
+    private void saveHistory(Billing billing) {
+        String requesterName = getUserNameFromId(billing.getCreatedBy());
+        BillingHistory history = BillingHistory.createSnapshot(billing, requesterName);
+        billingHistoryRepository.save(history);
     }
 
     /**
@@ -179,7 +197,11 @@ public class BillingService {
             uploadFileService.getUploadFile(oldImageId).delete();
         }
 
-        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()));
+        if (billing.getCollectedAt() != null) {
+            saveHistory(billing);
+        }
+
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
     }
 
     /**
@@ -204,7 +226,7 @@ public class BillingService {
         List<Billing> billings = billingRepository.findAllByOrderByIdDesc();
 
         return billings.stream()
-                .map(BillingListResponse::from)
+                .map(billing -> BillingListResponse.from(billing, getUserNameFromId(billing.getCreatedBy())))
                 .toList();
     }
 
@@ -215,7 +237,7 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
-        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()));
+        return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()), getUserNameFromId(billing.getCreatedBy()));
     }
 
     @Transactional
@@ -252,5 +274,17 @@ public class BillingService {
                 )
                 .map(Workflow::getId)
                 .orElse(null);
+    }
+
+    public List<BillingHistoryListResponse> getBillingHistories(Long originalBillingId) {
+        return billingHistoryRepository.findByOriginalBillingIdOrderByCreatedAtDesc(originalBillingId).stream()
+                .map(BillingHistoryListResponse::from)
+                .toList();
+    }
+
+    public BillingHistoryDetailResponse getBillingHistoryDetail(Long historyId) {
+        BillingHistory history = billingHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_HISTORY_NOT_FOUND));
+        return BillingHistoryDetailResponse.from(history);
     }
 }

@@ -8,7 +8,7 @@ import { Header } from "@/components/erp/header";
 import { DetailFormCard } from "@/components/erp/detail-form-card";
 import { OrderReportDetail } from "@/components/erp/contract/order-report-detail";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { orderReportApi, contractApi, licenseApi, type OrderReportResponse, type ContractResponse, type LicenseResponse } from "@/lib/api/contract-api";
+import { orderReportApi, contractApi, licenseApi, purchaseApi, type OrderReportResponse, type ContractResponse, type LicenseResponse, type PurchaseResponse } from "@/lib/api/contract-api";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -20,7 +20,7 @@ export default function ContractDetailPage() {
   const id = params.id as string;
   const numericId = parseInt(id);
 
-  const [data, setData] = useState<OrderReportResponse | ContractResponse | LicenseResponse | null>(null);
+  const [data, setData] = useState<OrderReportResponse | ContractResponse | LicenseResponse | PurchaseResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +46,8 @@ export default function ContractDetailPage() {
           res = await contractApi.getContract(numericId);
         } else if (category === "licenses" || category === "license") {
           res = await licenseApi.getLicense(numericId);
+        } else if (category === "purchases" || category === "purchase") {
+          res = await purchaseApi.getPurchase(numericId);
         } else {
           setError(`알 수 없는 카테고리: ${category}`);
           setLoading(false);
@@ -159,6 +161,16 @@ export default function ContractDetailPage() {
         { label: "종료일", value: d?.endDate },
       ];
     }
+    if (category === "purchases" || category === "purchase") {
+      const d = data as PurchaseResponse;
+      return [
+        { label: "프로젝트명", value: d?.projectOpportunityName || "-" },
+        { label: "매입내용", value: d?.content },
+        { label: "수량", value: d?.quantity },
+        { label: "단가", value: d?.price ? `₩${d.price.toLocaleString()}` : "₩0" },
+        { label: "합계금액", value: d?.totalPrice ? `₩${d.totalPrice.toLocaleString()}` : "₩0" },
+      ];
+    }
     return [];
   };
 
@@ -185,7 +197,13 @@ export default function ContractDetailPage() {
             {category === "orders" ? (
               <OrderReportDetail report={data as OrderReportResponse} />
             ) : (
-              <DetailFormCard title={`${label} 상세`} fields={getFields()} listHref="/contract" editHref={`/contract/${category}/${id}/edit`} includeAttachment />
+              <DetailFormCard
+                title={`${label} 상세`}
+                fields={getFields()}
+                listHref="/contract"
+                editHref={category === "purchases" || category === "purchase" ? undefined : `/contract/${category}/${id}/edit`}
+                includeAttachment
+              />
             )}
           </div>
         </main>

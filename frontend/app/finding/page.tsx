@@ -17,7 +17,6 @@ import { loadBackendFindingData } from "@/lib/finding-backend"
 import { ArrowLeft, Building2, Plus, Search, Target, Users } from "lucide-react"
 
 type FindingTab = "opportunities" | "customers" | "partners"
-const PREVIEW_CARD_COUNT = 10
 const FINDING_ACTIVE_TAB_STORAGE_KEY = "orbis.finding.active-tab"
 
 function FindingPageContent() {
@@ -197,10 +196,6 @@ function FindingPageContent() {
       }),
     [filteredPartners],
   )
-  const previewOpportunityCards = useMemo(() => opportunityCards.slice(0, PREVIEW_CARD_COUNT), [opportunityCards])
-  const previewCustomerCards = useMemo(() => customerCards.slice(0, PREVIEW_CARD_COUNT), [customerCards])
-  const previewPartnerCards = useMemo(() => partnerCards.slice(0, PREVIEW_CARD_COUNT), [partnerCards])
-
   const registerHref =
     activeTab === "customers"
       ? "/finding/new/customers"
@@ -296,14 +291,10 @@ function FindingPageContent() {
                           고객사 {opportunityCustomerGroups.length}개 · 사업기회 {opportunityCards.length}건
                         </Badge>
                       )}
-                      {selectedOppGroup ? (
+                      {selectedOppGroup && (
                         <Button variant="outline" size="sm" className="gap-2" onClick={() => setSelectedOppCustomerKey(null)}>
                           <ArrowLeft className="h-4 w-4" />
                           고객사 목록
-                        </Button>
-                      ) : (
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href="/finding/opportunities">전체 보기</Link>
                         </Button>
                       )}
                     </div>
@@ -383,16 +374,13 @@ function FindingPageContent() {
                     <CardTitle className="text-lg">고객사 현황</CardTitle>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{filteredCustomers.length}개 고객사</Badge>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href="/finding/customers">전체 보기</Link>
-                      </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {previewCustomerCards.length > 0 ? (
+                  {customerCards.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                      {previewCustomerCards.map((customer) => (
+                      {customerCards.map((customer) => (
                         <button
                           key={customer.id}
                           type="button"
@@ -427,16 +415,13 @@ function FindingPageContent() {
                     <CardTitle className="text-lg">협력사 현황</CardTitle>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{filteredPartners.length}개 협력사</Badge>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href="/finding/partners">전체 보기</Link>
-                      </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {previewPartnerCards.length > 0 ? (
+                  {partnerCards.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                      {previewPartnerCards.map((partner) => (
+                      {partnerCards.map((partner) => (
                         <button
                           key={partner.id}
                           type="button"

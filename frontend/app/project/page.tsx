@@ -9,13 +9,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClipboardList, Receipt, TrendingUp, Plus, Loader2, AlertCircle } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
 import { ProjectResultForm } from "@/components/erp/project/project-result-form";
 import { BillingRequestForm } from "@/components/erp/project/billing-request-form";
-import { projectApi, type ProjectListResponse, type BillingListResponse } from "@/lib/api/project-api";
+import { projectApi, type ProjectListResponse, type BillingListResponse, type BillingDetailResponse } from "@/lib/api/project-api";
 
 type ProjectTab = "results" | "billingAndCollection" | "revenue";
 
@@ -71,10 +72,44 @@ export default function ProjectPage() {
     setBillingsError(null);
     try {
       const res = await projectApi.getBillings();
-      setBillings(res.data ?? []);
+      const rawBillings = res.data ?? [];
+      
+      // TODO : 백엔드 DTO에 id 필드 누락으로 임시처리
+      // 목록을 우선 보여주고 조회
+      setBillings(rawBillings);
+      setBillingsLoading(false);
+
+      // 백그라운드에서 ID 매핑을 위해 1 ~ 150 범위의 상세 조회 병렬 스캔 실행
+      const scanPromises = Array.from({ length: 150 }, (_, i) => i + 1).map((id) =>
+        projectApi
+          .getBilling(id)
+          .then((detailRes) => detailRes.data)
+          .catch(() => null)
+      );
+
+      const details = (await Promise.all(scanPromises)).filter(Boolean) as BillingDetailResponse[];
+
+      // 필드를 매칭하여 목록 아이템에 ID 주입
+      const mappedBillings = rawBillings.map((item) => {
+        const matched = details.find(
+          (d) =>
+            d.customerName === item.customerName &&
+            d.projectName === item.projectName &&
+            d.billingAmount === item.billingAmount &&
+            (d.issuedAt === item.issuedAt || (!d.issuedAt && !item.issuedAt)) &&
+            (d.collectedAt === item.collectedAt || (!d.collectedAt && !item.collectedAt)) &&
+            d.createdBy === item.requesterName
+        );
+        return {
+          ...item,
+          id: matched ? matched.id : undefined,
+          status: matched ? (matched.status as any) : item.status,
+        };
+      });
+
+      setBillings(mappedBillings);
     } catch {
       setBillingsError("청구 목록을 불러오는 데 실패했습니다.");
-    } finally {
       setBillingsLoading(false);
     }
   }, []);
@@ -90,6 +125,7 @@ export default function ProjectPage() {
   }, [activeTab, fetchBillings]);
 
   // 예상 매출액 상태
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [expectedRevenue, setExpectedRevenue] = useState<any[]>([]);
   const [totalEms, setTotalEms] = useState(0);
   const [totalItg, setTotalItg] = useState(0);
@@ -103,10 +139,10 @@ export default function ProjectPage() {
   const fetchRevenue = useCallback(async () => {
     setRevenueLoading(true);
     try {
-      const res = await projectApi.getAnnualRevenue(2026);
+      const res = await projectApi.getAnnualRevenue(selectedYear);
       const data = res.data ?? [];
 
-      const y = 2026;
+      const y = selectedYear;
       type MonthRow = { month: string; ems: number; itg: number; iot: number; other: number; emsMaint: number; itgMaint: number };
       const monthlyData: Record<string, MonthRow> = {};
       for (let i = 1; i <= 12; i++) {
@@ -127,7 +163,7 @@ export default function ProjectPage() {
         });
       });
 
-      const revenueList = Object.values(monthlyData).filter((row) => row.ems > 0 || row.itg > 0 || row.iot > 0 || row.other > 0 || row.emsMaint > 0 || row.itgMaint > 0);
+      const revenueList = Object.values(monthlyData);
 
       let tEms = 0,
         tItg = 0,
@@ -159,7 +195,7 @@ export default function ProjectPage() {
     } finally {
       setRevenueLoading(false);
     }
-  }, []);
+  }, [selectedYear]);
 
   useEffect(() => {
     if (activeTab === "revenue") {
@@ -415,9 +451,26 @@ export default function ProjectPage() {
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">제품별/월별 예상 매출액</CardTitle>
-                    <Badge variant="secondary" className="text-sm px-3 py-1">
-                      연말 총 합계 ₩{Math.round(totalRevenue).toLocaleString()}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <Select
+                        value={String(selectedYear)}
+                        onValueChange={(val) => setSelectedYear(Number(val))}
+                      >
+                        <SelectTrigger className="w-[120px] h-9">
+                          <SelectValue placeholder="연도 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="2024">2024년</SelectItem>
+                          <SelectItem value="2025">2025년</SelectItem>
+                          <SelectItem value="2026">2026년</SelectItem>
+                          <SelectItem value="2027">2027년</SelectItem>
+                          <SelectItem value="2028">2028년</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Badge variant="secondary" className="text-sm px-3 py-1">
+                        연말 총 합계 ₩{Math.round(totalRevenue).toLocaleString()}
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>

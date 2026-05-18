@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "@/hooks/use-toast"
+import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -19,9 +21,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { getCustomers, getOpportunities, type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 import { loadBackendBidResults, loadBackendBidResultDetailById, saveBackendBidResult } from "@/lib/bid-result-backend"
 import { loadBackendProposals } from "@/lib/proposal-backend"
+import { useBackendUsers } from "@/lib/use-backend-users"
+import { resolveUserId } from "@/lib/user-utils"
 import {
   type BidOutcome,
   type BidResultAnalysisSheet,
@@ -263,6 +268,7 @@ function BidResultHeaderCell({
 
 export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResultRegistrationFormProps) {
   const router = useRouter()
+  const users = useBackendUsers()
   const [proposals, setProposals] = useState<ProposalRecord[]>([])
   const [bidResults, setBidResults] = useState<BidResultRecord[]>([])
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
@@ -270,6 +276,32 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
   const [form, setForm] = useState<FormState>(emptyForm)
   const [validationMessage, setValidationMessage] = useState("")
   const [existingResult, setExistingResult] = useState<BidResultRecord | null>(null)
+
+  // 챗봇 create_draft (bid_result) prefill
+  const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
+  const prefillAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!hasChatbotPrefill || prefillAppliedRef.current) return
+    if (bidResultId || proposalId) return
+    prefillAppliedRef.current = true
+    const slot = chatbotPrefill
+    setForm((cur) => ({
+      ...cur,
+      customerCode: slot.customer_name || cur.customerCode,  // 코드가 따로 없으면 name 입력
+      opportunityCode: slot.opportunity_code || cur.opportunityCode,
+      bidDate: slot.submission_deadline || cur.bidDate,
+      result: (slot.result_status as BidOutcome) || cur.result,
+      amount: slot.result_amount || cur.amount,
+      reason: slot.lessons_learned || slot.result_summary || cur.reason,
+    }))
+    const applied = Object.keys(slot).length
+    if (applied > 0) {
+      toast({ title: "챗봇이 입찰결과 초안 prefill", description: `${applied}개 슬롯 반영 — 확인 후 저장하세요.` })
+    }
+    const id = window.setTimeout(() => clearChatbotPrefill(), 100)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChatbotPrefill])
 
   useEffect(() => {
     setProposals([])
@@ -354,6 +386,9 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
       ) ?? null,
     [availableProposals, form.customerCode, form.opportunityCode, form.proposalId],
   )
+
+  const salesLeaderUserId = resolveUserId(form.analysisSheet.salesLeaderName || matchingProposal?.salesRep || "", users)
+  const pmUserId = resolveUserId(form.analysisSheet.pmName, users)
 
   useEffect(() => {
     if (mergedExistingResult) {
@@ -724,18 +759,28 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
                 <tr>
                   <BidResultHeaderCell>영업대표명</BidResultHeaderCell>
                   <BidResultCell colSpan={13}>
-                    <BidResultTableInput
-                      value={form.analysisSheet.salesLeaderName || matchingProposal?.salesRep || ""}
-                      onChange={(value) => updateAnalysisField("salesLeaderName", value)}
+                    <UserIdPicker
+                      value={salesLeaderUserId}
+                      users={users}
+                      onValueChange={(value) => {
+                        const selectedUser = users.find((user) => user.id === value)
+                        updateAnalysisField("salesLeaderName", selectedUser?.name ?? "")
+                      }}
+                      placeholder="영업대표를 선택하세요"
                     />
                   </BidResultCell>
                 </tr>
                 <tr>
                   <BidResultHeaderCell>PM명</BidResultHeaderCell>
                   <BidResultCell colSpan={13}>
-                    <BidResultTableInput
-                      value={form.analysisSheet.pmName}
-                      onChange={(value) => updateAnalysisField("pmName", value)}
+                    <UserIdPicker
+                      value={pmUserId}
+                      users={users}
+                      onValueChange={(value) => {
+                        const selectedUser = users.find((user) => user.id === value)
+                        updateAnalysisField("pmName", selectedUser?.name ?? "")
+                      }}
+                      placeholder="PM을 선택하세요"
                     />
                   </BidResultCell>
                 </tr>

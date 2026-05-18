@@ -11,6 +11,7 @@ import type {
   SalesActivityRequestResponse,
   SalesActivityRequestResponseActivityPurpose,
 } from "@/lib/api/generated/model"
+import { SalesActivityCreateRequestActivityType } from "@/lib/api/generated/model/salesActivityCreateRequestActivityType"
 
 type BackendRequestResponse = SalesActivityRequestResponse & {
   title?: string
@@ -44,6 +45,11 @@ type RequestCreateInput = {
   dueDate: string
   content: string
   attachments?: ActivityAttachment[]
+}
+
+type BackendSalesActivityRequestCreatePayload = SalesActivityRequestCreateRequest & {
+  title: string
+  activityType: typeof SalesActivityCreateRequestActivityType.EMAIL
 }
 
 const REQUESTS_STORAGE_KEY = "orbis.activityRequests"
@@ -106,6 +112,23 @@ function activityPurposeEnum(value: string) {
   return ACTIVITY_PURPOSE_TO_ENUM[value] ?? "ETC"
 }
 
+function extractCustomerFromTitle(title?: string, purposeLabel?: string) {
+  const normalizedTitle = title?.trim() ?? ""
+  const normalizedPurpose = purposeLabel?.trim() ?? ""
+
+  if (!normalizedTitle) return ""
+  if (!normalizedPurpose) return normalizedTitle
+
+  const suffixes = [` ${normalizedPurpose}`, `${normalizedPurpose} 요청`]
+  for (const suffix of suffixes) {
+    if (normalizedTitle.endsWith(suffix)) {
+      return normalizedTitle.slice(0, -suffix.length).trim()
+    }
+  }
+
+  return normalizedTitle
+}
+
 function normalizeLookupText(value: string) {
   return value.trim().toLowerCase()
 }
@@ -164,6 +187,7 @@ function mergeRequest(
     "-"
   const content = backendRequest.requestContent ?? local?.content ?? ""
   const title = backendRequest.title ?? local?.title ?? `${purposeLabel} 요청`
+  const customer = local?.customer?.trim() || extractCustomerFromTitle(title, purposeLabel) || title
   const opportunity = local?.opportunity ?? (content.trim() ? content : "미확인")
 
   return {
@@ -179,7 +203,7 @@ function mergeRequest(
     receiver,
     type: local?.type ?? purposeLabel,
     customerCode: local?.customerCode ?? "",
-    customer: local?.customer ?? title,
+    customer,
     opportunityCode: local?.opportunityCode ?? "",
     opportunity,
     content,
@@ -259,9 +283,12 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
     throw new Error("입력한 담당자명을 백엔드 사용자에서 찾을 수 없습니다.")
   }
 
-  const payload: SalesActivityRequestCreateRequest = {
+  const title = `${input.customer} ${input.type}`.trim() || `${input.type} 요청`
+  const payload: BackendSalesActivityRequestCreatePayload = {
+    title,
     targetUserId,
     activityPurpose: activityPurposeEnum(input.type),
+    activityType: SalesActivityCreateRequestActivityType.EMAIL,
     activityDateTime: `${input.dueDate || input.date}T00:00:00`,
     requestContent: input.content,
   }

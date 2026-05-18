@@ -72,6 +72,11 @@ def answer_question(
     compiled_graph: object | None = None,
     user_context: UserContext | None = None,
 ) -> AnswerResponse:
+    # 인사/잡담 short-circuit — 자연스러운 친근한 응답
+    small_talk = _answer_small_talk(query=query, embedder=embedder, thread_id=thread_id)
+    if small_talk is not None:
+        return small_talk
+
     if compiled_graph is not None:
         return invoke_orbis_agent_graph(
             compiled_graph=compiled_graph,
@@ -758,13 +763,39 @@ def has_vague_metric_question(query: str) -> bool:
 
 
 def build_conversation_context(history: list[ConversationMessage]) -> str:
+    """LLM 에 전달할 대화 컨텍스트.
+
+    의도: follow-up 흐름 파악용 — user 질문만 짧게 노출.
+    이전 assistant 답변은 포함하지 않음 (LLM 이 답변 내용을 재인용/재사용해
+    [근거 문서] 와 무관한 환각/leak 을 만드는 패턴을 차단).
+
+    중요: 첫 user 질문은 항상 보존한다.
+    drilldown follow-up (예: turn 5 "수주보고 내용 알려줘") 에서 entity 가
+    turn 1 에만 명시된 경우, 마지막 N개만 보이면 LLM 이 entity 를 잃고
+    "특정 사업/회사 명시 안 됨" 으로 잘못 refusal 하는 패턴 차단.
+    """
     if not history:
         return ""
 
+    user_messages = [m for m in history if m.role == "user"]
+    if not user_messages:
+        return ""
+
+    # 첫 user (entity 가능성 높음) + 최근 2개. dedup.
+    if len(user_messages) <= 3:
+        preserved = user_messages
+    else:
+        preserved = [user_messages[0]] + user_messages[-2:]
+
     lines = []
-    for message in history[-8:]:
-        label = "사용자" if message.role == "user" else "AI"
-        lines.append(f"{label}: {message.content}")
+    seen_contents: set[str] = set()
+    for message in preserved:
+        content = (message.content or "").strip()
+        if not content or content in seen_contents:
+            continue
+        seen_contents.add(content)
+        # 너무 긴 query 는 자름 (LLM 토큰 절약 + 환각 줄임)
+        lines.append(f"사용자(이전): {content[:200]}")
     return "\n".join(lines)
 
 
@@ -1104,3 +1135,110 @@ def build_structured_answer_context(response: AnswerResponse) -> str:
     if response.evidences:
         sections.append(build_evidence_context(response.evidences))
     return "\n\n---\n\n".join(sections)
+
+
+# === small talk short-circuit ===
+
+_SMALL_TALK_GREETINGS = (
+    "안녕", "안녕하세요", "안녕!", "안녕요", "하이", "헬로", "hi", "hello", "반갑",
+    "잘 부탁", "잘부탁", "처음 뵙",
+)
+_SMALL_TALK_THANKS = (
+    "고마", "감사", "땡큐", "thanks", "thank you", "수고",
+)
+_SMALL_TALK_FAREWELL = ("끝", "잘 가", "잘가", "bye", "끝났", "끝낼", "종료", "이만")
+_SMALL_TALK_WHO = ("너 누구", "당신은 누구", "넌 누구", "what are you", "who are you", "너는 누구")
+_SMALL_TALK_HELP = ("도와줘", "도움말", "도움", "help", "사용법", "어떻게 써", "어떻게 쓰")
+_SMALL_TALK_META = (
+    "어떤 정보", "어떤 데이터", "어떤 종류 데이터", "사용 가능한 도메인",
+    "도메인 목록", "data 종류", "정보 종류", "기능 목록", "할 수 있는",
+)
+_SMALL_TALK_INDEX = (
+    "색인된 데이터 기준일", "데이터 기준일", "데이터 업데이트", "마지막 업데이트",
+    "최신 색인",
+)
+
+
+def _answer_small_talk(*, query: str, embedder: EmbeddingModel, thread_id: str | None) -> AnswerResponse | None:
+    """짧은 인사/감사/잡담 query 에 자연스러운 친근한 답변. None 이면 일반 처리."""
+    text = (query or "").strip()
+    if not text or len(text) > 50:
+        return None
+    low = text.lower()
+    compact = "".join(low.split())
+
+    def has_any(patterns: tuple[str, ...]) -> bool:
+        return any(p in low or p in compact for p in patterns)
+
+    msg: str | None = None
+    if has_any(_SMALL_TALK_GREETINGS):
+        msg = (
+            "안녕하세요! 엔키아 영업관리 챗봇입니다. 😊\n\n"
+            "사업기회·PRB·RFP·견적·계약·청구·유지보수까지 데이터 기반으로 답변드립니다.\n\n"
+            "예시:\n"
+            "- \"신한은행 PRB 위험요인 알려줘\"\n"
+            "- \"이번 달 청구 현황\"\n"
+            "- \"AUTO-OPP-2026-101 사업 담당자 김철수로 수정해줘\" (수정 액션)\n"
+            "- \"쿠팡 사업기회 RFP·견적 기반 PRB 보고서 작성해줘\" (초안 작성 액션)\n\n"
+            "구체적인 사업명, 고객사명, 사업 코드와 함께 물으면 더 정확하게 답변할 수 있어요."
+        )
+    elif has_any(_SMALL_TALK_THANKS):
+        msg = "감사합니다! 다른 도움이 필요하시면 언제든 말씀해 주세요. 🙌"
+    elif has_any(_SMALL_TALK_FAREWELL):
+        msg = (
+            "수고하셨습니다! 다음에 또 도와드릴게요. 👋\n\n"
+            "필요하시면 언제든 사업기회·PRB·견적·청구 관련 질문 주세요."
+        )
+    elif has_any(_SMALL_TALK_WHO):
+        msg = (
+            "저는 엔키아 영업관리 시스템의 사내 AI 어시스턴트입니다.\n"
+            "사업기회·PRB·RFP·견적·계약·청구·유지보수 데이터를 기반으로 질문에 답변하고, "
+            "수정/초안 작성 같은 액션 가이드도 제공합니다."
+        )
+    elif has_any(_SMALL_TALK_HELP):
+        msg = (
+            "이런 식으로 물어보시면 됩니다:\n\n"
+            "📊 조회: \"신한은행 사업 현황\", \"이번 달 청구 합계\"\n"
+            "🔍 분석: \"PRB 위험요인 큰 사업\", \"수주율 높은 패턴\"\n"
+            "✏️  수정: \"AUTO-OPP-2026-101 담당자 김철수로 수정해줘\"\n"
+            "📝 작성: \"신한은행 RFP·견적 기반 PRB 보고서 작성해줘\"\n\n"
+            "사업명·고객사명·사업코드를 명시하면 더 정확합니다."
+        )
+    elif has_any(_SMALL_TALK_META):
+        msg = (
+            "다음 도메인 데이터를 다룹니다:\n\n"
+            "🏢 **회사·관계자**: 고객사, 협력사(파트너), 담당자\n"
+            "📋 **영업기회**: 사업기회 (PROJECT_OPPORTUNITY), 영업활동, 사후영업\n"
+            "📑 **입찰**: RFP·RFP 분석, PRB·PRB 결과, 제안서, 입찰 결과(수주/실주)\n"
+            "📝 **수주·계약**: 수주보고서, 계약서, 라이선스\n"
+            "🛠️  **사업 수행**: 프로젝트, 유지보수, 유지보수 견적, 고객지원\n"
+            "💰 **청구·수금**: 청구, 세금계산서\n"
+            "📂 **첨부**: 사업기회별 첨부파일, 결재 메모\n\n"
+            "조회·집계·분석·수정·초안 작성 모두 가능합니다."
+        )
+    elif has_any(_SMALL_TALK_INDEX):
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        msg = (
+            f"색인된 데이터는 실시간으로 백엔드 DB 와 동기화됩니다 (오늘: {today}).\n\n"
+            "사업기회·견적·청구 등 운영 데이터 변경 시 챗봇 응답에 즉시 반영돼요.\n"
+            "RFP·계약 첨부파일 등은 업로드/색인 작업 후 약 1-2분 내 반영됩니다."
+        )
+
+    if msg is None:
+        return None
+
+    return AnswerResponse(
+        query=query,
+        answer=msg,
+        threadId=thread_id,
+        route="small_talk",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name if embedder else "intfloat/multilingual-e5-base",
+        chatModel="small-talk-rule",
+        retrievalConfidence=None,
+        confidenceBand="high",
+        confidenceReasons=["small_talk_detected"],
+        excludedSourceTypes=[],
+        evidences=[],
+    )

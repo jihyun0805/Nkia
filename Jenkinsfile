@@ -192,6 +192,47 @@ pipeline {
                 sh 'docker image prune -f'
             }
         }
+
+        stage('8. Reindex AI Data') {
+            when {
+                expression { env.AI_CHANGED == 'true' || env.BACKEND_CHANGED == 'true' }
+            }
+            steps {
+                echo 'AI 색인 — backend public 데이터를 ai.ai_knowledge_chunks 로 동기화'
+
+                sh '''
+                    set -eu
+                    set -a
+                    . ${BACKEND_DIR}/.env.prod
+                    . ${AI_DIR}/.env.prod
+                    set +a
+
+                    # AI healthy 대기 (최대 150초)
+                    healthy=false
+                    for i in $(seq 1 30); do
+                      if docker exec Orbis-AI-API curl -fs http://localhost:8000/health >/dev/null 2>&1; then
+                        echo "AI ready (attempt ${i})"
+                        healthy=true
+                        break
+                      fi
+                      echo "  AI not ready yet (${i}/30), sleep 5s..."
+                      sleep 5
+                    done
+                    if [ "${healthy}" != "true" ]; then
+                      echo "AI never became healthy; skipping reindex (non-fatal)"
+                      exit 0
+                    fi
+
+                    # reindex — 변경된 source 만 indexed, 동일 hash 는 skipped
+                    docker exec Orbis-AI-API uv run scripts/reindex_orbis_data.py \
+                      --db-url "${AI_DATABASE_URL}" \
+                      --ai-base-url "http://localhost:8000" \
+                      --ai-internal-token "${AI_INTERNAL_TOKEN}" \
+                      --batch-size 50 \
+                      || echo "reindex failed (non-fatal); manual reindex 가능"
+                '''
+            }
+        }
     }
 
     post {

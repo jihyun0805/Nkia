@@ -55,29 +55,19 @@ export const orderReportSchema = z.object({
   }),
 
   // 유지보수 수주보고 시 작성 테이블
-  maintenanceSummary: z
+  maintenanceOnlyItems: z
     .array(
       z.object({
-        year: z.string(),
-        projectAmount: z.string(),
-        license: z.string(),
-        thirdParty: z.string(),
-        service: z.string(),
-        maintenance: z.string(),
-        rate: z.string(),
+        year: z.union([z.string(), z.number()]).optional(),
+        amount: z.union([z.string(), z.number()]).optional(),
+        license: z.union([z.string(), z.number()]).optional(),
+        thirdParty: z.union([z.string(), z.number()]).optional(),
+        service: z.union([z.string(), z.number()]).optional(),
+        maintenance: z.union([z.string(), z.number()]).optional(),
+        maintenanceRate: z.union([z.string(), z.number()]).optional(),
       }),
     )
     .default([]),
-  maintenanceSummaryTotal: z
-    .object({
-      projectAmount: z.string(),
-      license: z.string(),
-      thirdParty: z.string(),
-      service: z.string(),
-      maintenance: z.string(),
-      rate: z.string(),
-    })
-    .optional(),
 
   // PAGE 1~3: 세부 내역 테이블
   licenseDetails: z.array(z.object({ category: z.string(), group: z.string(), product: z.string(), quantity: z.string(), unitPrice: z.string(), subtotal: z.string() })).default([]),
