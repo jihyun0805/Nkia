@@ -26,6 +26,7 @@ class ManagementReportRequest(BaseModel):
     statuses: list[str] = Field(default_factory=list)
     sections: list[str] = Field(default_factory=list)
     audience: str = "executive"
+    analytics_context: dict[str, Any] = Field(default_factory=dict, alias="analyticsContext")
     user_context: UserContext | None = Field(default=None, alias="userContext")
 
 
