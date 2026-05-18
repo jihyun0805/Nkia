@@ -15,6 +15,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { adminApi } from "@/lib/api/admin-api"
 import { toast } from "sonner"
 
+import {
+  POSITION_LABELS,
+  WORKFLOW_DOMAIN_LABELS,
+} from "@/lib/user-utils"
+
 export default function AdminNewPage() {
   const router = useRouter()
   const params = useParams()
@@ -60,7 +65,7 @@ export default function AdminNewPage() {
         await adminApi.createWorkflow({
           name: formData.name,
           workflowDomain: formData.workflowDomain,
-          active: formData.active === "true" || formData.active === true,
+          steps: formData.steps || [],
         })
       } else if (category === "products") {
         await adminApi.createProduct({
@@ -144,17 +149,103 @@ export default function AdminNewPage() {
 
                 {category === "workflow" && (
                   <>
-                    <div className="space-y-2"><Label>템플릿명 *</Label><Input onChange={(e) => handleInputChange("name", e.target.value)} /></div>
-                    <div className="space-y-2"><Label>워크플로우 도메인 *</Label><Input onChange={(e) => handleInputChange("workflowDomain", e.target.value)} placeholder="예: SALES, MAINTENANCE" /></div>
                     <div className="space-y-2">
-                      <Label>활성 상태 *</Label>
-                      <Select onValueChange={(v) => handleInputChange("active", v)}>
-                        <SelectTrigger><SelectValue placeholder="상태 선택" /></SelectTrigger>
+                      <Label>템플릿명 *</Label>
+                      <Input onChange={(e) => handleInputChange("name", e.target.value)} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>워크플로우 도메인 *</Label>
+                      <Select onValueChange={(value) => handleInputChange("workflowDomain", value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="도메인 선택" />
+                        </SelectTrigger>
+
                         <SelectContent>
-                          <SelectItem value="true">활성</SelectItem>
-                          <SelectItem value="false">비활성</SelectItem>
+                          {Object.entries(WORKFLOW_DOMAIN_LABELS).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>결재 단계</Label>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            const currentSteps = formData.steps || []
+
+                            handleInputChange("steps", [
+                              ...currentSteps,
+                              {
+                                stepOrder: currentSteps.length + 1,
+                                stepName: "",
+                                approverPosition: "TEAM_MEMBER",
+                                required: true,
+                                active: true,
+                              },
+                            ])
+                          }}
+                        >
+                          단계 추가
+                        </Button>
+                      </div>
+
+                      {(formData.steps || []).map((step: any, index: number) => (
+                        <div
+                          key={index}
+                          className="rounded-lg border p-4 space-y-3"
+                        >
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label>단계명</Label>
+
+                              <Input
+                                value={step.stepName}
+                                onChange={(e) => {
+                                  const updated = [...formData.steps]
+                                  updated[index].stepName = e.target.value
+
+                                  handleInputChange("steps", updated)
+                                }}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>결재자 직급</Label>
+
+                              <Select
+                                value={step.approverPosition}
+                                onValueChange={(value) => {
+                                  const updated = [...formData.steps]
+                                  updated[index].approverPosition = value
+
+                                  handleInputChange("steps", updated)
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+
+                                <SelectContent>
+                                  {Object.entries(POSITION_LABELS).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>
+                                      {label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </>
                 )}

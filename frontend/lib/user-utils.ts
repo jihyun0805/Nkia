@@ -9,10 +9,26 @@ export type UserLike = {
   departmentName?: string
 }
 
-const POSITION_LABELS: Record<string, string> = {
+export const POSITION_LABELS: Record<string, string> = {
   TEAM_MEMBER: "팀원",
   TEAM_LEADER: "팀장",
   HEAD_DIRECTOR: "본부장",
+}
+
+export const WORKFLOW_DOMAIN_LABELS: Record<string, string> = {
+  QUOTATION: "견적",
+  MAINTENANCE_QUOTATION: "유지보수 견적",
+  ORDER_REPORT: "수주보고",
+  CONTRACT: "계약",
+  PURCHASE_CONTRACT: "매입 계약",
+  FREE_MAINTENANCE_CONTRACT: "무상 유지보수 계약",
+  PAID_MAINTENANCE_CONTRACT: "유상 유지보수 계약",
+  LICENSE: "라이선스",
+  BILLING: "청구 및 수금",
+  CUSTOMER_SUPPORT: "고객지원",
+  PRB: "PRB",
+  PRB_RESULT: "PRB 결과",
+  BID_RESULT: "입찰 결과",
 }
 
 export function normalizeLookupText(value: string) {

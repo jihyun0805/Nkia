@@ -76,8 +76,10 @@ function AdminPageContent() {
           setRoles(mappedRoles);
         }
 
-        if (workflowsRes && workflowsRes.data && workflowsRes.data.length > 0) {
-          const mappedWorkflows = workflowsRes.data.map((w: WorkflowTemplateListResponse) => ({
+        const workflowData = workflowsRes?.data ?? [];
+
+        if (workflowData.length > 0) {
+          const mappedWorkflows = workflowData.map((w) => ({
             id: w.id.toString(),
             name: w.name,
             steps: [w.workflowDomain],
@@ -85,6 +87,7 @@ function AdminPageContent() {
             lastModified: "-",
             active: w.active,
           }));
+
           setWorkflows(mappedWorkflows);
         }
 
