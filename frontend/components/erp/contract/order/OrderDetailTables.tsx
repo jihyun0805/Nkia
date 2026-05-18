@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import { adminApi } from "@/lib/api/admin-api";
 
 export function OrderDetailTables() {
@@ -38,6 +38,7 @@ export function OrderDetailTables() {
   }, []);
 
   const [productData, setProductData] = useState<any>({});
+  const [isProductsLoaded, setIsProductsLoaded] = useState(false);
 
   useEffect(() => {
     adminApi
@@ -53,6 +54,7 @@ export function OrderDetailTables() {
           tree[cat][grp].push({ id: p.id, name: p.productName, price: p.unitPrice });
         });
         setProductData(tree);
+        setIsProductsLoaded(true);
       })
       .catch(console.error);
   }, []);
@@ -114,6 +116,15 @@ export function OrderDetailTables() {
       </button>
     </div>
   );
+
+  if (!isProductsLoaded) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 bg-card rounded-lg border border-dashed mt-10">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600 mb-2" />
+        <span className="text-sm text-slate-500 font-medium">상품 정보를 불러오는 중입니다...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-12 mt-10">
@@ -222,7 +233,7 @@ export function OrderDetailTables() {
                           productReg.onChange(e);
                           const selectedProd = productOptions.find((p: any) => String(p.id) === e.target.value);
                           if (selectedProd) {
-                            setValue(`licenseDetails.${i}.unitPrice`, formatTotal(selectedProd.price || 0));
+                            setValue(`licenseDetails.${i}.unitPrice`, formatTotal((selectedProd.price || 0) * 1000));
                           }
                         }}
                         disabled={!currentGroup} // 상위항목 미선택시 비활성화

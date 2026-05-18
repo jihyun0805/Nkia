@@ -340,7 +340,7 @@ public class OrderReport extends BaseEntity {
                 .sum();
     }
 
-    private void calculateLicenseSummary() {
+    public void calculateLicenseSummary() {
         this.emsSummary = 0L;
         this.itgSummary = 0L;
         this.dashboardSummary = 0L;
@@ -527,5 +527,16 @@ public class OrderReport extends BaseEntity {
 
     public void assignProjectOpportunity(ProjectOpportunity projectOpportunity) {
         this.projectOpportunity = projectOpportunity;
+    }
+
+    public void recalculateAll() {
+        calculateLicenseTotal();
+        calculateLicenseSummary();
+        calculateMaintenanceTotal();
+        calculateServiceTotal();
+        calculateOtherTotal();
+        calculatePurchaseTotal();
+        calculateItemTotal();
+        calculateTotalAmount();
     }
 }

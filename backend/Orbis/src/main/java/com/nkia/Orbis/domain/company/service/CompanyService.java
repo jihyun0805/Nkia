@@ -60,10 +60,12 @@ public class CompanyService {
 
         // 엔티티 내부 비즈니스 메서드 호출 (객체 지향적 설계)
         company.updateInfo(
+                request.companyType(),
                 request.name(),
                 request.sector(),
                 request.category(),
-                request.address()
+                request.address(),
+                request.memo()
         );
 
         // 더티 체킹(Dirty Checking)으로 인해 save() 불필요

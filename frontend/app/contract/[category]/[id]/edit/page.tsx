@@ -167,7 +167,7 @@ export default function ContractEditPage() {
       <div className="flex-1 flex flex-col">
         <Header title={`${label} 수정`} description={`${label} 정보를 페이지에서 수정합니다`} />
         <main className="flex-1 overflow-auto p-6">
-          <div className="mx-auto max-w-5xl space-y-6">
+          <div className={`space-y-6 ${category === "orders" || category === "order" ? "" : "mx-auto max-w-5xl"}`}>
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>

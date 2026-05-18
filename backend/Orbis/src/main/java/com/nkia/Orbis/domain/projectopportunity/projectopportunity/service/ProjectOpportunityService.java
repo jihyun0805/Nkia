@@ -194,15 +194,27 @@ public class ProjectOpportunityService {
      */
     public Page<ProjectOpportunityResponse> getProjectOpportunityList(Pageable pageable) {
         Page<ProjectOpportunity> page = projectOpportunityRepository.findAll(pageable);
+        return mapToResponsePage(page);
+    }
 
-        // [최적화 포인트] 페이지에 있는 모든 작성자(createdBy)의 UUID를 추출
+    // 특정 고객사의 사업 기회 목록 조회
+    public Page<ProjectOpportunityResponse> getProjectOpportunitiesByCustomer(Long companyId, Pageable pageable) {
+        // 고객사가 존재하는지 먼저 검증 (선택사항이나 방어적으로 추가하면 좋습니다)
+        if (!companyRepository.existsById(companyId)) {
+            throw new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND);
+        }
+
+        Page<ProjectOpportunity> page = projectOpportunityRepository.findAllByCustomerCompanyId(companyId, pageable);
+        return mapToResponsePage(page); // 기존에 분리해 둔 맵핑 메서드 재사용
+    }
+
+    // 중복 코드 제거를 위해 DTO 맵핑 로직을 별도 메서드로 분리 (리팩토링)
+    private Page<ProjectOpportunityResponse> mapToResponsePage(Page<ProjectOpportunity> page) {
         Set<UUID> creatorIds = getCreatorIds(page);
 
-        // 추출한 UUID로 User를 한 번에 조회하여 Map으로 캐싱 (IN 쿼리 1번만 발생)
         Map<UUID, User> creatorMap = userRepository.findAllById(creatorIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
 
-        // DTO 변환 시 Map에서 꺼내서 사용
         return page.map(opportunity -> {
             User creator = null;
             if (opportunity.getCreatedBy() != null && !opportunity.getCreatedBy().isBlank()) {

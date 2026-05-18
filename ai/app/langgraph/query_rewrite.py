@@ -199,9 +199,17 @@ def infer_followup_subject(history: list[ConversationMessage]) -> str | None:
         query_terms=normalization.scope_terms or normalization.entity_terms,
         exact_codes=extract_business_codes_from_text(combined_text),
     )
-    if entity is None:
-        return None
-    return f"{entity['opportunity_code']} {entity['opportunity_name']}"
+    if entity is not None:
+        return f"{entity['opportunity_code']} {entity['opportunity_name']}"
+    # entity 해석 실패 시 — 가장 최근 user query 의 entity_terms 를 그대로 prefix.
+    # '담당자는?', '그 팀 팀장 누구?' 같은 짧은 후속이 직전 entity 를 완전히 잃는 leak 방지.
+    latest = next((get_message_content(m) for m in reversed(user_messages)
+                   if get_message_content(m)), "")
+    latest_norm = normalize_query_context(latest)
+    fallback_terms = latest_norm.entity_terms or latest_norm.scope_terms
+    if fallback_terms:
+        return " ".join(fallback_terms[:3])
+    return None
 
 
 def _is_user_message(message: object) -> bool:

@@ -30,6 +30,7 @@ def management_report(request_body: ManagementReportRequest, request: Request) -
             statuses=request_body.statuses,
             sections=request_body.sections,
             audience=request_body.audience,
+            analytics_context=request_body.analytics_context,
             embedder=embedder,
             user_context=request_body.user_context,
         )

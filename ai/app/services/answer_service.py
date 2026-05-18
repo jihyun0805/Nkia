@@ -77,6 +77,23 @@ def answer_question(
     if small_talk is not None:
         return small_talk
 
+    # === 신규: tool-use loop 시도 ===
+    try:
+        from app.orchestration.tool_loop import run_tool_loop, should_try_tool_loop  # noqa: PLC0415
+        if should_try_tool_loop(query):
+            tool_response = run_tool_loop(
+                query=query,
+                user_context=user_context,
+                history=history,
+                embedder=embedder,
+            )
+            if tool_response is not None:
+                tool_response.threadId = thread_id
+                return tool_response
+    except Exception as exc:
+        import logging as _logging  # noqa: PLC0415
+        _logging.getLogger(__name__).warning("tool_loop 실패, fallthrough: %s", exc)
+
     if compiled_graph is not None:
         return invoke_orbis_agent_graph(
             compiled_graph=compiled_graph,
@@ -1146,7 +1163,17 @@ _SMALL_TALK_GREETINGS = (
 _SMALL_TALK_THANKS = (
     "고마", "감사", "땡큐", "thanks", "thank you", "수고",
 )
-_SMALL_TALK_FAREWELL = ("끝", "잘 가", "잘가", "bye", "끝났", "끝낼", "종료", "이만")
+_SMALL_TALK_FAREWELL = ("잘 가", "잘가", "bye", "이만", "수고하세요", "안녕히")
+# small_talk 패턴 매칭 전에 우회시키는 도메인 키워드 — 업무 query 가 farewell 등으로 오분류되는 것 방지
+_DOMAIN_BLOCK_KEYWORDS = (
+    "사업기회", "사업 기회", "사업", "유지보수", "유지 보수",
+    "견적", "계약", "청구", "수금", "발주", "수주",
+    "RFP", "rfp", "PRB", "prb", "제안서", "제안",
+    "활동", "고객지원", "고객 지원", "프로젝트", "라이선스", "라이센스",
+    "입찰", "결재", "워크플로우", "담당자", "팀장", "팀원", "본부",
+    "만료", "종료", "임박", "예정", "납기", "마감",
+    "일정", "스케줄",
+)
 _SMALL_TALK_WHO = ("너 누구", "당신은 누구", "넌 누구", "what are you", "who are you", "너는 누구")
 _SMALL_TALK_HELP = ("도와줘", "도움말", "도움", "help", "사용법", "어떻게 써", "어떻게 쓰")
 _SMALL_TALK_META = (
@@ -1163,6 +1190,9 @@ def _answer_small_talk(*, query: str, embedder: EmbeddingModel, thread_id: str |
     """짧은 인사/감사/잡담 query 에 자연스러운 친근한 답변. None 이면 일반 처리."""
     text = (query or "").strip()
     if not text or len(text) > 50:
+        return None
+    # 도메인 키워드가 하나라도 있으면 업무 질의 — small_talk 우회
+    if any(kw in text for kw in _DOMAIN_BLOCK_KEYWORDS):
         return None
     low = text.lower()
     compact = "".join(low.split())

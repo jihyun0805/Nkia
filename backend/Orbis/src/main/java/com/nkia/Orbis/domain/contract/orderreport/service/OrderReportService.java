@@ -265,7 +265,7 @@ public class OrderReportService {
         addItems(orderReport, request);
 
         // 5. 최종 합계 계산
-        orderReport.calculateTotalAmount();
+        orderReport.recalculateAll();
 
         return OrderReportResponse.from(orderReport, getWorkflowId(orderReport.getId()));
     }

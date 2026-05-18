@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.project.billing.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,6 +18,9 @@ public class BillingCreateRequest {
 
     @NotNull(message = "세금계산서 발행 희망일은 필수입니다.")
     private LocalDate requestedIssueDate;
+
+    @NotNull(message = "세금계산서 발행 담당자 정보는 필수입니다.")
+    private UUID invoiceManager;
 
     private String remarks;
 }
