@@ -78,12 +78,7 @@ public class SalesActivityResponse {
                 )
                 .attendees(
                         salesActivity.getAttendees().stream()
-                                .map(attendee ->
-                                        SalesActivityAttendeeResponse.builder()
-                                                .userId(attendee.getUser().getId())
-                                                .userName(attendee.getUser().getName())
-                                                .build()
-                                )
+                                .map(SalesActivityAttendeeResponse::from)
                                 .toList()
                 )
                 .build();
