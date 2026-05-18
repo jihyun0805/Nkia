@@ -420,10 +420,7 @@ def infer_proposal_types(query: str) -> list[str]:
 
 
 def infer_list_opportunity_intent(query: str) -> bool:
-    """'카드사 사업기회 뭐있어?' 같은 사업기회 목록 의도 감지.
-
-    - 사업기회/영업기회 + (뭐있/어떤/리스트/목록/현황) 조합이면 True
-    """
+    """'카드사 사업기회 뭐있어?' / '최근 사업기회 5개' 같은 사업기회 목록 의도 감지."""
 
     normalized = " ".join(query.lower().split())
     has_opportunity_word = any(
@@ -431,8 +428,17 @@ def infer_list_opportunity_intent(query: str) -> bool:
     )
     if not has_opportunity_word:
         return False
-    list_keywords = ("뭐있", "뭐 있", "어떤", "리스트", "목록", "현황", "있는지", "있어")
-    return any(keyword in normalized for keyword in list_keywords)
+    list_keywords = (
+        "뭐있", "뭐 있", "어떤", "리스트", "목록", "현황", "있는지", "있어",
+        "최근", "최근에", "신규", "이번", "전체", "모든",
+        "보여", "알려", "찾아",
+    )
+    if any(keyword in normalized for keyword in list_keywords):
+        return True
+    # 숫자 + (개|건|건의|개의) 패턴 — '사업기회 5개', '사업기회 10건'
+    if re.search(r"\d+\s*(개|건)", normalized):
+        return True
+    return False
 
 
 def parse_time_range(query: str, *, today: date) -> TimeRange:
