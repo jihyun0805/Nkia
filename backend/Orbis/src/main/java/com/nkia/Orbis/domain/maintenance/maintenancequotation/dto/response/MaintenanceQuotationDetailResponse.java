@@ -1,7 +1,11 @@
 package com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response;
 
 import com.nkia.Orbis.common.constant.ApprovalStatus;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceAmountReason;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenancePackageCost;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotation;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotationCover;
+import com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceServiceInfo;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,7 +41,8 @@ public class MaintenanceQuotationDetailResponse {
     public static MaintenanceQuotationDetailResponse from(MaintenanceQuotation entity, Long workflowId) {
         return MaintenanceQuotationDetailResponse.builder()
                 .id(entity.getId())
-                .companyName(entity.getProject().getPjtName())
+                .companyName(entity.getProject().getOrderReport().getFinalCustomerCompany().getName())
+                .projectName(entity.getProject().getPjtName())
                 .refNo(entity.getRefNo())
                 .quotationDate(entity.getQuotationDate())
                 .paymentTerms(entity.getPaymentTerms())
@@ -73,8 +78,7 @@ public class MaintenanceQuotationDetailResponse {
         private LocalDate quotationDate;
         private String salesRepresentative;
 
-        public static CoverInfoResponse from(
-                com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceQuotationCover entity) {
+        public static CoverInfoResponse from(MaintenanceQuotationCover entity) {
             String customerName = null;
             if (entity.getQuotation().getProject() != null && 
                 entity.getQuotation().getProject().getOrderReport() != null && 
@@ -102,8 +106,7 @@ public class MaintenanceQuotationDetailResponse {
         private String packageName;
         private Long amount;
 
-        public static PackageCostResponse from(
-                com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenancePackageCost entity) {
+        public static PackageCostResponse from(MaintenancePackageCost entity) {
             return PackageCostResponse.builder()
                     .packageName(entity.getPackageName())
                     .amount(entity.getAmount())
@@ -120,8 +123,7 @@ public class MaintenanceQuotationDetailResponse {
         private String item;
         private String content;
 
-        public static ServiceInfoResponse from(
-                com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceServiceInfo entity) {
+        public static ServiceInfoResponse from(MaintenanceServiceInfo entity) {
             return ServiceInfoResponse.builder()
                     .productId(entity.getProductModule() != null ? entity.getProductModule().getId() : null)
                     .productName(entity.getProductModule() != null ? entity.getProductModule().getProductName() : "N/A")
@@ -136,16 +138,17 @@ public class MaintenanceQuotationDetailResponse {
     @Builder
     public static class AmountReasonResponse {
         private Long productId;
+        private String productCategory;
         private String productName;
         private Integer quantity;
         private Long amount;
         private Integer months;
         private String remarks;
 
-        public static AmountReasonResponse from(
-                com.nkia.Orbis.domain.maintenance.maintenancequotation.entity.MaintenanceAmountReason entity) {
+        public static AmountReasonResponse from(MaintenanceAmountReason entity) {
             return AmountReasonResponse.builder()
                     .productId(entity.getProductModule() != null ? entity.getProductModule().getId() : null)
+                    .productCategory(entity.getProductModule().getProductGroup())
                     .productName(entity.getProductModule() != null ? entity.getProductModule().getProductName() : "N/A")
                     .quantity(entity.getQuantity())
                     .amount(entity.getAmount())

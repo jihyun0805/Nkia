@@ -6,9 +6,12 @@ import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.Mainte
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.request.MaintenanceQuotationUpdateRequest;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.MaintenanceQuotationCreateResponse;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.dto.response.MaintenanceQuotationDetailResponse;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.dto.response.MaintenanceQuotationHistoryDetailResponse;
+import com.nkia.Orbis.domain.maintenance.maintenancequotationhistory.dto.response.MaintenanceQuotationHistoryListResponse;
 import com.nkia.Orbis.domain.maintenance.maintenancequotation.service.MaintenanceQuotationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -65,11 +68,27 @@ public class MaintenanceQuotationController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @Operation(summary = "유지보수 견적서 히스토리 목록 조회")
+    @GetMapping("/{id}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE_QUOTATION', 'READ')")
+    public ResponseEntity<ApiResponse<List<MaintenanceQuotationHistoryListResponse>>> getHistories(@PathVariable Long id) {
+        List<MaintenanceQuotationHistoryListResponse> response = quotationService.getHistories(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "유지보수 견적서 히스토리 상세 조회")
+    @GetMapping("/histories/{historyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'MAINTENANCE_QUOTATION', 'READ')")
+    public ResponseEntity<ApiResponse<MaintenanceQuotationHistoryDetailResponse>> getHistoryDetail(@PathVariable Long historyId) {
+        MaintenanceQuotationHistoryDetailResponse response = quotationService.getHistoryDetail(historyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @Operation(summary = "유지보수 견적서 결재 상신")
     @PostMapping("/submit/{quotationId}")
     public ResponseEntity<ApiResponse<String>> submitMaintenanceQuotation(
             @PathVariable("quotationId") Long quotationId,
-            @RequestBody SubmitRequest request
+            @RequestBody @Valid SubmitRequest request
     ) {
         quotationService.submitMaintenanceQuotation(
                 quotationId,

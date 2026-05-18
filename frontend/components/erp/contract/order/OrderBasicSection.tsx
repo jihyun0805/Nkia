@@ -39,22 +39,6 @@ export function OrderBasicSection() {
 
   const totalAmount = useWatch({ control, name: "totalAmount" });
 
-  useEffect(() => {
-    const getSum = (arr: any[]) => arr.reduce((acc, curr) => acc + parseNum(curr.subtotal), 0);
-
-    const licenseTotal = getSum(licenseData) + parseNum(licenseDiscount);
-    const serviceTotal = getSum(serviceData) + parseNum(serviceDiscount);
-    const maintenanceTotal = getSum(maintenanceData) + parseNum(maintenanceDiscount);
-    const otherSalesTotal = getSum(otherSalesData);
-
-    const grandTotal = licenseTotal + serviceTotal + maintenanceTotal + otherSalesTotal;
-
-    // 무한 렌더링 방지 (값이 다를 때만 업데이트)
-    if (parseNum(totalAmount) !== grandTotal) {
-      setValue("totalAmount", grandTotal === 0 ? "" : grandTotal.toLocaleString());
-    }
-  }, [licenseData, serviceData, maintenanceData, otherSalesData, licenseDiscount, serviceDiscount, maintenanceDiscount, totalAmount, setValue]);
-
   const salesClassificationValues =
     useWatch({
       control,
@@ -69,6 +53,91 @@ export function OrderBasicSection() {
         "salesClassification.others",
       ],
     }) || [];
+
+  useEffect(() => {
+    const getSum = (arr: any[]) => arr.reduce((acc, curr) => acc + parseNum(curr.subtotal), 0);
+
+    const licenseTotal = getSum(licenseData) + parseNum(licenseDiscount);
+    const serviceTotal = getSum(serviceData) + parseNum(serviceDiscount);
+    const maintenanceTotal = getSum(maintenanceData) + parseNum(maintenanceDiscount);
+    const otherSalesTotal = getSum(otherSalesData);
+
+    const grandTotal = licenseTotal + serviceTotal + maintenanceTotal + otherSalesTotal;
+
+    // 무한 렌더링 방지 (값이 다를 때만 업데이트)
+    if (parseNum(totalAmount) !== grandTotal) {
+      setValue("totalAmount", grandTotal === 0 ? "" : grandTotal.toLocaleString());
+    }
+
+    // 매출분류 자동 매핑 및 업데이트
+    let ems = 0;
+    let itg = 0;
+    let dashboard = 0;
+    let aiotion = 0;
+    let ito = 0;
+    let others = 0;
+
+    licenseData.forEach((item: any) => {
+      const sub = parseNum(item.subtotal);
+      const cat = item.category;
+      if (cat === "EMS") ems += sub;
+      else if (cat === "ITSM") itg += sub;
+      else if (cat === "DASHBOARD") dashboard += sub;
+      else if (cat === "DATACENTER" || cat === "RCA" || cat === "DCA") aiotion += sub;
+      else if (cat === "ITAM") ito += sub;
+      else if (cat) others += sub;
+    });
+
+    // 라이선스 할인 + 용역 총합 + 기타 매출 총합을 기타 매출분류로 합산
+    others += parseNum(licenseDiscount) + serviceTotal + otherSalesTotal;
+
+    // 유지보수 분류 자동 계산
+    let emsMaint = 0;
+    let itgMaint = 0;
+    maintenanceData.forEach((item: any) => {
+      const sub = parseNum(item.subtotal);
+      const content = (item.content || "").toUpperCase();
+      if (content.includes("ITG") || content.includes("ITSM")) {
+        itgMaint += sub;
+      } else {
+        emsMaint += sub;
+      }
+    });
+    emsMaint += parseNum(maintenanceDiscount);
+
+    // 각 매출분류 값이 0일 경우 빈 문자열로 표시
+    const fmtVal = (val: number) => (val === 0 ? "" : val.toLocaleString());
+
+    const currentEms = parseNum(salesClassificationValues[0]);
+    const currentEmsMaint = parseNum(salesClassificationValues[1]);
+    const currentItg = parseNum(salesClassificationValues[2]);
+    const currentItgMaint = parseNum(salesClassificationValues[3]);
+    const currentDashboard = parseNum(salesClassificationValues[4]);
+    const currentIto = parseNum(salesClassificationValues[5]);
+    const currentAiotion = parseNum(salesClassificationValues[6]);
+    const currentOthers = parseNum(salesClassificationValues[7]);
+
+    if (currentEms !== ems) setValue("salesClassification.ems", fmtVal(ems));
+    if (currentEmsMaint !== emsMaint) setValue("salesClassification.emsMaintenance", fmtVal(emsMaint));
+    if (currentItg !== itg) setValue("salesClassification.itg", fmtVal(itg));
+    if (currentItgMaint !== itgMaint) setValue("salesClassification.itgMaintenance", fmtVal(itgMaint));
+    if (currentDashboard !== dashboard) setValue("salesClassification.dashboard", fmtVal(dashboard));
+    if (currentIto !== ito) setValue("salesClassification.ito", fmtVal(ito));
+    if (currentAiotion !== aiotion) setValue("salesClassification.aiotion", fmtVal(aiotion));
+    if (currentOthers !== others) setValue("salesClassification.others", fmtVal(others));
+
+  }, [
+    licenseData,
+    serviceData,
+    maintenanceData,
+    otherSalesData,
+    licenseDiscount,
+    serviceDiscount,
+    maintenanceDiscount,
+    totalAmount,
+    setValue,
+    salesClassificationValues,
+  ]);
 
   // 값이 변경될 때마다 검증(Verification) 값 자동계산
   useEffect(() => {

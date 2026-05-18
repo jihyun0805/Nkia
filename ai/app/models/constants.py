@@ -41,6 +41,8 @@ class SourceType:
     MAINTENANCE = "MAINTENANCE"
     MAINTENANCE_QUOTE = "MAINTENANCE_QUOTE"
     CUSTOMER_SUPPORT = "CUSTOMER_SUPPORT"
+    CUSTOMER_SUPPORT_REQUEST = "CUSTOMER_SUPPORT_REQUEST"
+    SALES_ACTIVITY_REQUEST = "SALES_ACTIVITY_REQUEST"
     # 기준 정보
     COMPANY = "COMPANY"
     CONTACT = "CONTACT"
@@ -49,6 +51,9 @@ class SourceType:
     BILLING = "BILLING"
     # 첨부파일
     ATTACHMENT = "ATTACHMENT"
+    # 조직 정보 (이름/부서/직책 등 사내 구성원 메타)
+    USER = "USER"
+    DEPARTMENT = "DEPARTMENT"
 
     @classmethod
     def all_known(cls) -> frozenset[str]:

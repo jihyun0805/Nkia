@@ -125,6 +125,13 @@ def is_snapshot_accessible(
     )
 
 
+# 사내 모든 직원이 동일하게 접근 가능한 조직 메타 source_type.
+# backend PermissionDomain.USER/DEPARTMENT 가 빈 sourceType 매핑이라
+# 권한 화이트리스트만으로는 색인된 USER/DEPARTMENT 문서가 항상 걸러진다.
+# 조직 구조(이름/부서/직책)는 공개 정보로 보고 누구나 검색 가능하도록 화이트리스트.
+_ALWAYS_ACCESSIBLE_SOURCE_TYPES = frozenset({"USER", "DEPARTMENT"})
+
+
 def is_source_accessible(
     *,
     user_context: UserContext | None,
@@ -133,6 +140,9 @@ def is_source_accessible(
     metadata: Mapping[str, Any] | None = None,
 ) -> bool:
     if user_context is None or user_context.is_unrestricted():
+        return True
+
+    if source_type and source_type in _ALWAYS_ACCESSIBLE_SOURCE_TYPES:
         return True
 
     allowed_types = (
