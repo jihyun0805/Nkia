@@ -8,6 +8,7 @@ export type ActivityRecord = {
   id: string
   date: string
   requestId?: string
+  salesActivityRequestId?: number
   projectOpportunityId?: number
   registrant?: string
   requester?: string
@@ -154,6 +155,7 @@ export type StandardPriceRecord = {
 
 export type ActivityRequestRecord = {
   id: string
+  backendId?: number
   title?: string
   salesActivityId?: string
   requestUserId?: string

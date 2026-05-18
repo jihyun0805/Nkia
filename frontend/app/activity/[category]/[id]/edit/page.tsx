@@ -270,30 +270,62 @@ export default function ActivityEditPage() {
   const matchedCustomer = category === "requests" ? getCustomerByName(requestForm.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(requestForm.customer) : []
   const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
+  const activityRequestBackendId = (item as ActivityRecord | null)?.salesActivityRequestId
   const receiverUser = findUserByToken(backendUsers, requestForm.receiver)
   const receiverUserId = receiverUser?.id ?? ""
+  const resolveSelectedActivityOpportunity = (value: string, code?: string) => {
+    const normalizedValue = value.trim().toLowerCase()
+    const normalizedCode = code?.trim().toLowerCase()
+    if ((!normalizedValue || normalizedValue === "미확인") && !normalizedCode) return null
+
+    return (
+      activityOpportunityOptions.find((entry) => {
+        const entryCode = (entry as OpportunityRecord & { opportunityCode?: string }).opportunityCode ?? String(entry.id)
+        const entryName = (entry as OpportunityRecord & { opportunityName?: string }).opportunityName ?? entry.name
+        const candidates = [entryCode, String(entry.id), entryName]
+          .filter((candidate): candidate is string => typeof candidate === "string")
+          .map((candidate) => candidate.trim().toLowerCase())
+
+        if (normalizedCode && candidates.includes(normalizedCode)) {
+          return true
+        }
+
+        return normalizedValue ? candidates.includes(normalizedValue) : false
+      }) ?? null
+    )
+  }
 
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
     setActivityCustomer(customer?.name ?? "")
     setActivityCustomerCode(customer?.id ?? "")
-    const firstOpportunity = customer ? getOpportunitiesByCustomerName(customer.name)[0] : null
-    setActivityOpportunity(firstOpportunity?.name ?? (customer ? "미확인" : ""))
-    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+    setActivityOpportunity("")
+    setActivityOpportunityCode("")
   }
 
   const handleActivityOpportunityChange = (value: string) => {
-    const opportunity = activityOpportunityOptions.find((entry) => entry.name === value)
+    const normalizedValue = value.trim().toLowerCase()
+    const opportunity = activityOpportunityOptions.find((entry) => {
+      const entryCode = (entry as OpportunityRecord & { opportunityCode?: string }).opportunityCode ?? String(entry.id)
+      const entryName = (entry as OpportunityRecord & { opportunityName?: string }).opportunityName ?? entry.name
+      return [entryCode, String(entry.id), entryName]
+        .filter((candidate): candidate is string | number => candidate != null)
+        .some((candidate) => String(candidate).trim().toLowerCase() === normalizedValue)
+    })
     setActivityOpportunity(value)
-    setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
+    setActivityOpportunityCode(
+      value === "미확인"
+        ? ""
+        : (opportunity as OpportunityRecord & { opportunityCode?: string } | undefined)?.opportunityCode ??
+            (opportunity?.id != null ? String(opportunity.id) : ""),
+    )
   }
 
   const handleActivityCustomerValueChange = (value: string) => {
     setActivityCustomer(value)
     const matchedCustomer = getCustomerByName(value)
     setActivityCustomerCode(matchedCustomer?.id ?? "")
-    const firstOpportunity = matchedCustomer ? getOpportunitiesByCustomerName(matchedCustomer.name)[0] : null
-    setActivityOpportunity(firstOpportunity?.name ?? (matchedCustomer ? "미확인" : value ? activityOpportunity : ""))
-    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+    setActivityOpportunity("")
+    setActivityOpportunityCode("")
   }
 
   const handleActivityOpportunitySuggestionSelect = (suggestion: EntitySuggestion | null) => {
@@ -352,16 +384,24 @@ export default function ActivityEditPage() {
         return
       }
 
-      const opportunityName = activityOpportunity === "미확인" ? "" : activityOpportunity
-      const localRequestId = Number.parseInt((item as ActivityRecord).requestId ?? "", 10)
-      const salesActivityRequestId = Number.isNaN(localRequestId) ? undefined : localRequestId
+      const selectedActivityOpportunity = resolveSelectedActivityOpportunity(activityOpportunity, activityOpportunityCode)
+      if (activityOpportunityOptions.length > 0 && !selectedActivityOpportunity) {
+        toast({
+          title: "사업기회 선택 필요",
+          description: "고객사에 연결된 사업기회를 목록에서 선택해주십시오.",
+        })
+        return
+      }
 
+      const opportunityName = activityOpportunity === "미확인" ? "" : selectedActivityOpportunity?.name ?? activityOpportunity
       try {
         const updatedActivity = await updateBackendActivityRecord(id, {
-          projectOpportunityId: (item as ActivityRecord).projectOpportunityId,
+          projectOpportunityId: selectedActivityOpportunity?.id ?? (item as ActivityRecord).projectOpportunityId,
           customerName: activityCustomer,
           opportunityName,
-          opportunityCode: activityOpportunityCode,
+          opportunityCode:
+            (selectedActivityOpportunity as OpportunityRecord & { opportunityCode?: string } | null)?.opportunityCode ??
+            activityOpportunityCode,
           registrant: activityRegistrant,
           requester: activityRequester,
           activityMode: activityForm.activityMode,
@@ -373,7 +413,7 @@ export default function ActivityEditPage() {
           nextAction: activityForm.nextAction,
           attendees: activityForm.attendees,
           status: (item as ActivityRecord).status,
-          salesActivityRequestId,
+          salesActivityRequestId: activityRequestBackendId,
         })
 
         scrollToTop()
@@ -494,6 +534,7 @@ export default function ActivityEditPage() {
                     opportunityOptions={activityOpportunityOptions}
                     onOpportunityChange={handleActivityOpportunityChange}
                     onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
+                    opportunitySelectionOnly
                     requesterValue={activityRequester}
                     onRequesterChange={setActivityRequester}
                     values={activityForm}
