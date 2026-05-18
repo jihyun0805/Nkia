@@ -12,6 +12,7 @@ export interface ApiResponse<T> {
 /** 사업 목록 응답 */
 export interface ProjectListResponse {
   id: number;
+  pjtNumber: string | null;
   customerName: string | null;
   projectName: string | null;
   totalAmount: number | null;
