@@ -96,4 +96,19 @@ public class ProjectOpportunityController {
         projectOpportunityService.deleteProjectOpportunity(id);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
+    /**
+     * 6. 특정 고객사의 사업 기회 목록 조회 (GET) URI: GET /project-opportunities/customer/{companyId}
+     */
+    @Operation(summary = "특정 고객사의 사업 기회 목록 조회", description = "고객사 ID를 기반으로 해당 고객사의 모든 사업 기회를 페이징하여 조회합니다.")
+    @GetMapping("/customer/{companyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROJECT_OPPORTUNITY', 'READ')")
+    public ResponseEntity<ApiResponse<Page<ProjectOpportunityResponse>>> getProjectOpportunitiesByCustomer(
+            @PathVariable Long companyId,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        Page<ProjectOpportunityResponse> response = projectOpportunityService.getProjectOpportunitiesByCustomer(
+                companyId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

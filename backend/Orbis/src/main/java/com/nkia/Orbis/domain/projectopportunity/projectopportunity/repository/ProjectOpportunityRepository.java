@@ -34,6 +34,9 @@ public interface ProjectOpportunityRepository extends JpaRepository<ProjectOppor
      * [4] 검색 기능 예시 (사업기회명 검색) - 나중에 조건 검색(조회 기능 R10.1)이 필요할 때 이렇게 확장할 수 있습니다.
      */
     @EntityGraph(attributePaths = {"customerCompany"})
-    Page<ProjectOpportunity> findByOpportunityNameContainingIgnoreCase(String keyword,
-                                                                       Pageable pageable);
+    Page<ProjectOpportunity> findByOpportunityNameContainingIgnoreCase(String keyword, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"customerCompany", "salesRepresentative", "rfpAnalyzeResult", "prb", "bidResult",
+            "orderReport"})
+    Page<ProjectOpportunity> findAllByCustomerCompanyId(Long customerCompanyId, Pageable pageable);
 }

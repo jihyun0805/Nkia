@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   Cell,
+  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -68,20 +69,44 @@ const BUSINESS_TYPE_VALUES = uniqueOptionValues(BUSINESS_TYPE_OPTIONS)
 const STATUS_OPTIONS: FilterOption[] = [
   { value: "FINDING", label: "발굴" },
   { value: "ACTIVITY", label: "활동" },
-  { value: "BID", label: "입찰/제안" },
-  { value: "CONTRACT", label: "계약/수주" },
+  { value: "BID", label: "입찰" },
+  { value: "CONTRACT", label: "계약" },
   { value: "PROJECT", label: "사업" },
   { value: "MAINTENANCE", label: "유지보수" },
   { value: "POST_SALES", label: "사후영업" },
 ]
 const STATUS_VALUES = uniqueOptionValues(STATUS_OPTIONS)
 const COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2", "#64748b"]
+const STAGE_COLORS: Record<string, string> = {
+  FINDING: "#64748b",
+  ACTIVITY: "#0891b2",
+  BID: "#2563eb",
+  CONTRACT: "#16a34a",
+  PROJECT: "#7c3aed",
+  MAINTENANCE: "#f59e0b",
+  POST_SALES: "#dc2626",
+}
+const CUSTOMER_COLORS: Record<string, string> = {
+  PUBLIC: "#2563eb",
+  PRIVATE: "#16a34a",
+  OVERSEAS: "#f59e0b",
+  UNKNOWN: "#64748b",
+}
+const BUSINESS_TYPE_COLORS: Record<string, string> = {
+  EMS: "#2563eb",
+  ITSM: "#16a34a",
+  DASHBOARD: "#f59e0b",
+  AIOTION: "#7c3aed",
+  ITO: "#0891b2",
+  ETC: "#dc2626",
+  UNKNOWN: "#64748b",
+}
 
 const METRIC_LABELS: Record<string, string> = {
   "Total opportunities": "전체 사업기회",
   "Total expected budget": "예상 사업비 합계",
-  "Average expected budget": "평균 예상 사업비",
-  "Contract stage count": "계약 단계 건수",
+  "Active or bid stage count": "진행/입찰 단계 건수",
+  "Won or projectized count": "수주/사업화 건수",
 }
 
 const CHART_TITLES: Record<string, string> = {
@@ -91,11 +116,13 @@ const CHART_TITLES: Record<string, string> = {
 }
 
 const TABLE_TITLES: Record<string, string> = {
+  "Stage portfolio summary": "단계별 사업기회 현황",
   "Top opportunities by expected budget": "예상 사업비 상위 사업기회",
 }
 
 const TABLE_COLUMNS: Record<string, string> = {
   Code: "코드",
+  Count: "건수",
   Opportunity: "사업명",
   Customer: "고객사",
   Sector: "고객 구분",
@@ -104,6 +131,53 @@ const TABLE_COLUMNS: Record<string, string> = {
   "Expected Bid Date": "예상 입찰일",
   "Expected Budget": "예상 사업비",
 }
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  PROJECT_OPPORTUNITY: "사업기회",
+  SALES_ACTIVITY: "영업활동",
+  QUOTATION: "견적",
+  RFP: "RFP",
+  RFP_ANALYSIS: "RFP 분석",
+  PRB: "PRB",
+  PRB_RESULT: "PRB 결과",
+  BID_RESULT: "입찰 결과",
+  WON: "수주",
+  LOST: "실주",
+  ORDER_REPORT: "수주 보고",
+  CONTRACT: "계약",
+  PROJECT: "프로젝트",
+  PROJECT_RESULT_REPORT: "사업 결과",
+  MAINTENANCE: "유지보수",
+  MAINTENANCE_QUOTE: "유지보수 견적",
+  CUSTOMER_SUPPORT: "고객지원",
+  LICENSE: "라이선스",
+  BILLING: "청구",
+}
+
+const EVIDENCE_FIELD_LABELS: Record<string, string> = {
+  recent_activity_summary: "최근 활동",
+  comprehensive_opinion: "종합 의견",
+  customer_interest: "고객 관심사",
+  issue: "이슈",
+  next_activity: "다음 활동",
+  meeting_date_time: "회의 일시",
+  meeting_location: "회의 장소",
+  opportunity_name: "사업기회",
+  customer_name: "고객",
+  business_type: "사업유형",
+  project_type: "사업유형",
+}
+
+const EVIDENCE_SYSTEM_FIELDS = new Set([
+  "created_at",
+  "created_by",
+  "deleted",
+  "deleted_at",
+  "deleted_by",
+  "id",
+  "updated_at",
+  "updated_by",
+])
 
 const VALUE_LABELS: Record<string, string> = {
   ALL: "전체",
@@ -163,11 +237,12 @@ function createDefaultRequest(): ManagementReportRequest {
   const dateRange = getDefaultDateRange()
   return {
     query: "선택한 조건에 해당하는 사업기회 현황, 주요 리스크, 대응 방안, 경영진 의사결정 포인트를 요약해줘",
+    title: "사업기회 경영 리포트",
     reportType: "management",
     limit: 10,
     startAt: dateRange.startAt,
     endAt: dateRange.endAt,
-    customerGroup: "PUBLIC",
+    customerGroup: "ALL",
     businessTypes: [],
     statuses: [],
     visualization: {
@@ -248,7 +323,7 @@ export function ManagementReportModal() {
   const handleSavePdf = () => {
     if (!report) return
 
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1200,height=900")
+    const printWindow = window.open("", "_blank", "width=1200,height=900")
     if (!printWindow) {
       setError("PDF 저장 창을 열 수 없습니다. 브라우저 팝업 차단 설정을 확인해 주세요.")
       return
@@ -290,7 +365,7 @@ export function ManagementReportModal() {
               <CardContent className="space-y-5">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>시작일</Label>
+                    <Label>시작일 (예상 입찰일 기준)</Label>
                     <Input
                       type="date"
                       value={form.startAt ?? ""}
@@ -298,7 +373,7 @@ export function ManagementReportModal() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>종료일</Label>
+                    <Label>종료일 (예상 입찰일 기준)</Label>
                     <Input
                       type="date"
                       value={form.endAt ?? ""}
@@ -384,7 +459,7 @@ export function ManagementReportModal() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="whitespace-pre-wrap rounded-md border bg-muted/30 p-4 text-sm leading-6">{displayReportText(report)}</div>
+                      <ManagementReportMarkdown content={displayReportText(report)} />
                     </CardContent>
                   </Card>
 
@@ -421,17 +496,21 @@ export function ManagementReportModal() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">근거 문서</CardTitle>
+                      <CardTitle className="text-base">검색된 근거 문서</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {report.evidences.length > 0 ? (
                         report.evidences.slice(0, 8).map((evidence, index) => (
                           <div key={`${evidence.sourceType}-${evidence.sourceId}-${index}`} className="rounded-md border p-3">
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline">{evidence.sourceType}</Badge>
-                              <span className="text-sm font-medium">{evidence.title || evidence.sourceId}</span>
+                              <Badge variant="outline">{SOURCE_TYPE_LABELS[evidence.sourceType] ?? evidence.sourceType}</Badge>
+                              <span className="text-sm font-medium">{evidenceTitle(evidence)}</span>
                             </div>
-                            {evidence.content && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{evidence.content}</p>}
+                            {evidence.content && (
+                              <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                                {evidenceSummary(evidence)}
+                              </p>
+                            )}
                           </div>
                         ))
                       ) : (
@@ -491,10 +570,13 @@ function FilterGroup({
 }
 
 function ChartCard({ chart }: { chart: ReportChart }) {
-  const data = chart.data.map((point) => ({
+  const data = chart.data.map((point, index) => ({
+    key: point.label,
     label: VALUE_LABELS[point.label] ?? point.label,
     value: Number(point.value ?? 0),
+    fill: chartColor(chart.title, point.label, index),
   }))
+  const isBudgetChart = chart.title === "Expected budget by business type"
 
   return (
     <Card>
@@ -510,18 +592,33 @@ function ChartCard({ chart }: { chart: ReportChart }) {
             {chart.type === "pie" ? (
               <PieChart>
                 <Pie data={data} dataKey="value" nameKey="label" outerRadius={96} label>
-                  {data.map((_, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                  {data.map((entry) => (
+                    <Cell key={entry.key} fill={entry.fill} />
                   ))}
                 </Pie>
                 <Tooltip />
+                <Legend
+                  layout="vertical"
+                  align="right"
+                  verticalAlign="middle"
+                  iconType="circle"
+                  formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
+                />
               </PieChart>
             ) : (
-              <BarChart data={data}>
+              <BarChart data={data} margin={{ top: 8, right: 24, bottom: 8, left: isBudgetChart ? 36 : 8 }}>
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                <YAxis
+                  width={isBudgetChart ? 92 : 42}
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={isBudgetChart ? formatChartAxisValue : undefined}
+                />
+                <Tooltip formatter={(value) => displayValue(value)} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {data.map((entry) => (
+                    <Cell key={entry.key} fill={entry.fill} />
+                  ))}
+                </Bar>
               </BarChart>
             )}
           </ResponsiveContainer>
@@ -529,6 +626,13 @@ function ChartCard({ chart }: { chart: ReportChart }) {
       </CardContent>
     </Card>
   )
+}
+
+function chartColor(title: string, key: string, index: number) {
+  if (title === "Opportunities by stage") return STAGE_COLORS[key] ?? COLORS[index % COLORS.length]
+  if (title === "Customer sector mix") return CUSTOMER_COLORS[key] ?? COLORS[index % COLORS.length]
+  if (title === "Expected budget by business type") return BUSINESS_TYPE_COLORS[key] ?? COLORS[index % COLORS.length]
+  return COLORS[index % COLORS.length]
 }
 
 function EmptyState({ label }: { label: string }) {
@@ -544,6 +648,338 @@ function statusLabel(status: string) {
   if (status === "insufficient_evidence") return "근거 부족"
   if (status === "upstream_degraded") return "부분 생성"
   return status
+}
+
+type MarkdownBlock =
+  | { type: "h2"; text: string }
+  | { type: "h3"; text: string }
+  | { type: "list"; items: string[] }
+  | { type: "table"; lines: string[] }
+  | { type: "paragraph"; text: string }
+
+function ManagementReportMarkdown({ content }: { content: string }) {
+  const lines = content.split(/\r?\n/)
+  const blocks: MarkdownBlock[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index].trim()
+    if (!line) {
+      index += 1
+      continue
+    }
+
+    if (isMarkdownTableStart(lines, index)) {
+      const tableLines = []
+      while (index < lines.length && lines[index].trim().startsWith("|")) {
+        tableLines.push(lines[index].trim())
+        index += 1
+      }
+      blocks.push({ type: "table", lines: tableLines })
+      continue
+    }
+
+    if (line.startsWith("## ")) {
+      blocks.push({ type: "h2", text: line.replace(/^##\s+/, "") })
+      index += 1
+      continue
+    }
+
+    if (line.startsWith("### ")) {
+      blocks.push({ type: "h3", text: line.replace(/^###\s+/, "") })
+      index += 1
+      continue
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items = []
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ""))
+        index += 1
+      }
+      blocks.push({ type: "list", items })
+      continue
+    }
+
+    const paragraphs = [line]
+    index += 1
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !lines[index].trim().startsWith("## ") &&
+      !lines[index].trim().startsWith("### ") &&
+      !/^[-*]\s+/.test(lines[index].trim()) &&
+      !lines[index].trim().startsWith("|")
+    ) {
+      paragraphs.push(lines[index].trim())
+      index += 1
+    }
+    blocks.push({ type: "paragraph", text: paragraphs.join(" ") })
+  }
+
+  return (
+    <div className="rounded-md border bg-muted/30 p-4 text-sm leading-6">
+      <div className="space-y-4">
+        {blocks.map((block, blockIndex) => {
+          if (block.type === "h2") {
+            return (
+              <h2 key={blockIndex} className="border-b pb-2 text-base font-semibold text-foreground">
+                {renderInlineMarkdown(block.text)}
+              </h2>
+            )
+          }
+          if (block.type === "h3") {
+            return (
+              <h3 key={blockIndex} className="text-sm font-semibold text-foreground">
+                {renderInlineMarkdown(block.text)}
+              </h3>
+            )
+          }
+          if (block.type === "list") {
+            return (
+              <ul key={blockIndex} className="list-disc space-y-1 pl-5 text-muted-foreground">
+                {block.items.map((item, itemIndex) => (
+                  <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+                ))}
+              </ul>
+            )
+          }
+          if (block.type === "table") {
+            const rows = parseMarkdownTable(block.lines)
+            const [header, ...body] = rows
+            return (
+              <div key={blockIndex} className="overflow-x-auto rounded-md border bg-background">
+                <Table>
+                  {header && (
+                    <TableHeader>
+                      <TableRow>
+                        {header.map((cell, cellIndex) => (
+                          <TableHead key={cellIndex}>{renderInlineMarkdown(cell)}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                  )}
+                  <TableBody>
+                    {body.map((row, rowIndex) => (
+                      <TableRow key={rowIndex}>
+                        {row.map((cell, cellIndex) => (
+                          <TableCell key={cellIndex}>{renderInlineMarkdown(cell)}</TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          }
+          return (
+            <p key={blockIndex} className="text-muted-foreground">
+              {renderInlineMarkdown(block.text)}
+            </p>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function isMarkdownTableStart(lines: string[], index: number) {
+  return (
+    lines[index]?.trim().startsWith("|") &&
+    lines[index + 1]?.trim().startsWith("|") &&
+    /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(lines[index + 1].trim())
+  )
+}
+
+function parseMarkdownTable(lines: string[]) {
+  return lines
+    .filter((line, index) => index !== 1)
+    .map((line) =>
+      line
+        .replace(/^\|/, "")
+        .replace(/\|$/, "")
+        .split("|")
+        .map((cell) => cell.trim()),
+    )
+}
+
+function renderInlineMarkdown(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>
+    }
+    return part
+  })
+}
+
+function renderInlineMarkdownHtml(text: string) {
+  return text
+    .split(/(\*\*[^*]+\*\*)/g)
+    .map((part) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return `<strong>${escapeHtml(part.slice(2, -2))}</strong>`
+      }
+      return escapeHtml(part)
+    })
+    .join("")
+}
+
+function renderMarkdownHtml(content: string) {
+  const lines = content.split(/\r?\n/)
+  const parts: string[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index].trim()
+    if (!line) {
+      index += 1
+      continue
+    }
+
+    if (isMarkdownTableStart(lines, index)) {
+      const tableLines = []
+      while (index < lines.length && lines[index].trim().startsWith("|")) {
+        tableLines.push(lines[index].trim())
+        index += 1
+      }
+      const rows = parseMarkdownTable(tableLines)
+      const [header, ...body] = rows
+      const head = header
+        ? `<thead><tr>${header.map((cell) => `<th>${renderInlineMarkdownHtml(cell)}</th>`).join("")}</tr></thead>`
+        : ""
+      const bodyRows = body
+        .map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdownHtml(cell)}</td>`).join("")}</tr>`)
+        .join("")
+      parts.push(`<div class="md-table"><table>${head}<tbody>${bodyRows}</tbody></table></div>`)
+      continue
+    }
+
+    if (line.startsWith("## ")) {
+      parts.push(`<h2>${renderInlineMarkdownHtml(line.replace(/^##\s+/, ""))}</h2>`)
+      index += 1
+      continue
+    }
+
+    if (line.startsWith("### ")) {
+      parts.push(`<h3>${renderInlineMarkdownHtml(line.replace(/^###\s+/, ""))}</h3>`)
+      index += 1
+      continue
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items = []
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ""))
+        index += 1
+      }
+      parts.push(`<ul>${items.map((item) => `<li>${renderInlineMarkdownHtml(item)}</li>`).join("")}</ul>`)
+      continue
+    }
+
+    const paragraphs = [line]
+    index += 1
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !lines[index].trim().startsWith("## ") &&
+      !lines[index].trim().startsWith("### ") &&
+      !/^[-*]\s+/.test(lines[index].trim()) &&
+      !lines[index].trim().startsWith("|")
+    ) {
+      paragraphs.push(lines[index].trim())
+      index += 1
+    }
+    parts.push(`<p>${renderInlineMarkdownHtml(paragraphs.join(" "))}</p>`)
+  }
+
+  return parts.join("\n")
+}
+
+function evidenceTitle(evidence: { sourceType: string; sourceId: string; title?: string | null; metadata?: Record<string, unknown> | null }) {
+  const metadataTitle = firstMetadataText(evidence.metadata, [
+    "rootOpportunityName",
+    "opportunityName",
+    "projectName",
+    "maintenanceName",
+    "customerName",
+  ])
+  const title = cleanEvidenceText(metadataTitle || evidence.title || "")
+  if (title && title !== evidence.sourceId && !/^\d+$/.test(title)) return title
+
+  const label = SOURCE_TYPE_LABELS[evidence.sourceType] ?? evidence.sourceType
+  return `${label} #${evidence.sourceId}`
+}
+
+function evidenceSummary(evidence: { content?: string | null }) {
+  const content = cleanEvidenceText(evidence.content ?? "")
+  if (!content) return ""
+
+  const entries = extractEvidenceFields(content)
+    .filter((entry) => !EVIDENCE_SYSTEM_FIELDS.has(entry.key))
+    .filter((entry) => entry.value.length > 0)
+    .slice(0, 4)
+
+  if (entries.length > 0) {
+    return entries
+      .map((entry) => `${EVIDENCE_FIELD_LABELS[entry.key] ?? toReadableFieldLabel(entry.key)}: ${entry.value}`)
+      .join(" / ")
+  }
+
+  return stripRawEvidenceFields(content)
+}
+
+function extractEvidenceFields(content: string) {
+  const fieldPattern = /(?:^|\s)([A-Za-z][A-Za-z0-9_]{1,40}):\s*/g
+  const matches = Array.from(content.matchAll(fieldPattern))
+  return matches.map((match, index) => {
+    const key = match[1]
+    const valueStart = (match.index ?? 0) + match[0].length
+    const valueEnd = index + 1 < matches.length ? matches[index + 1].index ?? content.length : content.length
+    return {
+      key,
+      value: cleanEvidenceText(content.slice(valueStart, valueEnd)),
+    }
+  })
+}
+
+function stripRawEvidenceFields(content: string) {
+  return cleanEvidenceText(
+    content
+      .replace(/^제목:\s*/u, "")
+      .replace(/\s+[A-Za-z][A-Za-z0-9_]{1,40}:\s*/g, " / ")
+      .split(" / ")
+      .filter((part) => {
+        const key = part.split(":")[0]?.trim()
+        return key && !EVIDENCE_SYSTEM_FIELDS.has(key)
+      })
+      .join(" / "),
+  )
+}
+
+function cleanEvidenceText(value: string) {
+  return value
+    .replace(/^제목:\s*/u, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*\/\s*/g, " / ")
+    .trim()
+}
+
+function toReadableFieldLabel(key: string) {
+  return key
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function firstMetadataText(metadata: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!metadata) return null
+  for (const key of keys) {
+    const value = metadata[key]
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return null
 }
 
 function displayReportText(report: ManagementReportResponse) {
@@ -581,6 +1017,7 @@ function selectedLabels(values?: string[], options?: FilterOption[]) {
 }
 
 function buildReportPrintHtml(report: ManagementReportResponse, request: ManagementReportRequest) {
+  const reportHtml = renderMarkdownHtml(displayReportText(report))
   const metrics = (report.metrics ?? [])
     .map(
       (metric) => `
@@ -641,9 +1078,9 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
     .map(
       (evidence) => `
         <li>
-          <strong>${escapeHtml(evidence.title || evidence.sourceId)}</strong>
-          <span>${escapeHtml(evidence.sourceType)}</span>
-          ${evidence.content ? `<p>${escapeHtml(evidence.content)}</p>` : ""}
+          <strong>${escapeHtml(evidenceTitle(evidence))}</strong>
+          <span>${escapeHtml(SOURCE_TYPE_LABELS[evidence.sourceType] ?? evidence.sourceType)}</span>
+          ${evidence.content ? `<p>${escapeHtml(evidenceSummary(evidence))}</p>` : ""}
         </li>
       `,
     )
@@ -667,7 +1104,12 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
           .metric { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; }
           .metric-label { color: #6b7280; font-size: 11px; }
           .metric-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
-          .report-body { white-space: pre-wrap; border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+          .report-body { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+          .report-body h2 { border-bottom: 1px solid #d1d5db; padding-bottom: 5px; }
+          .report-body h3 { font-size: 13px; margin: 16px 0 6px; }
+          .report-body p { margin: 6px 0; color: #374151; }
+          .report-body ul { margin: 6px 0 12px; padding-left: 18px; }
+          .report-body .md-table { margin: 8px 0 14px; }
           table { width: 100%; border-collapse: collapse; page-break-inside: avoid; }
           th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
           th { background: #f3f4f6; font-weight: 700; }
@@ -680,7 +1122,7 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
         <h1>${escapeHtml(report.title)}</h1>
         <div class="meta">상태: ${escapeHtml(statusLabel(report.reportStatus))}</div>
         <div class="filters">
-          <div><strong>기간:</strong> ${escapeHtml(request.startAt)} ~ ${escapeHtml(request.endAt)}</div>
+          <div><strong>기간:</strong> ${escapeHtml(request.startAt)} ~ ${escapeHtml(request.endAt)} (예상 입찰일 기준)</div>
           <div><strong>고객 구분:</strong> ${escapeHtml(VALUE_LABELS[request.customerGroup ?? "ALL"] ?? request.customerGroup ?? "전체")}</div>
           <div><strong>사업 유형:</strong> ${escapeHtml(selectedLabels(request.businessTypes, BUSINESS_TYPE_OPTIONS))}</div>
           <div><strong>진행 단계:</strong> ${escapeHtml(selectedLabels(request.statuses, STATUS_OPTIONS))}</div>
@@ -688,12 +1130,12 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
         <section class="metrics">${metrics}</section>
         <section>
           <h2>리포트</h2>
-          <div class="report-body">${escapeHtml(displayReportText(report))}</div>
+          <div class="report-body">${reportHtml}</div>
         </section>
         ${charts}
         ${tables}
         <section>
-          <h2>근거 문서</h2>
+          <h2>검색된 근거 문서</h2>
           <ul>${evidences || "<li>표시할 근거 문서가 없습니다.</li>"}</ul>
         </section>
       </body>
@@ -705,6 +1147,14 @@ function displayValue(value: unknown) {
   if (typeof value === "number") return new Intl.NumberFormat("ko-KR").format(Math.round(value))
   if (typeof value === "string") return VALUE_LABELS[value] ?? value
   return String(value ?? "")
+}
+
+function formatChartAxisValue(value: unknown) {
+  const numberValue = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(numberValue)) return String(value ?? "")
+  if (Math.abs(numberValue) >= 100000000) return `${new Intl.NumberFormat("ko-KR").format(Math.round(numberValue / 100000000))}억`
+  if (Math.abs(numberValue) >= 10000) return `${new Intl.NumberFormat("ko-KR").format(Math.round(numberValue / 10000))}만`
+  return new Intl.NumberFormat("ko-KR").format(Math.round(numberValue))
 }
 
 function formatValue(value: string | number | null, unit?: string | null) {
