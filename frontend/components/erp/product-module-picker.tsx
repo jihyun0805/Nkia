@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 type ProductModulePickerProps = {
   value: string
   onValueChange: (value: string) => void
+  onSelect?: (productName: string) => void
   placeholder?: string
   disabled?: boolean
   emptyMessage?: string
@@ -20,6 +21,7 @@ type ProductModulePickerProps = {
 export function ProductModulePicker({
   value,
   onValueChange,
+  onSelect,
   placeholder = "제품명을 선택하세요",
   disabled = false,
   emptyMessage = "일치하는 제품명이 없습니다.",
@@ -78,7 +80,11 @@ export function ProductModulePicker({
   }, [products, query, productClassFilter])
 
   const commitSelection = (product: ProductModuleResponse | null) => {
-    onValueChange(product?.productName?.trim() ?? "")
+    const nextValue = product?.productName?.trim() ?? ""
+    onValueChange(nextValue)
+    if (nextValue) {
+      onSelect?.(nextValue)
+    }
     setQuery(product?.productName ?? "")
     setOpen(false)
   }

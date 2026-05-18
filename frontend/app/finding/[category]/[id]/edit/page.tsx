@@ -173,6 +173,10 @@ function toOpportunityStage(value: string): OpportunityStage {
   return "FINDING"
 }
 
+function matchesOpportunityRecordId(item: OpportunityRecord, value: string) {
+  return item.id === value || (item.backendId != null && String(item.backendId) === value)
+}
+
 function normalizeLookupText(value?: string | number | null) {
   return String(value ?? "")
     .trim()
@@ -507,8 +511,13 @@ export default function FindingEditPage() {
         setBackendProductModules(Array.isArray(productModules) ? (productModules as BackendProductModuleSummary[]) : [])
 
         if (category === "opportunities") {
-          const opportunity = data.opportunities.find((current) => current.id === id) ?? null
-          const opportunityDetail = opportunity?.backendId ? await loadBackendProjectOpportunity(opportunity.backendId).catch(() => null) : null
+          const opportunity = data.opportunities.find((current) => matchesOpportunityRecordId(current, id)) ?? null
+          const opportunityDetail =
+            opportunity?.backendId != null
+              ? await loadBackendProjectOpportunity(opportunity.backendId).catch(() => null)
+              : Number.isFinite(Number(id))
+                ? await loadBackendProjectOpportunity(Number(id)).catch(() => null)
+                : null
           const selectedOpportunity = opportunityDetail
             ? {
                 ...(opportunity ?? {}),
@@ -993,7 +1002,7 @@ export default function FindingEditPage() {
           title: "사업기회 수정 완료",
           description: `${updated.opportunityName ?? opportunityName} 정보가 수정되었습니다.`,
         })
-        router.push(`/finding/opportunities/${updated.opportunityCode ?? currentOpportunity.id}?tab=${tab}`)
+        router.push(`/finding/opportunities/${updated.id ?? currentOpportunity.backendId ?? currentOpportunity.id}?tab=${tab}`)
       } catch (error) {
         toast({
           title: "사업기회 수정 실패",

@@ -1119,7 +1119,7 @@ export function FindingCategoryNewPageView({
             title: "사업기회 등록 완료",
             description: `${result.opportunityName ?? opportunityName} 사업기회가 등록되었습니다.`,
           })
-          router.push(`/finding/opportunities/${result.opportunityCode ?? customerRouteId}?tab=opportunities`)
+          router.push(`/finding/opportunities/${result.id ?? customerRouteId}?tab=opportunities`)
         } catch (error) {
           toast({
             title: "사업기회 등록 실패",

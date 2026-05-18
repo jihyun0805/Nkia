@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Plus, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { X } from "lucide-react"
 import { ProductModulePicker } from "@/components/erp/product-module-picker"
 
 type ProductModuleMultiPickerProps = {
@@ -33,8 +32,8 @@ export function ProductModuleMultiPicker({
     [value],
   )
 
-  const addModule = () => {
-    const next = draft.trim()
+  const addModuleDirect = (moduleName: string) => {
+    const next = moduleName.trim()
     if (!next) return
     if (normalizedValue.includes(next)) {
       setDraft("")
@@ -55,16 +54,13 @@ export function ProductModuleMultiPicker({
           <ProductModulePicker
             value={draft}
             onValueChange={setDraft}
+            onSelect={addModuleDirect}
             placeholder={placeholder}
             disabled={disabled}
             emptyMessage={emptyMessage}
             productClassFilter={productClassFilter}
           />
         </div>
-        <Button type="button" onClick={addModule} disabled={disabled || !draft.trim()}>
-          <Plus className="mr-2 size-4" />
-          추가
-        </Button>
       </div>
       {normalizedValue.length > 0 ? (
         <div className="flex flex-wrap gap-2 rounded-md border bg-muted/20 p-3">

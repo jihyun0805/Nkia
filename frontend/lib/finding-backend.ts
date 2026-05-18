@@ -66,11 +66,25 @@ export type ProjectOpportunitySummaryResponse = {
   competitionStatus?: string;
   partnerCompanyIds?: number[];
   partnerCompanyNames?: string[];
+  partnerCompanies?: Array<{
+    id?: number;
+    name?: string;
+  }>;
   productModuleIds?: number[];
   productModuleNames?: string[];
+  productModules?: Array<{
+    id?: number;
+    productName?: string;
+  }>;
   rfpFileIds?: number[];
   rfpFileNames?: string[];
   rfpFileSizes?: number[];
+  rfpFiles?: Array<{
+    id?: number;
+    originalFileName?: string;
+    fileName?: string;
+    size?: number;
+  }>;
 };
 
 type OpportunityDisplayOverride = {
@@ -492,13 +506,44 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
   const opportunities: OpportunityRecord[] = projectOpportunities.map((item, index) => {
     const parsedDescription = parseOpportunityDescription(item.description);
     const displayOverride = getOpportunityDisplayOverride(item.opportunityCode);
-    const partnerCompanyIds = Array.isArray(item.partnerCompanyIds) ? item.partnerCompanyIds.filter((value): value is number => typeof value === "number") : [];
-    const partnerCompanyNames = Array.isArray(item.partnerCompanyNames) ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string") : [];
-    const productModuleIds = Array.isArray(item.productModuleIds) ? item.productModuleIds.filter((value): value is number => typeof value === "number") : [];
-    const productModuleNames = Array.isArray(item.productModuleNames) ? item.productModuleNames.filter((value): value is string => typeof value === "string") : [];
-    const rfpFileIds = Array.isArray(item.rfpFileIds) ? item.rfpFileIds.filter((value): value is number => typeof value === "number") : [];
-    const rfpFileNames = Array.isArray(item.rfpFileNames) ? item.rfpFileNames.filter((value): value is string => typeof value === "string") : [];
-    const rfpFileSizes = Array.isArray(item.rfpFileSizes) ? item.rfpFileSizes.filter((value): value is number => typeof value === "number") : [];
+    const nestedPartnerCompanies = Array.isArray(item.partnerCompanies) ? item.partnerCompanies : [];
+    const nestedProductModules = Array.isArray(item.productModules) ? item.productModules : [];
+    const nestedRfpFiles = Array.isArray(item.rfpFiles) ? item.rfpFiles : [];
+    const partnerCompanyIds = Array.isArray(item.partnerCompanyIds) && item.partnerCompanyIds.length > 0
+      ? item.partnerCompanyIds.filter((value): value is number => typeof value === "number")
+      : nestedPartnerCompanies
+          .map((partner) => partner.id)
+          .filter((value): value is number => typeof value === "number");
+    const partnerCompanyNames = Array.isArray(item.partnerCompanyNames) && item.partnerCompanyNames.length > 0
+      ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string")
+      : nestedPartnerCompanies
+          .map((partner) => partner.name)
+          .filter((value): value is string => typeof value === "string");
+    const productModuleIds = Array.isArray(item.productModuleIds) && item.productModuleIds.length > 0
+      ? item.productModuleIds.filter((value): value is number => typeof value === "number")
+      : nestedProductModules
+          .map((module) => module.id)
+          .filter((value): value is number => typeof value === "number");
+    const productModuleNames = Array.isArray(item.productModuleNames) && item.productModuleNames.length > 0
+      ? item.productModuleNames.filter((value): value is string => typeof value === "string")
+      : nestedProductModules
+          .map((module) => module.productName)
+          .filter((value): value is string => typeof value === "string");
+    const rfpFileIds = Array.isArray(item.rfpFileIds) && item.rfpFileIds.length > 0
+      ? item.rfpFileIds.filter((value): value is number => typeof value === "number")
+      : nestedRfpFiles
+          .map((file) => file.id)
+          .filter((value): value is number => typeof value === "number");
+    const rfpFileNames = Array.isArray(item.rfpFileNames) && item.rfpFileNames.length > 0
+      ? item.rfpFileNames.filter((value): value is string => typeof value === "string")
+      : nestedRfpFiles
+          .map((file) => file.originalFileName ?? file.fileName)
+          .filter((value): value is string => typeof value === "string");
+    const rfpFileSizes = Array.isArray(item.rfpFileSizes) && item.rfpFileSizes.length > 0
+      ? item.rfpFileSizes.filter((value): value is number => typeof value === "number")
+      : nestedRfpFiles
+          .map((file) => file.size)
+          .filter((value): value is number => typeof value === "number");
     const partnerDisplay = partnerCompanyNames.length > 0 ? partnerCompanyNames.join(", ") : "-";
     const moduleDisplay = productModuleNames.length > 0 ? productModuleNames.join(", ") : parsedDescription.moduleName || "-";
     return {
