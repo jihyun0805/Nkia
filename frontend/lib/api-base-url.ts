@@ -17,7 +17,7 @@ export function getBackendApiBaseUrl() {
   if (typeof window !== "undefined") {
     if (!configured) {
       if (window.location.hostname === "localhost" && window.location.port && window.location.port !== "80") {
-        return "https://k14s106.p.ssafy.io/api/v1";
+        return "http://localhost:8080/api/v1";
       }
 
       return "/api/v1";

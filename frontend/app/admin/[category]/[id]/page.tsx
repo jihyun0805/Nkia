@@ -25,7 +25,9 @@ export default function AdminDetailPage() {
     async function fetchData() {
       try {
         setLoading(true)
+
         let res: any = null
+
         if (category === "users") {
           res = await adminApi.getUser(id).catch(() => null)
         } else if (category === "permissions") {
@@ -38,14 +40,13 @@ export default function AdminDetailPage() {
           res = await adminApi.getDepartment(id).catch(() => null)
         }
 
-        if (res && res.data) {
-          setData(res.data)
+        const d = res?.data?.data ?? res?.data
+
+        if (d) {
+          setData(d)
         } else {
-          // fallback to mock data
           const mockData = getAdminItem(category as any, id)
-          if (mockData) {
-            setData(mockData)
-          }
+          if (mockData) setData(mockData)
         }
       } catch (e) {
         console.error("Failed to load details", e)
@@ -53,6 +54,7 @@ export default function AdminDetailPage() {
         setLoading(false)
       }
     }
+
     fetchData()
   }, [category, id])
 
@@ -89,11 +91,24 @@ export default function AdminDetailPage() {
       ]
     }
     if (category === "workflow") {
+      const stepsText =
+        data.steps?.length > 0
+          ? [...data.steps]
+              .sort((a, b) => a.stepOrder - b.stepOrder)
+              .map(
+                (step) =>
+                  `${step.stepOrder}단계 | ${step.stepName} | ${step.approverPosition} | ${
+                    step.required ? "필수" : "선택"
+                  } | ${step.active ? "활성" : "비활성"}`
+              )
+              .join("\n")
+          : "등록된 단계 없음"
       return [
         { label: "워크플로우 ID", value: data.id.toString() },
         { label: "템플릿명", value: data.name },
         { label: "도메인(단계)", value: data.workflowDomain },
         { label: "상태", value: data.active ? "활성" : "비활성" },
+        { label: "결재 단계", value: stepsText },
       ]
     }
     if (category === "products") {
@@ -161,6 +176,64 @@ export default function AdminDetailPage() {
               <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : !data ? (
               <div className="text-center p-8 text-muted-foreground">데이터를 찾을 수 없습니다.</div>
+            ) : category === "workflow" ? (
+              <div className="rounded-xl border bg-white p-6 shadow-sm space-y-6">
+                <h2 className="text-xl font-bold">워크플로우 템플릿 상세</h2>
+
+                <div className="grid gap-4 md:grid-cols-2">
+
+                  <div>
+                    <div className="mb-2 font-semibold">템플릿명</div>
+                    <div className="rounded-md border p-3">{data.name}</div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 font-semibold">도메인(단계)</div>
+                    <div className="rounded-md border p-3">{data.workflowDomain}</div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 font-semibold">상태</div>
+                    <div className="rounded-md border p-3">
+                      {data.active ? "활성" : "비활성"}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="space-y-3">
+                    <div className="font-semibold">결재 단계</div>
+
+                    {data.steps?.map((step, index) => (
+                      <div
+                        key={step.id ?? index}
+                        className="rounded-lg border p-4 space-y-2"
+                      >
+                        <div className="font-bold">
+                          {step.stepOrder}단계 - {step.stepName}
+                        </div>
+
+                        <div className="grid gap-2 text-sm md:grid-cols-2">
+                          <div>결재 직급: {step.approverPosition}</div>
+                          <div>필수 여부: {step.required ? "필수" : "선택"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 border-t pt-6">
+                  <Link href="/admin">
+                    <button className="rounded-md border px-5 py-2">목록</button>
+                  </Link>
+
+                  <Link href={`/admin/${category}/${id}/edit`}>
+                    <button className="rounded-md bg-red-600 px-5 py-2 text-white">
+                      수정
+                    </button>
+                  </Link>
+                </div>
+              </div>
             ) : (
               <DetailFormCard 
                 title={`${label} 상세`} 
