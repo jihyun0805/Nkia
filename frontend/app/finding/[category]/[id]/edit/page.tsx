@@ -811,7 +811,7 @@ export default function FindingEditPage() {
       ;(async () => {
         try {
           const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
-          await updateBackendCompany(currentPartner.backendId!, {
+          await updateBackendCompany(currentPartner.backendId!, "PARTNER", {
             name: normalizedName,
             category: mapPartnerCategory(partnerType),
             address,
@@ -853,7 +853,7 @@ export default function FindingEditPage() {
           router.push(`/finding/partners/${currentPartner.id}?tab=${tab}`)
         } catch (error) {
           try {
-            await updateBackendCompany(currentPartner.backendId!, {
+            await updateBackendCompany(currentPartner.backendId!, "PARTNER", {
               name: originalPartnerName,
               category: mapPartnerCategory(originalPartnerType),
               address: originalPartnerAddress,

@@ -605,7 +605,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       phone: firstContactPhone(managers),
       contacts: toContacts(managers),
       address: company.address ?? "",
-      memo: company.memo || `진행중 사업기회 ${company.id != null ? (customerOppCount.get(String(company.id)) ?? 0) : 0}건 / 계약 ${company.id != null ? (customerContractCount.get(String(company.id)) ?? 0) : 0}건`,
+      memo: company.memo ?? "",
       aliases: [company.code ?? "", company.name ?? ""].filter(Boolean),
       attachments: [],
       contactName: managers[0]?.name ?? "",
@@ -631,7 +631,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       phone: firstContactPhone(managers),
       contacts: toContacts(managers),
       address: company.address ?? "",
-      memo: company.memo || `진행중 사업기회 0건 / 진행중 프로젝트 ${projectsCount}건`,
+      memo: company.memo ?? "",
       attachments: [],
       contactName: managers[0]?.name ?? "",
       position: managers[0]?.position ?? "",
@@ -651,6 +651,13 @@ export function canUseFindingBackend() {
 
 export async function loadBackendCompanyManagers(companyId: number) {
   return loadCompanyManagers(companyId);
+}
+
+export async function loadBackendCompany(companyId: number) {
+  return fetchList<CompanySummaryResponse>(
+    `${getBackendApiBaseUrl()}/companies/${companyId}`,
+    "회사 상세를 불러오지 못했습니다.",
+  );
 }
 
 export async function resolveSalesRepresentativeId(salesRepName: string) {
@@ -722,6 +729,7 @@ export async function createBackendCompany(input: {
 
 export async function updateBackendCompany(
   companyId: number,
+  companyType: "CUSTOMER" | "PARTNER",
   input: {
     name: string;
     sector?: "PUBLIC" | "PRIVATE" | "OVERSEAS" | null;
@@ -739,6 +747,7 @@ export async function updateBackendCompany(
     },
     credentials: "include",
     body: JSON.stringify({
+      companyType,
       name: input.name,
       sector: input.sector ?? null,
       category: input.category ?? null,

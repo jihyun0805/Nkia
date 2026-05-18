@@ -411,7 +411,7 @@ export default function FindingDetailPage() {
                         </div>
                         <div className="space-y-2 md:col-span-2">
                           <Label>메모</Label>
-                          <Textarea readOnly rows={4} value={partnerItem?.memo ?? `진행중 사업기회 ${partnerItem?.opportunities ?? 0}건 / 진행중 프로젝트 ${partnerItem?.projects ?? 0}건`} />
+                          <Textarea readOnly rows={4} value={partnerItem?.memo ?? "-"} />
                         </div>
                       </div>
                     </section>
