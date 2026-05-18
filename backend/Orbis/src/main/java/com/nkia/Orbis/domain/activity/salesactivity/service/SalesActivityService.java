@@ -62,7 +62,7 @@ public class SalesActivityService {
 
         SalesActivity saved = salesActivityRepository.save(salesActivity);
 
-        return SalesActivityResponse.from(saved);
+        return SalesActivityResponse.from(saved, getCreatedByName(saved.getCreatedBy()));
     }
 
     private SalesActivityRequest findSalesActivityRequestOrNull(Long salesActivityRequestId) {
@@ -124,7 +124,7 @@ public class SalesActivityService {
             addAttendees(salesActivity, request.getAttendeeUserIds());
         }
 
-        return SalesActivityResponse.from(salesActivity);
+        return SalesActivityResponse.from(salesActivity, getCreatedByName(salesActivity.getCreatedBy()));
     }
 
     @Transactional
@@ -140,14 +140,31 @@ public class SalesActivityService {
     public List<SalesActivityListResponse> getSalesActivities() {
         return salesActivityRepository.findAll()
                 .stream()
-                .map(SalesActivityListResponse::from)
+                .map(salesActivity -> {
+                    String createdByName = getCreatedByName(salesActivity.getCreatedBy());
+                    return SalesActivityListResponse.from(salesActivity, createdByName);
+                })
                 .toList();
+
     }
 
     @Transactional
     public SalesActivityResponse getSalesActivity(Long salesActivityId) {
         SalesActivity salesActivity = salesActivityRepository.findById(salesActivityId)
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_NOT_FOUND));
-        return SalesActivityResponse.from(salesActivity);
+
+        String createdByName = getCreatedByName(salesActivity.getCreatedBy());
+
+        return SalesActivityResponse.from(salesActivity, createdByName);
+    }
+
+    private String getCreatedByName(String createdById) {
+        if (createdById == null) {
+            return null;
+        }
+
+        return userRepository.findById(UUID.fromString(createdById))
+                .map(User::getName)
+                .orElse(null);
     }
 }

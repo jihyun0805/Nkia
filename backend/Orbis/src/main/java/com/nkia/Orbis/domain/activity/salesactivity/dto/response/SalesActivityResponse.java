@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.activity.salesactivity.dto.response;
 
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -9,6 +10,10 @@ import lombok.Getter;
 @Builder
 public class SalesActivityResponse {
     private Long id;
+
+    private UUID createdById;
+
+    private String createdByName;
 
     private Long projectOpportunityId;
 
@@ -40,9 +45,11 @@ public class SalesActivityResponse {
 
     private String salesActivityRequestTitle;
 
-    public static SalesActivityResponse from(SalesActivity salesActivity) {
+    public static SalesActivityResponse from(SalesActivity salesActivity, String createdByName) {
         return SalesActivityResponse.builder()
                 .id(salesActivity.getId())
+                .createdById(UUID.fromString(salesActivity.getCreatedBy()))
+                .createdByName(createdByName)
                 .projectOpportunityId(salesActivity.getProjectOpportunity().getId())
                 .projectOpportunityName(salesActivity.getProjectOpportunity().getOpportunityName())
                 .companyId(salesActivity.getProjectOpportunity().getCustomerCompany().getId())
