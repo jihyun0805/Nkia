@@ -7,7 +7,7 @@ import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.Projec
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunityStage;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.UUID;
+import java.util.List;
 
 public record ProjectOpportunityResponse(
         Long id,
@@ -17,15 +17,19 @@ public record ProjectOpportunityResponse(
         ProductClass projectType,
         LocalDate expectedBidDate,
         BigDecimal expectedBudget,
-        String customerCompanyName, // 객체 전체가 아닌 화면에 필요한 이름만 평탄화
+        Long customerCompanyId,
+        String customerCompanyName,
         String salesRepresentativeId,
         String salesRepresentativeName,
         String createdBy,
         String createUserName,
         String description,
-        String competitionStatus
+        String competitionStatus,
+
+        List<PartnerCompanyInfoDto> partnerCompanies,
+        List<ProductModuleInfoDto> productModules,
+        List<FileInfoDto> rfpFiles
 ) {
-    // Entity -> DTO 변환을 위한 정적 팩토리 메서드
     public static ProjectOpportunityResponse from(ProjectOpportunity entity, User createUser) {
         return new ProjectOpportunityResponse(
                 entity.getId(),
@@ -35,14 +39,18 @@ public record ProjectOpportunityResponse(
                 entity.getProjectType(),
                 entity.getExpectedBidDate(),
                 entity.getExpectedBudget(),
-                // 지연 로딩된 고객사 객체가 null일 수 있으므로 null safe 처리
+                entity.getCustomerCompany() != null ? entity.getCustomerCompany().getId() : null,
                 entity.getCustomerCompany() != null ? entity.getCustomerCompany().getName() : null,
                 entity.getSalesRepresentative() != null ? entity.getSalesRepresentative().getId().toString() : null,
                 entity.getSalesRepresentative() != null ? entity.getSalesRepresentative().getName() : null,
                 entity.getCreatedBy(),
                 createUser != null ? createUser.getName() : "알 수 없음",
                 entity.getDescription(),
-                entity.getCompetitionStatus()
+                entity.getCompetitionStatus(),
+
+                entity.getPartnerCompanies().stream().map(PartnerCompanyInfoDto::from).toList(),
+                entity.getProductModules().stream().map(ProductModuleInfoDto::from).toList(),
+                entity.getRfpFiles().stream().map(FileInfoDto::from).toList()
         );
     }
 }
