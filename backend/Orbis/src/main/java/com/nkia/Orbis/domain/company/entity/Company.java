@@ -60,13 +60,19 @@ public class Company extends BaseEntity {
 
     private String address;
 
+    private String memo;
+
+    @Builder.Default
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CompanyManager> managers = new ArrayList<>();
 
-    public void updateInfo(String name, Sector sector, CompanyCategory category, String address) {
+    public void updateInfo(CompanyType companyType, String name, Sector sector, CompanyCategory category,
+                           String address, String memo) {
+        this.companyType = companyType;
         this.name = name;
         this.sector = sector;
         this.category = category;
         this.address = address;
+        this.memo = memo;
     }
 }
