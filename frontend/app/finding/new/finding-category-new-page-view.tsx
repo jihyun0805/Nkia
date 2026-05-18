@@ -1203,7 +1203,7 @@ export function FindingCategoryNewPageView({
                       </div>
                       <div className="space-y-2">
                         <Label>예상 예산 또는 매출</Label>
-                        <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="예: 8억" />
+                        <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="예: 800,000" />
                       </div>
                       <div className="space-y-2">
                         <Label>사업 구분 *</Label>
