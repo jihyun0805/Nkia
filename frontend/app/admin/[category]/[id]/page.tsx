@@ -11,6 +11,7 @@ import { adminApi } from "@/lib/api/admin-api"
 import { getAdminItem } from "@/lib/admin-data"
 import { Loader2 } from "lucide-react"
 import { format } from "date-fns"
+import { permissionDomains, permissionActions } from "@/lib/user-utils";
 
 export default function AdminDetailPage() {
   const params = useParams()
@@ -43,10 +44,29 @@ export default function AdminDetailPage() {
         const d = res?.data?.data ?? res?.data
 
         if (d) {
-          setData(d)
-        } else {
-          const mockData = getAdminItem(category as any, id)
-          if (mockData) setData(mockData)
+          if (category === "permissions") {
+            setData({
+              ...d,
+              permissions: (d.permissions || []).map((p: any) => {
+                const domain = permissionDomains.find(
+                  (item) => item.label === p.domain || item.value === p.domain
+                )
+                const action = permissionActions.find(
+                  (item) => item.label === p.action || item.value === p.action
+                )
+
+                return {
+                  ...p,
+                  domain: domain?.label ?? p.domain,
+                  action: action?.label ?? p.action,
+                  domainValue: domain?.value ?? p.domain,
+                  actionValue: action?.value ?? p.action,
+                }
+              }),
+            })
+          } else {
+            setData(d)
+          }
         }
       } catch (e) {
         console.error("Failed to load details", e)
@@ -81,13 +101,6 @@ export default function AdminDetailPage() {
         { label: "상태", value: data.status },
         { label: "권한", value: data.roles?.join(", ") || "-" },
         { label: "생성일", value: data.createdAt ? format(new Date(data.createdAt), "yyyy-MM-dd HH:mm") : "-" },
-      ]
-    }
-    if (category === "permissions") {
-      return [
-        { label: "권한 ID", value: data.id.toString() },
-        { label: "권한명", value: data.name },
-        { label: "권한 목록", value: data.permissions?.join(", ") || "없음" },
       ]
     }
     if (category === "workflow") {
@@ -234,14 +247,71 @@ export default function AdminDetailPage() {
                   </Link>
                 </div>
               </div>
-            ) : (
-              <DetailFormCard 
-                title={`${label} 상세`} 
-                fields={getFields()} 
-                listHref="/admin" 
-                editHref={`/admin/${category}/${id}/edit`} 
-              />
-            )}
+
+              ) : category === "permissions" ? (
+                <div className="rounded-xl border bg-white p-6 shadow-sm space-y-6">
+                  <h2 className="text-xl font-bold">권한 그룹 상세</h2>
+
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <div className="font-semibold">권한명</div>
+                      <div className="rounded-md border p-3">
+                        {data.roleName}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="font-semibold">권한 목록</div>
+
+                      <div className="space-y-4">
+                        {permissionDomains.map((domain) => (
+                          <div key={domain.value} className="rounded-lg border p-4">
+                            <div className="mb-3 font-bold">{domain.label}</div>
+
+                            <div className="flex flex-wrap gap-4">
+                              {permissionActions.map((action) => {
+                              const checked = data.permissions?.some((p: any) => {
+                                return p.domainValue === domain.value && p.actionValue === action.value
+                              })
+
+                                return (
+                                  <label
+                                    key={`${domain.value}-${action.value}`}
+                                    className="flex items-center gap-2 text-sm"
+                                  >
+                                    <input type="checkbox" checked={!!checked} readOnly />
+                                    {action.label}
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 border-t pt-6">
+                    <Link href="/admin">
+                      <button className="rounded-md border px-5 py-2">목록</button>
+                    </Link>
+
+                    <Link href={`/admin/${category}/${id}/edit`}>
+                      <button className="rounded-md bg-red-600 px-5 py-2 text-white">
+                        수정
+                      </button>
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <DetailFormCard 
+                  title={`${label} 상세`} 
+                  fields={getFields()} 
+                  listHref="/admin" 
+                  editHref={`/admin/${category}/${id}/edit`} 
+                />
+              )}
+
             {(category === "products" || category === "departments") && !loading && data && (
               <div className="flex justify-end pt-4">
                 <button onClick={handleDelete} className="text-red-500 hover:underline text-sm font-medium">

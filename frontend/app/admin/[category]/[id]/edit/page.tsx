@@ -18,6 +18,8 @@ import { Loader2 } from "lucide-react"
 import {
   POSITION_LABELS,
   WORKFLOW_DOMAIN_LABELS,
+  permissionDomains,
+  permissionActions,
 } from "@/lib/user-utils"
 
 export default function AdminEditPage() {
@@ -75,8 +77,20 @@ export default function AdminEditPage() {
             })
           } else if (category === "permissions") {
             setFormData({
-              name: d.name || "",
-              permissions: d.permissions?.join(", ") || "",
+              roleId: d.roleId,
+              roleName: d.roleName || "",
+              permissions: (d.permissions || []).map((p: any) => {
+                const domain = permissionDomains.find((item) => item.label === p.domain)
+                const action = permissionActions.find((item) => item.label === p.action)
+
+                return {
+                  domain: domain?.label ?? p.domain,          // 화면용
+                  action: action?.label ?? p.action,          // 화면용
+
+                  domainValue: domain?.value,                 // 체크박스용
+                  actionValue: action?.value,                 // 체크박스용
+                }
+              }),
             })
           } else if (category === "workflow") {
             setFormData({
@@ -130,7 +144,10 @@ export default function AdminEditPage() {
         })
       } else if (category === "permissions") {
         await adminApi.updateRole(id, {
-          permissions: formData.permissions ? formData.permissions.split(",").map((p: string) => p.trim()) : [],
+          permissions: formData.permissions.map((p: any) => ({
+            domain: p.domainValue,
+            action: p.actionValue,
+          })),
         })
       } else if (category === "workflow") {
         await adminApi.updateWorkflow(id, {
@@ -236,8 +253,75 @@ export default function AdminEditPage() {
 
                     {category === "permissions" && (
                       <>
-                        <div className="space-y-2"><Label>권한명 (읽기전용)</Label><Input value={formData.name || ""} readOnly disabled /></div>
-                        <div className="space-y-2"><Label>권한 목록 (도메인_액션 형식)</Label><Input value={formData.permissions || ""} onChange={(e) => handleInputChange("permissions", e.target.value)} placeholder="쉼표(,)로 구분" /></div>
+                        <div className="space-y-2">
+                          <Label>역할명 *</Label>
+                          <Input
+                            value={formData.roleName || ""}
+                            onChange={(e) => handleInputChange("roleName", e.target.value)}
+                          />
+                        </div>
+
+                        <div className="space-y-4">
+                          <Label>권한 목록</Label>
+
+                          {permissionDomains.map((domain) => (
+                            <div key={domain.value} className="rounded-lg border p-4">
+                              <div className="mb-3 font-semibold">{domain.label}</div>
+
+                              <div className="flex flex-wrap gap-4">
+                                {permissionActions.map((action) => {
+                                  const checked = formData.permissions?.some(
+                                    (p: any) =>
+                                      p.domainValue === domain.value &&
+                                      p.actionValue === action.value
+                                  )
+
+                                  return (
+                                    <label
+                                      key={`${domain.value}-${action.value}`}
+                                      className="flex items-center gap-2 text-sm"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) => {
+                                          const current = formData.permissions || []
+
+                                          if (e.target.checked) {
+                                            setFormData({
+                                              ...formData,
+                                              permissions: [
+                                                ...current,
+                                                {
+                                                  domain: domain.label,
+                                                  action: action.label,
+                                                  domainValue: domain.value,
+                                                  actionValue: action.value,
+                                                },
+                                              ],
+                                            })
+                                          } else {
+                                            setFormData({
+                                              ...formData,
+                                              permissions: current.filter(
+                                                (p: any) =>
+                                                  !(
+                                                    p.domainValue === domain.value &&
+                                                    p.actionValue === action.value
+                                                  )
+                                              ),
+                                            })
+                                          }
+                                        }}
+                                      />
+                                      {action.label}
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </>
                     )}
 
