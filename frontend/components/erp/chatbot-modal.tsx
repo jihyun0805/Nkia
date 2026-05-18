@@ -669,6 +669,21 @@ export function ChatbotModal() {
         endAt: null,
       })
 
+      try {
+        await addChatbotSessionMessages(activeSession.id, {
+          userContent: query,
+          assistantContent: data.answer,
+          threadId: data.threadId ?? null,
+          route: data.route ?? null,
+          answerStatus: data.answerStatus ?? null,
+          evidences: data.evidences ? JSON.stringify(data.evidences) : null,
+          typedEvidences: data.typedEvidences ? JSON.stringify(data.typedEvidences) : null,
+          actions: data.actions ? JSON.stringify(data.actions) : null,
+        })
+      } catch (persistError) {
+        console.warn("챗봇 메시지 영속화 실패", persistError)
+      }
+
       const assistantMessage: ChatMessage = {
         id: createId(),
         role: "assistant",
@@ -682,10 +697,25 @@ export function ChatbotModal() {
       setTypingMessageId(assistantMessage.id)
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI 요청 중 오류가 발생했습니다."
+      const errorContent = `요청 처리 중 오류가 발생했습니다.\n${message}`
+      try {
+        await addChatbotSessionMessages(activeSession.id, {
+          userContent: query,
+          assistantContent: errorContent,
+          threadId: null,
+          route: null,
+          answerStatus: "ERROR",
+          evidences: null,
+          typedEvidences: null,
+          actions: null,
+        })
+      } catch (persistError) {
+        console.warn("챗봇 오류 메시지 영속화 실패", persistError)
+      }
       const assistantMessage: ChatMessage = {
         id: createId(),
         role: "assistant",
-        content: `요청 처리 중 오류가 발생했습니다.\n${message}`,
+        content: errorContent,
         createdAt: nowIso(),
       }
       setErrorMessage(message)

@@ -51,6 +51,7 @@ BEGIN
     -- INDEXED_CONFIGS / CURRENT_PUBLIC_CONFIGS 와 동기화 유지
     'project_opportunity',
     'sales_activity',
+    'sales_activity_request',
     'quotation',
     'rfp_analyze_result',
     'rfp_analyze_requirement',
@@ -66,6 +67,7 @@ BEGIN
     'maintenance',
     'maintenance_quotation',
     'customer_support',
+    'customer_support_request',
     'company',
     'company_manager',
     'license',

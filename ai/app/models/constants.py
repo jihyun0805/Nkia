@@ -51,6 +51,9 @@ class SourceType:
     BILLING = "BILLING"
     # 첨부파일
     ATTACHMENT = "ATTACHMENT"
+    # 조직 정보 (이름/부서/직책 등 사내 구성원 메타)
+    USER = "USER"
+    DEPARTMENT = "DEPARTMENT"
 
     @classmethod
     def all_known(cls) -> frozenset[str]:
