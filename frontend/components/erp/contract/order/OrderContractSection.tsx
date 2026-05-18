@@ -157,7 +157,8 @@ export function OrderContractSection() {
   useEffect(() => {
     const manager = contractManagers.find((m) => String(m.id) === String(contractManagerId));
     if (manager) {
-      setValue("contractPartner.contact", manager.phone || manager.email || "");
+      setValue("contractPartner.contact", manager.mobilePhone || manager.officePhone || manager.email || "");
+    } else if (contractManagerId) {
     } else {
       setValue("contractPartner.contact", "");
     }
@@ -166,7 +167,8 @@ export function OrderContractSection() {
   useEffect(() => {
     const manager = finalManagers.find((m) => String(m.id) === String(finalManagerId));
     if (manager) {
-      setValue("finalCustomer.contact", manager.phone || manager.email || "");
+      setValue("finalCustomer.contact", manager.mobilePhone || manager.officePhone || manager.email || "");
+    } else if (finalManagerId) {
     } else {
       setValue("finalCustomer.contact", "");
     }

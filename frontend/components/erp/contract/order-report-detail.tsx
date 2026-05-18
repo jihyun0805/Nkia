@@ -30,7 +30,7 @@ const cellBase = "px-2 py-1.5 text-sm min-h-[32px]";
 const cycleMap: Record<VisitCycle, string> = {
   MONTHLY: "매월",
   QUARTERLY: "분기",
-  BIANNUAL: "반기",
+  SEMI_ANNUAL: "반기",
   ANNUAL: "매년",
   AS_NEEDED: "수시",
 };
@@ -52,6 +52,7 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
   const maintenanceDetails = r.maintenances || [];
   const otherSalesDetails = r.others || [];
   const purchaseDetails = r.purchases || [];
+  const maintenanceOnlyItems = r.maintenanceOnlyItems || [];
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -112,8 +113,11 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
               <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>
                 총 계약금액
               </th>
-              <td className="bg-yellow-100 border-r border-black text-right px-2 py-1.5 text-sm font-bold text-blue-700" colSpan={9}>
+              <td className="bg-yellow-200 border-r border-black text-right px-2 py-1.5 text-sm font-bold text-blue-700" colSpan={8}>
                 ₩{fmt(r.totalAmount)}
+              </td>
+              <td className="text-center font-semibold text-sm" colSpan={1}>
+                ({r.vatType || "-"})
               </td>
             </tr>
             <tr className="border-b border-black">
@@ -258,6 +262,20 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
               </td>
             </tr>
             <tr className="border-b border-black">
+              <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                연락처
+              </th>
+              <td className={`${cellBase} text-center border-r border-black`} colSpan={4}>
+                {r.contractCounterpartPhone || "-"}
+              </td>
+              <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                연락처
+              </th>
+              <td className={`${cellBase} text-center`} colSpan={4}>
+                {r.finalCustomerPhone || "-"}
+              </td>
+            </tr>
+            <tr className="border-b border-black">
               <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={2}>
                 계약일자(발주일자)
               </th>
@@ -273,7 +291,7 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
               <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>
                 {r.contractStartDate || "-"}
               </td>
-              <td className="bg-yellow-100 text-center font-bold text-blue-700 px-2 py-1.5 text-sm" colSpan={1} rowSpan={2}>
+              <td className="bg-yellow-200 text-center font-bold text-blue-700 px-2 py-1.5 text-sm" colSpan={1} rowSpan={2}>
                 {r.contractPeriodMonths}개월
               </td>
             </tr>
@@ -345,6 +363,93 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
             </tr>
           </tbody>
         </table>
+
+        {/* 유지보수 수주보고 표 */}
+        {maintenanceOnlyItems && maintenanceOnlyItems.length > 0 && (
+          <div className="pt-6 pb-6">
+            <div className="text-sm font-bold text-purple-800 mb-1 mt-6">※ 유지보수 수주보고 시 작성</div>
+            <table className="w-full border-collapse border border-black text-sm text-center table-fixed bg-white">
+              <Col10 />
+              <thead>
+                <tr className="bg-slate-100 border-b border-black">
+                  <th className="border-r border-black py-1.5 font-semibold" colSpan={2}>
+                    년도
+                  </th>
+                  <th className="border-r border-black py-1.5 font-semibold" colSpan={3}>
+                    사업금액
+                  </th>
+                  <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>
+                    라이선스
+                  </th>
+                  <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>
+                    3rd
+                  </th>
+                  <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>
+                    용역
+                  </th>
+                  <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>
+                    유지보수
+                  </th>
+                  <th className="py-1.5 font-semibold" colSpan={1}>
+                    요율
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {maintenanceOnlyItems.map((item) => (
+                  <tr key={item.id} className="border-b border-black">
+                    <td className="border-r border-black px-2 py-1.5 text-center" colSpan={2}>
+                      {item.year ? `${item.year}년` : "-"}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right font-semibold text-slate-700 bg-slate-50" colSpan={3}>
+                      ₩{fmt(item.amount)}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>
+                      ₩{fmt(item.license)}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>
+                      ₩{fmt(item.thirdParty)}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>
+                      ₩{fmt(item.service)}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>
+                      ₩{fmt(item.maintenance)}
+                    </td>
+                    <td className="px-2 py-1.5 text-center" colSpan={1}>
+                      {item.maintenanceRate ? `${item.maintenanceRate}%` : "-"}
+                    </td>
+                  </tr>
+                ))}
+
+                {/* 합계 행 */}
+                <tr className="bg-yellow-200 font-bold border-b border-black">
+                  <td className="border-r border-black py-2 text-center text-slate-700" colSpan={2}>
+                    합계
+                  </td>
+                  <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={3}>
+                    ₩{fmt(r.itemTotalAmount)}
+                  </td>
+                  <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>
+                    ₩{fmt(r.itemTotalLicense)}
+                  </td>
+                  <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>
+                    ₩{fmt(r.itemTotalThirdParty)}
+                  </td>
+                  <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>
+                    ₩{fmt(r.itemTotalService)}
+                  </td>
+                  <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>
+                    ₩{fmt(r.itemTotalMaintenance)}
+                  </td>
+                  <td className="px-2 py-1.5 text-center text-blue-700" colSpan={1}>
+                    {r.itemTotalMaintenanceRate ? `${r.itemTotalMaintenanceRate.toFixed(2)}%` : "-"}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* 매출 세부 내역 */}
         <div className="space-y-8 mt-10">
@@ -516,7 +621,7 @@ function DetailTable({ title, headers, rows, total }: { title: string; headers: 
               ))}
             </tr>
           ))}
-          <tr className="bg-yellow-100 font-bold border-b border-black">
+          <tr className="bg-yellow-200 font-bold border-b border-black">
             <td className="border-r border-black p-2 text-center text-slate-700" colSpan={8}>
               합계
             </td>
