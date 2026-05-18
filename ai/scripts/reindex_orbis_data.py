@@ -370,6 +370,9 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "sp_maintenance_cost", "monthly_supply_price",
             "total_quotation_amount", "special_notes",
             "opportunity_name", "customer_name", "workflow_summary",
+            # build_current_maintenance_quote_documents 의 cover enrichment:
+            "cover_product_family", "cover_proposal_type",
+            "cover_sales_representative_name",
         ),
         payload_aliases={
             "maintenanceQuoteCode": ("id",),
@@ -523,6 +526,37 @@ ALWAYS_CONFIGS: tuple[DocumentConfig, ...] = (
             "licenseStandard": ("license_standard",),
             "licenseUnit": ("license_unit",),
             "listPrice": ("unit_price",),
+        },
+    ),
+    # 부서 (조직 구조). "X 어떤 본부/팀?" 질의 backbone.
+    DocumentConfig(
+        table="department",
+        source_type=SourceType.DEPARTMENT,
+        id_fields=("id",),
+        title_fields=("team", "headquarters", "id"),
+        content_fields=("headquarters", "team"),
+        payload_aliases={
+            "departmentId": ("id",),
+            "departmentTeam": ("team",),
+            "departmentHeadquarters": ("headquarters",),
+        },
+    ),
+    # 사용자 (이름/직책/부서) — 이메일/연락처는 의도적으로 색인 제외.
+    # build_current_user_documents 가 department join 으로 부서명 enrich.
+    DocumentConfig(
+        table="users",
+        source_type=SourceType.USER,
+        id_fields=("id",),
+        title_fields=("name", "id"),
+        content_fields=(
+            "name", "position",
+            "department_headquarters", "department_team",
+        ),
+        payload_aliases={
+            "userId": ("id",),
+            "userName": ("name",),
+            "userPosition": ("position",),
+            "departmentId": ("department_id",),
         },
     ),
 )
@@ -698,6 +732,10 @@ def build_documents(
                 documents.extend(build_current_customer_support_request_documents(row, conn=conn))
             elif config.table == "sales_activity_request":
                 documents.extend(build_current_sales_activity_request_documents(row, conn=conn))
+            elif config.table == "maintenance_quotation":
+                documents.extend(build_current_maintenance_quote_documents(row, conn=conn))
+            elif config.table == "users":
+                documents.extend(build_current_user_documents(row, conn=conn))
             elif config.table in _TABLE_TO_WORKFLOW_DOMAIN:
                 # workflow_summary 만 enrich 하는 경량 builder
                 documents.extend(_build_with_workflow_enrich(config=config, row=row, conn=conn))
@@ -1507,6 +1545,85 @@ def build_current_sales_activity_request_documents(
             label = _format_user_label(_fetch_user_display(conn, row.get(src)))
             if label:
                 enriched[dst] = label
+    document = build_document(config=config, row=enriched)
+    return [document] if document is not None else []
+
+
+def build_current_maintenance_quote_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """MAINTENANCE_QUOTE 색인 — maintenance_quotation_cover join 으로 표지 enrich."""
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "maintenance_quotation")
+    enriched = dict(row)
+    qid = row.get("id")
+    if conn is not None and qid is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SAVEPOINT enrich_cover")
+                try:
+                    cur.execute(
+                        """
+                        SELECT product_family, proposal_type, sales_representative_id
+                        FROM maintenance_quotation_cover
+                        WHERE quotation_id = %s AND deleted = false
+                        LIMIT 1
+                        """,
+                        (qid,),
+                    )
+                    cover = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_cover")
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_cover")
+                    cover = None
+        except Exception:
+            cover = None
+        if cover:
+            if cover.get("product_family"):
+                enriched["cover_product_family"] = cover["product_family"]
+            if cover.get("proposal_type"):
+                enriched["cover_proposal_type"] = cover["proposal_type"]
+            rep_label = _format_user_label(_fetch_user_display(conn, cover.get("sales_representative_id")))
+            if rep_label:
+                enriched["cover_sales_representative_name"] = rep_label
+    document = _build_with_workflow_enrich(config=config, row=enriched, conn=conn)
+    return list(document) if document else []
+
+
+def build_current_user_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """USERS 색인 — department join 으로 본부/팀 이름 enrich.
+
+    의도적으로 email/phone/employee_number 는 색인 대상에서 제외.
+    """
+    config = next(cfg for cfg in ALWAYS_CONFIGS if cfg.table == "users")
+    enriched = {
+        "id": row.get("id"),
+        "name": row.get("name"),
+        "position": row.get("position"),
+        "department_id": row.get("department_id"),
+    }
+    if conn is not None and row.get("department_id") is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SAVEPOINT enrich_dept")
+                try:
+                    cur.execute(
+                        "SELECT headquarters, team FROM department WHERE id = %s",
+                        (row.get("department_id"),),
+                    )
+                    dept = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT enrich_dept")
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT enrich_dept")
+                    dept = None
+        except Exception:
+            dept = None
+        if dept:
+            enriched["department_headquarters"] = dept.get("headquarters")
+            enriched["department_team"] = dept.get("team")
     document = build_document(config=config, row=enriched)
     return [document] if document is not None else []
 

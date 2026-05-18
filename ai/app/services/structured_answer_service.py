@@ -141,6 +141,15 @@ def answer_targeted_domain_query(
     normalized_query = normalization.normalized_query
     exact_codes = extract_business_codes(query)
 
+    # 조직 조회 ("박유신 부서?" / "AI1팀에 누가 있어?") — 사람·부서 직접 답변
+    org_response = answer_organization_query(
+        query=query,
+        normalized_query=normalized_query,
+        embedder=embedder,
+    )
+    if org_response is not None:
+        return org_response
+
     # 위험요인/리스크 질의는 generic snapshot 보다 risk-focused 답변 우선 (opp_code 동반 시)
     risk_focused = is_entity_risk_focus_query(normalized_query, graph_state)
     skip_exact_snapshot = risk_focused and any(c.startswith("AUTO-OPP-") or c.startswith("OPP-") for c in exact_codes)
@@ -1052,6 +1061,14 @@ def answer_graph_structured_extension(
             return response
 
     normalized_q = " ".join(query.lower().split())
+
+    org_response = answer_organization_query(
+        query=query,
+        normalized_query=normalized_q,
+        embedder=embedder,
+    )
+    if org_response is not None:
+        return org_response
 
     people_response = answer_people_query(
         query=query,
@@ -5052,6 +5069,12 @@ _PRODUCT_CLASS_KEYWORDS = {
 
 def is_opportunity_list_query(normalized_query: str) -> bool:
     has_opp = any(kw in normalized_query for kw in ["사업기회", "사업 기회"])
+    # 단일 사업기회 코드(AUTO-OPP-XXX 등)가 명시되면 list 가 아닌 단일 조회로 보낸다.
+    # 코드가 있는데 list response 로 보내면 후속질문("그러면 이 사업기회의 금액") 도
+    # entity lock 없이 전체 list 로 collapse 된다.
+    code_pattern = re.compile(r"(?<![A-Z0-9-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}(?![A-Z0-9-])")
+    if code_pattern.search(normalized_query.upper()):
+        return False
     has_list = any(
         kw in normalized_query
         for kw in [
@@ -5311,6 +5334,175 @@ def is_people_query(normalized_query: str) -> bool:
     if any(kw in normalized_query for kw in _PEOPLE_DEFER_DOMAIN_KEYWORDS):
         return False
     return any(kw in normalized_query for kw in _PEOPLE_INTENT_KEYWORDS)
+
+
+# ──────────────────────────────────────────────────────────────────
+# 조직 조회 핸들러 — "X 부서?" / "AI1팀에 누가?" / "X 직책?"
+# people_query 는 사업기회 맥락의 사람(영업대표/참석자) 질의용.
+# organization_query 는 사람·부서 자체 메타 조회.
+# ──────────────────────────────────────────────────────────────────
+
+_ORG_INTENT_KEYWORDS: tuple[str, ...] = (
+    "부서", "소속", "본부", "팀", "직책", "직급", "어느 팀", "어느 부서",
+)
+
+_ORG_STOP_TOKENS = {
+    "부서", "소속", "본부", "팀", "직책", "직급", "어디", "어느", "누구",
+    "누가", "있어", "알려줘", "있는", "있어요", "야", "은", "는", "이",
+    "그", "이", "저", "을", "를", "에", "의", "와", "과",
+}
+
+
+def is_organization_query(normalized_query: str) -> bool:
+    if not any(kw in normalized_query for kw in _ORG_INTENT_KEYWORDS):
+        return False
+    # 사업기회 맥락이면 people_query 또는 다른 핸들러로 양보
+    if any(kw in normalized_query for kw in ("사업기회", "사업 기회", "사업코드", "auto-opp", "rfp", "prb")):
+        return False
+    return True
+
+
+def _fetch_users_by_name_like(name: str, limit: int = 5) -> list[dict[str, Any]]:
+    import psycopg
+    from psycopg.rows import dict_row
+    from app.repositories.backend_query_repository import build_backend_database_url
+    rows: list[dict[str, Any]] = []
+    try:
+        with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT u.name, u.position,
+                       d.headquarters, d.team
+                FROM users u
+                LEFT JOIN department d ON d.id = u.department_id
+                WHERE u.deleted = false AND u.name ILIKE %s
+                LIMIT %s
+                """,
+                (f"%{name}%", limit),
+            )
+            rows = [dict(r) for r in cur.fetchall() or []]
+    except Exception:
+        return []
+    return rows
+
+
+def _fetch_users_by_team_like(term: str, limit: int = 30) -> list[dict[str, Any]]:
+    import psycopg
+    from psycopg.rows import dict_row
+    from app.repositories.backend_query_repository import build_backend_database_url
+    rows: list[dict[str, Any]] = []
+    try:
+        with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT u.name, u.position,
+                       d.headquarters, d.team
+                FROM users u
+                JOIN department d ON d.id = u.department_id
+                WHERE u.deleted = false AND d.deleted = false
+                  AND (d.team ILIKE %s OR d.headquarters ILIKE %s)
+                ORDER BY u.name
+                LIMIT %s
+                """,
+                (f"%{term}%", f"%{term}%", limit),
+            )
+            rows = [dict(r) for r in cur.fetchall() or []]
+    except Exception:
+        return []
+    return rows
+
+
+_ORG_JOSA_SUFFIXES = ("으로", "에서", "에게", "이라", "이라는", "은", "는", "이", "가", "을", "를", "에", "의", "와", "과", "로")
+
+
+def _strip_korean_josa(token: str) -> str:
+    """말미 한글 조사를 제거 (AI1팀에 → AI1팀)."""
+    for suffix in _ORG_JOSA_SUFFIXES:
+        if len(token) > len(suffix) and token.endswith(suffix):
+            return token[: -len(suffix)]
+    return token
+
+
+def _extract_org_target_token(query: str) -> str | None:
+    """query 에서 사람이름/팀명 후보를 추출 (가장 긴 한글/영문 토큰)."""
+    tokens = re.findall(r"[가-힣A-Za-z0-9]+", query)
+    candidates: list[str] = []
+    for t in tokens:
+        trimmed = _strip_korean_josa(t)
+        if 2 <= len(trimmed) <= 15 and trimmed.lower() not in _ORG_STOP_TOKENS:
+            candidates.append(trimmed)
+    if not candidates:
+        return None
+    candidates.sort(key=len, reverse=True)
+    return candidates[0]
+
+
+def answer_organization_query(
+    *,
+    query: str,
+    normalized_query: str,
+    embedder: EmbeddingModel,
+) -> AnswerResponse | None:
+    if not is_organization_query(normalized_query):
+        return None
+    target = _extract_org_target_token(query)
+    if not target:
+        return None
+
+    # 1) 팀/본부 키워드 우선 — "AI1팀에 누가?"
+    is_team_listing = any(kw in normalized_query for kw in ("누가", "누구", "있어"))
+    if is_team_listing or "팀" in target or "본부" in target:
+        team_rows = _fetch_users_by_team_like(target)
+        if team_rows:
+            lines = [
+                f"핵심 결론: '{target}' 부서·팀에 소속된 직원 {len(team_rows)}명입니다.",
+                "",
+            ]
+            for r in team_rows:
+                dept = " / ".join([p for p in (r.get("headquarters"), r.get("team")) if p]) or "-"
+                pos = r.get("position") or "-"
+                lines.append(f"- {r.get('name') or '미기재'} ({pos} · {dept})")
+            return AnswerResponse(
+                query=query,
+                answer="\n".join(lines),
+                embeddingModel=embedder.config.model_name,
+                chatModel="structured-rule-engine",
+                excludedSourceTypes=[],
+                evidences=[],
+            )
+
+    # 2) 사람 이름으로 조회 — "박유신 부서?"
+    name_rows = _fetch_users_by_name_like(target)
+    if name_rows:
+        if len(name_rows) == 1:
+            r = name_rows[0]
+            dept = " / ".join([p for p in (r.get("headquarters"), r.get("team")) if p]) or "미기재"
+            pos = r.get("position") or "미기재"
+            return AnswerResponse(
+                query=query,
+                answer=(
+                    f"핵심 결론: {r.get('name')} 님은 {dept} 소속이며 직책은 {pos} 입니다."
+                ),
+                embeddingModel=embedder.config.model_name,
+                chatModel="structured-rule-engine",
+                excludedSourceTypes=[],
+                evidences=[],
+            )
+        # 동명이인 list
+        lines = [f"핵심 결론: '{target}' 으로 검색된 직원 {len(name_rows)}명입니다.", ""]
+        for r in name_rows:
+            dept = " / ".join([p for p in (r.get("headquarters"), r.get("team")) if p]) or "-"
+            pos = r.get("position") or "-"
+            lines.append(f"- {r.get('name')} ({pos} · {dept})")
+        return AnswerResponse(
+            query=query,
+            answer="\n".join(lines),
+            embeddingModel=embedder.config.model_name,
+            chatModel="structured-rule-engine",
+            excludedSourceTypes=[],
+            evidences=[],
+        )
+    return None
 
 
 def _extract_customer_name_for_people(*, query: str) -> str | None:
