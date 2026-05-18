@@ -49,10 +49,10 @@ public class QuotationLaborItem extends BaseEntity {
 
         item.laborType = laborType;
 
-        // 인건비가 아닌 제경비와 기술료 일때는 노임단가와 Mab/Month Null 처리
+        // 인건비가 아닌 제경비와 기술료 일때는 노임단가와 Man/Month를 0 / null로 정리한다.
         if (laborType == LaborType.EXPENSE || laborType == LaborType.TECH_FEE) {
 
-            item.unitPrice = null;
+            item.unitPrice = 0L;
             item.manMonth = null;
             item.supplyPrice = supplyPrice;
 

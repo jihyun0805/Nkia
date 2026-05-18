@@ -76,6 +76,7 @@ type BackendProductModuleSummary = {
   id?: number
   productGroup?: string
   productName?: string
+  unitPrice?: number
 }
 
 type QuotationCreateInput = Omit<QuotationRecord, "id">
@@ -196,6 +197,24 @@ function hasText(value?: string) {
   return value != null && value.trim() !== ""
 }
 
+function resolveProductModulePrice(
+  productModules: BackendProductModuleSummary[],
+  category?: string,
+  module?: string,
+) {
+  const normalizedCategory = category?.trim() ?? ""
+  const normalizedModule = module?.trim() ?? ""
+  if (!normalizedCategory || !normalizedModule) return null
+
+  return (
+    productModules.find((item) => {
+      const productGroup = item.productGroup?.trim() ?? ""
+      const productName = item.productName?.trim() ?? ""
+      return productGroup === normalizedCategory && productName === normalizedModule
+    }) ?? null
+  )
+}
+
 export function getQuotationCreateBlockReason(input: QuotationCreateInput) {
   if (!hasText(input.customer)) return "고객사를 선택해주십시오."
   if (!hasText(input.opportunity)) return "사업기회를 선택해주십시오."
@@ -205,7 +224,7 @@ export function getQuotationCreateBlockReason(input: QuotationCreateInput) {
 
   const solutionRows = input.solutionRows ?? []
   const firstSolutionIndex = solutionRows.findIndex((row) =>
-    [row.category, row.module, row.quantity, row.consumerUnitPrice, row.supplyUnitPrice].some((value) => hasText(value)),
+    [row.category, row.module, row.quantity, row.supplyUnitPrice].some((value) => hasText(value)),
   )
 
   if (firstSolutionIndex < 0) {
@@ -216,12 +235,11 @@ export function getQuotationCreateBlockReason(input: QuotationCreateInput) {
   if (!hasText(firstSolutionRow.category)) return `Solution Package ${firstSolutionIndex + 1}행 구분을 입력해주십시오.`
   if (!hasText(firstSolutionRow.module)) return `Solution Package ${firstSolutionIndex + 1}행 납품 모듈을 입력해주십시오.`
   if (!hasText(firstSolutionRow.quantity)) return `Solution Package ${firstSolutionIndex + 1}행 수량을 입력해주십시오.`
-  if (!hasText(firstSolutionRow.consumerUnitPrice)) return `Solution Package ${firstSolutionIndex + 1}행 소비자가를 입력해주십시오.`
   if (!hasText(firstSolutionRow.supplyUnitPrice)) return `Solution Package ${firstSolutionIndex + 1}행 공급단가를 입력해주십시오.`
 
   const customizingRows = input.customizingRows ?? []
   const firstCustomizingIndex = customizingRows.findIndex((row) =>
-    [row.item, row.laborRate, row.manMonth, row.supplyAmount].some((value) => hasText(value)),
+    [row.laborRate, row.manMonth, row.supplyAmount].some((value) => hasText(value)),
   )
 
   if (firstCustomizingIndex < 0) {
@@ -230,9 +248,12 @@ export function getQuotationCreateBlockReason(input: QuotationCreateInput) {
 
   const firstCustomizingRow = customizingRows[firstCustomizingIndex]
   if (!hasText(firstCustomizingRow.item)) return `인건비 ${firstCustomizingIndex + 1}행 세부항목을 선택해주십시오.`
+  if (firstCustomizingIndex >= 4) {
+    if (!hasText(firstCustomizingRow.supplyAmount)) return `인건비 ${firstCustomizingIndex + 1}행 공급금액을 입력해주십시오.`
+    return null
+  }
   if (!hasText(firstCustomizingRow.laborRate)) return `인건비 ${firstCustomizingIndex + 1}행 노임단가를 입력해주십시오.`
   if (!hasText(firstCustomizingRow.manMonth)) return `인건비 ${firstCustomizingIndex + 1}행 Man / Month를 입력해주십시오.`
-  if (!hasText(firstCustomizingRow.supplyAmount)) return `인건비 ${firstCustomizingIndex + 1}행 공급 금액을 입력해주십시오.`
 
   return null
 }
@@ -476,7 +497,7 @@ function mapBackendQuotationRecord(
         supplyUnitPrice: String(resolveSupplyUnitPrice(item)),
         supplyTotal: String(resolveSupplyLineTotal(item)),
         discountRate: String(resolveDiscountRate(item)),
-        note: item.freeSupply ? "무상" : "",
+        note: local?.solutionRows?.[index]?.note?.trim() ?? (item.freeSupply ? "무상" : ""),
       })),
     customizingSectionTitle,
     customizingRows:
@@ -527,32 +548,25 @@ function saveMergedQuotations(records: QuotationRecord[]) {
 }
 
 function buildQuotationPayload(input: QuotationCreateInput, projectOpportunityId: number, productModules: BackendProductModuleSummary[]) {
-  const productModuleLookup = new Map(
-    productModules.flatMap((item) => {
-      const keys = [item.productName, item.productName?.replace(/\s+/g, ""), item.productName?.toLowerCase()]
-        .filter((value): value is string => Boolean(value))
-      return keys.map((key) => [key, item.id ?? null] as const)
-    }),
-  )
-
   const quotationSolutionItems = (input.solutionRows ?? [])
     .map((row): SolutionItemCreateRequest | null => {
-      const moduleName = row.module.trim()
-      const productModuleId =
-        productModuleLookup.get(moduleName) ??
-        productModuleLookup.get(moduleName.replace(/\s+/g, "")) ??
-        productModuleLookup.get(moduleName.toLowerCase()) ??
-        null
+      const matchedProduct = resolveProductModulePrice(productModules, row.category, row.module)
+      const productModuleId = matchedProduct?.id ?? null
 
       if (productModuleId == null) return null
       const quantity = normalizeInteger(row.quantity, 1)
       const supplyPrice = normalizeNumber(row.supplyUnitPrice) || Math.round(normalizeNumber(row.supplyTotal) / quantity)
+      const consumerPrice = matchedProduct?.unitPrice ?? normalizeNumber(row.consumerUnitPrice)
+      const discountRate =
+        consumerPrice > 0 && supplyPrice > 0 && supplyPrice < consumerPrice
+          ? Math.round((((consumerPrice - supplyPrice) / consumerPrice) * 100) * 100) / 100
+          : normalizeNumber(row.discountRate)
 
       return {
         productModuleId,
         quantity,
         supplyPrice,
-        discountRate: normalizeNumber(row.discountRate),
+        discountRate,
         freeSupply: supplyPrice <= 0,
       }
     })
@@ -562,13 +576,18 @@ function buildQuotationPayload(input: QuotationCreateInput, projectOpportunityId
     .map((row): LaborItemCreateRequest | null => {
       const laborType = inferLaborType(row.item || row.laborRate)
       if (!laborType) return null
-      if (laborType === "EXPENSE" || laborType === "TECH_FEE") return null
+      const unitPrice = normalizeNumber(row.laborRate)
+      const manMonth = normalizeNumber(row.manMonth)
+      const supplyPrice =
+        laborType === "EXPENSE" || laborType === "TECH_FEE"
+          ? normalizeNumber(row.supplyAmount)
+          : normalizeNumber(row.supplyAmount) || Math.round(unitPrice * manMonth)
 
       return {
         laborType: laborType as LaborItemCreateRequest["laborType"],
-        unitPrice: normalizeNumber(row.laborRate),
-        manMonth: normalizeNumber(row.manMonth),
-        supplyPrice: normalizeNumber(row.supplyAmount),
+        unitPrice: laborType === "EXPENSE" || laborType === "TECH_FEE" ? 0 : unitPrice,
+        manMonth: laborType === "EXPENSE" || laborType === "TECH_FEE" ? 0 : manMonth,
+        supplyPrice,
       }
     })
     .filter((item): item is LaborItemCreateRequest => Boolean(item))
@@ -577,7 +596,7 @@ function buildQuotationPayload(input: QuotationCreateInput, projectOpportunityId
     projectOpportunityId,
     quotationDate: input.date,
     paymentCondition: input.paymentTerms,
-    note: input.remarks.trim(),
+    note: input.remarks?.trim() ?? "",
     quotationSolutionItems,
     quotationLaborItems,
   }
