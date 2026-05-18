@@ -813,6 +813,89 @@ function renderInlineMarkdown(text: string) {
   })
 }
 
+function renderInlineMarkdownHtml(text: string) {
+  return text
+    .split(/(\*\*[^*]+\*\*)/g)
+    .map((part) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return `<strong>${escapeHtml(part.slice(2, -2))}</strong>`
+      }
+      return escapeHtml(part)
+    })
+    .join("")
+}
+
+function renderMarkdownHtml(content: string) {
+  const lines = content.split(/\r?\n/)
+  const parts: string[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index].trim()
+    if (!line) {
+      index += 1
+      continue
+    }
+
+    if (isMarkdownTableStart(lines, index)) {
+      const tableLines = []
+      while (index < lines.length && lines[index].trim().startsWith("|")) {
+        tableLines.push(lines[index].trim())
+        index += 1
+      }
+      const rows = parseMarkdownTable(tableLines)
+      const [header, ...body] = rows
+      const head = header
+        ? `<thead><tr>${header.map((cell) => `<th>${renderInlineMarkdownHtml(cell)}</th>`).join("")}</tr></thead>`
+        : ""
+      const bodyRows = body
+        .map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdownHtml(cell)}</td>`).join("")}</tr>`)
+        .join("")
+      parts.push(`<div class="md-table"><table>${head}<tbody>${bodyRows}</tbody></table></div>`)
+      continue
+    }
+
+    if (line.startsWith("## ")) {
+      parts.push(`<h2>${renderInlineMarkdownHtml(line.replace(/^##\s+/, ""))}</h2>`)
+      index += 1
+      continue
+    }
+
+    if (line.startsWith("### ")) {
+      parts.push(`<h3>${renderInlineMarkdownHtml(line.replace(/^###\s+/, ""))}</h3>`)
+      index += 1
+      continue
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items = []
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ""))
+        index += 1
+      }
+      parts.push(`<ul>${items.map((item) => `<li>${renderInlineMarkdownHtml(item)}</li>`).join("")}</ul>`)
+      continue
+    }
+
+    const paragraphs = [line]
+    index += 1
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !lines[index].trim().startsWith("## ") &&
+      !lines[index].trim().startsWith("### ") &&
+      !/^[-*]\s+/.test(lines[index].trim()) &&
+      !lines[index].trim().startsWith("|")
+    ) {
+      paragraphs.push(lines[index].trim())
+      index += 1
+    }
+    parts.push(`<p>${renderInlineMarkdownHtml(paragraphs.join(" "))}</p>`)
+  }
+
+  return parts.join("\n")
+}
+
 function evidenceTitle(evidence: { sourceType: string; sourceId: string; title?: string | null; metadata?: Record<string, unknown> | null }) {
   const metadataTitle = firstMetadataText(evidence.metadata, [
     "rootOpportunityName",
@@ -934,6 +1017,7 @@ function selectedLabels(values?: string[], options?: FilterOption[]) {
 }
 
 function buildReportPrintHtml(report: ManagementReportResponse, request: ManagementReportRequest) {
+  const reportHtml = renderMarkdownHtml(displayReportText(report))
   const metrics = (report.metrics ?? [])
     .map(
       (metric) => `
@@ -1020,7 +1104,12 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
           .metric { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; }
           .metric-label { color: #6b7280; font-size: 11px; }
           .metric-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
-          .report-body { white-space: pre-wrap; border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+          .report-body { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+          .report-body h2 { border-bottom: 1px solid #d1d5db; padding-bottom: 5px; }
+          .report-body h3 { font-size: 13px; margin: 16px 0 6px; }
+          .report-body p { margin: 6px 0; color: #374151; }
+          .report-body ul { margin: 6px 0 12px; padding-left: 18px; }
+          .report-body .md-table { margin: 8px 0 14px; }
           table { width: 100%; border-collapse: collapse; page-break-inside: avoid; }
           th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
           th { background: #f3f4f6; font-weight: 700; }
@@ -1041,7 +1130,7 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
         <section class="metrics">${metrics}</section>
         <section>
           <h2>리포트</h2>
-          <div class="report-body">${escapeHtml(displayReportText(report))}</div>
+          <div class="report-body">${reportHtml}</div>
         </section>
         ${charts}
         ${tables}
