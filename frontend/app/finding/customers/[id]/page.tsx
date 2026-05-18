@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { toast } from "@/hooks/use-toast"
 import { type CustomerRecord } from "@/lib/finding-data"
-import { deleteBackendCompany, loadBackendFindingData } from "@/lib/finding-backend"
+import { deleteBackendCompany, loadBackendCompany, loadBackendFindingData } from "@/lib/finding-backend"
 
 function CustomerDetailControl({ label, value }: { label: string; value: string }) {
   if (label === "메모") return <Textarea readOnly rows={4} value={value || "-"} />
@@ -59,9 +59,21 @@ function CustomerDetailPageContent() {
     let cancelled = false
 
     loadBackendFindingData()
-      .then((data) => {
+      .then(async (data) => {
         if (cancelled) return
-        setCustomer(data.customers.find((item) => item.id === id) ?? null)
+        const current = data.customers.find((item) => item.id === id) ?? null
+        if (!current?.backendId) {
+          setCustomer(current)
+          return
+        }
+
+        const backendCompany = await loadBackendCompany(current.backendId).catch(() => null)
+        if (cancelled) return
+        setCustomer({
+          ...current,
+          address: backendCompany?.address ?? current.address ?? "",
+          memo: backendCompany?.memo ?? current.memo ?? "",
+        })
       })
       .catch(() => {
         if (!cancelled) {
@@ -169,7 +181,7 @@ function CustomerDetailPageContent() {
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label>메모</Label>
-                      <Textarea readOnly rows={4} value={customer.memo ?? `진행중 사업기회 ${customer.opportunities}건 / 계약 ${customer.contracts}건`} />
+                      <Textarea readOnly rows={4} value={customer.memo ?? "-"} />
                     </div>
                   </div>
                 </section>

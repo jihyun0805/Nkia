@@ -110,6 +110,12 @@ function matchesFindingRecordId(item: { id: string; backendId?: number }, id: st
   return item.id === id || (item.backendId != null && String(item.backendId) === id)
 }
 
+function resolveOpportunityBackendId(opportunity: OpportunityRecord | null, id: string) {
+  if (opportunity?.backendId != null) return opportunity.backendId
+  const numericId = Number(id)
+  return Number.isFinite(numericId) ? numericId : null
+}
+
 export default function FindingDetailPage() {
   const params = useParams<{ category?: string | string[]; id?: string | string[] }>()
   const searchParams = useSearchParams()
@@ -137,11 +143,14 @@ export default function FindingDetailPage() {
 
         if (category !== "opportunities" || !id) return
 
-        void loadBackendProjectOpportunity(Number(id))
+        const fallback = data.opportunities.find((entry) => matchesFindingRecordId(entry, id)) ?? null
+        const backendOpportunityId = resolveOpportunityBackendId(fallback, id)
+        if (backendOpportunityId == null) return
+
+        void loadBackendProjectOpportunity(backendOpportunityId)
           .then((opportunity) => {
             if (cancelled) return
 
-            const fallback = data.opportunities.find((entry) => matchesFindingRecordId(entry, id)) ?? null
             const matchedCustomer = data.customers.find((customer) => customer.backendId === opportunity.customerCompanyId) ?? null
             const merged: OpportunityRecord = {
               ...(fallback ?? {
@@ -402,7 +411,7 @@ export default function FindingDetailPage() {
                         </div>
                         <div className="space-y-2 md:col-span-2">
                           <Label>메모</Label>
-                          <Textarea readOnly rows={4} value={partnerItem?.memo ?? `진행중 사업기회 ${partnerItem?.opportunities ?? 0}건 / 진행중 프로젝트 ${partnerItem?.projects ?? 0}건`} />
+                          <Textarea readOnly rows={4} value={partnerItem?.memo ?? "-"} />
                         </div>
                       </div>
                     </section>
