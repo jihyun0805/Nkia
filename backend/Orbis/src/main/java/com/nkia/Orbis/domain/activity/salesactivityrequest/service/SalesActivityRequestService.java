@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.activity.salesactivityrequest.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ActivityErrorCode;
+import com.nkia.Orbis.common.exception.errorcode.CompanyErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UserErrorCode;
 import com.nkia.Orbis.common.util.SecurityUtil;
 import com.nkia.Orbis.domain.activity.salesactivityrequest.dto.request.SalesActivityRequestCreateRequest;
@@ -13,6 +14,8 @@ import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.admin.user.repository.UserRepository;
 import com.nkia.Orbis.domain.alarm.entity.AlarmType;
 import com.nkia.Orbis.domain.alarm.event.AlarmEvent;
+import com.nkia.Orbis.domain.company.entity.Company;
+import com.nkia.Orbis.domain.company.repository.CompanyRepository;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +30,7 @@ public class SalesActivityRequestService {
     private final SalesActivityRequestRepository salesActivityRequestRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final CompanyRepository companyRepository;
 
     @Transactional
     public SalesActivityRequestResponse create(SalesActivityRequestCreateRequest request) {
@@ -37,8 +41,12 @@ public class SalesActivityRequestService {
         User requestUser = userRepository.findById(UUID.fromString(SecurityUtil.getCurrentUserId()))
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
 
+        Company company = companyRepository.findById(request.getCompanyId())
+                .orElseThrow(() -> new ApiException(CompanyErrorCode.COMPANY_NOT_FOUND));
+
         SalesActivityRequest salesActivityRequest = SalesActivityRequest.create(
                 request.getTitle(),
+                company,
                 targetUser,
                 requestUser,
                 request.getActivityPurpose(),

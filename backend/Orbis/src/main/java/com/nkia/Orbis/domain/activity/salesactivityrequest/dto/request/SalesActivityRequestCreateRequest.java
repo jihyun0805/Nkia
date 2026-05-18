@@ -13,6 +13,8 @@ public class SalesActivityRequestCreateRequest {
     @NotBlank
     private String title;
 
+    private Long companyId;
+
     private UUID targetUserId;
 
     private ActivityPurpose activityPurpose;
