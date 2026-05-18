@@ -27,6 +27,12 @@ public class ManagementReportAggregationService {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
+    public ManagementReportResponse buildAnalytics(ManagementReportRequest request) {
+        ManagementReportResponse response = new ManagementReportResponse();
+        attachAnalytics(response, request);
+        return response;
+    }
+
     public void attachAnalytics(ManagementReportResponse response, ManagementReportRequest request) {
         if (response == null) {
             return;
@@ -51,47 +57,84 @@ public class ManagementReportAggregationService {
     }
 
     private List<ReportMetricResponse> buildMetrics(ReportQueryParts queryParts) {
+        String effectiveStageSql = effectiveStageSql();
         String sql = """
                 select
                   count(*) as total_count,
                   coalesce(sum(coalesce(po.expected_budget, 0)), 0) as total_budget,
-                  coalesce(avg(po.expected_budget), 0) as average_budget,
-                  count(*) filter (where po.stage = 'CONTRACT') as contract_count
+                  count(*) filter (where %s in ('ACTIVITY', 'BID')) as active_bid_count,
+                  count(*) filter (where %s in ('CONTRACT', 'PROJECT', 'MAINTENANCE', 'POST_SALES')) as won_projectized_count
                 from project_opportunity po
                 left join company c on c.id = po.customer_company_id and c.deleted = false
                 %s
-                """.formatted(queryParts.whereClause());
+                """.formatted(effectiveStageSql, effectiveStageSql, queryParts.whereClause());
 
         Map<String, Object> row = jdbcTemplate.queryForMap(sql, queryParts.params());
         long totalCount = asLong(row.get("total_count"));
         BigDecimal totalBudget = asBigDecimal(row.get("total_budget"));
-        BigDecimal averageBudget = asBigDecimal(row.get("average_budget"));
-        long contractCount = asLong(row.get("contract_count"));
+        long activeBidCount = asLong(row.get("active_bid_count"));
+        long wonProjectizedCount = asLong(row.get("won_projectized_count"));
 
         List<ReportMetricResponse> metrics = new ArrayList<>();
         metrics.add(metric("Total opportunities", totalCount, "count", "Filtered opportunity count"));
         metrics.add(metric("Total expected budget", totalBudget, "KRW", "Sum of expected_budget"));
-        metrics.add(metric("Average expected budget", averageBudget, "KRW", "Average expected_budget"));
-        metrics.add(metric("Contract stage count", contractCount, "count", "Opportunities currently in CONTRACT stage"));
+        metrics.add(metric("Active or bid stage count", activeBidCount, "count", "Opportunities in ACTIVITY or BID stage"));
+        metrics.add(metric("Won or projectized count", wonProjectizedCount, "count", "Opportunities in CONTRACT, PROJECT, MAINTENANCE, or POST_SALES stage"));
         return metrics;
     }
 
     private List<ReportChartResponse> buildCharts(ReportQueryParts queryParts) {
         List<ReportChartResponse> charts = new ArrayList<>();
-        charts.add(chart("bar", "Opportunities by stage", "label", "value", groupCount(queryParts, "po.stage", "po.stage")));
+        charts.add(chart("bar", "Opportunities by stage", "label", "value", groupCount(queryParts, effectiveStageSql(), effectiveStageSql())));
         charts.add(chart("pie", "Customer sector mix", "label", "value", groupCount(queryParts, "coalesce(c.sector, 'UNKNOWN')", "coalesce(c.sector, 'UNKNOWN')")));
         charts.add(chart("bar", "Expected budget by business type", "label", "value", groupBudget(queryParts, businessTypeGroupSql(), businessTypeGroupSql())));
         return charts;
     }
 
     private List<ReportTableResponse> buildTables(ReportQueryParts queryParts) {
+        return List.of(buildStageSummaryTable(queryParts), buildTopOpportunitiesTable(queryParts));
+    }
+
+    private ReportTableResponse buildStageSummaryTable(ReportQueryParts queryParts) {
+        String effectiveStageSql = effectiveStageSql();
+        String sql = """
+                select
+                  %s as stage,
+                  count(*) as opportunity_count,
+                  coalesce(sum(coalesce(po.expected_budget, 0)), 0) as expected_budget
+                from project_opportunity po
+                left join company c on c.id = po.customer_company_id and c.deleted = false
+                %s
+                group by %s
+                order by opportunity_count desc, stage asc
+                """.formatted(effectiveStageSql, queryParts.whereClause(), effectiveStageSql);
+
+        List<List<Object>> rows = jdbcTemplate.query(
+                sql,
+                queryParts.params(),
+                (rs, rowNum) -> List.of(
+                        valueOrEmpty(rs.getString("stage")),
+                        rs.getLong("opportunity_count"),
+                        rs.getBigDecimal("expected_budget")
+                )
+        );
+
+        ReportTableResponse table = new ReportTableResponse();
+        table.setTitle("Stage portfolio summary");
+        table.setColumns(List.of("Stage", "Count", "Expected Budget"));
+        table.setRows(rows);
+        return table;
+    }
+
+    private ReportTableResponse buildTopOpportunitiesTable(ReportQueryParts queryParts) {
+        String effectiveStageSql = effectiveStageSql();
         String sql = """
                 select
                   po.opportunity_code,
                   po.opportunity_name,
                   coalesce(c.name, '') as customer_name,
                   coalesce(c.sector, '') as sector,
-                  po.stage,
+                  %s as stage,
                   po.project_type,
                   po.expected_bid_date,
                   coalesce(po.expected_budget, 0) as expected_budget
@@ -100,7 +143,7 @@ public class ManagementReportAggregationService {
                 %s
                 order by coalesce(po.expected_budget, 0) desc, po.expected_bid_date desc nulls last
                 limit 10
-                """.formatted(queryParts.whereClause());
+                """.formatted(effectiveStageSql, queryParts.whereClause());
 
         List<List<Object>> rows = jdbcTemplate.query(
                 sql,
@@ -121,7 +164,7 @@ public class ManagementReportAggregationService {
         table.setTitle("Top opportunities by expected budget");
         table.setColumns(List.of("Code", "Opportunity", "Customer", "Sector", "Stage", "Business Type", "Expected Bid Date", "Expected Budget"));
         table.setRows(rows);
-        return List.of(table);
+        return table;
     }
 
     private List<ReportChartPointResponse> groupCount(ReportQueryParts queryParts, String selectExpression, String groupExpression) {
@@ -176,22 +219,94 @@ public class ManagementReportAggregationService {
             params.addValue("endDate", Date.valueOf(endDate));
         }
 
-        if (StringUtils.hasText(request.getCustomerGroup())) {
+        if (StringUtils.hasText(request.getCustomerGroup()) && !"ALL".equalsIgnoreCase(request.getCustomerGroup())) {
             conditions.add("c.sector = :customerGroup");
             params.addValue("customerGroup", request.getCustomerGroup());
         }
 
-        if (!CollectionUtils.isEmpty(request.getBusinessTypes())) {
+        List<String> effectiveBusinessTypes = filterAllValues(request.getBusinessTypes());
+        if (!CollectionUtils.isEmpty(effectiveBusinessTypes)) {
             conditions.add("po.project_type in (:businessTypes)");
-            params.addValue("businessTypes", request.getBusinessTypes());
+            params.addValue("businessTypes", effectiveBusinessTypes);
         }
 
-        if (!CollectionUtils.isEmpty(request.getStatuses())) {
-            conditions.add("po.stage in (:statuses)");
-            params.addValue("statuses", request.getStatuses());
+        List<String> effectiveStatuses = filterAllValues(request.getStatuses());
+        if (!CollectionUtils.isEmpty(effectiveStatuses)) {
+            conditions.add(effectiveStageSql() + " in (:statuses)");
+            params.addValue("statuses", effectiveStatuses);
         }
 
         return new ReportQueryParts("where " + String.join(" and ", conditions), params);
+    }
+
+    private String effectiveStageSql() {
+        return """
+                case
+                  when exists (
+                    select 1
+                    from customer_support cs
+                    join maintenance m on m.id = cs.maintenance_id and m.deleted = false
+                    join project p on p.id = m.project_id and p.deleted = false
+                    join order_report orr on orr.id = p.order_report_id and orr.deleted = false
+                    where cs.deleted = false
+                      and orr.project_opportunity_id = po.id
+                  ) then 'POST_SALES'
+                  when exists (
+                    select 1
+                    from maintenance m
+                    join project p on p.id = m.project_id and p.deleted = false
+                    join order_report orr on orr.id = p.order_report_id and orr.deleted = false
+                    where m.deleted = false
+                      and orr.project_opportunity_id = po.id
+                  ) then 'MAINTENANCE'
+                  when exists (
+                    select 1
+                    from project p
+                    join order_report orr on orr.id = p.order_report_id and orr.deleted = false
+                    where p.deleted = false
+                      and orr.project_opportunity_id = po.id
+                  ) then 'PROJECT'
+                  when exists (
+                    select 1
+                    from order_report orr
+                    where orr.deleted = false
+                      and orr.project_opportunity_id = po.id
+                  ) then 'CONTRACT'
+                  when exists (
+                    select 1
+                    from prb prb
+                    where prb.deleted = false
+                      and prb.project_opportunity_id = po.id
+                  ) or exists (
+                    select 1
+                    from proposal pp
+                    where pp.deleted = false
+                      and pp.project_opportunity_id = po.id
+                  ) or exists (
+                    select 1
+                    from quotation q
+                    where q.deleted = false
+                      and q.project_opportunity_id = po.id
+                  ) then 'BID'
+                  when exists (
+                    select 1
+                    from sales_activity sa
+                    where sa.deleted = false
+                      and sa.project_opportunity_id = po.id
+                  ) then 'ACTIVITY'
+                  else po.stage
+                end
+                """;
+    }
+
+    private List<String> filterAllValues(List<String> values) {
+        if (CollectionUtils.isEmpty(values)) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(StringUtils::hasText)
+                .filter(value -> !"ALL".equalsIgnoreCase(value))
+                .toList();
     }
 
     private String businessTypeGroupSql() {
