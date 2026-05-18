@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete"
 import { EntityAutocomplete } from "@/components/erp/entity-autocomplete"
+import { ProductModuleMultiPicker } from "@/components/erp/product-module-multi-picker"
 import { SimilarMatchHint, type SimilarMatchCandidate } from "@/components/erp/similar-match-hint"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { useBackendUsers } from "@/lib/use-backend-users"
@@ -54,8 +55,12 @@ import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
-const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"]
 type OpportunityStage = "FINDING" | "PROMISING" | "PROGRESSING"
+type BackendProductModuleSummary = {
+  id?: number
+  productName?: string
+  productClass?: string
+}
 const opportunityStatusOptions: Array<{ value: OpportunityStage; label: string }> = [
   { value: "FINDING", label: "발굴" },
   { value: "PROMISING", label: "유망" },
@@ -168,6 +173,10 @@ function toOpportunityStage(value: string): OpportunityStage {
   return "FINDING"
 }
 
+function matchesOpportunityRecordId(item: OpportunityRecord, value: string) {
+  return item.id === value || (item.backendId != null && String(item.backendId) === value)
+}
+
 function normalizeLookupText(value?: string | number | null) {
   return String(value ?? "")
     .trim()
@@ -196,8 +205,8 @@ function resolvePartnerCompanyIds(partnerNames: string[], backendPartners: Partn
   return Array.from(new Set(resolved))
 }
 
-function resolveProductModuleIds(moduleName: string, productModules: { id?: number; productName?: string }[]) {
-  const names = splitMultipleValues(moduleName)
+function resolveProductModuleIds(moduleNames: string[], productModules: { id?: number; productName?: string }[]) {
+  const names = moduleNames.map((item) => item.trim()).filter(Boolean)
   if (names.length === 0) return []
 
   const resolved = names.flatMap((name) => {
@@ -240,12 +249,14 @@ function parseExpectedBudget(value?: string) {
 }
 
 function buildOpportunityDescription(params: {
-  moduleName: string
+  moduleNames: string[]
   issue: string
   decisionInfo: string
 }) {
+  const normalizedModuleNames = params.moduleNames.map((value) => value.trim()).filter(Boolean)
   return JSON.stringify({
-    moduleName: params.moduleName.trim(),
+    moduleName: normalizedModuleNames.join(", "),
+    moduleNames: normalizedModuleNames,
     issue: params.issue.trim(),
     decisionInfo: params.decisionInfo.trim(),
   })
@@ -367,6 +378,7 @@ export default function FindingEditPage() {
   const [item, setItem] = useState<OpportunityRecord | PartnerRecord | null>(null)
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [partners, setPartners] = useState<PartnerRecord[]>([])
+  const [backendProductModules, setBackendProductModules] = useState<BackendProductModuleSummary[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null)
   const [customerName, setCustomerName] = useState("")
   const [opportunityName, setOpportunityName] = useState("")
@@ -379,7 +391,7 @@ export default function FindingEditPage() {
   const [salesRepUserId, setSalesRepUserId] = useState<string | null>(null)
   const backendUsers = useBackendUsers()
   const [businessType, setBusinessType] = useState("")
-  const [moduleName, setModuleName] = useState("")
+  const [moduleNames, setModuleNames] = useState<string[]>([])
   const [issue, setIssue] = useState("")
   const [competition, setCompetition] = useState("")
   const [decisionInfo, setDecisionInfo] = useState("")
@@ -397,6 +409,15 @@ export default function FindingEditPage() {
   const businessCardInputRef = useRef<HTMLInputElement | null>(null)
   const rfpInputRef = useRef<HTMLInputElement | null>(null)
   const pendingOcrIndexRef = useRef<number | null>(null)
+  const businessTypeOptions = useMemo(
+    () =>
+      backendProductModules.reduce<string[]>((options, product) => {
+        const productClass = product.productClass?.trim()
+        if (!productClass || options.includes(productClass)) return options
+        return [...options, productClass]
+      }, []),
+    [backendProductModules],
+  )
   const partnerSimilarCandidates = useMemo<SimilarMatchCandidate[]>(
     () =>
       partners.map((partner) => ({
@@ -479,15 +500,24 @@ export default function FindingEditPage() {
     const sync = async () => {
       setLoading(true)
       try {
-        const data = await loadBackendFindingData()
+        const [data, productModules] = await Promise.all([
+          loadBackendFindingData(),
+          loadBackendProductModules().catch(() => []),
+        ])
         if (cancelled) return
 
         setCustomers(data.customers)
         setPartners(data.partners)
+        setBackendProductModules(Array.isArray(productModules) ? (productModules as BackendProductModuleSummary[]) : [])
 
         if (category === "opportunities") {
-          const opportunity = data.opportunities.find((current) => current.id === id) ?? null
-          const opportunityDetail = opportunity?.backendId ? await loadBackendProjectOpportunity(opportunity.backendId).catch(() => null) : null
+          const opportunity = data.opportunities.find((current) => matchesOpportunityRecordId(current, id)) ?? null
+          const opportunityDetail =
+            opportunity?.backendId != null
+              ? await loadBackendProjectOpportunity(opportunity.backendId).catch(() => null)
+              : Number.isFinite(Number(id))
+                ? await loadBackendProjectOpportunity(Number(id)).catch(() => null)
+                : null
           const selectedOpportunity = opportunityDetail
             ? {
                 ...(opportunity ?? {}),
@@ -535,12 +565,12 @@ export default function FindingEditPage() {
             setSalesRep(selectedOpportunity.salesRep ?? "")
             setSalesRepUserId(selectedOpportunity.salesRepresentativeId ?? null)
             setBusinessType(selectedOpportunity.product ?? "")
-            setModuleName(
+            setModuleNames(
               Array.isArray(selectedOpportunity.productModuleNames) && selectedOpportunity.productModuleNames.length > 0
-                ? selectedOpportunity.productModuleNames.join(", ")
+                ? selectedOpportunity.productModuleNames
                 : (selectedOpportunity.module ?? "-") === "-"
-                  ? ""
-                  : selectedOpportunity.module ?? "",
+                  ? []
+                  : splitMultipleValues(selectedOpportunity.module ?? ""),
             )
             setIssue(selectedOpportunity.issue === "-" ? "" : selectedOpportunity.issue)
             setCompetition(selectedOpportunity.competition === "-" ? "" : selectedOpportunity.competition)
@@ -588,6 +618,7 @@ export default function FindingEditPage() {
           setItem(null)
           setCustomers([])
           setPartners([])
+          setBackendProductModules([])
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -770,17 +801,23 @@ export default function FindingEditPage() {
         return
       }
 
+      const originalPartnerName = currentPartner.name ?? normalizedName
+      const originalPartnerType = currentPartner.type ?? partnerType
+      const originalPartnerAddress = currentPartner.address ?? ""
+      const originalPartnerMemo = currentPartner.memo ?? ""
+      const originalContacts = toContactDrafts(currentPartner)
+
       setSubmitting(true)
       ;(async () => {
         try {
-          await updateBackendCompany(currentPartner.backendId!, {
+          const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
+          await updateBackendCompany(currentPartner.backendId!, "PARTNER", {
             name: normalizedName,
             category: mapPartnerCategory(partnerType),
             address,
             memo,
           }, currentPartner.id)
 
-          const existingManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
           const sortedManagers = [...existingManagers].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
           for (let index = 0; index < filledContacts.length; index += 1) {
             const contact = filledContacts[index]
@@ -815,6 +852,45 @@ export default function FindingEditPage() {
           })
           router.push(`/finding/partners/${currentPartner.id}?tab=${tab}`)
         } catch (error) {
+          try {
+            await updateBackendCompany(currentPartner.backendId!, "PARTNER", {
+              name: originalPartnerName,
+              category: mapPartnerCategory(originalPartnerType),
+              address: originalPartnerAddress,
+              memo: originalPartnerMemo,
+            }, currentPartner.id)
+
+            const restoredManagers = currentPartner.backendId ? await loadBackendCompanyManagers(currentPartner.backendId) : []
+            const sortedRestoredManagers = [...restoredManagers].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+            for (let index = 0; index < originalContacts.length; index += 1) {
+              const contact = originalContacts[index]
+              const payload = {
+                name: contact.name.trim(),
+                email: contact.email?.trim() || "",
+                mobilePhone: contact.mobilePhone?.trim() || undefined,
+                officePhone: contact.landlinePhone?.trim() || undefined,
+                department: contact.department?.trim() || undefined,
+                position: contact.position?.trim() || undefined,
+                role: contact.duty?.trim() || undefined,
+                memo: contact.memo?.trim() || undefined,
+              }
+
+              const managerId = sortedRestoredManagers[index]?.id
+              if (managerId != null) {
+                await updateBackendCompanyManager(managerId, payload)
+              } else {
+                await createBackendCompanyManager(currentPartner.backendId!, payload)
+              }
+            }
+
+            for (const manager of sortedRestoredManagers.slice(originalContacts.length)) {
+              if (manager.id != null) {
+                await deleteBackendCompanyManager(manager.id)
+              }
+            }
+          } catch {
+            // Restore best-effort only; original error still reports the failed save.
+          }
           toast({
             title: "협력사 수정 실패",
             description: error instanceof Error ? error.message : "수정에 실패했습니다.",
@@ -892,7 +968,7 @@ export default function FindingEditPage() {
           resolveRfpFileIds(rfpAttachments),
         ])
         const partnerCompanyIds = resolvePartnerCompanyIds(partnerNames, partners)
-        const productModuleIds = resolveProductModuleIds(moduleName, productModules)
+        const productModuleIds = resolveProductModuleIds(moduleNames, productModules)
         const customerCompanyId = selectedCustomer.backendId
         if (customerCompanyId == null) {
           toast({
@@ -912,7 +988,7 @@ export default function FindingEditPage() {
           expectedBidDate: expectedDate,
           expectedBudget: expectedAmount,
           description: buildOpportunityDescription({
-            moduleName,
+            moduleNames,
             issue,
             decisionInfo: buildDecisionInfoFromCustomer(selectedCustomer, decisionInfo),
           }),
@@ -926,7 +1002,7 @@ export default function FindingEditPage() {
           title: "사업기회 수정 완료",
           description: `${updated.opportunityName ?? opportunityName} 정보가 수정되었습니다.`,
         })
-        router.push(`/finding/opportunities/${updated.opportunityCode ?? currentOpportunity.id}?tab=${tab}`)
+        router.push(`/finding/opportunities/${updated.id ?? currentOpportunity.backendId ?? currentOpportunity.id}?tab=${tab}`)
       } catch (error) {
         toast({
           title: "사업기회 수정 실패",
@@ -1372,11 +1448,17 @@ export default function FindingEditPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>예상 예산 또는 매출</Label>
-                      <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="예: 8억" />
+                      <Input value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} placeholder="예: 800,000" />
                     </div>
                     <div className="space-y-2">
                       <Label>사업 구분 *</Label>
-                      <Select value={businessType} onValueChange={setBusinessType}>
+                      <Select
+                        value={businessType}
+                        onValueChange={(value) => {
+                          setBusinessType(value)
+                          setModuleNames([])
+                        }}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="선택하세요" />
                         </SelectTrigger>
@@ -1406,7 +1488,13 @@ export default function FindingEditPage() {
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label>납품 모듈</Label>
-                      <Input value={moduleName} onChange={(event) => setModuleName(event.target.value)} placeholder="납품 모듈을 입력하세요" />
+                      <ProductModuleMultiPicker
+                        value={moduleNames}
+                        onValueChange={setModuleNames}
+                        placeholder={businessType ? "제품명을 선택하세요" : "사업 구분을 먼저 선택하세요"}
+                        disabled={!businessType}
+                        productClassFilter={businessType}
+                      />
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label>주요 사업 내용 및 주요 이슈 내용</Label>

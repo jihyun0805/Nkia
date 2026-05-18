@@ -30,11 +30,13 @@ function validatePhoneInput(value: string, label: string) {
 }
 
 export function validateManagerContacts(contacts: ContactValidationInput[]) {
+  const seenEmails = new Set<string>()
+
   for (let index = 0; index < contacts.length; index += 1) {
     const contact = contacts[index]
     const label = `담당자 ${index + 1}`
     const name = trimValue(contact.name)
-    const email = trimValue(contact.email)
+    const email = trimValue(contact.email).toLowerCase()
     const mobilePhone = trimValue(contact.mobilePhone)
     const landlinePhone = trimValue(contact.landlinePhone)
 
@@ -49,6 +51,11 @@ export function validateManagerContacts(contacts: ContactValidationInput[]) {
     if (!EMAIL_PATTERN.test(email)) {
       return `${label}의 이메일 형식이 올바르지 않습니다.`
     }
+
+    if (seenEmails.has(email)) {
+      return `${label}의 이메일이 다른 담당자와 중복됩니다.`
+    }
+    seenEmails.add(email)
 
     const mobilePhoneError = validatePhoneInput(mobilePhone, `${label}의 무선전화번호`)
     if (mobilePhoneError) return mobilePhoneError

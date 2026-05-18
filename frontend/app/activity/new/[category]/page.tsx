@@ -98,6 +98,7 @@ function ActivityCategoryNewPageContent() {
   const searchParams = useSearchParams()
   const category = params.category
   const linkedRequestId = searchParams.get("requestId") ?? ""
+  const [selectedActivityRequestId, setSelectedActivityRequestId] = useState(linkedRequestId)
   const [activityCustomer, setActivityCustomer] = useState("")
   const [activityCustomerCode, setActivityCustomerCode] = useState("")
   const [activityOpportunity, setActivityOpportunity] = useState("")
@@ -105,6 +106,7 @@ function ActivityCategoryNewPageContent() {
   const [activityRequester, setActivityRequester] = useState("")
   const [activityRegistrant, setActivityRegistrant] = useState("")
   const [linkedRequest, setLinkedRequest] = useState<ActivityRequestRecord | null>(null)
+  const [activityRequests, setActivityRequests] = useState<ActivityRequestRecord[]>([])
   const [quotationForm, setQuotationForm] = useState<QuotationFormState>(createEmptyQuotationForm())
   const [findingData, setFindingData] = useState<FindingBackendData>(emptyFindingData)
   const [isCustomerAlertOpen, setIsCustomerAlertOpen] = useState(false)
@@ -122,6 +124,7 @@ function ActivityCategoryNewPageContent() {
   const [form, setForm] = useState({
     date: "",
     type: "",
+    title: "",
     requester: currentUser.name,
     receiver: "",
     customerCode: "",
@@ -181,6 +184,7 @@ function ActivityCategoryNewPageContent() {
         customer: slot.customer_name || prev.customer,
         opportunityCode: slot.opportunity_code || prev.opportunityCode,
         opportunity: slot.opportunity_name || prev.opportunity,
+        title: slot.title || slot.request_title || prev.title,
         requester: slot.requested_by || prev.requester,
         content: slot.summary || prev.content,
       }))
@@ -264,49 +268,47 @@ function ActivityCategoryNewPageContent() {
 
   useEffect(() => {
     if (category !== "activities") return
+    setSelectedActivityRequestId(linkedRequestId)
+  }, [category, linkedRequestId])
+
+  useEffect(() => {
+    if (category !== "activities") return
 
     let cancelled = false
 
     const sync = (requests = getActivityRequests()) => {
       if (cancelled) return
 
-      if (!linkedRequestId) {
+      if (!selectedActivityRequestId) {
         setLinkedRequest(null)
-        setActivityCustomerCode("")
-        setActivityOpportunity("")
-        setActivityOpportunityCode("")
-        setActivityRequester("")
         return
       }
 
-      const request = requests.find((item) => item.id === linkedRequestId) ?? null
-      const normalizedCustomer =
-        (request?.customerCode ? getCustomerByCode(request.customerCode) : null) ??
-        (request?.customer ? getCustomerByName(request.customer) : null)
+      const request = requests.find((item) => item.id === selectedActivityRequestId) ?? null
       setLinkedRequest(request)
-      setActivityRequester(request?.requester ?? "")
-      if (request?.customer) {
-        setActivityCustomer(normalizedCustomer?.name ?? request.customer)
-      }
-      setActivityCustomerCode(normalizedCustomer?.id ?? request?.customerCode ?? "")
-      setActivityOpportunity(request?.opportunity ?? "")
-      setActivityOpportunityCode(request?.opportunityCode ?? "")
-      setActivityForm((prev) => ({
-        ...prev,
-        activityContent: request?.type ?? prev.activityContent,
-      }))
     }
 
     loadBackendActivityRequests()
-      .then((requests) => sync(requests))
+      .then((requests) => {
+        if (!cancelled) {
+          setActivityRequests(requests)
+        }
+        sync(requests)
+      })
       .catch(() => sync())
 
-    const unsubscribe = subscribeWorkflowUpdates(() => sync())
+    const unsubscribe = subscribeWorkflowUpdates(() => {
+      const requests = getActivityRequests()
+      if (!cancelled) {
+        setActivityRequests(requests)
+      }
+      sync(requests)
+    })
     return () => {
       cancelled = true
       unsubscribe()
     }
-  }, [category, linkedRequestId])
+  }, [category, selectedActivityRequestId])
 
   if (!categories.includes(category)) {
     return null
@@ -449,10 +451,10 @@ function ActivityCategoryNewPageContent() {
       return
     }
 
-    if (!form.customer) {
+    if (!form.title || !form.customer) {
       toast({
         title: "활동 요청 필수값 확인",
-        description: "고객사, 요청 유형, 담당자, 활동일, 요청 내용을 입력해주십시오.",
+        description: "요청 제목, 고객사, 요청 유형, 담당자, 활동일, 요청 내용을 입력해주십시오.",
       })
       return
     }
@@ -552,24 +554,27 @@ function ActivityCategoryNewPageContent() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {category === "activities" && (
-                    <ActivityFormFields
-                      defaultValues={{
+                  <ActivityFormFields
+                    defaultValues={{
                       requester: linkedRequest?.requester ?? "",
                       requestId: linkedRequest?.id ?? linkedRequestId,
                       activityContent: linkedRequest?.type ?? "",
                       opportunity: linkedRequest?.opportunity ?? "",
-                      }}
-                      registrantValue={activityRegistrant}
-                      onRegistrantChange={setActivityRegistrant}
-                      customerValue={activityCustomer}
-                      customerCodeValue={activityCustomerCode}
-                      onCustomerSelect={handleActivityCustomerSelect}
-                      onCustomerValueChange={handleActivityCustomerValueChange}
-                      onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
-                      opportunityValue={activityOpportunity}
+                    }}
+                    registrantValue={activityRegistrant}
+                    onRegistrantChange={setActivityRegistrant}
+                    customerValue={activityCustomer}
+                    customerCodeValue={activityCustomerCode}
+                    onCustomerSelect={handleActivityCustomerSelect}
+                    onCustomerValueChange={handleActivityCustomerValueChange}
+                    onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
+                    opportunityValue={activityOpportunity}
                     opportunityOptions={activityOpportunityOptions}
                     onOpportunityChange={handleActivityOpportunityChange}
                     onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
+                    requestValue={selectedActivityRequestId}
+                    requestOptions={activityRequests}
+                    onRequestChange={setSelectedActivityRequestId}
                     requesterValue={activityRequester}
                     onRequesterChange={setActivityRequester}
                     values={activityForm}
@@ -692,6 +697,14 @@ function ActivityCategoryNewPageContent() {
                         <Label>활동일 *</Label>
                         <Input type="date" value={form.dueDate} onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))} />
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>요청 제목 *</Label>
+                      <Input
+                        value={form.title}
+                        onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                        placeholder="요청 제목을 입력하세요"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>요청 내용 *</Label>
