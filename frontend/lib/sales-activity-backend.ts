@@ -54,6 +54,7 @@ type SalesActivityBackendItem = {
   projectOpportunityName?: string
   companyId?: number
   companyName?: string
+  createdByName?: string
   createUserName?: string
   activityType?: string
   activityPurpose?: string
@@ -64,6 +65,10 @@ type SalesActivityBackendItem = {
   nextActivity?: string
   customerInterest?: string
   attendeeUserIds?: string[]
+  attendees?: {
+    userId?: string
+    userName?: string
+  }[]
   status?: string
   salesActivityRequestId?: number
   salesActivityRequestTitle?: string
@@ -265,6 +270,35 @@ function formatAttendeeNames(attendeeUserIds: string[] | undefined, users: Backe
     .join(", ")
 }
 
+function extractAttendeeUserIds(activity: Pick<SalesActivityBackendItem, "attendeeUserIds" | "attendees">) {
+  const fromIds = activity.attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
+  if (fromIds.length > 0) {
+    return Array.from(new Set(fromIds))
+  }
+
+  const fromAttendees =
+    activity.attendees
+      ?.map((attendee) => attendee.userId?.trim())
+      .filter((value): value is string => Boolean(value)) ?? []
+  return Array.from(new Set(fromAttendees))
+}
+
+function formatActivityAttendeeNames(activity: Pick<SalesActivityBackendItem, "attendeeUserIds" | "attendees">, users: BackendUserSummary[]) {
+  if (activity.attendees?.length) {
+    return activity.attendees
+      .map((attendee) => {
+        const userId = attendee.userId?.trim() ?? ""
+        const userName = attendee.userName?.trim() ?? ""
+        const matched = userId ? users.find((user) => user.id?.trim() === userId) : null
+        return userName || formatUserDisplayName(matched ?? (userId ? { id: userId } : null))
+      })
+      .filter(Boolean)
+      .join(", ")
+  }
+
+  return formatAttendeeNames(activity.attendeeUserIds, users)
+}
+
 async function fetchSalesActivities() {
   const response = await fetch(`${getBackendApiBaseUrl()}/activity/sales-activities`, {
     headers: buildAuthHeaders(),
@@ -354,8 +388,8 @@ function mapBackendActivityRecord(
   const activityPurpose = mapActivityPurpose(activity.activityPurpose)
   const customerId = activity.companyId ?? opportunity?.customerCompanyId
   const opportunityId = activity.projectOpportunityId ?? opportunity?.id
-  const attendeeUserIds = activity.attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
-  const registrantName = activity.createUserName?.trim() || extras.registrant?.trim() || ""
+  const attendeeUserIds = extractAttendeeUserIds(activity)
+  const registrantName = activity.createdByName?.trim() || activity.createUserName?.trim() || extras.registrant?.trim() || ""
   const registrantUser = findUserByToken(users, extras.registrant ?? "")
   const requesterUser = findUserByToken(users, extras.requesterUserId ?? extras.requester ?? "")
   const requesterUserId = requesterUser?.id?.trim() ?? extras.requesterUserId ?? ""
@@ -379,7 +413,7 @@ function mapBackendActivityRecord(
     customer: activity.companyName ?? company?.name ?? opportunity?.customerCompanyName ?? "",
     opportunity: activity.projectOpportunityName ?? opportunity?.opportunityName ?? "",
     location: activity.location ?? "",
-    attendees: formatAttendeeNames(attendeeUserIds, users),
+    attendees: formatActivityAttendeeNames(activity, users),
     attendeeUserIds,
     content: activity.activityContent ?? "",
     issues: activity.customerInterest ?? activity.issue ?? "",

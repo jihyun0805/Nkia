@@ -187,14 +187,18 @@ function scheduleTokenRefresh(session: AuthSession) {
   const delay = Math.max(remaining - TOKEN_REFRESH_BUFFER_MS, 1000);
 
   refreshTimerId = setTimeout(async () => {
+    const handleRefreshFailure = () => {
+      clearAuthSession();
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+    };
+
     try {
       const currentSession = loadAuthSession();
       if (!currentSession?.refreshToken) return;
       if (isTokenExpired(currentSession.refreshToken)) {
-        clearAuthSession();
-        if (typeof window !== "undefined") {
-          window.location.href = "/";
-        }
+        handleRefreshFailure();
         return;
       }
 
@@ -209,7 +213,8 @@ function scheduleTokenRefresh(session: AuthSession) {
       });
 
       if (!response.ok) {
-        throw new Error("토큰 갱신 실패");
+        handleRefreshFailure();
+        return;
       }
 
       const result = await response.json();
@@ -217,7 +222,8 @@ function scheduleTokenRefresh(session: AuthSession) {
       const newRefreshToken = result?.data?.refreshToken;
 
       if (!newAccessToken) {
-        throw new Error("새 토큰 없음");
+        handleRefreshFailure();
+        return;
       }
 
       // 세션 업데이트
@@ -231,6 +237,7 @@ function scheduleTokenRefresh(session: AuthSession) {
       console.log("[Auth] 토큰 선제적 갱신 완료");
     } catch (error) {
       console.error("[Auth] 토큰 선제적 갱신 실패:", error);
+      handleRefreshFailure();
     }
   }, delay);
 }
