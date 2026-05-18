@@ -46,9 +46,11 @@ public class BillingDetailResponse {
                 .id(billing.getId())
                 .workflowId(workflowId)
                 .approvalStatus(billing.getApprovalStatus())
-                .orderReportId(billing.getOrderReport().getId())
-                .customerName(billing.getOrderReport().getFinalCustomerCompany().getName())
-                .projectName(billing.getOrderReport().getProjectOpportunity().getOpportunityName())
+                .orderReportId(billing.getOrderReport() != null ? billing.getOrderReport().getId() : null)
+                .customerName(billing.getOrderReport() != null && billing.getOrderReport().getFinalCustomerCompany() != null
+                        ? billing.getOrderReport().getFinalCustomerCompany().getName() : null)
+                .projectName(billing.getOrderReport() != null && billing.getOrderReport().getProjectOpportunity() != null
+                        ? billing.getOrderReport().getProjectOpportunity().getOpportunityName() : null)
                 .billingAmount(billing.getBillingAmount())
                 .requestedIssueDate(billing.getRequestedIssueDate())
                 .issuedAt(billing.getIssuedAt())
