@@ -46,15 +46,33 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
         name: isEdit ? initialData?.finalCustomerCompanyName : inheritedData?.customerName || "",
         companyId: isEdit ? initialData?.finalCustomerCompanyId : undefined,
         managerId: isEdit ? initialData?.finalCustomerManagerId : undefined,
+        contact: isEdit ? initialData?.finalCustomerPhone : "",
       },
       contractPartner: {
         name: isEdit ? initialData?.contractCounterpartCompanyName : inheritedData?.customerName || "",
         companyId: isEdit ? initialData?.contractCounterpartCompanyId : undefined,
         managerId: isEdit ? initialData?.contractCounterpartManagerId : undefined,
+        contact: isEdit ? initialData?.contractCounterpartPhone : "",
       },
       pmId: isEdit ? initialData?.pmId : undefined,
-      type: isEdit ? initialData?.type : "SOLUTION",
+      type: isEdit
+        ? initialData?.type === "솔루션" || initialData?.type === "SOLUTION"
+          ? "SOLUTION"
+          : initialData?.type === "유지보수" || initialData?.type === "MAINTENANCE"
+            ? "MAINTENANCE"
+            : initialData?.type === "용역" || initialData?.type === "SERVICE"
+              ? "SERVICE"
+              : ""
+        : "SOLUTION",
       codeType: isEdit ? initialData?.codeType : "GN",
+      codeClassification: isEdit
+        ? (() => {
+            const raw = initialData?.codeType || "GN";
+            const match = raw.match(/[A-Z]+(-[A-Z]+)?$/);
+            const code = match ? match[0] : raw;
+            return code.endsWith("MA") && code.length === 4 ? code.slice(0, 2) + "-" + code.slice(2) : code;
+          })()
+        : "GN",
       hasChannel: isEdit ? (initialData?.channel ? "Y" : "N") : "",
       contractDate: isEdit ? initialData?.contractDate : undefined,
       startDate: isEdit ? initialData?.contractStartDate : undefined,
@@ -63,13 +81,21 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
       freeMaintenancePeriod: isEdit ? initialData?.freeMaintenancePeriodMonths : undefined,
       scopeOfWork: isEdit ? initialData?.scopeOfWork : undefined,
       remarks: isEdit ? initialData?.remarks : undefined,
-      quotationProvided: isEdit ? initialData?.quotationProvided : false,
-      contractProvided: isEdit ? initialData?.contractProvided : false,
-      purchaseOrderProvided: isEdit ? initialData?.purchaseOrderProvided : false,
-      prbReportProvided: isEdit ? initialData?.prbReportProvided : false,
-      additionalDocuments: isEdit ? initialData?.additionalDocuments : undefined,
+      attachments: {
+        quotation: isEdit ? (initialData?.quotationProvided ? "Y" : "N") : "",
+        contract: isEdit ? (initialData?.contractProvided ? "Y" : "N") : "",
+        purchaseOrder: isEdit ? (initialData?.purchaseOrderProvided ? "Y" : "N") : "",
+        prbReport: isEdit ? (initialData?.prbReportProvided ? "Y" : "N") : "",
+        others: isEdit ? initialData?.additionalDocuments || "" : "",
+      },
       totalAmount: isEdit ? formatNum(initialData?.totalAmount) : "",
-      vatType: "",
+      vatType: isEdit
+        ? initialData?.vatType === "VAT 포함" || initialData?.vatType === "INCLUDED"
+          ? "VAT포함"
+          : initialData?.vatType === "VAT 별도" || initialData?.vatType === "EXCLUDED"
+            ? "VAT별도"
+            : ""
+        : "",
       paymentTerms: isEdit ? initialData?.paymentCondition : "",
       salesClassification: {
         ems: isEdit ? formatNum(initialData?.emsSummary) : "",
@@ -84,46 +110,59 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
       },
       licenseDetails: isEdit
         ? initialData?.licenses?.map((l: any) => ({
-            productModuleId: l.productModuleId,
+            category: (() => {
+              const pc = l.productClass || "";
+              const upper = pc.toUpperCase();
+              if (upper === "DASHBOARD") return "Dashboard";
+              if (upper === "상면 관리" || upper === "DATACENTER") return "상면 관리";
+              if (upper === "SUPPORTING_TOOLS" || upper === "SUPPORTING TOOLS") return "Supporting Tools";
+              return pc;
+            })(),
+            group: l.productGroup || "",
+            productModuleId: l.productModuleId ? String(l.productModuleId) : "",
             quantity: formatNum(l.quantity),
-            productClass: l.productClass,
-            productGroup: l.productGroup,
-            productName: l.productName,
-            price: formatNum(l.price),
-            totalPrice: formatNum(l.totalPrice),
+            unitPrice: formatNum(l.price),
+            subtotal: formatNum(l.totalPrice),
           }))
         : [],
       serviceDetails: isEdit
         ? initialData?.services?.map((s: any) => ({
-            content: s.content,
-            manMonth: formatNum(s.manMonth),
-            price: formatNum(s.price),
-            totalPrice: formatNum(s.totalPrice),
+            content: s.content || "",
+            mm: formatNum(s.manMonth),
+            unitPrice: formatNum(s.price),
+            subtotal: formatNum(s.totalPrice),
           }))
         : [],
       maintenanceDetails: isEdit
         ? initialData?.maintenances?.map((m: any) => ({
-            content: m.content,
-            visitCycle: m.visitCycle,
-            month: formatNum(m.month),
-            price: formatNum(m.price),
-            totalPrice: formatNum(m.totalPrice),
+            content: m.content || "",
+            cycle:
+              m.visitCycle === "월" || m.visitCycle === "MONTHLY"
+                ? "월"
+                : m.visitCycle === "분기" || m.visitCycle === "QUARTERLY"
+                  ? "분기"
+                  : m.visitCycle === "반기" || m.visitCycle === "SEMI_ANNUAL"
+                    ? "반기"
+                    : "",
+            months: formatNum(m.month),
+            monthlyAmount: formatNum(m.price),
+            subtotal: formatNum(m.totalPrice),
           }))
         : [],
       otherSalesDetails: isEdit
         ? initialData?.others?.map((o: any) => ({
-            content: o.content,
+            content: o.content || "",
             quantity: formatNum(o.quantity),
-            price: formatNum(o.price),
-            totalPrice: formatNum(o.totalPrice),
+            unitPrice: formatNum(o.price),
+            subtotal: formatNum(o.totalPrice),
           }))
         : [],
       purchaseDetails: isEdit
         ? initialData?.purchases?.map((p: any) => ({
-            content: p.content,
+            content: p.content || "",
             quantity: formatNum(p.quantity),
-            price: formatNum(p.price),
-            totalPrice: formatNum(p.totalPrice),
+            unitPrice: formatNum(p.price),
+            subtotal: formatNum(p.totalPrice),
           }))
         : [],
       maintenanceOnlyItems: isEdit
@@ -166,15 +205,27 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
     };
 
     const payload: OrderReportRequest = {
-      type: formData.type || "SOLUTION",
-      quotationProvided: formData.quotationProvided || false,
-      contractProvided: formData.contractProvided || false,
-      purchaseOrderProvided: formData.purchaseOrderProvided || false,
-      prbReportProvided: formData.prbReportProvided || false,
+      type: (formData.type === "솔루션" || formData.type === "SOLUTION"
+        ? "SOLUTION"
+        : formData.type === "유지보수" || formData.type === "MAINTENANCE"
+          ? "MAINTENANCE"
+          : formData.type === "용역" || formData.type === "SERVICE"
+            ? "SERVICE"
+            : "SOLUTION") as any,
+      vatType: formData.vatType === "VAT포함" ? "INCLUDED" : formData.vatType === "VAT별도" ? "EXCLUDED" : undefined,
+      quotationProvided: formData.attachments?.quotation === "Y",
+      contractProvided: formData.attachments?.contract === "Y",
+      purchaseOrderProvided: formData.attachments?.purchaseOrder === "Y",
+      prbReportProvided: formData.attachments?.prbReport === "Y",
       paymentCondition: formData.paymentTerms || "",
-      additionalDocuments: formData.additionalDocuments,
+      additionalDocuments: formData.attachments?.others || "",
       channel: formData.hasChannel === "Y",
-      codeType: (formData.codeClassification || formData.codeType || "GN").replace("-", ""),
+      codeType: (() => {
+        const raw = formData.codeClassification || formData.codeType || "GN";
+        const match = raw.match(/[A-Z]+(-[A-Z]+)?$/);
+        const code = match ? match[0] : raw;
+        return code.replace("-", "");
+      })() as any,
       contractDate: formData.contractDate || new Date().toISOString().split("T")[0],
       freeMaintenancePeriodMonths: formData.freeMaintenancePeriod ? parseInt(formData.freeMaintenancePeriod) : undefined,
       contractStartDate: formData.startDate || undefined,
@@ -196,7 +247,7 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
           let vc = "MONTHLY";
           if (m.cycle === "월") vc = "MONTHLY";
           else if (m.cycle === "분기") vc = "QUARTERLY";
-          else if (m.cycle === "반기") vc = "BIANNUAL";
+          else if (m.cycle === "반기") vc = "SEMI_ANNUAL";
           return {
             content: m.content || "",
             visitCycle: vc,
@@ -279,7 +330,7 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEdit ? "수정" : "등록"}
+            저장
           </Button>
         </div>
       </form>

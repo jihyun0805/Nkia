@@ -92,7 +92,7 @@ export function OrderScopeSection() {
               사업범위
             </th>
             <td className="p-0" colSpan={9}>
-              <textarea className={cellTextarea} {...register("businessScope")} />
+              <textarea className={cellTextarea} {...register("scopeOfWork")} />
             </td>
           </tr>
 
