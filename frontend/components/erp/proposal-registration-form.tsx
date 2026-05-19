@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
 import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
@@ -95,6 +95,7 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
   const [form, setForm] = useState<FormState>(emptyForm)
   const [validationMessage, setValidationMessage] = useState("")
   const [proposalDetail, setProposalDetail] = useState<ProposalBackendDetail | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const selectedSalesRepId = resolveUserId(form.salesRep, users)
   const proposalDetailAppliedRef = useRef(false)
   const initialRequestAppliedRef = useRef(false)
@@ -240,6 +241,10 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
   }, [proposalId])
 
   useEffect(() => {
+    setSelectedFiles([])
+  }, [proposalId])
+
+  useEffect(() => {
     initialRequestAppliedRef.current = false
   }, [initialRequestId])
 
@@ -325,6 +330,7 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
       salesRep: proposalDetail.salesRep,
       contactName: proposalDetail.contactName,
     })
+    setSelectedFiles([])
   }, [proposalDetail])
 
   useEffect(() => {
@@ -413,6 +419,8 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
       proposalDeadline: form.proposalDeadline || matchedRequest?.dueDate || "",
       salesRep: form.salesRep || matchedOpportunity.salesRep || "",
       contactName: form.contactName || matchedCustomer.contactName || matchedCustomer.contact || "",
+      existingFileIds: proposalDetail?.fileIds ?? [],
+      files: selectedFiles,
     })
       .then((savedId) => {
         router.push(`/bid/proposal/${savedId}`)
@@ -420,6 +428,16 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
       .catch((error) => {
         setValidationMessage(error instanceof Error ? error.message : "제안서를 저장하지 못했습니다.")
       })
+  }
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFiles = Array.from(event.target.files ?? [])
+    setSelectedFiles((current) => [...current, ...nextFiles])
+    event.target.value = ""
+  }
+
+  const removeSelectedFile = (index: number) => {
+    setSelectedFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))
   }
 
   return (
@@ -517,6 +535,51 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
               <Label>담당자</Label>
               <Input value={currentUser.name} readOnly className="text-foreground" />
             </div>
+          </div>
+
+          <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+            <div className="space-y-1">
+              <Label>첨부파일</Label>
+              <p className="text-sm text-muted-foreground">제안서와 함께 올릴 파일을 선택하세요.</p>
+            </div>
+            <Input
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.zip"
+              onChange={handleFileChange}
+            />
+            {proposalDetail?.files?.length ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">기존 첨부파일</p>
+                <div className="space-y-1 rounded-md border bg-background px-3 py-2">
+                  {proposalDetail.files.map((file) => (
+                    <div key={file.fileId} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="truncate">{file.name}</span>
+                      {file.url ? (
+                        <a className="text-primary underline-offset-4 hover:underline" href={file.url} target="_blank" rel="noreferrer">
+                          열기
+                        </a>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {selectedFiles.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">선택된 파일</p>
+                <div className="space-y-2 rounded-md border bg-background px-3 py-2">
+                  {selectedFiles.map((file, index) => (
+                    <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="truncate">{file.name}</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeSelectedFile(index)}>
+                        제거
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex justify-end gap-2 border-t pt-6">
