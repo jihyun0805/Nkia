@@ -6,21 +6,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 export function OrderBasicSection() {
   const { register, control, setValue } = useFormContext();
   const cellInput = "w-full h-full min-h-[32px] border-0 bg-transparent px-2 text-sm focus:ring-2 focus:ring-blue-600 outline-none";
-
-  const registerNumber = (name: string) => {
-    const { onChange, ...rest } = register(name);
-    return {
-      ...rest,
-      type: "text",
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        const isNegative = val.startsWith("-");
-        const raw = val.replace(/[^\d]/g, ""); // 숫자만 추출
-        e.target.value = raw ? (isNegative ? "-" : "") + Number(raw).toLocaleString() : isNegative ? "-" : "";
-        onChange(e); // React Hook Form에 값 전달
-      },
-    };
-  };
+  const readonlyInput = "w-full h-full min-h-[32px] border-0 bg-transparent px-2 text-sm outline-none cursor-default select-none";
 
   const parseNum = (val: string | number | undefined) => {
     if (!val) return 0;
@@ -125,19 +111,7 @@ export function OrderBasicSection() {
     if (currentIto !== ito) setValue("salesClassification.ito", fmtVal(ito));
     if (currentAiotion !== aiotion) setValue("salesClassification.aiotion", fmtVal(aiotion));
     if (currentOthers !== others) setValue("salesClassification.others", fmtVal(others));
-
-  }, [
-    licenseData,
-    serviceData,
-    maintenanceData,
-    otherSalesData,
-    licenseDiscount,
-    serviceDiscount,
-    maintenanceDiscount,
-    totalAmount,
-    setValue,
-    salesClassificationValues,
-  ]);
+  }, [licenseData, serviceData, maintenanceData, otherSalesData, licenseDiscount, serviceDiscount, maintenanceDiscount, totalAmount, setValue, salesClassificationValues]);
 
   // 값이 변경될 때마다 검증(Verification) 값 자동계산
   useEffect(() => {
@@ -173,7 +147,7 @@ export function OrderBasicSection() {
               총 계약금액
             </th>
             <td className="bg-yellow-200 border-r border-black p-0" colSpan={8}>
-              <input className={`${cellInput} text-right`} {...registerNumber("totalAmount")} />
+              <input className={`${readonlyInput} text-right`} {...register("totalAmount")} readOnly tabIndex={-1} />
             </td>
             <td className="text-center font-medium" colSpan={1}>
               <select className={`${cellInput} text-left [text-align-last:center]`} {...register("vatType")}>
@@ -212,25 +186,25 @@ export function OrderBasicSection() {
               EMS
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-right`} {...registerNumber("salesClassification.ems")} />
+              <input className={`${readonlyInput} text-right`} {...register("salesClassification.ems")} readOnly tabIndex={-1} />
             </td>
             <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
               ITG
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-right`} {...registerNumber("salesClassification.itg")} />
+              <input className={`${readonlyInput} text-right`} {...register("salesClassification.itg")} readOnly tabIndex={-1} />
             </td>
             <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
               대시보드
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-right`} {...registerNumber("salesClassification.dashboard")} />
+              <input className={`${readonlyInput} text-right`} {...register("salesClassification.dashboard")} readOnly tabIndex={-1} />
             </td>
             <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
               AIOTION
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-right`} {...registerNumber("salesClassification.aiotion")} />
+              <input className={`${readonlyInput} text-right`} {...register("salesClassification.aiotion")} readOnly tabIndex={-1} />
             </td>
             <th className="bg-slate-100 font-bold text-red-600 text-[10px] leading-tight border-l border-black" colSpan={1}>
               검증
@@ -244,25 +218,25 @@ export function OrderBasicSection() {
               EMS유지보수
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-right`} {...registerNumber("salesClassification.emsMaintenance")} />
+              <input className={`${readonlyInput} text-right`} {...register("salesClassification.emsMaintenance")} readOnly tabIndex={-1} />
             </td>
             <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
               ITG유지보수
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-right`} {...registerNumber("salesClassification.itgMaintenance")} />
+              <input className={`${readonlyInput} text-right`} {...register("salesClassification.itgMaintenance")} readOnly tabIndex={-1} />
             </td>
             <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
               ITO
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-right`} {...registerNumber("salesClassification.ito")} />
+              <input className={`${readonlyInput} text-right`} {...register("salesClassification.ito")} readOnly tabIndex={-1} />
             </td>
             <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
               기타
             </th>
             <td className="border-r border-black p-0" colSpan={1}>
-              <input className={`${cellInput} text-right`} {...registerNumber("salesClassification.others")} />
+              <input className={`${readonlyInput} text-right`} {...register("salesClassification.others")} readOnly tabIndex={-1} />
             </td>
             <td className="bg-red-50 p-0 border-l border-black" colSpan={1}>
               <input className={`${cellInput} text-center text-red-600 font-bold`} readOnly tabIndex={-1} {...register("salesClassification.verification")} />
