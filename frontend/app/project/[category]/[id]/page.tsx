@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sidebar } from "@/components/erp/sidebar";
@@ -9,8 +9,11 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, FileText, Download } from "lucide-react";
-import { projectApi, type ProjectDetailResponse, type BillingDetailResponse } from "@/lib/api/project-api";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, AlertCircle, FileText, Download, Upload, CheckCircle2 } from "lucide-react";
+import { projectApi, type ProjectDetailResponse, type BillingDetailResponse, uploadBillingInvoiceFile } from "@/lib/api/project-api";
+import { emitAlarmUpdate } from "@/hooks/use-alarms";
 
 type Category = "results" | "billingAndCollection";
 
@@ -132,30 +135,99 @@ function BillingDetail({ id }: { id: number }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // 세금계산서 발행 처리 상태
+  const [issuedAt, setIssuedAt] = useState("");
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [issuing, setIssuing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 수금 처리 상태
+  const [collectedAt, setCollectedAt] = useState("");
+  const [collecting, setCollecting] = useState(false);
+
+  const loadData = () => {
     setLoading(true);
     projectApi
       .getBilling(id)
       .then((res) => setData(res.data))
       .catch(() => setError("청구 정보를 불러오는 데 실패했습니다."))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, [id]);
 
   const handleDelete = async () => {
     if (!confirm("청구 정보를 삭제하시겠습니까?")) return;
     try {
       await projectApi.deleteBilling(id);
-      router.push("/project");
+      router.push("/project?tab=billingAndCollection");
     } catch {
       alert("삭제에 실패했습니다.");
     }
   };
 
+  // 세금계산서 발행 처리
+  const handleIssue = async () => {
+    if (!issuedAt) {
+      alert("세금계산서 발행일을 입력해주세요.");
+      return;
+    }
+
+    setIssuing(true);
+    try {
+      let invoiceImageId: number | null = null;
+      if (invoiceFile) {
+        invoiceImageId = await uploadBillingInvoiceFile(invoiceFile);
+      }
+
+      await projectApi.issueBilling(id, { issuedAt, invoiceImageId });
+      alert("세금계산서 발행 처리가 완료되었습니다.");
+      emitAlarmUpdate();
+      loadData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "발행 처리에 실패했습니다.";
+      alert(msg);
+    } finally {
+      setIssuing(false);
+    }
+  };
+
+  // 수금 처리
+  const handleCollect = async () => {
+    if (!collectedAt) {
+      alert("수금일을 입력해주세요.");
+      return;
+    }
+
+    setCollecting(true);
+    try {
+      await projectApi.collectBilling(id, { collectedAt });
+      alert("수금 처리가 완료되었습니다.");
+      emitAlarmUpdate();
+      loadData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "수금 처리에 실패했습니다.";
+      alert(msg);
+    } finally {
+      setCollecting(false);
+    }
+  };
+
   const statusLabel = (status: string) => {
     if (status === "REQUESTED") return "발행 요청";
+    if (status === "APPROVED") return "결재 완료";
     if (status === "ISSUED") return "발행완료";
     if (status === "COLLECTED") return "수금완료";
     return status;
+  };
+
+  const statusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
+    if (status === "COLLECTED") return "default";
+    if (status === "ISSUED") return "secondary";
+    if (status === "APPROVED") return "secondary";
+    return "outline";
   };
 
   if (loading) return <LoadingState />;
@@ -166,48 +238,130 @@ function BillingDetail({ id }: { id: number }) {
     { label: "사업명", value: data.projectName },
     { label: "청구금액", value: `₩${data.billingAmount.toLocaleString()}` },
     { label: "발행 희망일", value: data.requestedIssueDate },
-    { label: "세금계산서 발행일", value: data.issuedAt ?? "미등록" },
-    { label: "수금일", value: data.collectedAt ?? "미등록" },
+    { label: "세금계산서 발행일", value: data.issuedAt ?? "-" },
+    { label: "수금일", value: data.collectedAt ?? "-" },
     { label: "요청자", value: data.createdBy },
     { label: "요청일", value: data.createdAt?.slice(0, 10) },
     { label: "특기사항", value: data.remarks },
   ];
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>청구 상세</CardTitle>
-        <Badge variant={data.status === "COLLECTED" ? "default" : data.status === "ISSUED" ? "secondary" : "outline"}>{statusLabel(data.status)}</Badge>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
-          {fields.map((f) => (
-            <div key={f.label}>
-              <p className="text-xs text-muted-foreground mb-1">{f.label}</p>
-              <p className="font-medium">{f.value ?? "-"}</p>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>청구 상세</CardTitle>
+          <Badge variant={statusVariant(data.status)}>{statusLabel(data.status)}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            {fields.map((f) => (
+              <div key={f.label}>
+                <p className="text-xs text-muted-foreground mb-1">{f.label}</p>
+                <p className="font-medium">{f.value ?? "-"}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 관련 문서 */}
+          <div className="border-t pt-4 flex gap-4 text-sm">
+            {data.orderReportId && (
+              <Link href={`/contract/orders/${data.orderReportId}`} className="text-blue-600 hover:underline">
+                수주보고서 #{data.orderReportId}
+              </Link>
+            )}
+          </div>
+
+          <div className="flex justify-between pt-4 border-t">
+            <Button variant="destructive" size="sm" onClick={handleDelete}>
+              삭제
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/project?tab=billingAndCollection">목록으로</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 세금계산서 발행 처리 (결재 완료 상태일 때) */}
+      {data.status === "APPROVED" && (
+        <Card className="border-blue-200 dark:border-blue-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-blue-800 dark:text-blue-300">
+              <CheckCircle2 className="w-4 h-4" />
+              세금계산서 발행 처리
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">결재가 완료되었습니다. 세금계산서 발행일과 이미지를 등록해주세요.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* 5) 세금계산서 발행일 */}
+            <div className="space-y-2">
+              <Label htmlFor="issuedAt">세금계산서 발행일 *</Label>
+              <Input id="issuedAt" type="date" value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} />
             </div>
-          ))}
-        </div>
 
-        {/* 관련 문서 */}
-        <div className="border-t pt-4 flex gap-4 text-sm">
-          {data.orderReportId && (
-            <Link href={`/contract/orders/${data.orderReportId}`} className="text-blue-600 hover:underline">
-              수주보고서 #{data.orderReportId}
-            </Link>
-          )}
-        </div>
+            {/* 10) 세금계산서 등록 (이미지 업로드) */}
+            <div className="space-y-2">
+              <Label htmlFor="invoiceFile">세금계산서 이미지 등록</Label>
+              <div className="flex items-center gap-3">
+                <input ref={fileInputRef} id="invoiceFile" type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setInvoiceFile(e.target.files?.[0] ?? null)} />
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  파일 선택
+                </Button>
+                {invoiceFile && <span className="text-sm text-muted-foreground">{invoiceFile.name}</span>}
+              </div>
+              <p className="text-xs text-muted-foreground">이미지 또는 PDF 파일을 업로드하세요. (선택사항)</p>
+            </div>
 
-        <div className="flex justify-between pt-4 border-t">
-          <Button variant="destructive" size="sm" onClick={handleDelete}>
-            삭제
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/project?tab=billingAndCollection">목록으로</Link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleIssue} disabled={issuing || !issuedAt}>
+                {issuing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    처리 중...
+                  </>
+                ) : (
+                  "세금계산서 발행 완료"
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 수금 처리 (발행완료 상태일 때) */}
+      {data.status === "ISSUED" && (
+        <Card className="border-green-200 dark:border-green-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-green-800 dark:text-green-300">
+              <CheckCircle2 className="w-4 h-4" />
+              수금 처리
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">세금계산서가 발행되었습니다. 수금일을 입력하여 수금 결과를 확정해주세요.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* 6) 수금일 */}
+            <div className="space-y-2">
+              <Label htmlFor="collectedAt">수금일 *</Label>
+              <Input id="collectedAt" type="date" value={collectedAt} onChange={(e) => setCollectedAt(e.target.value)} />
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleCollect} disabled={collecting || !collectedAt}>
+                {collecting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    처리 중...
+                  </>
+                ) : (
+                  "수금 확인 완료"
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 

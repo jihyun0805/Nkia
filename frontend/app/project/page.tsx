@@ -209,9 +209,8 @@ export default function ProjectPage() {
       return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
     });
 
-  // 청구 필터 (status 없을 시 전체 표시, 있으면 ISSUED/COLLECTED만 표시)
+  // 청구 필터
   const filteredBillings = billings
-    .filter((b) => !b.status || b.status === "ISSUED" || b.status === "COLLECTED")
     .filter((b) => matchesSearch([b.customerName, b.projectName, b.salesRepName, b.requesterName]))
     .sort((a, b) => {
       if (!a.createdAt && !b.createdAt) return 0;
@@ -221,7 +220,8 @@ export default function ProjectPage() {
     });
 
   const statusLabel = (status: string) => {
-    if (status === "REQUESTED") return "요청";
+    if (status === "REQUESTED") return "발행 요청";
+    if (status === "APPROVED") return "결재 완료";
     if (status === "ISSUED") return "발행완료";
     if (status === "COLLECTED") return "수금완료";
     return status;
@@ -399,8 +399,8 @@ export default function ProjectPage() {
                               <TableCell>{item.salesRepName}</TableCell>
                               <TableCell>{item.requesterName}</TableCell>
                               <TableCell className="text-center">
-                                <Badge variant={item.status === "COLLECTED" ? "default" : item.status === "ISSUED" ? "secondary" : "outline"}>
-                                  {item.status ? statusLabel(item.status) : "발행완료"}
+                                <Badge variant={item.status === "COLLECTED" ? "default" : item.status === "ISSUED" ? "secondary" : item.status === "APPROVED" ? "secondary" : "outline"}>
+                                  {item.status ? statusLabel(item.status) : "-"}
                                 </Badge>
                               </TableCell>
                             </TableRow>
