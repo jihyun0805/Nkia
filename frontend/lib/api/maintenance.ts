@@ -331,3 +331,36 @@ export interface CustomerSupportActivityDetailResponse {
 export const getCustomerSupportActivityDetail = async (id: number): Promise<ApiResponse<CustomerSupportActivityDetailResponse>> => {
   return await customInstance({ url: `/maintenances/customer-supports/activities/${id}`, method: "get" });
 };
+
+export interface CustomerSupportHistoryListResponse {
+  historyId: number;
+  originalActivityId: number;
+  customerName: string;
+  activityType: string;
+  activityStartTime: string;
+  activityEndTime: string;
+  registrantName: string;
+  savedAt: string;
+}
+
+export interface CustomerSupportHistoryDetailResponse {
+  historyId: number;
+  originalActivityId: number;
+  customerName: string;
+  activityType: string;
+  activityStartTime: string;
+  activityEndTime: string;
+  activityContent: string;
+  registrantName: string;
+  remarks: string;
+  participantsInfo: string;
+  savedAt: string;
+}
+
+export const getCustomerSupportActivityHistories = async (id: number): Promise<ApiResponse<CustomerSupportHistoryListResponse[]>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/activities/${id}/histories`, method: "get" });
+};
+
+export const getCustomerSupportActivityHistoryDetail = async (historyId: number): Promise<ApiResponse<CustomerSupportHistoryDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/activities/histories/${historyId}`, method: "get" });
+};

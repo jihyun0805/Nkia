@@ -73,12 +73,13 @@ export default function CustomerSupportRequestDetailPage() {
   }, [id]);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="flex flex-1 flex-col">
-        <Header />
-        <main className="flex-1 overflow-auto bg-background p-6">
-          <Breadcrumb className="mb-6">
+      <div className="flex-1 flex flex-col">
+        <Header title="고객지원 요청 상세" />
+        <main className="flex-1 overflow-auto p-6">
+          <div className="mx-auto max-w-5xl space-y-6">
+            <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem><BreadcrumbLink asChild><Link href="/maintenance">유지보수</Link></BreadcrumbLink></BreadcrumbItem>
               <BreadcrumbSeparator />
@@ -102,7 +103,7 @@ export default function CustomerSupportRequestDetailPage() {
           )}
 
           {!loading && !error && item && (
-            <div className="space-y-6 max-w-3xl">
+            <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">고객지원 요청 #{item.id}</h1>
                 <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
@@ -164,6 +165,7 @@ export default function CustomerSupportRequestDetailPage() {
               </div>
             </div>
           )}
+          </div>
         </main>
       </div>
     </div>
