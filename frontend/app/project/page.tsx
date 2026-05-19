@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardList, Receipt, TrendingUp, Plus, Loader2, AlertCircle } from "lucide-react";
+import { ClipboardList, Receipt, TrendingUp, Plus, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { FilterPopover } from "@/components/erp/filter-popover";
 import { PageSearchForm } from "@/components/erp/page-search-form";
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils";
@@ -92,6 +92,7 @@ export default function ProjectPage() {
 
   // 예상 매출액 상태
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const hasAutoSetYear = useRef(false);
   const [expectedRevenue, setExpectedRevenue] = useState<any[]>([]);
   const [totalEms, setTotalEms] = useState(0);
   const [totalItg, setTotalItg] = useState(0);
@@ -101,9 +102,11 @@ export default function ProjectPage() {
   const [totalItgMaint, setTotalItgMaint] = useState(0);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [revenueLoading, setRevenueLoading] = useState(false);
+  const [revenueError, setRevenueError] = useState<string | null>(null);
 
   const fetchRevenue = useCallback(async () => {
     setRevenueLoading(true);
+    setRevenueError(null);
     try {
       const res = await projectApi.getAnnualRevenue(selectedYear);
       const data = res.data ?? [];
@@ -118,14 +121,16 @@ export default function ProjectPage() {
 
       data.forEach((categoryData) => {
         const cat = categoryData.productCategory;
-        Object.entries(categoryData.monthlyRevenue).forEach(([month, amount]) => {
+        const monthlyRevenue = categoryData.monthlyRevenue ?? {};
+        Object.entries(monthlyRevenue).forEach(([month, amount]) => {
           if (!monthlyData[month]) return;
-          if (cat === "EMS") monthlyData[month].ems += amount;
-          else if (cat === "ITG") monthlyData[month].itg += amount;
-          else if (cat === "IOT") monthlyData[month].iot += amount;
-          else if (cat === "ETC") monthlyData[month].other += amount;
-          else if (cat === "EMS_MAINTENANCE") monthlyData[month].emsMaint += amount;
-          else if (cat === "ITG_MAINTENANCE") monthlyData[month].itgMaint += amount;
+          const value = Number(amount) || 0;
+          if (cat === "EMS") monthlyData[month].ems += value;
+          else if (cat === "ITG") monthlyData[month].itg += value;
+          else if (cat === "IOT") monthlyData[month].iot += value;
+          else if (cat === "ETC") monthlyData[month].other += value;
+          else if (cat === "EMS_MAINTENANCE") monthlyData[month].emsMaint += value;
+          else if (cat === "ITG_MAINTENANCE") monthlyData[month].itgMaint += value;
         });
       });
 
@@ -158,6 +163,7 @@ export default function ProjectPage() {
       setTotalRevenue(tTotal);
     } catch (e) {
       console.error(e);
+      setRevenueError("예상 매출액 데이터를 불러오는 데 실패했습니다.");
     } finally {
       setRevenueLoading(false);
     }
@@ -168,6 +174,19 @@ export default function ProjectPage() {
       fetchRevenue();
     }
   }, [activeTab, fetchRevenue]);
+
+  useEffect(() => {
+    if (!hasAutoSetYear.current && projects.length > 0) {
+      hasAutoSetYear.current = true;
+      const projectYears = projects.filter((p) => p.startDate).map((p) => parseInt(p.startDate!.substring(0, 4)));
+      if (projectYears.length > 0) {
+        const maxYear = Math.max(...projectYears);
+        if (maxYear >= 2023 && maxYear <= 2028) {
+          setSelectedYear(maxYear);
+        }
+      }
+    }
+  }, [projects]);
 
   // 검색 / 필터 적용
   const normalizedSearch = appliedSearchTerm.trim().toLowerCase();
@@ -278,7 +297,7 @@ export default function ProjectPage() {
                         <Loader2 className="w-5 h-5 animate-spin" />
                         불러오는 중...
                       </div>
-                    ) : (projectsError || filteredProjects.length === 0) ? (
+                    ) : projectsError || filteredProjects.length === 0 ? (
                       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 사업 결과보고 내역이 없습니다.</div>
                     ) : (
                       <Table>
@@ -349,7 +368,7 @@ export default function ProjectPage() {
                         <Loader2 className="w-5 h-5 animate-spin" />
                         불러오는 중...
                       </div>
-                    ) : (billingsError || filteredBillings.length === 0) ? (
+                    ) : billingsError || filteredBillings.length === 0 ? (
                       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 청구 및 수금 내역이 없습니다.</div>
                     ) : (
                       <Table>
@@ -418,14 +437,12 @@ export default function ProjectPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">제품별/월별 예상 매출액</CardTitle>
                     <div className="flex items-center gap-3">
-                      <Select
-                        value={String(selectedYear)}
-                        onValueChange={(val) => setSelectedYear(Number(val))}
-                      >
+                      <Select value={String(selectedYear)} onValueChange={(val) => setSelectedYear(Number(val))}>
                         <SelectTrigger className="w-[120px] h-9">
                           <SelectValue placeholder="연도 선택" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="2023">2023년</SelectItem>
                           <SelectItem value="2024">2024년</SelectItem>
                           <SelectItem value="2025">2025년</SelectItem>
                           <SelectItem value="2026">2026년</SelectItem>
@@ -445,52 +462,83 @@ export default function ProjectPage() {
                       <Loader2 className="w-5 h-5 animate-spin" />
                       불러오는 중...
                     </div>
+                  ) : revenueError ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-destructive">
+                      <AlertCircle className="w-6 h-6" />
+                      <p className="text-sm">{revenueError}</p>
+                      <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" onClick={fetchRevenue}>
+                        <RefreshCw className="w-3 h-3" /> 다시 시도
+                      </button>
+                    </div>
                   ) : expectedRevenue.length === 0 ? (
                     <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 예상 매출액이 없습니다.</div>
                   ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="w-[100px] font-semibold text-center">월</TableHead>
-                        <TableHead className="text-right font-semibold">EMS</TableHead>
-                        <TableHead className="text-right font-semibold">ITG</TableHead>
-                        <TableHead className="text-right font-semibold">IoT</TableHead>
-                        <TableHead className="text-right font-semibold">기타</TableHead>
-                        <TableHead className="text-right font-semibold">EMS 유지보수</TableHead>
-                        <TableHead className="text-right font-semibold">ITG 유지보수</TableHead>
-                        <TableHead className="text-right font-semibold text-primary">월별 합계</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {expectedRevenue.map((row) => {
-                        const monthTotal = row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
-                        return (
-                          <TableRow key={row.month} className="hover:bg-muted/30 transition-colors">
-                            <TableCell className="font-medium text-center">{row.month}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.ems).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.itg).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.iot).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.other).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.emsMaint).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(row.itgMaint).toLocaleString()}</TableCell>
-                            <TableCell className="text-right font-bold text-primary bg-primary/5">₩{Math.round(monthTotal).toLocaleString()}</TableCell>
+                    <div className="space-y-4">
+                      {totalRevenue === 0 && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 text-amber-800">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold text-sm">{selectedYear}년도 예상 매출액 합계가 ₩0입니다.</p>
+                              <ul className="text-xs text-amber-700 mt-1.5 space-y-1 list-disc list-inside">
+                                <li>
+                                  수주보고서 상태가 <strong>승인완료</strong> 상태여야 합니다.
+                                </li>
+                                <li>
+                                  수주보고서의 계약 기간이 <strong>{selectedYear}년도와 겹쳐야</strong> 합니다.
+                                </li>
+                                <li>
+                                  수주보고서에 <strong>0원을 초과하는 제품 금액</strong>이 등록되어 있어야 합니다.
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/50">
+                            <TableHead className="w-[100px] font-semibold text-center">월</TableHead>
+                            <TableHead className="text-right font-semibold">EMS</TableHead>
+                            <TableHead className="text-right font-semibold">ITG</TableHead>
+                            <TableHead className="text-right font-semibold">IoT</TableHead>
+                            <TableHead className="text-right font-semibold">기타</TableHead>
+                            <TableHead className="text-right font-semibold">EMS 유지보수</TableHead>
+                            <TableHead className="text-right font-semibold">ITG 유지보수</TableHead>
+                            <TableHead className="text-right font-semibold text-primary">월별 합계</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                    <TableFooter>
-                      <TableRow className="bg-muted font-bold hover:bg-muted">
-                        <TableCell className="text-center">연말 합계</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalEms).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalItg).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalIot).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalOther).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalEmsMaint).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₩{Math.round(totalItgMaint).toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-primary text-lg">₩{Math.round(totalRevenue).toLocaleString()}</TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {expectedRevenue.map((row) => {
+                            const monthTotal = row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
+                            return (
+                              <TableRow key={row.month} className="hover:bg-muted/30 transition-colors">
+                                <TableCell className="font-medium text-center">{row.month}</TableCell>
+                                <TableCell className="text-right">₩{Math.round(row.ems).toLocaleString()}</TableCell>
+                                <TableCell className="text-right">₩{Math.round(row.itg).toLocaleString()}</TableCell>
+                                <TableCell className="text-right">₩{Math.round(row.iot).toLocaleString()}</TableCell>
+                                <TableCell className="text-right">₩{Math.round(row.other).toLocaleString()}</TableCell>
+                                <TableCell className="text-right">₩{Math.round(row.emsMaint).toLocaleString()}</TableCell>
+                                <TableCell className="text-right">₩{Math.round(row.itgMaint).toLocaleString()}</TableCell>
+                                <TableCell className="text-right font-bold text-primary bg-primary/5">₩{Math.round(monthTotal).toLocaleString()}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                        <TableFooter>
+                          <TableRow className="bg-muted font-bold hover:bg-muted">
+                            <TableCell className="text-center">연말 합계</TableCell>
+                            <TableCell className="text-right">₩{Math.round(totalEms).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(totalItg).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(totalIot).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(totalOther).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(totalEmsMaint).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">₩{Math.round(totalItgMaint).toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-primary text-lg">₩{Math.round(totalRevenue).toLocaleString()}</TableCell>
+                          </TableRow>
+                        </TableFooter>
+                      </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>
