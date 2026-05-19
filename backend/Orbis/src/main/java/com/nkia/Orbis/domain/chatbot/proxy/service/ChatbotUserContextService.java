@@ -85,6 +85,7 @@ public class ChatbotUserContextService {
 
         Set<PermissionDomain> readableDomains = collectReadableDomains(user);
         Set<String> readableSourceTypes = collectReadableSourceTypes(readableDomains);
+        Map<String, List<String>> domainActions = collectDomainActions(user);
         List<String> roleNames = user.getRoles().stream()
                 .map(Role::getName)
                 .filter(StringUtils::hasText)
@@ -96,6 +97,7 @@ public class ChatbotUserContextService {
                 .roles(roleNames)
                 .department(formatDepartment(user.getDepartment()))
                 .accessibleSourceTypes(new ArrayList<>(readableSourceTypes))
+                .domainActions(domainActions)
                 .metadata(buildMetadata(user));
 
         if (readableDomains.isEmpty()) {
@@ -136,6 +138,30 @@ public class ChatbotUserContextService {
                 .filter(permission -> READABLE_ACTIONS.contains(permission.getAction()))
                 .map(Permission::getDomain)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(PermissionDomain.class)));
+    }
+
+    /**
+     * 사용자의 모든 Role → Permission 을 합쳐 domain 별 action 리스트로 그룹화한다.
+     * <p>키: PermissionDomain.name() (예: "PROJECT_OPPORTUNITY")</p>
+     * <p>값: 해당 도메인의 PermissionAction.name() 리스트 (중복 제거)</p>
+     * <p>권한이 없는 도메인은 결과 Map 에 entry 자체를 넣지 않는다.</p>
+     */
+    private Map<String, List<String>> collectDomainActions(User user) {
+        Map<String, Set<String>> grouped = new LinkedHashMap<>();
+        user.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .filter(permission -> permission.getDomain() != null && permission.getAction() != null)
+                .forEach(permission -> grouped
+                        .computeIfAbsent(permission.getDomain().name(), key -> new LinkedHashSet<>())
+                        .add(permission.getAction().name()));
+
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        grouped.forEach((domain, actions) -> {
+            if (!actions.isEmpty()) {
+                result.put(domain, new ArrayList<>(actions));
+            }
+        });
+        return result;
     }
 
     private Set<String> collectReadableSourceTypes(Set<PermissionDomain> readableDomains) {

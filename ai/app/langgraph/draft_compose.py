@@ -4,7 +4,11 @@ import re
 from typing import Any
 
 from app.langgraph.state import GraphState
-from app.langgraph.edit_intent import EditFieldIntent, detect_edit_field_intent
+from app.langgraph.edit_intent import (
+    EditFieldIntent,
+    detect_edit_field_intent,
+    detect_edit_field_intent_llm,
+)
 from app.models.draft import DraftAction, EditFieldPayload
 from app.models.draft_registry import has_draft_reference_intent
 from app.models.user_context import UserContext
@@ -89,13 +93,21 @@ def attach_edit_field_action_to_response(
     *,
     response: AnswerResponse,
     graph_state: GraphState | None,
+    user_context: UserContext | None = None,
 ) -> AnswerResponse:
     """사용자가 '...수정해줘' 같은 발화를 하면 edit_field action 을 첨부.
 
     answerStatus 가 clarification 이어도 edit_intent 가 명확하면 action 첨부 시도.
+
+    user_context 가 제공되면 BE 에서 받은 domain_actions 로 UPDATE 권한을 확인하고,
+    권한이 없으면 액션을 첨부하지 않고 안내 한 줄을 본문에 추가한다.
+    user_context 가 None 이면 보수적으로 권한 가드를 skip 한다 (기존 호환성 유지).
     """
     query = response.query or ""
     intent = detect_edit_field_intent(query)
+    if intent is None:
+        # 룰이 못 잡은 자연어 발화(예: "사업비 17억으로 수정")는 LLM 으로 한 번 더 시도
+        intent = detect_edit_field_intent_llm(query)
     if intent is None:
         return response
 
@@ -118,6 +130,22 @@ def attach_edit_field_action_to_response(
     entity_route = _build_entity_route(intent.entity_type, entity_code)
     if not entity_route:
         return response
+
+    # === UPDATE 권한 확인 ===
+    # user_context 가 제공된 경우에만 검사 (None 이면 fallback 으로 skip)
+    if user_context is not None:
+        domain = ENTITY_TYPE_TO_DOMAIN.get(intent.entity_type)
+        if domain is not None:
+            allowed_actions = user_context.domain_actions.get(domain, [])
+            if "UPDATE" not in allowed_actions:
+                # 권한 없음 → 액션 첨부 X, 본문에 안내 한 줄만 추가
+                domain_label = DOMAIN_KO.get(domain, domain)
+                hint = (
+                    f"\n\n⚠️ '{domain_label}' 수정 권한이 없어 수정 액션을 제공할 수 없습니다."
+                )
+                if hint.strip() not in (response.answer or ""):
+                    response.answer = (response.answer or "").rstrip() + hint
+                return response
 
     field_updates = {intent.field_name: intent.new_value}
     payload = EditFieldPayload(
@@ -146,11 +174,31 @@ def attach_edit_field_action_to_response(
 
 
 _EDIT_ENTITY_ROUTE_TEMPLATES: dict[str, str] = {
-    "opportunity": "/finding/opportunities/{id}?tab=opportunities",
-    "contract": "/contract/contracts/{id}?tab=contracts",
-    "billing": "/project/billingAndCollection/{id}?tab=billingAndCollection",
-    "license": "/contract/licenses/{id}?tab=licenses",
-    "project": "/project/results/{id}?tab=results",
+    "opportunity": "/finding/opportunities/{id}/edit",
+    "contract": "/contract/contracts/{id}/edit",
+    "billing": "/project/billingAndCollection/{id}/edit",
+    "license": "/contract/licenses/{id}/edit",
+    "project": "/project/results/{id}/edit",
+}
+
+
+# entity_type → BE PermissionDomain enum 이름
+ENTITY_TYPE_TO_DOMAIN: dict[str, str] = {
+    "opportunity": "PROJECT_OPPORTUNITY",
+    "contract": "CONTRACT",
+    "billing": "BILLING",
+    "license": "LICENSE",
+    "project": "PROJECT",
+}
+
+
+# UI 안내용 도메인 한국어 라벨
+DOMAIN_KO: dict[str, str] = {
+    "PROJECT_OPPORTUNITY": "사업 기회",
+    "CONTRACT": "계약",
+    "BILLING": "청구/수금",
+    "LICENSE": "라이선스",
+    "PROJECT": "사업",
 }
 
 

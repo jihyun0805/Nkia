@@ -87,7 +87,8 @@ export function ChatActions({ actions }: ChatActionsProps) {
 function summaryText(action: ChatbotDraftAction): string {
   if (action.type === "edit_field") {
     const payload = action.payload as ChatbotEditFieldPayload
-    return payload.summary ?? `${payload.entity_id} 수정`
+    const base = payload.summary ?? `${payload.entity_id} 수정`
+    return `${base} (폼이 자동 채워집니다 — 확인 후 [저장] 버튼을 직접 눌러야 반영됩니다)`
   }
   if (action.type === "navigate") {
     const payload = action.payload as ChatbotNavigatePayload

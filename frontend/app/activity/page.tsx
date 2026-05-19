@@ -19,7 +19,7 @@ import { type ActivityRecord, activityRequestStatusOptions, activityRequestTypeO
 import { useEffect, useMemo, useState } from "react";
 import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow";
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend";
-import { getQuotations, getQuotationDisplayStatus, subscribeQuotationUpdates } from "@/lib/quotation-workflow";
+import { getQuotationDisplayStatus } from "@/lib/quotation-workflow";
 import { loadBackendQuotationRecords } from "@/lib/sales-quotation-backend";
 import { CalendarDays, ChevronDown, ChevronUp, Plus, Users, FileText, Calendar, FileSpreadsheet } from "lucide-react";
 const REQUEST_CALENDAR_OPEN_KEY = "orbis.activity.requests.calendar.open";
@@ -51,7 +51,9 @@ export default function ActivityPage() {
   const [activeTab, setActiveTab] = useState<ActivityTab>(getInitialActivityTab);
   const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([]);
   const [activityRequests, setActivityRequests] = useState<ReturnType<typeof getActivityRequests>>([]);
-  const [quotationRecords, setQuotationRecords] = useState<ReturnType<typeof getQuotations>>([]);
+  const [quotationRecords, setQuotationRecords] = useState<Awaited<ReturnType<typeof loadBackendQuotationRecords>>>(
+    [],
+  );
   const [month, setMonth] = useState(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isPreferenceReady, setIsPreferenceReady] = useState(false);
@@ -121,20 +123,20 @@ export default function ActivityPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const sync = () => {
-      if (!cancelled) {
-        setQuotationRecords(getQuotations());
-      }
-    };
-
     loadBackendQuotationRecords()
-      .then(() => sync())
-      .catch(() => sync());
+      .then((records) => {
+        if (!cancelled) {
+          setQuotationRecords(records);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setQuotationRecords([]);
+        }
+      });
 
-    const unsubscribe = subscribeQuotationUpdates(sync);
     return () => {
       cancelled = true;
-      unsubscribe();
     };
   }, []);
 
@@ -422,20 +424,19 @@ export default function ActivityPage() {
                           <TableCell>
                             {(() => {
                               const displayStatus = getQuotationDisplayStatus(quote);
+                              const statusText = displayStatus || "-";
                               return (
                                 <Badge
-                                  variant={displayStatus === "전달완료" ? "default" : displayStatus === "검토중" ? "secondary" : displayStatus === "삭제" ? "destructive" : "outline"}
+                                  variant={displayStatus === "전달완료" ? "default" : displayStatus === "삭제" ? "destructive" : "outline"}
                                   className={
                                     displayStatus === "전달완료"
                                       ? "bg-green-100 text-green-700 hover:bg-green-100"
-                                      : displayStatus === "검토중"
-                                        ? "bg-blue-100 text-blue-700 hover:bg-blue-100"
-                                        : displayStatus === "삭제"
+                                      : displayStatus === "삭제"
                                           ? "bg-red-100 text-red-700 hover:bg-red-100"
                                           : "bg-amber-100 text-amber-700 hover:bg-amber-100"
                                   }
                                 >
-                                  {displayStatus}
+                                  {statusText}
                                 </Badge>
                               );
                             })()}

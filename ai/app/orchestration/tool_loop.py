@@ -33,6 +33,7 @@ _TRIGGER_KEYWORDS: tuple[str, ...] = (
     # 도메인 키워드 — "X 사업의 견적/RFP/PRB" 류 cross-domain 패턴 잡기 위해 추가
     "견적", "rfp", "prb", "입찰", "계약", "유지보수", "수주",
     "청구", "수금", "미수금", "고객지원", "라이선스", "제안서",
+    "결과보고", "결과 보고", "사업 결과", "사업결과", "수행 사업", "수행사업",
 )
 
 # 단일 엔티티 코드 패턴 (예: AUTO-OPP-2026-119, CNT-2025-008)
@@ -176,8 +177,19 @@ def _build_tool_result_message(name: str, result: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 _DOMAIN_KEYWORDS: dict[str, str] = {
+    # 긴 키워드 먼저 (substring 매칭이라 순서 중요)
     "유지보수 견적": "maintenance_quotation",
     "유지보수": "maintenance",
+    "결과보고": "project_result_report",
+    "결과 보고": "project_result_report",
+    "사업 결과": "project_result_report",
+    "사업결과": "project_result_report",
+    "수행 사업": "project",
+    "사업 수행": "project",
+    "수행사업": "project",
+    "사업기회": "project_opportunity",
+    "사업비": "project_opportunity",
+    "예산": "project_opportunity",
     "견적": "quotation",
     "수주보고": "order_report",
     "수주": "order_report",
@@ -185,9 +197,6 @@ _DOMAIN_KEYWORDS: dict[str, str] = {
     "청구": "billing",
     "수금": "billing",
     "미수금": "billing",
-    "사업기회": "project_opportunity",
-    "사업비": "project_opportunity",
-    "예산": "project_opportunity",
     "영업활동": "sales_activity",
     "활동": "sales_activity",
     "rfp": "rfp_analyze_result",
@@ -316,6 +325,7 @@ _DOMAIN_LABEL: dict[str, str] = {
     "rfp_analyze_result": "RFP 분석", "prb": "PRB", "prb_result": "PRB 결과",
     "proposal": "제안서", "bid_result": "입찰결과", "license": "라이선스",
     "customer_support": "고객지원", "maintenance": "유지보수",
+    "project": "사업(수행)", "project_result_report": "결과 보고서",
 }
 
 _OP_LABEL: dict[str, str] = {
@@ -406,9 +416,9 @@ def _format_tool_result_as_answer(name: str, args: dict, result: dict) -> str:
         top_n = len(rows)
         lines = [f"결론: {dlabel} 상위 {top_n}건은 다음과 같습니다.", ""]
         for i, r in enumerate(rows, 1):
-            code_keys = ("opportunity_code","quotation_code","contract_code","bid_result_code","won_report_code","rfp_analysis_code","prb_code","prb_result_code","license_code","ref_no","id")
+            code_keys = ("opportunity_code","quotation_code","contract_code","bid_result_code","won_report_code","rfp_analysis_code","prb_code","prb_result_code","license_code","ref_no","code","pjt_number","id")
             code = next((str(r.get(k)) for k in code_keys if r.get(k) is not None), "-")
-            name_keys = ("opportunity_name","customer_name","product_name","title","project_name","name")
+            name_keys = ("opportunity_name","customer_name","product_name","title","project_name","pjt_name","name")
             name_v = next((str(r.get(k)) for k in name_keys if r.get(k) is not None), "")
             metric_keys = ("expected_budget","total_price","total_amount","contract_amount","billing_amount","bill_amount","bid_amount","monthly_supply_price")
             metric_v = next((r.get(k) for k in metric_keys if r.get(k) is not None), None)

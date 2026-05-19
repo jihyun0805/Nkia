@@ -137,6 +137,58 @@ class GmsChatClient:
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"GMS draft composer returned invalid JSON content: {content[:500]}") from exc
 
+    def extract_edit_field_slots(self, *, query: str, catalog_json: str) -> dict:
+        """발화에서 edit_field action 용 슬롯(entity_type, entity_hint, field_name, value) 을
+        LLM 으로 추출. 룰 기반 detect_edit_field_intent 가 None 인 경우의 fallback.
+
+        catalog_json: edit 가능한 도메인/필드 카탈로그 JSON. LLM 이 이 안의 키 중에서만 선택한다.
+        반환 dict 는 항상 entity_type/field_name/value 키를 포함하며, 매칭 불가 시 모두 null.
+        """
+        payload = {
+            "model": self.config.model,
+            "reasoning_effort": "low",
+            "max_completion_tokens": 600,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "developer",
+                    "content": (
+                        "너는 ERP 챗봇의 수정 의도 슬롯 추출기다. "
+                        "사용자 발화에서 어떤 도메인의 어떤 필드를 어떤 값으로 수정하려는지 추출한다. "
+                        "오직 카탈로그에 있는 entity_type/field_name 만 선택한다. "
+                        "발화에 명시되지 않은 정보는 null 로 둔다. "
+                        "value 는 필드 type 에 맞춰 변환한다: amount 는 원 단위 정수, date 는 YYYY-MM-DD, "
+                        "enum 은 카탈로그의 enum 값 중 정확히 하나, "
+                        "person 은 발화에 나온 사람 이름 문자열, free_text 는 자연어 그대로. "
+                        "'17억' → 1700000000, '1억5천만' → 150000000, '500만원' → 5000000 같은 한국어 금액도 정수로. "
+                        "JSON 외의 텍스트는 절대 출력하지 마라."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"카탈로그:\n{catalog_json}\n\n"
+                        f"사용자 발화:\n{query}\n\n"
+                        "출력 스키마:\n"
+                        "{\n"
+                        '  "entity_type": "opportunity|contract|billing|license|project|null",\n'
+                        '  "entity_hint": "발화에 나온 사업명/회사명/엔티티 단서 텍스트, 없으면 null",\n'
+                        '  "entity_code": "AUTO-OPP-... 같은 명시 코드, 없으면 null",\n'
+                        '  "field_name": "카탈로그의 field 키 또는 null",\n'
+                        '  "field_label": "카탈로그의 라벨 또는 null",\n'
+                        '  "value": "필드 타입에 맞춘 값 또는 null"\n'
+                        "}"
+                    ),
+                },
+            ],
+        }
+        data = self._request_chat_completion(payload=payload)
+        content = self._extract_message_content(data)
+        try:
+            return json.loads(strip_json_code_fence(content))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"GMS edit_field extractor returned invalid JSON: {content[:300]}") from exc
+
     def create_grounded_answer(
         self,
         *,

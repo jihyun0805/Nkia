@@ -4,8 +4,8 @@ import com.nkia.Orbis.common.exception.ApiException;
 import com.nkia.Orbis.common.exception.errorcode.ProjectErrorCode;
 import com.nkia.Orbis.common.exception.errorcode.UploadFileErrorCode;
 import com.nkia.Orbis.domain.project.project.entity.Project;
-import com.nkia.Orbis.domain.project.project.entity.ProjectHistory;
-import com.nkia.Orbis.domain.project.project.repository.ProjectHistoryRepository;
+import com.nkia.Orbis.domain.project.projecthistory.entity.ProjectHistory;
+import com.nkia.Orbis.domain.project.projecthistory.repository.ProjectHistoryRepository;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.project.projectresultreport.dto.request.ProjectResultReportCreateRequest;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
@@ -63,11 +63,9 @@ public class ProjectResultReportService {
         if (report != null) {
             report.updateResultReport(uploadFile);
             reportRepository.save(report);
-            projectHistoryRepository.save(ProjectHistory.createSnapshot(project, report));
         } else {
             ProjectResultReport newReport = ProjectResultReport.create(project, uploadFile);
             reportRepository.save(newReport);
-            projectHistoryRepository.save(ProjectHistory.createSnapshot(project, newReport));
         }
     }
 

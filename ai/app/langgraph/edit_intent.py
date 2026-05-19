@@ -204,3 +204,118 @@ def _extract_value(text: str, field_kw: str | None, verbs: list[str]) -> str | N
             if cleaned and not any(v in cleaned for v in verbs):
                 return cleaned
     return None
+
+
+# === LLM fallback ===
+# 룰 기반 detect_edit_field_intent 가 잡지 못한 자연어 발화(예: "사업비 17억으로 수정",
+# "예산 1억 7천만원으로", "고객사 KB로 바꿔줘" 등) 를 위해 LLM 한테 슬롯 추출을 위임한다.
+# 카탈로그는 위 DOMAIN_FIELDS 를 그대로 재사용 — 룰 기반과 single source of truth 공유.
+
+
+def build_domain_catalog_for_llm() -> dict:
+    """DOMAIN_FIELDS 를 LLM 프롬프트용 카탈로그로 직렬화.
+
+    LLM 은 이 카탈로그의 entity_type / field_name 중에서만 선택해야 한다.
+    """
+    catalog: dict[str, dict] = {}
+    for entity_type, field_map in DOMAIN_FIELDS.items():
+        # field_name 으로 grouping (여러 한국어 키워드가 같은 field_name 으로 매핑되는 경우 합침)
+        fields: dict[str, dict] = {}
+        for kw, (field_name, field_label) in field_map.items():
+            entry = fields.setdefault(field_name, {"label": field_label, "synonyms": []})
+            entry["synonyms"].append(kw)
+        catalog[entity_type] = {"fields": fields}
+    return catalog
+
+
+def detect_edit_field_intent_llm(query: str) -> EditFieldIntent | None:
+    """룰이 못 잡은 발화를 LLM 으로 한 번 더 시도.
+
+    settings.gms_key 가 없거나 LLM 호출이 실패하면 None 반환 — 안전한 fallback.
+    """
+    if not query:
+        return None
+    # edit verb 가 전혀 없으면 LLM 호출도 의미 없음 — 비용 절약
+    if not any(v in query for v in EDIT_VERBS):
+        return None
+
+    try:
+        from app.core.config import settings
+        from app.llm.gms_client import GmsChatClient, GmsChatConfig
+    except Exception:
+        return None
+    if not settings.gms_key:
+        return None
+
+    catalog = build_domain_catalog_for_llm()
+    import json as _json
+
+    try:
+        client = GmsChatClient(
+            GmsChatConfig(
+                api_key=settings.gms_key,
+                url=settings.gms_chat_completions_url,
+                model=settings.gms_chat_model,
+                timeout_seconds=settings.gms_timeout_seconds,
+            )
+        )
+        result = client.extract_edit_field_slots(
+            query=query, catalog_json=_json.dumps(catalog, ensure_ascii=False)
+        )
+    except Exception:
+        return None
+
+    entity_type = (result.get("entity_type") or "").strip().lower() or None
+    if entity_type not in DOMAIN_FIELDS:
+        return None
+    field_name = (result.get("field_name") or "").strip() or None
+    valid_fields = {fn for (fn, _label) in DOMAIN_FIELDS[entity_type].values()}
+    if field_name not in valid_fields:
+        return None
+
+    raw_value = result.get("value")
+    if raw_value is None or raw_value == "":
+        return None
+    new_value = str(raw_value).strip()
+
+    entity_code = (result.get("entity_code") or "").strip() or None
+    if entity_code:
+        entity_code = entity_code.upper()
+    entity_hint = (result.get("entity_hint") or "").strip() or entity_code
+
+    # hint 끝의 도메인 키워드/조사 제거 — resolve_primary_opportunity 검색 정확도 향상
+    if entity_hint:
+        for suffix in (
+            "의 사업기회", " 사업기회", "사업기회",
+            "의 사업", " 사업", "사업",
+            " 계약", " 청구", " 라이선스", " 프로젝트",
+            "의", "을", "를", "이", "가", "은", "는", "에",
+        ):
+            if entity_hint.endswith(suffix):
+                entity_hint = entity_hint[: -len(suffix)].rstrip()
+                break
+
+    if not entity_hint:
+        return None
+
+    field_label = (result.get("field_label") or "").strip()
+    if not field_label:
+        # 카탈로그에서 첫 매칭되는 한국어 라벨 사용
+        for _kw, (fn, label) in DOMAIN_FIELDS[entity_type].items():
+            if fn == field_name:
+                field_label = label
+                break
+        field_label = field_label or field_name
+
+    matched_verbs = [v for v in EDIT_VERBS if v in query] or ["llm"]
+
+    return EditFieldIntent(
+        entity_type=entity_type,
+        entity_hint=entity_hint,
+        entity_code=entity_code,
+        field_name=field_name,
+        field_label=field_label,
+        new_value=new_value,
+        matched_verbs=matched_verbs,
+        confidence=0.80 if entity_code else 0.65,
+    )
