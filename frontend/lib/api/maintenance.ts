@@ -385,3 +385,71 @@ export const deleteCustomerSupportActivity = async (id: number): Promise<ApiResp
   return await customInstance({ url: `/maintenances/customer-supports/activities/${id}`, method: "delete" });
 };
 
+// ---------------------------------------------------------------------------
+// Maintenance History (유지보수 변경 이력) endpoints
+// ---------------------------------------------------------------------------
+
+export interface MaintenanceHistoryListResponse {
+  id: number;
+  version: number;
+  customerName: string;
+  projectName: string;
+  productFamilyName: string;
+  contractAmount: number;
+  startDate: string;
+  endDate: string;
+  inspectionMethod: string;
+  salesRepName: string;
+  managerPrimaryName: string;
+}
+
+export interface MaintenanceHistoryDetailResponse {
+  id: number;
+  version: number;
+  workflowId: number | null;
+  status: string;
+  projectId: number;
+  projectName: string;
+  customerName: string;
+  salesRepName: string;
+  managerPrimaryName: string;
+  managerSecondaryName: string;
+  regularPm: string;
+  type: "FREE" | "PAID";
+  isRemote: boolean;
+  category: string;
+  contractAmount: number;
+  annualAmount: number;
+  contractDate: string;
+  startDate: string;
+  endDate: string;
+  reportSubmitted: boolean;
+  inspectionCycle: string;
+  importance: string;
+  location: string;
+  rate: number;
+  productFamily: string;
+  apVersion: string;
+  aclPatchStatus: boolean;
+  vulnPatchStatus: boolean;
+  upgradePlan: string;
+  apCount: number;
+  esCount: number;
+  esVersion: string;
+  dbHaStatus: boolean;
+  dbVersion: string;
+  remarks: string;
+  contractFileId: number | null;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+}
+
+export const getMaintenanceHistories = async (id: number): Promise<ApiResponse<MaintenanceHistoryListResponse[]>> => {
+  return await customInstance({ url: `/maintenances/${id}/histories`, method: "get" });
+};
+
+export const getMaintenanceHistoryDetail = async (historyId: number): Promise<ApiResponse<MaintenanceHistoryDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/histories/${historyId}`, method: "get" });
+};
+
