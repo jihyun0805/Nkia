@@ -76,7 +76,7 @@ export default function CustomerSupportRequestDetailPage() {
     <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex flex-1 flex-col">
-        <Header />
+        <Header title="고객지원 요청 상세" />
         <main className="flex-1 overflow-auto bg-background p-6">
           <Breadcrumb className="mb-6">
             <BreadcrumbList>
