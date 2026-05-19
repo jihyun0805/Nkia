@@ -8,11 +8,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public record PrbResultCreateRequest(
+        // PRB id
         @NotNull(message = "PRB ID는 필수입니다.") Long prbId,
+        // 리스크 요인
         String riskFactors,
+        // 종합 의견
         String comprehensiveOpinion,
+        // 장소
         String meetingLocation,
+        // 일시
         LocalDateTime meetingDateTime,
+        // 참석자 의견
         @Valid List<PrbResultAttendeeOpinionRequest> attendeeOpinions
 ) {
     // DTO -> Entity 변환 메서드
