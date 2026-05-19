@@ -84,11 +84,11 @@ public class CustomerSupportRequestService {
         User supportManager = getUserOrNull(dto.getSupportManagerId());
         Company customerCompany = getCompanyOrNull(dto.getCustomerCompanyCode());
 
+        // 히스토리 생성 (수정 전 시점의 스냅샷 저장!)
+        historyRepository.save(CustomerSupportRequestHistory.createSnapshot(request));
+
         request.update(dto, requester, supportManager, customerCompany);
         updateAttachedFiles(request, dto.getAttachedFileIds());
-
-        // 히스토리 생성 (수정 시점)
-        historyRepository.save(CustomerSupportRequestHistory.createSnapshot(request));
 
         return CustomerSupportRequestDetailResponse.from(request, getWorkflowId(request.getId()));
     }
