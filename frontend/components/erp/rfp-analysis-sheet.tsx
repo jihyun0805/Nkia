@@ -3,7 +3,6 @@
 import type { ComponentProps, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -31,7 +30,14 @@ import {
 import type { ActivityRequestRecord } from "@/lib/activity-data"
 import { getActivityRequests, notifyRfpAnalysisCompleted } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
-import { getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName, type CustomerRecord } from "@/lib/finding-data"
+import {
+  getCustomerByCode,
+  getCustomerByName,
+  getOpportunitiesByCustomerName,
+  type CustomerRecord,
+  type OpportunityRecord,
+} from "@/lib/finding-data"
+import { loadBackendProjectOpportunitiesByCustomer } from "@/lib/finding-backend"
 import { createBackendRfpAnalysis, deleteBackendRfpAnalysis, loadBackendRfpAnalyses, updateBackendRfpAnalysis } from "@/lib/rfp-analysis-backend"
 import { toast } from "@/hooks/use-toast"
 import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
@@ -53,24 +59,6 @@ type RequirementRow = {
   effort: string
 }
 
-type ImportedBasicInfo = Partial<{
-  customerDisplay: string
-  opportunityDisplay: string
-  businessType: string
-  proposalType: string
-  deliveryModule: string
-  hardwareOwner: string
-  amountScale: string
-  projectPeriod: string
-  businessPlace: string
-  proposalDeadline: string
-  salesRep: string
-  analyst: string
-  requestDate: string
-  status: string
-  majorContent: string
-}>
-
 const businessTypes = [
   "EMS",
   "ITSM",
@@ -89,7 +77,9 @@ const businessTypes = [
 ] as const
 const proposalTypes = ["자체 제안", "SI 제안"] as const
 const analysisStatusOptions: RfpAnalysisStatus[] = ["접수", "분석중", "완료"]
-
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10)
+}
 const blankRequirementRow = (): RequirementRow => ({
   category: "",
   requirementCode: "",
@@ -148,189 +138,6 @@ const requirementHeaderAliases: Record<keyof RequirementRow, string[]> = {
   effort: ["공수(M/D)", "공수", "공수(md)", "공수(m/d)"],
 }
 
-function normalizeHeader(value: string) {
-  return value.replace(/\s+/g, "").trim().toLowerCase()
-}
-
-function normalizeCell(value: unknown) {
-  return String(value ?? "").trim()
-}
-
-function findRequirementHeaderRow(rows: string[][]) {
-  return rows.findIndex((row) => {
-    const normalizedRow = row.map(normalizeHeader)
-    return requirementHeaderAliases.category.some((header) => normalizedRow.includes(normalizeHeader(header)))
-      && requirementHeaderAliases.requirementCode.some((header) => normalizedRow.includes(normalizeHeader(header)))
-      && requirementHeaderAliases.requirementTitle.some((header) => normalizedRow.includes(normalizeHeader(header)))
-  })
-}
-
-function buildRequirementColumnMap(headerRow: string[]) {
-  const entries = Object.entries(requirementHeaderAliases).map(([field, aliases]) => {
-    const index = headerRow.findIndex((cell) => aliases.some((alias) => normalizeHeader(cell) === normalizeHeader(alias)))
-    return [field, index] as const
-  })
-
-  return Object.fromEntries(entries) as Record<keyof RequirementRow, number>
-}
-
-function parseRequirementRowsFromSheetRows(rows: string[][]) {
-  const headerIndex = findRequirementHeaderRow(rows)
-  if (headerIndex < 0) return []
-
-  const headerRow = rows[headerIndex]
-  const columnMap = buildRequirementColumnMap(headerRow)
-  const dataRows = rows.slice(headerIndex + 1)
-
-  return dataRows
-    .map((row) => ({
-      category: normalizeCell(row[columnMap.category]),
-      requirementCode: normalizeCell(row[columnMap.requirementCode]),
-      requirementTitle: normalizeCell(row[columnMap.requirementTitle]),
-      requirementContent: normalizeCell(row[columnMap.requirementContent]),
-      supportStatus: (["O", "X", "∆", "?"].includes(normalizeCell(row[columnMap.supportStatus])) ? normalizeCell(row[columnMap.supportStatus]) : "O") as RequirementRow["supportStatus"],
-      reviewNote: normalizeCell(row[columnMap.reviewNote]),
-      effort: normalizeCell(row[columnMap.effort]).replace(/[^\d.]/g, ""),
-    }))
-    .filter((row) =>
-      [row.category, row.requirementCode, row.requirementTitle, row.requirementContent, row.reviewNote, row.effort].some(
-        (value) => value !== "",
-      ),
-    )
-}
-
-function parseBasicInfoFromRows(rows: string[][]): ImportedBasicInfo {
-  const sectionRowIndex = rows.findIndex((row) =>
-    row.some((cell) => normalizeHeader(cell) === normalizeHeader("기본 정보")),
-  )
-
-  if (sectionRowIndex < 0) return {}
-
-  const result: ImportedBasicInfo = {}
-
-  const fieldMap: Record<string, keyof ImportedBasicInfo> = {
-    고객사: "customerDisplay",
-    사업명: "opportunityDisplay",
-    "사업 구분": "businessType",
-    "제안 형태": "proposalType",
-    "납품 모듈": "deliveryModule",
-    "H/W 제공 주체": "hardwareOwner",
-    "금액 규모": "amountScale",
-    예상사업기간: "projectPeriod",
-    사업장소: "businessPlace",
-    "제안서 접수마감일": "proposalDeadline",
-    영업대표: "salesRep",
-    담당자: "analyst",
-    요청일: "requestDate",
-    상태: "status",
-    "주요사업내용(특이점)": "majorContent",
-  }
-
-  for (const row of rows.slice(sectionRowIndex + 1)) {
-    const normalizedRow = row.map((cell) => normalizeCell(cell))
-    if (normalizedRow.some((cell) => normalizeHeader(cell) === normalizeHeader("RFP 분석"))) {
-      break
-    }
-
-    for (let index = 0; index < normalizedRow.length - 1; index += 2) {
-      const label = normalizedRow[index]
-      const value = normalizedRow[index + 1] ?? ""
-      const targetField = fieldMap[label]
-      if (targetField) {
-        result[targetField] = value
-      }
-    }
-  }
-
-  return result
-}
-
-function extractCodeFromDisplay(value: string) {
-  const match = value.match(/\(([A-Z]+-\d{4}-\d{3}|[A-Z]+-\d{3})\)\s*$/i)
-  return match ? match[1] : ""
-}
-
-function extractNameFromDisplay(value: string) {
-  return value.replace(/\s*\(([A-Z]+-\d{4}-\d{3}|[A-Z]+-\d{3})\)\s*$/i, "").trim()
-}
-
-function parseDelimitedLine(line: string, delimiter: "," | "\t") {
-  const values: string[] = []
-  let current = ""
-  let inQuotes = false
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index]
-    const next = line[index + 1]
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        current += '"'
-        index += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-      continue
-    }
-
-    if (char === delimiter && !inQuotes) {
-      values.push(current.trim())
-      current = ""
-      continue
-    }
-
-    current += char
-  }
-
-  values.push(current.trim())
-  return values
-}
-
-function parseDelimitedTextRows(text: string) {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim() !== "")
-
-  if (lines.length === 0) return []
-
-  const delimiter = lines.some((line) => line.includes("\t")) ? "\t" : ","
-  return lines.map((line) => parseDelimitedLine(line, delimiter))
-}
-
-function parseHtmlTableRows(text: string) {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(text, "text/html")
-  const rows = Array.from(doc.querySelectorAll("table tr"))
-  if (rows.length === 0) return []
-
-  return rows.map((row) =>
-    Array.from(row.querySelectorAll("th, td")).map((cell) => normalizeCell(cell.textContent)),
-  )
-}
-
-function parseSpreadsheetXmlRows(text: string) {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(text, "application/xml")
-  const rowNodes = Array.from(doc.getElementsByTagName("Row"))
-  if (rowNodes.length === 0) return []
-
-  return rowNodes.map((row) =>
-    Array.from(row.getElementsByTagName("Cell")).map((cell) => {
-      const dataNode = cell.getElementsByTagName("Data")[0]
-      return normalizeCell(dataNode?.textContent)
-    }),
-  )
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-}
-
 function ExcelInput(props: ComponentProps<typeof Input>) {
   return <Input {...props} className={`h-10 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 ${props.className ?? ""}`} />
 }
@@ -387,7 +194,6 @@ type SheetSource = Partial<Omit<RfpAnalysisRecord, "status">> &
 
 export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAnalysisSheetProps) {
   const router = useRouter()
-  const importInputRef = useRef<HTMLInputElement | null>(null)
   const [, setRefreshTick] = useState(0)
   const activityRequestItem = requestId?.startsWith("REQ-")
     ? (getActivityRequests().find((item) => item.id === requestId) as ActivityRequestRecord | null)
@@ -404,7 +210,8 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(initialCustomer)
   const [selectedCustomerName, setSelectedCustomerName] = useState(initialCustomer?.name ?? "")
   const [backendUsers, setBackendUsers] = useState<BackendUserSummary[]>([])
-  const standaloneOpportunityOptions = getOpportunitiesByCustomerName(selectedCustomerName)
+  const [customerOpportunityOptions, setCustomerOpportunityOptions] = useState<OpportunityRecord[]>([])
+  const [customerOpportunityLoading, setCustomerOpportunityLoading] = useState(false)
   const [selectedOpportunityCode, setSelectedOpportunityCode] = useState(requestItem?.opportunityCode ?? "")
   const linkedOpportunity = requestItem?.customer
     ? getOpportunitiesByCustomerName(requestItem.customer).find((item) => item.id === requestItem.opportunityCode) ?? null
@@ -422,7 +229,9 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   const [projectPeriod, setProjectPeriod] = useState(shouldStartBlank ? "" : requestItem?.projectPeriod ?? "")
   const [businessPlace, setBusinessPlace] = useState(shouldStartBlank ? "" : requestItem?.businessPlace ?? "")
   const [proposalDeadline, setProposalDeadline] = useState(shouldStartBlank ? "" : requestItem?.proposalDeadline ?? requestItem?.dueDate ?? "")
-  const [requestDate, setRequestDate] = useState(shouldStartBlank ? "" : requestItem?.requestDate ?? requestItem?.receiveDate ?? "")
+  const [requestDate, setRequestDate] = useState(
+    shouldStartBlank ? getTodayDateString() : requestItem?.requestDate ?? requestItem?.receiveDate ?? "",
+  )
   const [analysisStatus, setAnalysisStatus] = useState<RfpAnalysisStatus>(
     (persistedAnalysis?.status ?? (activityRequestItem ? "접수" : (requestItem?.status ?? "분석중"))) as RfpAnalysisStatus,
   )
@@ -611,6 +420,106 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     })
   }, [requestSyncSignature, shouldStartBlank])
 
+  useEffect(() => {
+    let cancelled = false
+    const customer = selectedCustomer
+
+    if (!isStandalone || !customer?.backendId) {
+      setCustomerOpportunityOptions([])
+      setCustomerOpportunityLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setCustomerOpportunityLoading(true)
+    void loadBackendProjectOpportunitiesByCustomer(customer.backendId)
+      .then((options) => {
+        if (cancelled) return
+        setCustomerOpportunityOptions(
+          options
+            .map((item, index) => ({
+              id: String(item.opportunityCode ?? item.id ?? `OPP-${index + 1}`),
+              backendId: item.id,
+              customerCompanyId: item.customerCompanyId,
+              createdAt: "",
+              createUserName: item.createUserName ?? "",
+              customerCode: customer.id,
+              partnerCode:
+                Array.isArray(item.partnerCompanyIds) && item.partnerCompanyIds.length > 0
+                  ? item.partnerCompanyIds.map((partnerId) => String(partnerId)).join(", ")
+                  : "-",
+              name: item.opportunityName ?? "",
+              registrant: item.createUserName ?? "",
+              customer: item.customerCompanyName ?? customer.name ?? "",
+              partner:
+                Array.isArray(item.partnerCompanyNames) && item.partnerCompanyNames.length > 0
+                  ? item.partnerCompanyNames.join(", ")
+                  : "-",
+              partners: Array.isArray(item.partnerCompanyNames)
+                ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string")
+                : [],
+              category: "",
+              product: item.projectType ?? "",
+              module: Array.isArray(item.productModules) && item.productModules.length > 0
+                ? item.productModules
+                    .map((module) => module.productName ?? "")
+                    .filter((value): value is string => Boolean(value))
+                    .join(", ")
+                : "",
+              expectedAmount:
+                typeof item.expectedBudget === "number"
+                  ? String(item.expectedBudget)
+                  : String(item.expectedBudget ?? ""),
+              expectedDate: item.expectedBidDate ?? "",
+              issue: item.description ?? "",
+              competition: item.competitionStatus ?? "",
+              decisionInfo: item.salesRepresentativeName ?? item.createUserName ?? "",
+              partnerType: "",
+              partnerContact: "",
+              partnerPhone: "",
+              status: item.stage ?? "",
+              salesRepresentativeId: item.salesRepresentativeId ?? undefined,
+              salesRep: item.salesRepresentativeName ?? item.createUserName ?? "",
+              partnerCompanyIds: Array.isArray(item.partnerCompanyIds)
+                ? item.partnerCompanyIds.filter((value): value is number => typeof value === "number")
+                : [],
+              partnerCompanyNames: Array.isArray(item.partnerCompanyNames)
+                ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string")
+                : [],
+              productModuleIds: Array.isArray(item.productModuleIds)
+                ? item.productModuleIds.filter((value): value is number => typeof value === "number")
+                : [],
+              productModuleNames: Array.isArray(item.productModuleNames)
+                ? item.productModuleNames.filter((value): value is string => typeof value === "string")
+                : [],
+              rfpFileIds: Array.isArray(item.rfpFileIds)
+                ? item.rfpFileIds.filter((value): value is number => typeof value === "number")
+                : [],
+              rfpFileNames: Array.isArray(item.rfpFileNames)
+                ? item.rfpFileNames.filter((value): value is string => typeof value === "string")
+                : [],
+              rfpFileSizes: Array.isArray(item.rfpFileSizes)
+                ? item.rfpFileSizes.filter((value): value is number => typeof value === "number")
+                : [],
+            }))
+            .filter((item) => item.id.trim() !== "" && item.name.trim() !== ""),
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCustomerOpportunityOptions([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setCustomerOpportunityLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isStandalone, selectedCustomer?.backendId, selectedCustomer?.name])
+
   const totalEffort = useMemo(
     () => requirements.reduce((sum, row) => sum + (Number(row.effort) || 0), 0),
     [requirements],
@@ -626,7 +535,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     setRequirements((current) => [...current, blankRequirementRow()])
   }
 
-  const selectedOpportunity = standaloneOpportunityOptions.find((item) => item.id === selectedOpportunityCode) ?? null
+  const selectedOpportunity = customerOpportunityOptions.find((item) => item.id === selectedOpportunityCode) ?? null
   const requesterDisplay = requestItem?.requester ?? currentUser.name
   const selectedAnalyst = backendUsers.find((user) => user.id === analystId) ?? null
 
@@ -761,251 +670,11 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     router.push("/bid")
   }
 
-  const handleExcelExport = async () => {
-    const exportTarget = persistedAnalysis ?? (await persistAnalysis(analysisStatus === "완료" ? "완료" : "분석중"))
-    if (!exportTarget) return
-
-    const exportRequirements = requirements.filter((row) =>
-      [row.category, row.requirementCode, row.requirementTitle, row.requirementContent, row.reviewNote, row.effort].some(
-        (value) => value.trim() !== "",
-      ),
-    )
-    const rows = exportRequirements.length > 0 ? exportRequirements : requirements
-    const fileName = `${exportTarget.id}.xls`
-    const basicInfoRows = [
-      ["고객사", customerDisplay],
-      ["사업명", opportunityDisplay],
-      ["사업 구분", businessType],
-      ["제안 형태", proposalType],
-      ["납품 모듈", deliveryModule],
-      ["H/W 제공 주체", hardwareOwner],
-      ["금액 규모", amountScale],
-      ["예상사업기간", projectPeriod],
-      ["사업장소", businessPlace],
-      ["제안서 접수마감일", proposalDeadline],
-      ["요청자", requesterDisplay],
-      ["담당자", selectedAnalyst?.name ?? currentUser.name],
-      ["요청일", requestDate],
-      ["상태", analysisStatus],
-      ["주요사업내용(특이점)", majorContent],
-    ]
-
-    const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-        <head>
-          <meta charset="utf-8" />
-          <style>
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #64748b; padding: 8px; vertical-align: top; }
-            th { background: #e2e8f0; font-weight: 700; }
-            .label { background: #f1f5f9; width: 180px; font-weight: 700; }
-            .value { background: #fffbeb; }
-            .section { background: #cbd5e1; font-size: 16px; font-weight: 700; text-align: left; }
-          </style>
-        </head>
-        <body>
-          <table>
-            <tr><th class="section" colspan="2">기본 정보</th></tr>
-            ${basicInfoRows
-              .map(
-                ([label, value]) => `
-                  <tr>
-                    <td class="label">${escapeHtml(String(label))}</td>
-                    <td class="value">${escapeHtml(value || "")}</td>
-                  </tr>
-                `,
-              )
-              .join("")}
-          </table>
-          <br />
-          <table>
-            <tr><th class="section" colspan="8">RFP 분석</th></tr>
-            <tr>
-              <th>연번</th>
-              <th>구분</th>
-              <th>요구사항고유번호</th>
-              <th>요구사항명칭</th>
-              <th>요구사항내용</th>
-              <th>지원여부</th>
-              <th>검토 내용</th>
-              <th>공수(M/D)</th>
-            </tr>
-            ${rows
-              .map(
-                (row, index) => `
-                  <tr>
-                    <td>${index + 1}</td>
-                    <td>${escapeHtml(row.category)}</td>
-                    <td>${escapeHtml(row.requirementCode)}</td>
-                    <td>${escapeHtml(row.requirementTitle)}</td>
-                    <td>${escapeHtml(row.requirementContent)}</td>
-                    <td>${escapeHtml(row.supportStatus)}</td>
-                    <td>${escapeHtml(row.reviewNote)}</td>
-                    <td>${escapeHtml(row.effort)}</td>
-                  </tr>
-                `,
-              )
-              .join("")}
-            <tr>
-              <td colspan="7" style="text-align:right; font-weight:700; background:#f1f5f9;">공수 합계</td>
-              <td style="font-weight:700;">${escapeHtml(totalEffort.toLocaleString())}</td>
-            </tr>
-          </table>
-        </body>
-      </html>
-    `
-
-    const blob = new Blob(["\ufeff", html], {
-      type: "application/vnd.ms-excel;charset=utf-8;",
-    })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-
-    toast({
-      title: "엑셀 다운로드",
-      description: `${fileName} 파일을 다운로드했습니다.`,
-    })
-  }
-
-  const handleImportButtonClick = () => {
-    importInputRef.current?.click()
-  }
-
-  const handleExcelImport = async (file: File | undefined) => {
-    if (!file) return
-
-    try {
-      const lowerName = file.name.toLowerCase()
-      if (lowerName.endsWith(".xlsx")) {
-        toast({
-          title: "엑셀 임포트 안내",
-          description: "현재는 .xlsx 대신 csv 또는 엑셀 2003 XML/HTML 형식 파일 임포트를 지원합니다.",
-        })
-        return
-      }
-
-      const text = await file.text()
-      const normalizedRows = lowerName.endsWith(".csv") || lowerName.endsWith(".tsv") || lowerName.endsWith(".txt")
-        ? parseDelimitedTextRows(text)
-        : lowerName.endsWith(".xml")
-          ? parseSpreadsheetXmlRows(text)
-          : parseHtmlTableRows(text)
-      const importedBasicInfo = parseBasicInfoFromRows(normalizedRows)
-      const importedRequirements = parseRequirementRowsFromSheetRows(normalizedRows)
-
-      if (importedRequirements.length === 0 && Object.keys(importedBasicInfo).length === 0) {
-        toast({
-          title: "엑셀 임포트 실패",
-          description: "기본 정보 또는 RFP 분석영역 헤더를 찾지 못했습니다. 다운로드한 양식 또는 동일한 컬럼 구조를 확인해주십시오.",
-        })
-        return
-      }
-
-      if (importedBasicInfo.customerDisplay && isStandalone) {
-        const importedCustomerCode = extractCodeFromDisplay(importedBasicInfo.customerDisplay)
-        const importedCustomerName = extractNameFromDisplay(importedBasicInfo.customerDisplay)
-        const matchedCustomer = importedCustomerCode
-          ? getCustomerByCode(importedCustomerCode)
-          : importedCustomerName
-            ? ({
-                id: "",
-                name: importedCustomerName,
-                category: "",
-                opportunities: 0,
-                contracts: 0,
-                contact: "",
-                phone: "",
-              } as CustomerRecord)
-            : null
-
-        setSelectedCustomer(importedCustomerCode ? matchedCustomer : null)
-        setSelectedCustomerName(importedCustomerName)
-      }
-
-      if (importedBasicInfo.opportunityDisplay && isStandalone) {
-        const importedOpportunityCode = extractCodeFromDisplay(importedBasicInfo.opportunityDisplay)
-        setSelectedOpportunityCode(importedOpportunityCode)
-      }
-
-      if (importedBasicInfo.businessType) setBusinessType(importedBasicInfo.businessType)
-      if (importedBasicInfo.proposalType) setProposalType(importedBasicInfo.proposalType)
-      if (importedBasicInfo.deliveryModule !== undefined) setDeliveryModule(importedBasicInfo.deliveryModule)
-      if (importedBasicInfo.hardwareOwner !== undefined) setHardwareOwner(importedBasicInfo.hardwareOwner)
-      if (importedBasicInfo.majorContent !== undefined) setMajorContent(importedBasicInfo.majorContent)
-      if (importedBasicInfo.amountScale !== undefined) setAmountScale(importedBasicInfo.amountScale)
-      if (importedBasicInfo.projectPeriod !== undefined) setProjectPeriod(importedBasicInfo.projectPeriod)
-      if (importedBasicInfo.businessPlace !== undefined) setBusinessPlace(importedBasicInfo.businessPlace)
-      if (importedBasicInfo.proposalDeadline !== undefined) setProposalDeadline(importedBasicInfo.proposalDeadline)
-      if (importedBasicInfo.analyst !== undefined) {
-        const normalizedAnalyst = importedBasicInfo.analyst.trim()
-        const matchedAnalyst = backendUsers.find(
-          (user) =>
-            user.id === normalizedAnalyst ||
-            user.employeeNumber === normalizedAnalyst ||
-            user.name === normalizedAnalyst,
-        )
-        if (matchedAnalyst?.id) {
-          setAnalystId(matchedAnalyst.id)
-        }
-      }
-      if (importedBasicInfo.requestDate !== undefined) setRequestDate(importedBasicInfo.requestDate)
-      if (importedBasicInfo.status !== undefined && analysisStatusOptions.includes(importedBasicInfo.status as RfpAnalysisStatus)) {
-        setAnalysisStatus(importedBasicInfo.status as RfpAnalysisStatus)
-      }
-
-      if (importedRequirements.length > 0) {
-        setRequirements(importedRequirements)
-      }
-
-      toast({
-        title: "엑셀 임포트 완료",
-        description:
-          importedRequirements.length > 0
-            ? `${importedRequirements.length}개 요구사항과 기본정보를 불러왔습니다.`
-            : "기본정보를 불러왔습니다.",
-      })
-    } catch (error) {
-      toast({
-        title: "엑셀 임포트 실패",
-        description: error instanceof Error ? error.message : "엑셀 파일을 읽는 중 오류가 발생했습니다.",
-      })
-    } finally {
-      if (importInputRef.current) {
-        importInputRef.current.value = ""
-      }
-    }
-  }
-
   return (
     <>
     <Card className="overflow-hidden">
       <CardHeader className="border-b bg-white">
-        <div className="flex items-center justify-between gap-4">
-          <CardTitle>{title}</CardTitle>
-          <div className="flex items-center gap-2">
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".csv,.tsv,.txt,.xml,.xls,.html"
-              className="hidden"
-              onChange={(event) => void handleExcelImport(event.target.files?.[0])}
-            />
-            <Button variant="outline" onClick={handleImportButtonClick}>
-              <Upload className="mr-2 h-4 w-4" />
-              엑셀 임포트
-            </Button>
-            <Button variant="outline" onClick={handleExcelExport}>
-              <Download className="mr-2 h-4 w-4" />
-              엑셀 다운로드
-            </Button>
-          </div>
-        </div>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
         <div className="overflow-x-auto">
@@ -1015,13 +684,13 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
                 <BasicInfoRow label="고객사">
                   {isStandalone ? (
                     <div className="px-2 py-1">
-                      <CustomerAutocomplete
-                        value={selectedCustomerName}
-                        onSelect={(customer) => {
-                          setSelectedCustomer(customer)
-                          setSelectedCustomerName(customer?.name ?? "")
-                          setSelectedOpportunityCode("")
-                        }}
+                    <CustomerAutocomplete
+                      value={selectedCustomerName}
+                      onSelect={(customer) => {
+                        setSelectedCustomer(customer)
+                        setSelectedCustomerName(customer?.name ?? "")
+                        setSelectedOpportunityCode("")
+                      }}
                         onValueChange={setSelectedCustomerName}
                         placeholder="고객사를 선택하세요"
                       />
@@ -1032,16 +701,41 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
                 </BasicInfoRow>
                 <BasicInfoRow label="사업명">
                   {isStandalone ? (
-                    <Select value={selectedOpportunityCode} onValueChange={setSelectedOpportunityCode} disabled={!selectedCustomer}>
+                    <Select
+                      value={selectedOpportunityCode}
+                      onValueChange={setSelectedOpportunityCode}
+                      disabled={!selectedCustomer || customerOpportunityLoading}
+                    >
                       <SelectTrigger className="h-10 rounded-none border-0 shadow-none focus:ring-0">
-                        <SelectValue placeholder={selectedCustomer ? "사업기회를 선택하세요" : "고객사를 먼저 선택하세요"} />
+                        <SelectValue
+                          placeholder={
+                            !selectedCustomer
+                              ? "고객사를 먼저 선택하세요"
+                              : customerOpportunityLoading
+                                ? "사업기회를 불러오는 중..."
+                                : "사업기회를 선택하세요"
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent>
-                        {standaloneOpportunityOptions.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name}
+                        {customerOpportunityOptions.length > 0 ? (
+                          customerOpportunityOptions.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              <div className="flex w-full min-w-0 items-center justify-between gap-3">
+                                <span className="truncate">{item.name}</span>
+                                <span className="shrink-0 text-xs text-muted-foreground">{item.id}</span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="__empty__" disabled>
+                            {selectedCustomer
+                              ? customerOpportunityLoading
+                                ? "사업기회를 불러오는 중..."
+                                : "해당 고객사의 사업기회가 없습니다."
+                              : "고객사를 먼저 선택하세요"}
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
                   ) : (
@@ -1105,7 +799,22 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
                   </BasicInfoRow>
                 )}
                 <BasicInfoRow label="상태">
-                  <ExcelInput value={analysisStatus} readOnly />
+                  {persistedAnalysis ? (
+                    <Select value={analysisStatus} onValueChange={(value) => setAnalysisStatus(value as RfpAnalysisStatus)}>
+                      <SelectTrigger className="h-10 rounded-none border-0 shadow-none focus:ring-0">
+                        <SelectValue placeholder="상태를 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {analysisStatusOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <ExcelInput value={analysisStatus} readOnly />
+                  )}
                 </BasicInfoRow>
               </tr>
               {requestItem?.id?.startsWith("REQ-") && (
