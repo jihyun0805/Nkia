@@ -54,14 +54,14 @@ _REGISTRY: dict[str, DomainSpec] = {
     ),
     "contract": DomainSpec(
         name="contract",
-        code_column="contract_code",
-        date_column="contract_start_date",
+        code_column=None,  # contract 에 별도 code 컬럼 없음 (id PK 사용)
+        date_column="contract_date",
         default_metric="contract_amount",
     ),
     "billing": DomainSpec(
         name="billing",
         date_column="billing_date",
-        default_metric="bill_amount",
+        default_metric="billing_amount",  # 실제 컬럼은 billing_amount
     ),
     "sales_activity": DomainSpec(
         name="sales_activity",
