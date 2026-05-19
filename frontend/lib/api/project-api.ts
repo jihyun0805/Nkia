@@ -156,10 +156,62 @@ export interface EstimatedRevenueResponse {
   totalAmount: number;
 }
 
+/** 사업 변경이력 목록 응답 */
+export interface ProjectHistoryListResponse {
+  historyId: number;
+  originalProjectId: number;
+  customerName: string | null;
+  projectName: string | null;
+  totalAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  pmName: string | null;
+  salesRepresentativeName: string | null;
+  hasResultReport: boolean;
+  savedAt: string; // ISO string YYYY-MM-DDTHH:mm:ss
+}
+
+/** 사업 변경이력 상세 응답 */
+export interface ProjectHistoryDetailResponse {
+  historyId: number;
+  originalProjectId: number;
+  pjtNumber: string | null;
+  pjtName: string | null;
+  customerName: string | null;
+  totalAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  pmName: string | null;
+  salesRepName: string | null;
+  resultReport: {
+    id: number;
+    fileName: string;
+    fileSize: number;
+    fileUrl: string;
+  } | null;
+  orderReportId: number | null;
+  contractId: number | null;
+  savedAt: string;
+}
+
 // API 함수 모음
 
 export const projectApi = {
   // 사업
+
+  /** 사업 변경이력 목록 조회 */
+  getProjectHistories: (projectId: number) =>
+    customInstance<ApiResponse<ProjectHistoryListResponse[]>>({
+      url: `/projects/${projectId}/histories`,
+      method: "GET",
+    }),
+
+  /** 사업 변경이력 상세 조회 */
+  getProjectHistory: (historyId: number) =>
+    customInstance<ApiResponse<ProjectHistoryDetailResponse>>({
+      url: `/projects/histories/${historyId}`,
+      method: "GET",
+    }),
 
   /** 예상 매출액 조회 */
   getAnnualRevenue: (year?: number) =>

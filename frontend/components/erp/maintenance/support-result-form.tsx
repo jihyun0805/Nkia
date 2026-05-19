@@ -12,29 +12,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete";
 import { UserIdPicker } from "@/components/erp/user-id-picker";
-import { loadBackendUsers, type BackendUserSummary } from "@/lib/finding-backend";
-import { createCustomerSupportActivity, getCustomerSupportRequests, type CustomerSupportRequestListResponse } from "@/lib/api/maintenance";
+import { loadBackendUsers, type BackendUserSummary, loadBackendFindingData } from "@/lib/finding-backend";
+import { createCustomerSupportActivity, getCustomerSupportRequests, type CustomerSupportRequestListResponse, updateCustomerSupportActivity } from "@/lib/api/maintenance";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 interface SupportResultFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  initialData?: any;
 }
 
-export function SupportResultForm({ onSuccess, onCancel }: SupportResultFormProps) {
+export function SupportResultForm({ onSuccess, onCancel, initialData }: SupportResultFormProps) {
   const router = useRouter();
   const { register, handleSubmit, setValue, watch, control, formState: { isSubmitting } } = useForm({
     defaultValues: {
       customerCompanyCode: null as number | null,
-      customerCompanyName: "",
-      requestType: "REQUEST" as "REQUEST" | "REGULAR",
-      requestId: null as number | null,
-      activityStartTime: "",
-      activityEndTime: "",
-      activityContent: "",
+      customerCompanyName: initialData?.customerName ?? "",
+      requestType: (initialData?.activityType === "REQUEST" ? "REQUEST" : "REGULAR") as "REQUEST" | "REGULAR",
+      requestId: initialData?.requestId ?? null as number | null,
+      activityStartTime: initialData?.activityStartTime ? initialData.activityStartTime.substring(0, 16) : "",
+      activityEndTime: initialData?.activityEndTime ? initialData.activityEndTime.substring(0, 16) : "",
+      activityContent: initialData?.activityContent ?? "",
       registrantId: "",
-      remarks: "",
+      remarks: initialData?.remarks ?? "",
       participantList: [] as { userId: string; roleDescription: string }[],
     },
   });
@@ -51,17 +52,47 @@ export function SupportResultForm({ onSuccess, onCancel }: SupportResultFormProp
   const [requests, setRequests] = useState<CustomerSupportRequestListResponse[]>([]);
 
   useEffect(() => {
-    loadBackendUsers().then(setUsers).catch(console.error);
+    loadBackendUsers().then((loadedUsers) => {
+      setUsers(loadedUsers);
+      if (initialData) {
+        const registrant = loadedUsers.find(u => u.name === initialData.registrantName);
+        if (registrant) setValue("registrantId", registrant.id);
+
+        if (initialData.participants && initialData.participants.length > 0) {
+          const mappedParticipants = initialData.participants.map((p: any) => {
+            const matchedUser = loadedUsers.find(u => u.name === p.userName);
+            return {
+              userId: matchedUser ? matchedUser.id : "",
+              roleDescription: p.roleDescription || "",
+            };
+          });
+          setValue("participantList", mappedParticipants);
+        }
+      }
+    }).catch(console.error);
+
+    loadBackendFindingData().then((data) => {
+      if (initialData) {
+        const foundCompany = data.customers.find(c => c.name === initialData.customerName);
+        if (foundCompany && foundCompany.backendId) {
+          setValue("customerCompanyCode", foundCompany.backendId);
+          setValue("customerCompanyName", foundCompany.name);
+        }
+      }
+    }).catch(console.error);
+
     getCustomerSupportRequests().then((res) => {
       if (res.success || (res as any).result === "SUCCESS") {
         setRequests(res.data ?? []);
       }
     }).catch(console.error);
-  }, []);
+  }, [initialData, setValue]);
 
   useEffect(() => {
-    setValue("requestId", null);
-  }, [selectedCustomerName, setValue]);
+    if (!initialData) {
+      setValue("requestId", null);
+    }
+  }, [selectedCustomerName, setValue, initialData]);
 
   const filteredRequests = requests.filter(req => req.customerName === selectedCustomerName);
 
@@ -82,7 +113,7 @@ export function SupportResultForm({ onSuccess, onCancel }: SupportResultFormProp
     try {
       const payload = {
         requestId: data.requestType === "REQUEST" ? data.requestId : null,
-        maintenanceId: null, // TODO: Link maintenance if needed
+        maintenanceId: null,
         customerCompanyCode: data.customerCompanyCode,
         activityType: data.requestType,
         activityStartTime: data.activityStartTime,
@@ -94,27 +125,35 @@ export function SupportResultForm({ onSuccess, onCancel }: SupportResultFormProp
         attachedFileIds: [],
       };
 
-      const res = await createCustomerSupportActivity(payload);
+      let res;
+      if (initialData) {
+        res = await updateCustomerSupportActivity(initialData.id, payload);
+      } else {
+        res = await createCustomerSupportActivity(payload);
+      }
+
       if (res.success || (res as any).result === "SUCCESS") {
-        toast.success("고객지원 활동 결과가 등록되었습니다.");
+        toast.success(initialData ? "고객지원 활동 결과가 수정되었습니다." : "고객지원 활동 결과가 등록되었습니다.");
         onSuccess();
-        const createdId = res.data ?? (res as any).id ?? (res as any).body?.data;
-        if (createdId) {
-          router.push(`/maintenance/support-activities/${createdId}`);
+        if (!initialData) {
+          const createdId = res.data ?? (res as any).id ?? (res as any).body?.data;
+          if (createdId) {
+            router.push(`/maintenance/support-activities/${createdId}`);
+          }
         }
       } else {
-        toast.error(res.message || "등록 실패했습니다.");
+        toast.error(res.message || (initialData ? "수정 실패했습니다." : "등록 실패했습니다."));
       }
     } catch (err) {
       console.error(err);
-      toast.error("등록하는 도중 에러가 발생했습니다.");
+      toast.error(initialData ? "수정하는 도중 에러가 발생했습니다." : "등록하는 도중 에러가 발생했습니다.");
     }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>고객지원 활동 결과 등록</CardTitle>
+        <CardTitle>{initialData ? "고객지원 활동 결과 수정" : "고객지원 활동 결과 등록"}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -353,7 +392,7 @@ export function SupportResultForm({ onSuccess, onCancel }: SupportResultFormProp
               취소
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "등록 중..." : "결과 등록"}
+              {isSubmitting ? (initialData ? "수정 중..." : "등록 중...") : (initialData ? "결과 수정" : "결과 등록")}
             </Button>
           </div>
         </form>

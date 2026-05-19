@@ -20,6 +20,7 @@ public interface BidResultRepository extends JpaRepository<BidResult, Long> {
             "projectOpportunity",
             "projectOpportunity.customerCompany",
             "projectOpportunity.rfpAnalyzeResult",
+            "projectOpportunity.prb",
             "proposal"
     })
     Optional<BidResult> findWithDetailsById(Long id);

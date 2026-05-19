@@ -4,7 +4,11 @@ import re
 from typing import Any
 
 from app.langgraph.state import GraphState
-from app.langgraph.edit_intent import EditFieldIntent, detect_edit_field_intent
+from app.langgraph.edit_intent import (
+    EditFieldIntent,
+    detect_edit_field_intent,
+    detect_edit_field_intent_llm,
+)
 from app.models.draft import DraftAction, EditFieldPayload
 from app.models.draft_registry import has_draft_reference_intent
 from app.models.user_context import UserContext
@@ -101,6 +105,9 @@ def attach_edit_field_action_to_response(
     """
     query = response.query or ""
     intent = detect_edit_field_intent(query)
+    if intent is None:
+        # 룰이 못 잡은 자연어 발화(예: "사업비 17억으로 수정")는 LLM 으로 한 번 더 시도
+        intent = detect_edit_field_intent_llm(query)
     if intent is None:
         return response
 

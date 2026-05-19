@@ -23,6 +23,7 @@ type ApiResponse<T> = {
 
 type BackendQuotationListItem = {
   id?: number
+  status?: string
   workflowId?: number
   quotationCode?: string
   projectOpportunityId?: number
@@ -545,7 +546,7 @@ function mapBackendQuotationRecord(
     remarks: local?.remarks ?? quotation.note ?? "",
     amount: String(quotation.totalPrice ?? local?.amount ?? solutionTotal + laborTotal),
     validity: local?.validity ?? addDays(date, 30),
-    status: "",
+    status: quotation.status ?? local?.status ?? "",
   }
 }
 
