@@ -43,14 +43,14 @@ public class RfpAnalyzeResultService {
      * 1. RFP 분석 결과 등록 (Create)
      */
     @Transactional
-    public RfpAnalyzeResultDetailResponse createRfpAnalyzeResult(
-            RfpAnalyzeResultCreateRequest request) {
+    public RfpAnalyzeResultDetailResponse createRfpAnalyzeResult(RfpAnalyzeResultCreateRequest request,
+                                                                 UUID requestUserId) {
         ProjectOpportunity opportunity = getProjectOpportunity(request);
-
+        User requestUser = findUser(requestUserId);
         User assignee = findUser(request.assigneeId());
 
         // 부모 엔티티 조립
-        RfpAnalyzeResult rfpAnalyzeResult = request.toEntity(assignee, opportunity);
+        RfpAnalyzeResult rfpAnalyzeResult = request.toEntity(requestUser.getName(), assignee, opportunity);
         opportunity.assignRfpAnalyzeResult(rfpAnalyzeResult);
 
         // 자식 요구사항 엔티티 추가 (addRequirement 편의 메서드 활용)
@@ -80,9 +80,10 @@ public class RfpAnalyzeResultService {
                                                                  RfpAnalyzeResultUpdateRequest request) {
         RfpAnalyzeResult rfpAnalyzeResult = findRfpAnalyzeResult(id);
         User assignee = findUser(request.assigneeId());
+        ProjectOpportunity projectOpportunity = findProjectOpportunity(request.projectOpportunityId());
 
         // 1. 부모 엔티티 기본 정보 업데이트 (더티 체킹)
-        updateRfpAnalyzeResultInfo(request, rfpAnalyzeResult, assignee);
+        updateRfpAnalyzeResultInfo(request, rfpAnalyzeResult, assignee, projectOpportunity);
 
         // 2. 자식 컬렉션(Requirements) 스마트 업데이트 (고아 객체 제거 + 더티 체킹 활용)
         updateRequirements(rfpAnalyzeResult, request.requirements());
@@ -90,11 +91,11 @@ public class RfpAnalyzeResultService {
         return RfpAnalyzeResultDetailResponse.from(rfpAnalyzeResult);
     }
 
-    private void updateRfpAnalyzeResultInfo(RfpAnalyzeResultUpdateRequest request,
-                                            RfpAnalyzeResult rfpAnalyzeResult, User assignee) {
-        rfpAnalyzeResult.update(request.projectName(), request.hardwareProvider(),
-                request.budgetAmount(), request.expectedDuration(), request.projectLocation(),
-                request.proposalDeadline(), request.projectDescription(), request.proposalType(), assignee);
+    private void updateRfpAnalyzeResultInfo(RfpAnalyzeResultUpdateRequest request, RfpAnalyzeResult rfpAnalyzeResult,
+                                            User assignee, ProjectOpportunity projectOpportunity) {
+        rfpAnalyzeResult.update(request.hardwareProvider(), request.budgetAmount(), request.expectedDuration(),
+                request.projectLocation(), request.proposalDeadline(), request.projectDescription(),
+                request.proposalType(), assignee, projectOpportunity);
     }
 
     /**
