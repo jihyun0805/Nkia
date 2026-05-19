@@ -385,6 +385,42 @@ def fetch_metric_rows_for_opportunity_codes(
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             if metric_key in {"estimated_profit", "estimated_profit_rate", "expected_win_rate", "estimated_revenue"}:
+                prb_profit_expr = _first_existing_column_expr(
+                    table_name="prb",
+                    table_alias="p",
+                    candidates=("estimated_profit", "estimated_operating_profit"),
+                    cast_type="numeric",
+                )
+                prb_profit_rate_expr = _first_existing_column_expr(
+                    table_name="prb",
+                    table_alias="p",
+                    candidates=("estimated_profit_rate", "estimated_profit_margin"),
+                    cast_type="numeric",
+                )
+                prb_total_cost_expr = _first_existing_column_expr(
+                    table_name="prb",
+                    table_alias="p",
+                    candidates=("total_cost", "prb_total_cost"),
+                    cast_type="numeric",
+                )
+                prb_sales_opinion_expr = _first_existing_column_expr(
+                    table_name="prb",
+                    table_alias="p",
+                    candidates=("sales_opinion", "sales_representative_opinion"),
+                )
+                prb_risk_factors_expr = optional_column_expr(
+                    table_name="prb_result",
+                    table_alias="pr",
+                    output_name="risk_factors",
+                    candidates=("risk_factors", "comprehensive_opinion"),
+                )
+                metric_order_map = {
+                    "estimated_profit": prb_profit_expr,
+                    "estimated_profit_rate": prb_profit_rate_expr,
+                    "expected_win_rate": "p.expected_win_rate",
+                    "estimated_revenue": "p.estimated_revenue",
+                }
+                metric_order_sql = metric_order_map[metric_key]
                 cur.execute(
                     f"""
                     SELECT
@@ -393,19 +429,20 @@ def fetch_metric_rows_for_opportunity_codes(
                         o.opportunity_name,
                         {customer_name_expr},
                         {opportunity_status_expr},
-                        p.estimated_profit,
-                        p.estimated_profit_rate,
+                        {prb_profit_expr} AS estimated_profit,
+                        {prb_profit_rate_expr} AS estimated_profit_rate,
                         p.expected_win_rate,
                         p.estimated_revenue,
-                        p.total_cost,
-                        p.risk_factors,
-                        p.sales_opinion
+                        {prb_total_cost_expr} AS total_cost,
+                        {prb_risk_factors_expr},
+                        {prb_sales_opinion_expr} AS sales_opinion
                     FROM {_PRB} p
-                    JOIN {_OPP} o ON o.id = p.opportunity_id
+                    JOIN {_OPP} o ON o.id = p.project_opportunity_id
                     JOIN {_CO} c ON c.id = o.customer_company_id
+                    LEFT JOIN {_PRBR} pr ON pr.prb_id = p.id
                     WHERE o.opportunity_code = ANY(%(opportunity_codes)s::varchar[])
-                      AND p.{metric_key} IS NOT NULL
-                    ORDER BY p.{metric_key} DESC, p.id
+                      AND {metric_order_sql} IS NOT NULL
+                    ORDER BY {metric_order_sql} DESC, p.id
                     """,
                     {"opportunity_codes": opportunity_codes},
                 )
@@ -519,6 +556,63 @@ def fetch_difficult_win_candidates(
         output_name="issue_content",
         candidates=("issue_content",),
     )
+    prb_profit_expr = _first_existing_column_expr(
+        table_name="prb",
+        table_alias="p",
+        candidates=("estimated_profit", "estimated_operating_profit"),
+        cast_type="numeric",
+    )
+    prb_profit_rate_expr = _first_existing_column_expr(
+        table_name="prb",
+        table_alias="p",
+        candidates=("estimated_profit_rate", "estimated_profit_margin"),
+        cast_type="numeric",
+    )
+    prb_risk_factors_expr = optional_column_expr(
+        table_name="prb_result",
+        table_alias="pr",
+        output_name="risk_factors",
+        candidates=("risk_factors", "comprehensive_opinion"),
+    )
+    prb_result_code_expr = optional_column_expr(
+        table_name="prb_result",
+        table_alias="pr",
+        output_name="prb_result_code",
+        candidates=("prb_result_code",),
+    )
+    prb_result_risk_review_expr = optional_column_expr(
+        table_name="prb_result",
+        table_alias="pr",
+        output_name="risk_review",
+        candidates=("risk_review", "comprehensive_opinion"),
+    )
+    prb_result_final_opinion_expr = optional_column_expr(
+        table_name="prb_result",
+        table_alias="pr",
+        output_name="final_opinion",
+        candidates=("final_opinion", "comprehensive_opinion"),
+    )
+    bid_result_code_expr = optional_column_expr(
+        table_name="bid_result",
+        table_alias="b",
+        output_name="bid_result_code",
+        candidates=("bid_result_code",),
+    )
+    bid_competitor_summary_expr = optional_column_expr(
+        table_name="bid_result",
+        table_alias="b",
+        output_name="competitor_summary",
+        candidates=("competitor_summary",),
+    )
+    bid_win_loss_reason_expr = optional_column_expr(
+        table_name="bid_result",
+        table_alias="b",
+        output_name="win_loss_reason",
+        candidates=("win_loss_reason",),
+    )
+    prb_opp_fk_expr = project_opportunity_fk_value_expr(table_name="prb", table_alias="p")
+    bid_opp_fk_expr = project_opportunity_fk_value_expr(table_name="bid_result", table_alias="b")
+    rfp_opp_fk_expr = project_opportunity_fk_value_expr(table_name="rfp_analyze_result", table_alias="r")
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -533,24 +627,24 @@ def fetch_difficult_win_candidates(
                     {competitors_expr},
                     p.prb_code AS reference_code,
                     p.expected_win_rate,
-                    p.estimated_profit,
-                    p.estimated_profit_rate,
-                    p.risk_factors,
-                    pr.prb_result_code,
-                    pr.risk_review,
-                    pr.final_opinion,
-                    b.bid_result_code,
-                    b.competitor_summary,
-                    b.win_loss_reason,
+                    {prb_profit_expr} AS estimated_profit,
+                    {prb_profit_rate_expr} AS estimated_profit_rate,
+                    {prb_risk_factors_expr},
+                    {prb_result_code_expr},
+                    {prb_result_risk_review_expr},
+                    {prb_result_final_opinion_expr},
+                    {bid_result_code_expr},
+                    {bid_competitor_summary_expr},
+                    {bid_win_loss_reason_expr},
                     r.rfp_analysis_code,
                     r.risk_factors AS rfp_risk_factors,
                     r.security_requirements
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
-                JOIN {_PRB} p ON p.opportunity_id = o.id
+                JOIN {_PRB} p ON {prb_opp_fk_expr} = o.id
                 LEFT JOIN {_PRBR} pr ON pr.prb_id = p.id
-                LEFT JOIN {_BID} b ON b.opportunity_id = o.id
-                LEFT JOIN {_RFP} r ON r.opportunity_id = o.id
+                LEFT JOIN {_BID} b ON {bid_opp_fk_expr} = o.id
+                LEFT JOIN {_RFP} r ON {rfp_opp_fk_expr} = o.id
                 WHERE {opportunity_status_value_expr()} = ANY(%(status_filters)s::varchar[])
                   {filter_sql}
                 ORDER BY p.expected_win_rate ASC NULLS LAST, p.id
@@ -1134,6 +1228,10 @@ def fetch_recent_document_rows(
                     if recency_basis == "uploaded"
                     else "COALESCE(w.contract_date::timestamptz, w.created_at, w.updated_at)"
                 )
+                won_report_code_expr = order_report_code_value_expr(table_alias="w")
+                won_opp_fk_expr = project_opportunity_fk_value_expr(
+                    table_name="order_report", table_alias="w"
+                )
                 cur.execute(
                     f"""
                     SELECT
@@ -1142,7 +1240,7 @@ def fetch_recent_document_rows(
                         o.opportunity_code,
                         o.opportunity_name,
                         c.name AS customer_name,
-                        w.won_report_code,
+                        {won_report_code_expr} AS won_report_code,
                         w.contract_date,
                         w.contract_amount,
                         w.business_scope,
@@ -1150,7 +1248,7 @@ def fetch_recent_document_rows(
                         w.updated_at,
                         {order_expr} AS metric_value
                     FROM {_WR} w
-                    JOIN {_OPP} o ON o.id = w.opportunity_id
+                    JOIN {_OPP} o ON o.id = {won_opp_fk_expr}
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     ORDER BY metric_value DESC NULLS LAST, w.id DESC
                     LIMIT %(limit)s
@@ -1164,6 +1262,30 @@ def fetch_recent_document_rows(
                     "COALESCE(b.updated_at, o.updated_at)"
                     if recency_basis == "uploaded"
                     else "COALESCE(o.bid_date::timestamptz, b.updated_at, o.updated_at)"
+                )
+                bid_columns = fetch_public_table_columns("bid_result")
+                bid_result_code_select = (
+                    "br.bid_result_code"
+                    if "bid_result_code" in bid_columns
+                    else "('BID-' || br.id::text)"
+                )
+                bid_win_loss_reason_select = (
+                    "br.win_loss_reason"
+                    if "win_loss_reason" in bid_columns
+                    else "NULL::text"
+                )
+                bid_competitor_summary_select = (
+                    "br.competitor_summary"
+                    if "competitor_summary" in bid_columns
+                    else "NULL::text"
+                )
+                bid_lost_predicate = (
+                    "br.won IS FALSE"
+                    if "won" in bid_columns
+                    else "br.bid_outcome <> 'WIN'"
+                )
+                bid_opp_fk_expr = project_opportunity_fk_value_expr(
+                    table_name="bid_result", table_alias="br"
                 )
                 cur.execute(
                     f"""
@@ -1185,14 +1307,14 @@ def fetch_recent_document_rows(
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     LEFT JOIN LATERAL (
                         SELECT
-                            br.bid_result_code,
-                            br.win_loss_reason,
-                            br.competitor_summary,
+                            {bid_result_code_select} AS bid_result_code,
+                            {bid_win_loss_reason_select} AS win_loss_reason,
+                            {bid_competitor_summary_select} AS competitor_summary,
                             br.created_at,
                             br.updated_at
                         FROM {_BID} br
-                        WHERE br.opportunity_id = o.id
-                          AND br.won IS FALSE
+                        WHERE {bid_opp_fk_expr} = o.id
+                          AND {bid_lost_predicate}
                         ORDER BY COALESCE(br.updated_at, br.created_at) DESC NULLS LAST, br.id DESC
                         LIMIT 1
                     ) b ON TRUE
@@ -1211,11 +1333,15 @@ def fetch_recent_document_rows(
                     if recency_basis == "uploaded"
                     else "COALESCE(w.contract_date::timestamptz, w.created_at, w.updated_at)"
                 )
+                won_report_code_expr = order_report_code_value_expr(table_alias="w")
+                won_opp_fk_expr = project_opportunity_fk_value_expr(
+                    table_name="order_report", table_alias="w"
+                )
                 cur.execute(
                     f"""
                     SELECT
                         'ORDER_REPORT' AS source_type,
-                        w.won_report_code AS reference_code,
+                        {won_report_code_expr} AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
                         c.name AS customer_name,
@@ -1227,7 +1353,7 @@ def fetch_recent_document_rows(
                         w.updated_at,
                         {order_expr} AS metric_value
                     FROM {_WR} w
-                    JOIN {_OPP} o ON o.id = w.opportunity_id
+                    JOIN {_OPP} o ON o.id = {won_opp_fk_expr}
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     ORDER BY metric_value DESC NULLS LAST, w.id DESC
                     LIMIT %(limit)s
@@ -1242,6 +1368,20 @@ def fetch_recent_document_rows(
                     if recency_basis == "uploaded"
                     else "COALESCE(p.prb_date::timestamptz, p.created_at, p.updated_at)"
                 )
+                prb_columns = fetch_public_table_columns("prb")
+                prb_sales_owner_select = (
+                    "p.sales_owner"
+                    if "sales_owner" in prb_columns
+                    else "NULL::text"
+                ) + " AS sales_owner"
+                prb_department_owner_select = (
+                    "p.department_owner"
+                    if "department_owner" in prb_columns
+                    else "NULL::text"
+                ) + " AS department_owner"
+                prb_opp_fk_expr = project_opportunity_fk_value_expr(
+                    table_name="prb", table_alias="p"
+                )
                 cur.execute(
                     f"""
                     SELECT
@@ -1251,14 +1391,14 @@ def fetch_recent_document_rows(
                         o.opportunity_name,
                         c.name AS customer_name,
                         p.prb_date,
-                        p.sales_owner,
-                        p.department_owner,
+                        {prb_sales_owner_select},
+                        {prb_department_owner_select},
                         p.expected_win_rate,
                         p.created_at,
                         p.updated_at,
                         {order_expr} AS metric_value
                     FROM {_PRB} p
-                    JOIN {_OPP} o ON o.id = p.opportunity_id
+                    JOIN {_OPP} o ON o.id = {prb_opp_fk_expr}
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     ORDER BY metric_value DESC NULLS LAST, p.id DESC
                     LIMIT %(limit)s
@@ -1268,28 +1408,61 @@ def fetch_recent_document_rows(
                 return list(cur.fetchall())
 
             if document_scope == "PRB_RESULT":
-                order_expr = (
-                    "COALESCE(pr.created_at, pr.updated_at)"
-                    if recency_basis == "uploaded"
-                    else "COALESCE(pr.result_date::timestamptz, pr.created_at, pr.updated_at)"
+                prbr_columns = fetch_public_table_columns("prb_result")
+                prb_result_code_select = (
+                    "pr.prb_result_code"
+                    if "prb_result_code" in prbr_columns
+                    else "('PRBR-' || pr.prb_result_id::text)"
+                    if "prb_result_id" in prbr_columns
+                    else "('PRBR-' || pr.id::text)"
+                )
+                result_date_select = (
+                    "pr.result_date"
+                    if "result_date" in prbr_columns
+                    else "pr.meeting_date_time::date"
+                    if "meeting_date_time" in prbr_columns
+                    else "NULL::date"
+                ) + " AS result_date"
+                decision_status_select = (
+                    "pr.decision_status"
+                    if "decision_status" in prbr_columns
+                    else "pr.status::text"
+                ) + " AS decision_status"
+                final_opinion_select = (
+                    "pr.final_opinion"
+                    if "final_opinion" in prbr_columns
+                    else "pr.comprehensive_opinion"
+                    if "comprehensive_opinion" in prbr_columns
+                    else "NULL::text"
+                ) + " AS final_opinion"
+                if recency_basis == "uploaded":
+                    order_expr = "COALESCE(pr.created_at, pr.updated_at)"
+                elif "result_date" in prbr_columns:
+                    order_expr = "COALESCE(pr.result_date::timestamptz, pr.created_at, pr.updated_at)"
+                elif "meeting_date_time" in prbr_columns:
+                    order_expr = "COALESCE(pr.meeting_date_time::timestamptz, pr.created_at, pr.updated_at)"
+                else:
+                    order_expr = "COALESCE(pr.created_at, pr.updated_at)"
+                prb_opp_fk_expr = project_opportunity_fk_value_expr(
+                    table_name="prb", table_alias="p"
                 )
                 cur.execute(
                     f"""
                     SELECT
                         'PRB_RESULT' AS source_type,
-                        pr.prb_result_code AS reference_code,
+                        {prb_result_code_select} AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
                         c.name AS customer_name,
-                        pr.result_date,
-                        pr.decision_status,
-                        pr.final_opinion,
+                        {result_date_select},
+                        {decision_status_select},
+                        {final_opinion_select},
                         pr.created_at,
                         pr.updated_at,
                         {order_expr} AS metric_value
                     FROM {_PRBR} pr
                     JOIN {_PRB} p ON p.id = pr.prb_id
-                    JOIN {_OPP} o ON o.id = p.opportunity_id
+                    JOIN {_OPP} o ON o.id = {prb_opp_fk_expr}
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     ORDER BY metric_value DESC NULLS LAST, pr.id DESC
                     LIMIT %(limit)s
@@ -1440,6 +1613,45 @@ def fetch_maintenance_quote_snapshot(*, opportunity_code: str) -> dict[str, Any]
 
 
 def fetch_opportunity_delivery_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
+    wr_columns = fetch_public_table_columns("order_report")
+    won_report_code_inner = (
+        "wr.won_report_code"
+        if "won_report_code" in wr_columns
+        else "wr.order_report_code"
+        if "order_report_code" in wr_columns
+        else "NULL::text"
+    )
+    wr_contract_amount_inner = (
+        "wr.contract_amount"
+        if "contract_amount" in wr_columns
+        else "wr.total_amount"
+        if "total_amount" in wr_columns
+        else "NULL::numeric"
+    )
+    wr_payment_terms_inner = (
+        "wr.payment_terms"
+        if "payment_terms" in wr_columns
+        else "wr.payment_condition"
+        if "payment_condition" in wr_columns
+        else "NULL::text"
+    )
+    wr_business_scope_inner = (
+        "wr.business_scope"
+        if "business_scope" in wr_columns
+        else "wr.scope_of_work"
+        if "scope_of_work" in wr_columns
+        else "NULL::text"
+    )
+    wr_special_notes_inner = (
+        "wr.special_notes"
+        if "special_notes" in wr_columns
+        else "wr.remarks"
+        if "remarks" in wr_columns
+        else "NULL::text"
+    )
+    wr_opp_fk_expr = project_opportunity_fk_value_expr(
+        table_name="order_report", table_alias="wr"
+    )
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1483,9 +1695,16 @@ def fetch_opportunity_delivery_snapshot(*, opportunity_code: str) -> dict[str, A
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 LEFT JOIN LATERAL (
-                    SELECT *
+                    SELECT
+                        wr.id,
+                        wr.contract_date,
+                        {wr_contract_amount_inner} AS contract_amount,
+                        {wr_payment_terms_inner} AS payment_terms,
+                        {wr_business_scope_inner} AS business_scope,
+                        {wr_special_notes_inner} AS special_notes,
+                        {won_report_code_inner} AS won_report_code
                     FROM {_WR} wr
-                    WHERE wr.opportunity_id = o.id
+                    WHERE {wr_opp_fk_expr} = o.id
                     ORDER BY wr.contract_date DESC NULLS LAST, wr.id DESC
                     LIMIT 1
                 ) wr ON TRUE
@@ -1533,6 +1752,59 @@ def fetch_opportunity_delivery_snapshot(*, opportunity_code: str) -> dict[str, A
 
 
 def fetch_bid_result_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
+    bid_columns = fetch_public_table_columns("bid_result")
+    bid_result_code_expr = (
+        "b.bid_result_code"
+        if "bid_result_code" in bid_columns
+        else "('BID-' || b.id::text)"
+    )
+    bid_won_expr = (
+        "b.won"
+        if "won" in bid_columns
+        else "(b.bid_outcome = 'WIN')"
+        if "bid_outcome" in bid_columns
+        else "NULL::boolean"
+    )
+    bid_competitor_summary_expr = (
+        "b.competitor_summary"
+        if "competitor_summary" in bid_columns
+        else "NULL::text"
+    )
+    bid_win_loss_reason_expr = (
+        "b.win_loss_reason"
+        if "win_loss_reason" in bid_columns
+        else "NULL::text"
+    )
+    prb_risk_factors_expr = optional_column_expr(
+        table_name="prb_result",
+        table_alias="pr",
+        output_name="risk_factors",
+        candidates=("risk_factors", "comprehensive_opinion"),
+    )
+    prb_result_code_expr = optional_column_expr(
+        table_name="prb_result",
+        table_alias="pr",
+        output_name="prb_result_code",
+        candidates=("prb_result_code",),
+    )
+    prb_final_opinion_expr = optional_column_expr(
+        table_name="prb_result",
+        table_alias="pr",
+        output_name="final_opinion",
+        candidates=("final_opinion", "comprehensive_opinion"),
+    )
+    prb_risk_review_expr = optional_column_expr(
+        table_name="prb_result",
+        table_alias="pr",
+        output_name="risk_review",
+        candidates=("risk_review", "comprehensive_opinion"),
+    )
+    bid_opp_fk_expr = project_opportunity_fk_value_expr(
+        table_name="bid_result", table_alias="b"
+    )
+    prb_opp_fk_expr = project_opportunity_fk_value_expr(
+        table_name="prb", table_alias="p"
+    )
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1542,20 +1814,20 @@ def fetch_bid_result_snapshot(*, opportunity_code: str) -> dict[str, Any] | None
                     o.opportunity_name,
                     c.name AS customer_name,
                     o.current_status,
-                    b.bid_result_code,
-                    b.won,
-                    b.competitor_summary,
-                    b.win_loss_reason,
+                    {bid_result_code_expr} AS bid_result_code,
+                    {bid_won_expr} AS won,
+                    {bid_competitor_summary_expr} AS competitor_summary,
+                    {bid_win_loss_reason_expr} AS win_loss_reason,
                     p.prb_code,
                     p.expected_win_rate,
-                    p.risk_factors,
-                    pr.prb_result_code,
-                    pr.final_opinion,
-                    pr.risk_review
+                    {prb_risk_factors_expr},
+                    {prb_result_code_expr},
+                    {prb_final_opinion_expr},
+                    {prb_risk_review_expr}
                 FROM {_OPP} o
                 JOIN {_CO} c ON c.id = o.customer_company_id
-                LEFT JOIN {_BID} b ON b.opportunity_id = o.id
-                LEFT JOIN {_PRB} p ON p.opportunity_id = o.id
+                LEFT JOIN {_BID} b ON {bid_opp_fk_expr} = o.id
+                LEFT JOIN {_PRB} p ON {prb_opp_fk_expr} = o.id
                 LEFT JOIN {_PRBR} pr ON pr.prb_id = p.id
                 WHERE o.opportunity_code = %(opportunity_code)s
                 ORDER BY b.id DESC NULLS LAST, p.prb_date DESC NULLS LAST, p.id DESC
@@ -1837,6 +2109,54 @@ def fetch_prb_risk_rows(
     limit: int = 60,
 ) -> list[dict[str, Any]]:
     db_url = build_backend_database_url()
+    prb_columns = fetch_public_table_columns("prb")
+    prbr_columns = fetch_public_table_columns("prb_result")
+    prb_risk_factors_select = (
+        "p.risk_factors"
+        if "risk_factors" in prb_columns
+        else "pr.risk_factors"
+        if "risk_factors" in prbr_columns
+        else "pr.comprehensive_opinion"
+        if "comprehensive_opinion" in prbr_columns
+        else "NULL::text"
+    ) + " AS risk_factors"
+    prb_result_code_select = (
+        "pr.prb_result_code"
+        if "prb_result_code" in prbr_columns
+        else "('PRBR-' || pr.prb_result_id::text)"
+        if "prb_result_id" in prbr_columns
+        else "('PRBR-' || pr.id::text)"
+    ) + " AS prb_result_code"
+    decision_status_select = (
+        "pr.decision_status"
+        if "decision_status" in prbr_columns
+        else "pr.status::text"
+    ) + " AS decision_status"
+    result_date_value = (
+        "pr.result_date"
+        if "result_date" in prbr_columns
+        else "pr.meeting_date_time::date"
+        if "meeting_date_time" in prbr_columns
+        else "NULL::date"
+    )
+    result_date_select = f"{result_date_value} AS result_date"
+    risk_review_select = (
+        "pr.risk_review"
+        if "risk_review" in prbr_columns
+        else "pr.comprehensive_opinion"
+        if "comprehensive_opinion" in prbr_columns
+        else "NULL::text"
+    ) + " AS risk_review"
+    final_opinion_select = (
+        "pr.final_opinion"
+        if "final_opinion" in prbr_columns
+        else "pr.comprehensive_opinion"
+        if "comprehensive_opinion" in prbr_columns
+        else "NULL::text"
+    ) + " AS final_opinion"
+    prb_opp_fk_expr = project_opportunity_fk_value_expr(
+        table_name="prb", table_alias="p"
+    )
     try:
         with psycopg.connect(db_url, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
@@ -1848,25 +2168,25 @@ def fetch_prb_risk_rows(
                         c.name AS customer_name,
                         p.prb_code,
                         p.prb_date,
-                        p.risk_factors,
+                        {prb_risk_factors_select},
                         p.expected_win_rate,
-                        pr.prb_result_code,
-                        pr.decision_status,
-                        pr.result_date,
-                        pr.risk_review,
-                        pr.final_opinion
+                        {prb_result_code_select},
+                        {decision_status_select},
+                        {result_date_select},
+                        {risk_review_select},
+                        {final_opinion_select}
                     FROM {_PRB} p
-                    JOIN {_OPP} o ON o.id = p.opportunity_id
+                    JOIN {_OPP} o ON o.id = {prb_opp_fk_expr}
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     LEFT JOIN {_PRBR} pr ON pr.prb_id = p.id
                     WHERE (
                             (%(start_at)s::timestamptz IS NULL AND %(end_at)s::timestamptz IS NULL)
                          OR (
-                                (%(start_at)s::timestamptz IS NULL OR COALESCE(pr.result_date, p.prb_date) >= %(start_at)s::timestamptz)
-                            AND (%(end_at)s::timestamptz IS NULL OR COALESCE(pr.result_date, p.prb_date) <= %(end_at)s::timestamptz)
+                                (%(start_at)s::timestamptz IS NULL OR COALESCE({result_date_value}, p.prb_date) >= %(start_at)s::timestamptz)
+                            AND (%(end_at)s::timestamptz IS NULL OR COALESCE({result_date_value}, p.prb_date) <= %(end_at)s::timestamptz)
                          )
                       )
-                    ORDER BY COALESCE(pr.result_date, p.prb_date) DESC NULLS LAST, p.id DESC
+                    ORDER BY COALESCE({result_date_value}, p.prb_date) DESC NULLS LAST, p.id DESC
                     LIMIT %(limit)s
                     """,
                     {"start_at": start_at, "end_at": end_at, "limit": limit},
@@ -1912,6 +2232,37 @@ def fetch_project_progress_rows(
 
 
 def fetch_opportunity_evidence_inventory(*, opportunity_code: str) -> list[dict[str, Any]]:
+    bid_columns = fetch_public_table_columns("bid_result")
+    bid_result_code_expr_b = (
+        "b.bid_result_code"
+        if "bid_result_code" in bid_columns
+        else "('BID-' || b.id::text)"
+    )
+    bid_result_code_expr_br = (
+        "br.bid_result_code"
+        if "bid_result_code" in bid_columns
+        else "('BID-' || br.id::text)"
+    )
+    bid_lost_predicate = (
+        "br.won IS FALSE"
+        if "won" in bid_columns
+        else "br.bid_outcome <> 'WIN'"
+        if "bid_outcome" in bid_columns
+        else "TRUE"
+    )
+    wr_columns = fetch_public_table_columns("order_report")
+    wr_won_report_code = (
+        "wr.won_report_code"
+        if "won_report_code" in wr_columns
+        else "wr.order_report_code"
+        if "order_report_code" in wr_columns
+        else "('ORDER-REPORT-' || wr.id::text)"
+    )
+    bid_opp_fk_b = project_opportunity_fk_value_expr(table_name="bid_result", table_alias="b")
+    bid_opp_fk_br = project_opportunity_fk_value_expr(table_name="bid_result", table_alias="br")
+    prb_opp_fk = project_opportunity_fk_value_expr(table_name="prb", table_alias="p")
+    rfp_opp_fk = project_opportunity_fk_value_expr(table_name="rfp_analyze_result", table_alias="r")
+    wr_opp_fk = project_opportunity_fk_value_expr(table_name="order_report", table_alias="wr")
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1932,36 +2283,36 @@ def fetch_opportunity_evidence_inventory(*, opportunity_code: str) -> list[dict[
                     UNION ALL
                     SELECT 'RFP', r.rfp_analysis_code, t.opportunity_name, 1
                     FROM target t
-                    JOIN {_RFP} r ON r.opportunity_id = t.id
+                    JOIN {_RFP} r ON {rfp_opp_fk} = t.id
                     UNION ALL
                     SELECT 'RFP_ANALYSIS', r.rfp_analysis_code, t.opportunity_name, 1
                     FROM target t
-                    JOIN {_RFP} r ON r.opportunity_id = t.id
+                    JOIN {_RFP} r ON {rfp_opp_fk} = t.id
                     UNION ALL
                     SELECT 'PRB', p.prb_code, t.opportunity_name, 1
                     FROM target t
-                    JOIN {_PRB} p ON p.opportunity_id = t.id
+                    JOIN {_PRB} p ON {prb_opp_fk} = t.id
                     UNION ALL
                     SELECT 'PRB_RESULT', ('PRBR-' || pr.id::text), t.opportunity_name, 1
                     FROM target t
-                    JOIN {_PRB} p ON p.opportunity_id = t.id
+                    JOIN {_PRB} p ON {prb_opp_fk} = t.id
                     JOIN {_PRBR} pr ON pr.prb_id = p.id
                     UNION ALL
                     SELECT 'PROPOSAL', COALESCE(pp.proposal_code, 'PROPOSAL-' || pp.id::text), t.opportunity_name, 1
                     FROM target t
                     JOIN {_PROP} pp ON pp.opportunity_id = t.id
                     UNION ALL
-                    SELECT 'BID_RESULT', COALESCE(b.bid_result_code, 'BID-' || b.id::text), t.opportunity_name, 1
+                    SELECT 'BID_RESULT', {bid_result_code_expr_b}, t.opportunity_name, 1
                     FROM target t
-                    JOIN {_BID} b ON b.opportunity_id = t.id
+                    JOIN {_BID} b ON {bid_opp_fk_b} = t.id
                     UNION ALL
                     SELECT 'LOST', t.opportunity_code, t.opportunity_name, 1
                     FROM target t
                     LEFT JOIN LATERAL (
-                        SELECT br.bid_result_code
+                        SELECT {bid_result_code_expr_br} AS bid_result_code
                         FROM {_BID} br
-                        WHERE br.opportunity_id = t.id
-                          AND br.won IS FALSE
+                        WHERE {bid_opp_fk_br} = t.id
+                          AND {bid_lost_predicate}
                         ORDER BY COALESCE(br.updated_at, br.created_at) DESC NULLS LAST, br.id DESC
                         LIMIT 1
                     ) lost_bid ON TRUE
@@ -1975,25 +2326,25 @@ def fetch_opportunity_evidence_inventory(*, opportunity_code: str) -> list[dict[
                     UNION ALL
                     SELECT 'WON', t.opportunity_code, t.opportunity_name, 1
                     FROM target t
-                    JOIN {_WR} wr ON wr.opportunity_id = t.id
+                    JOIN {_WR} wr ON {wr_opp_fk} = t.id
                     UNION ALL
-                    SELECT 'ORDER_REPORT', wr.won_report_code, t.opportunity_name, 1
+                    SELECT 'ORDER_REPORT', {wr_won_report_code}, t.opportunity_name, 1
                     FROM target t
-                    JOIN {_WR} wr ON wr.opportunity_id = t.id
+                    JOIN {_WR} wr ON {wr_opp_fk} = t.id
                     UNION ALL
                     SELECT 'CONTRACT', ct.contract_code, t.opportunity_name, 1
                     FROM target t
-                    JOIN {_WR} wr ON wr.opportunity_id = t.id
+                    JOIN {_WR} wr ON {wr_opp_fk} = t.id
                     JOIN {_CT} ct ON ct.won_report_id = wr.id OR ct.order_report_id = wr.id
                     UNION ALL
                     SELECT 'PROJECT', COALESCE(p.project_code, p.pjt_number, p.code), t.opportunity_name, 1
                     FROM target t
-                    JOIN {_WR} wr ON wr.opportunity_id = t.id
+                    JOIN {_WR} wr ON {wr_opp_fk} = t.id
                     JOIN {_PROJ} p ON p.won_report_id = wr.id OR p.order_report_id = wr.id
                     UNION ALL
                     SELECT 'PROJECT_RESULT_REPORT', ('PRR-' || pr.id::text), t.opportunity_name, 1
                     FROM target t
-                    JOIN {_WR} wr ON wr.opportunity_id = t.id
+                    JOIN {_WR} wr ON {wr_opp_fk} = t.id
                     JOIN {_PROJ} p ON p.won_report_id = wr.id OR p.order_report_id = wr.id
                     JOIN {_PR} pr ON pr.project_id = p.id
                     UNION ALL
@@ -2115,10 +2466,14 @@ def fetch_won_summary(*, start_at: str | None, end_at: str | None, limit: int = 
             )
             summary_row = cur.fetchone() or {"won_count": 0, "total_contract_amount": 0}
 
+            won_report_code_expr = order_report_code_value_expr(table_alias="w")
+            won_opp_fk_expr = project_opportunity_fk_value_expr(
+                table_name="order_report", table_alias="w"
+            )
             cur.execute(
                 f"""
                 SELECT
-                    w.won_report_code,
+                    {won_report_code_expr} AS won_report_code,
                     w.contract_date,
                     w.contract_amount,
                     o.opportunity_code,
@@ -2126,7 +2481,7 @@ def fetch_won_summary(*, start_at: str | None, end_at: str | None, limit: int = 
                     c.name AS customer_name,
                     o.business_type
                 FROM {_WR} w
-                JOIN {_OPP} o ON o.id = w.opportunity_id
+                JOIN {_OPP} o ON o.id = {won_opp_fk_expr}
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 WHERE (%(start_at)s::timestamptz IS NULL OR w.contract_date >= %(start_at)s::timestamptz)
                   AND (%(end_at)s::timestamptz IS NULL OR w.contract_date <= %(end_at)s::timestamptz)
@@ -2152,6 +2507,10 @@ def fetch_total_metric_summary(
 ) -> dict[str, Any]:
     filters = filters or {}
     if metric_key == "contract_amount":
+        won_report_code_expr = order_report_code_value_expr(table_alias="w")
+        won_opp_fk_expr = project_opportunity_fk_value_expr(
+            table_name="order_report", table_alias="w"
+        )
         with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -2161,7 +2520,7 @@ def fetch_total_metric_summary(
                         COALESCE(SUM(w.contract_amount), 0) AS total_value,
                         MAX(w.contract_amount) AS max_value
                     FROM {_WR} w
-                    JOIN {_OPP} o ON o.id = w.opportunity_id
+                    JOIN {_OPP} o ON o.id = {won_opp_fk_expr}
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     WHERE (%(status_filters)s::varchar[] IS NULL OR o.current_status = ANY(%(status_filters)s::varchar[]))
                       {build_opportunity_filter_sql(filters)}
@@ -2172,14 +2531,14 @@ def fetch_total_metric_summary(
                 cur.execute(
                     f"""
                     SELECT
-                        w.won_report_code AS reference_code,
+                        {won_report_code_expr} AS reference_code,
                         o.opportunity_code,
                         o.opportunity_name,
                         c.name AS customer_name,
                         o.current_status,
                         w.contract_amount AS metric_value
                     FROM {_WR} w
-                    JOIN {_OPP} o ON o.id = w.opportunity_id
+                    JOIN {_OPP} o ON o.id = {won_opp_fk_expr}
                     JOIN {_CO} c ON c.id = o.customer_company_id
                     WHERE (%(status_filters)s::varchar[] IS NULL OR o.current_status = ANY(%(status_filters)s::varchar[]))
                       {build_opportunity_filter_sql(filters)}
@@ -2245,6 +2604,15 @@ def fetch_total_metric_summary(
 
 
 def fetch_contract_snapshot(*, contract_code: str) -> dict[str, Any] | None:
+    won_report_code_expr = order_report_code_value_expr(table_alias="wr")
+    won_payment_terms_expr = order_report_payment_terms_value_expr(table_alias="wr")
+    won_revenue_category_expr = order_report_revenue_category_value_expr(table_alias="wr")
+    won_business_scope_expr = order_report_business_scope_value_expr(table_alias="wr")
+    won_special_notes_expr = order_report_special_notes_value_expr(table_alias="wr")
+    won_contract_amount_expr = order_report_amount_value_expr(table_alias="wr")
+    won_opp_fk_expr = project_opportunity_fk_value_expr(
+        table_name="order_report", table_alias="wr"
+    )
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -2256,18 +2624,18 @@ def fetch_contract_snapshot(*, contract_code: str) -> dict[str, Any] | None:
                     ct.contract_code,
                     ct.contract_status,
                     ct.memo,
-                    wr.won_report_code,
-                    wr.contract_amount,
-                    wr.payment_terms,
-                    wr.revenue_category,
+                    {won_report_code_expr} AS won_report_code,
+                    {won_contract_amount_expr} AS contract_amount,
+                    {won_payment_terms_expr} AS payment_terms,
+                    {won_revenue_category_expr} AS revenue_category,
                     wr.contract_date,
                     ct.start_date AS contract_start_date,
                     ct.end_date AS contract_end_date,
-                    wr.business_scope,
-                    wr.special_notes
+                    {won_business_scope_expr} AS business_scope,
+                    {won_special_notes_expr} AS special_notes
                 FROM {_CT} ct
                 JOIN {_WR} wr ON wr.id = COALESCE(ct.won_report_id, ct.order_report_id)
-                JOIN {_OPP} o ON o.id = wr.opportunity_id
+                JOIN {_OPP} o ON o.id = {won_opp_fk_expr}
                 JOIN {_CO} c ON c.id = o.customer_company_id
                 WHERE ct.contract_code = %(contract_code)s
                 LIMIT 1
@@ -2321,6 +2689,71 @@ def fetch_project_snapshot(*, project_code: str) -> dict[str, Any] | None:
 
 
 def fetch_workflow_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
+    prbr_columns = fetch_public_table_columns("prb_result")
+    prb_result_code_inner = (
+        "pr.prb_result_code"
+        if "prb_result_code" in prbr_columns
+        else "('PRBR-' || pr.prb_result_id::text)"
+        if "prb_result_id" in prbr_columns
+        else "('PRBR-' || pr.id::text)"
+    )
+    pr_decision_status_inner = (
+        "pr.decision_status"
+        if "decision_status" in prbr_columns
+        else "pr.status::text"
+    )
+    pr_result_date_inner = (
+        "pr.result_date"
+        if "result_date" in prbr_columns
+        else "pr.meeting_date_time::date"
+        if "meeting_date_time" in prbr_columns
+        else "NULL::date"
+    )
+    pr_final_opinion_inner = (
+        "pr.final_opinion"
+        if "final_opinion" in prbr_columns
+        else "pr.comprehensive_opinion"
+        if "comprehensive_opinion" in prbr_columns
+        else "NULL::text"
+    )
+    wr_columns = fetch_public_table_columns("order_report")
+    wr_won_report_code_inner = (
+        "wr.won_report_code"
+        if "won_report_code" in wr_columns
+        else "wr.order_report_code"
+        if "order_report_code" in wr_columns
+        else "NULL::text"
+    )
+    wr_business_scope_inner = (
+        "wr.business_scope"
+        if "business_scope" in wr_columns
+        else "wr.scope_of_work"
+        if "scope_of_work" in wr_columns
+        else "NULL::text"
+    )
+    wr_special_notes_inner = (
+        "wr.special_notes"
+        if "special_notes" in wr_columns
+        else "wr.remarks"
+        if "remarks" in wr_columns
+        else "NULL::text"
+    )
+    wr_contract_start_inner = (
+        "wr.contract_start_date"
+        if "contract_start_date" in wr_columns
+        else "NULL::date"
+    )
+    wr_approval_status_inner = (
+        "wr.approval_status"
+        if "approval_status" in wr_columns
+        else "wr.status::text"
+    )
+    prb_opp_fk_expr = project_opportunity_fk_value_expr(
+        table_name="prb", table_alias="p"
+    )
+    wr_opp_fk_expr = project_opportunity_fk_value_expr(
+        table_name="order_report", table_alias="wr"
+    )
     with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -2370,32 +2803,32 @@ def fetch_workflow_snapshot(*, opportunity_code: str) -> dict[str, Any] | None:
                 LEFT JOIN LATERAL (
                     SELECT p.id, p.prb_code
                     FROM {_PRB} p
-                    WHERE p.opportunity_id = o.id
+                    WHERE {prb_opp_fk_expr} = o.id
                     ORDER BY p.prb_date DESC NULLS LAST, p.id DESC
                     LIMIT 1
                 ) p ON TRUE
                 LEFT JOIN LATERAL (
                     SELECT
-                        pr.prb_result_code,
-                        pr.decision_status,
-                        pr.result_date,
-                        pr.final_opinion
+                        {prb_result_code_inner} AS prb_result_code,
+                        {pr_decision_status_inner} AS decision_status,
+                        {pr_result_date_inner} AS result_date,
+                        {pr_final_opinion_inner} AS final_opinion
                     FROM {_PRBR} pr
                     WHERE pr.prb_id = p.id
-                    ORDER BY pr.result_date DESC NULLS LAST, pr.id DESC
+                    ORDER BY {pr_result_date_inner} DESC NULLS LAST, pr.id DESC
                     LIMIT 1
                 ) pr ON TRUE
                 LEFT JOIN LATERAL (
                     SELECT
                         wr.id,
-                        wr.won_report_code,
-                        wr.approval_status,
+                        {wr_won_report_code_inner} AS won_report_code,
+                        {wr_approval_status_inner} AS approval_status,
                         wr.contract_date,
-                        wr.contract_start_date,
-                        wr.business_scope,
-                        wr.special_notes
+                        {wr_contract_start_inner} AS contract_start_date,
+                        {wr_business_scope_inner} AS business_scope,
+                        {wr_special_notes_inner} AS special_notes
                     FROM {_WR} wr
-                    WHERE wr.opportunity_id = o.id
+                    WHERE {wr_opp_fk_expr} = o.id
                     ORDER BY wr.contract_date DESC NULLS LAST, wr.id DESC
                     LIMIT 1
                 ) wr ON TRUE

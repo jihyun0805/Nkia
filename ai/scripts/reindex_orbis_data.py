@@ -436,6 +436,20 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         },
     ),
     DocumentConfig(
+        table="company_manager",
+        source_type=SourceType.CONTACT,
+        id_fields=("contactCode", "contact_code", "email", "id"),
+        title_fields=("name", "email", "id"),
+        content_fields=(
+            "name", "email", "mobile_phone", "office_phone",
+            "department", "position", "role",
+        ),
+        payload_aliases={
+            "contactCode": ("id",),
+            "companyId": ("company_id",),
+        },
+    ),
+    DocumentConfig(
         table="license",
         source_type=SourceType.LICENSE,
         id_fields=("licenseCode", "license_code", "id"),

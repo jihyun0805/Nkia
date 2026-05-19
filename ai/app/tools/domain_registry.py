@@ -23,6 +23,8 @@ class DomainSpec:
     default_metric: str | None = None
     is_public: bool = False
     has_opportunity_fk: bool = True
+    # code_column 이 없는 도메인에서 LIKE 조회에 사용할 표시명 컬럼 (선택).
+    name_column: str | None = None
 
 
 _REGISTRY: dict[str, DomainSpec] = {
@@ -48,7 +50,8 @@ _REGISTRY: dict[str, DomainSpec] = {
     ),
     "order_report": DomainSpec(
         name="order_report",
-        code_column="won_report_code",
+        # BE: OrderReport.java#L52-53 → @Column private String orderReportCode → DB: order_report_code
+        code_column="order_report_code",
         date_column="created_at",
         default_metric="total_amount",
     ),
@@ -60,7 +63,9 @@ _REGISTRY: dict[str, DomainSpec] = {
     ),
     "billing": DomainSpec(
         name="billing",
-        date_column="billing_date",
+        # BE: Billing.java#L41-45 에 billing_date 없음. 청구 발행 시점 → issued_at 채택
+        # 대안 컬럼: requested_issue_date(L41), collected_at(L45).
+        date_column="issued_at",
         default_metric="billing_amount",  # 실제 컬럼은 billing_amount
     ),
     "sales_activity": DomainSpec(
@@ -84,19 +89,35 @@ _REGISTRY: dict[str, DomainSpec] = {
     ),
     "bid_result": DomainSpec(
         name="bid_result",
-        code_column="bid_result_code",
+        # BE: BidResult.java 에 *_code 컬럼 없음 (id PK + project_opportunity_id FK)
+        code_column=None,
         date_column="created_at",
         default_metric="bid_amount",
     ),
     "license": DomainSpec(
         name="license",
-        code_column="license_code",
+        # BE: License.java 에 license_code 컬럼 없음. product_name 으로 LIKE fallback.
+        code_column=None,
+        name_column="product_name",
         date_column="created_at",
         status_column="license_status",
         default_metric="total_price",
     ),
     "customer_support": DomainSpec(
         name="customer_support",
+        date_column="created_at",
+    ),
+    "project": DomainSpec(
+        name="project",
+        # BE: Project.java#L42-43 → @Column unique String pjtNumber → DB: pjt_number
+        # 기존 "code" 는 ProjectCode enum(L57-58) 으로 단건 키가 아님.
+        code_column="pjt_number",
+        name_column="pjt_name",
+        date_column="start_date",
+        default_metric="total_amount",
+    ),
+    "project_result_report": DomainSpec(
+        name="project_result_report",
         date_column="created_at",
     ),
     "users": DomainSpec(

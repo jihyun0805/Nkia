@@ -454,12 +454,22 @@ export default function FindingEditPage() {
     if (loading) return
     if (!hasChatbotPrefill) return
     if (prefillAppliedRef.current) return
+    // sales_representative_name prefill 은 backendUsers 가 로드된 뒤에야 매칭 가능
+    if (chatbotPrefillValues.sales_representative_name && backendUsers.length === 0) return
     prefillAppliedRef.current = true
     const summary: string[] = []
     const v = chatbotPrefillValues
     if (v.sales_representative_name) {
-      setSalesRep(v.sales_representative_name)
-      summary.push(`영업대표 → ${v.sales_representative_name}`)
+      const raw = v.sales_representative_name.trim()
+      setSalesRep(raw)
+      const matched = backendUsers.find((user) => user.id === raw || user.name === raw)
+      if (matched) {
+        setSalesRepUserId(matched.id ?? null)
+        summary.push(`영업대표 → ${matched.name ?? raw}`)
+      } else {
+        setSalesRepUserId(null)
+        summary.push(`영업대표 → '${raw}' (사용자 목록 미매칭 — 직접 선택 필요)`)
+      }
     }
     if (v.issue_content) {
       setIssue(v.issue_content)
@@ -496,7 +506,7 @@ export default function FindingEditPage() {
     const id = window.setTimeout(() => clearChatbotPrefill(), 100)
     return () => window.clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, hasChatbotPrefill])
+  }, [loading, hasChatbotPrefill, backendUsers.length])
 
   useEffect(() => {
     let cancelled = false
