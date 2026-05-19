@@ -36,38 +36,46 @@ public class BidResultCreateRequest {
     @NotNull(message = "영업대표 ID는 필수입니다.")
     private UUID salesRepresentativeId;
 
+    // PM id
     private UUID projectManagerId;
 
+    // 예산
     @PositiveOrZero(message = "예산은 0원 이상이어야 합니다.")
     private BigDecimal budget;
 
+    // 입찰 공고일
+    private LocalDate bidAnnouncementDate;
+
+    // 외부 PD 작업 여부
     @NotNull(message = "외부 PD 작업 여부는 필수입니다.")
     private Boolean isExternalPdInvolved;
 
+    // 핵심 성공 요소
     private String keySuccessFactors;
+    // RFP 이슈 사항
     private String rfpIssues;
+    // 제안 전략
     private String proposalStrategy;
 
+    // 수주/실주 여부
     @NotNull(message = "수주/실주 여부는 필수입니다.")
     private BidOutcome bidOutcome;
 
+    // 평가 결과
     @NotNull(message = "공개 여부는 필수입니다.")
     private DisclosureStatus disclosureStatus;
 
-    private LocalDate bidAnnouncementDate;
-    private LocalDate presentationDate;
-
-    // 공통 DTO 재사용
+    // 당사 점수
     @Valid
     @NotNull(message = "자사 점수는 필수입니다.")
     private CompanyScoreDto ourCompanyScore;
 
-    // 공통 DTO 재사용
+    // 경쟁사 점수
     @Builder.Default
     @Valid
     private List<CompanyScoreDto> competitorScores = new ArrayList<>();
 
-    // 공통 DTO 재사용
+    // 수주/실주 원인 분석
     @Builder.Default
     @Valid
     private List<WinLossAnalysisDto> analyses = new ArrayList<>();
@@ -100,7 +108,6 @@ public class BidResultCreateRequest {
                 .bidOutcome(this.bidOutcome)
                 .disclosureStatus(this.disclosureStatus)
                 .bidAnnouncementDate(this.bidAnnouncementDate)
-                .presentationDate(this.presentationDate)
                 .ourCompanyScore(this.ourCompanyScore.toValueObject()) // 자사 점수 VO 변환
                 .build();
     }

@@ -113,8 +113,7 @@ public class BidResultService {
         bidResult.updateBidDetails(
                 request.getBudget(),
                 request.getIsExternalPdInvolved(),
-                request.getBidAnnouncementDate(),
-                request.getPresentationDate()
+                request.getBidAnnouncementDate()
         );
     }
 
