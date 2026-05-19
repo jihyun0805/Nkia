@@ -639,6 +639,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
     return {
       id: item.opportunityCode ?? String(item.id ?? `OPP-${index + 1}`),
       backendId: item.id,
+      customerCompanyId: item.customerCompanyId,
       createdAt: "",
       createUserName: item.createUserName ?? "-",
       customerCode: item.customerCompanyId != null ? buildCustomerRecordCode(customerLookup.get(item.customerCompanyId)) : "",

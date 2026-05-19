@@ -521,6 +521,13 @@ def answer_targeted_domain_query(
                 limit=limit,
                 embedder=embedder,
             )
+        return build_missing_document_response(
+            query=query,
+            opportunity_code=opportunity_code,
+            opportunity_name=opportunity_name,
+            document_type="결재 워크플로우",
+            embedder=embedder,
+        )
 
     if is_bid_loss_reason_query(normalized_query):
         snapshot = fetch_bid_result_snapshot(opportunity_code=opportunity_code)
@@ -531,6 +538,13 @@ def answer_targeted_domain_query(
                 limit=limit,
                 embedder=embedder,
             )
+        return build_missing_document_response(
+            query=query,
+            opportunity_code=opportunity_code,
+            opportunity_name=opportunity_name,
+            document_type="입찰 결과",
+            embedder=embedder,
+        )
 
     if is_evidence_inventory_query(normalized_query):
         rows = fetch_opportunity_evidence_inventory(opportunity_code=opportunity_code)
@@ -598,6 +612,13 @@ def answer_targeted_domain_query(
                 limit=limit,
                 embedder=embedder,
             )
+        return build_missing_document_response(
+            query=query,
+            opportunity_code=opportunity_code,
+            opportunity_name=opportunity_name,
+            document_type="유지보수 견적서",
+            embedder=embedder,
+        )
 
     if is_quotation_query(normalized_query, normalization):
         snapshot = fetch_quotation_snapshot_by_opportunity(opportunity_code=opportunity_code)
@@ -608,6 +629,13 @@ def answer_targeted_domain_query(
                 limit=limit,
                 embedder=embedder,
             )
+        return build_missing_document_response(
+            query=query,
+            opportunity_code=opportunity_code,
+            opportunity_name=opportunity_name,
+            document_type="견적서",
+            embedder=embedder,
+        )
 
     if is_sales_activity_timeline_query(normalized_query, normalization):
         rows = fetch_sales_activity_timeline(opportunity_code=opportunity_code, limit=max(limit * 2, 6))
@@ -657,6 +685,13 @@ def answer_targeted_domain_query(
                 limit=limit,
                 embedder=embedder,
             )
+        return build_missing_document_response(
+            query=query,
+            opportunity_code=opportunity_code,
+            opportunity_name=opportunity_name,
+            document_type="내부 검토 회의 자료(PRB)",
+            embedder=embedder,
+        )
 
     if is_rfp_query(normalized_query):
         snapshot = fetch_rfp_snapshot(opportunity_code=opportunity_code)
@@ -667,6 +702,13 @@ def answer_targeted_domain_query(
                 limit=limit,
                 embedder=embedder,
             )
+        return build_missing_document_response(
+            query=query,
+            opportunity_code=opportunity_code,
+            opportunity_name=opportunity_name,
+            document_type="제안 요청서 분석",
+            embedder=embedder,
+        )
 
     # 도메인 키워드가 명시된 질의는 generic opportunity_status 응답으로 떨어뜨리지 않고
     # discovery 라우팅(LLM)에게 양보 — generic snapshot 은 PRB/견적/유지보수 디테일을 안 담음
@@ -2852,6 +2894,59 @@ def build_support_issue_snapshot_response(
         confidenceReasons=["support_issue_snapshot"],
         excludedSourceTypes=[],
         evidences=evidences[: max(limit, 2)],
+    )
+
+
+def build_missing_document_response(
+    *,
+    query: str,
+    opportunity_code: str,
+    opportunity_name: str,
+    document_type: str,
+    embedder: EmbeddingModel,
+) -> AnswerResponse:
+    """사업기회 코드는 명확한데 그 사업에 해당 문서가 없을 때의 응답.
+
+    discovery (RAG/LLM) fall-through 로 보내면 다른 사업의 문서를 끌어와 환각 위험.
+    여기서 "없습니다" 라고 명시적으로 끝내는 것이 안전.
+    """
+    lines = [
+        f"핵심 결론: {opportunity_code} ({opportunity_name}) 사업에는 등록된 {document_type}가 없습니다.",
+        "",
+        f"사업기회: {opportunity_name} ({opportunity_code})",
+        f"요청한 문서 종류: {document_type}",
+        "",
+        f"해당 사업기회의 다른 정보(진행상황·영업활동·계약 등)는 별도로 질문해 주세요.",
+    ]
+    evidence = AnswerEvidence(
+        evidenceType="structured_evidence",
+        sourceType="PROJECT_OPPORTUNITY",
+        sourceId=opportunity_code,
+        title=opportunity_name or opportunity_code,
+        chunkIndex=0,
+        distance=0.0,
+        vectorScore=1.0,
+        keywordScore=1.0,
+        finalScore=1.0,
+        matchedBy=["explicit_code"],
+        content=f"{opportunity_code} 사업기회에 {document_type} 미등록",
+        metadata={
+            "opportunityCode": opportunity_code,
+            "opportunityName": opportunity_name,
+            "missingDocumentType": document_type,
+        },
+    )
+    return AnswerResponse(
+        query=query,
+        answer="\n".join(lines),
+        route="fast_structured",
+        answerStatus="good_answer",
+        embeddingModel=embedder.config.model_name,
+        chatModel="structured-rule-engine",
+        confidenceBand="high",
+        confidenceReasons=["explicit_code_missing_document"],
+        excludedSourceTypes=[],
+        evidences=[evidence],
     )
 
 

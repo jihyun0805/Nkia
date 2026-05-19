@@ -7,10 +7,11 @@ import { OrderContractSection } from "./order/OrderContractSection";
 import { Button } from "@/components/ui/button";
 import { OrderScopeSection } from "./order/OrderScopeSection";
 import { OrderDetailTables } from "./order/OrderDetailTables";
-import { orderReportApi, type OrderReportRequest } from "@/lib/api/contract-api";
+import { orderReportApi, type OrderReportRequest, type OrderReportType, type CodeType } from "@/lib/api/contract-api";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProjectOpportunitySelector } from "@/components/erp/contract/order/ProjectOpportunitySelector";
+import { loadBackendCompanyManagers } from "@/lib/finding-backend";
 
 interface OrderReportFormProps {
   onSuccess: () => void;
@@ -20,7 +21,7 @@ interface OrderReportFormProps {
     customerName?: string;
     opportunityId?: string;
     opportunityName?: string;
-    projectOpportunityId?: number; // 백엔드 ID
+    projectOpportunityId?: number;
     [key: string]: any;
   } | null;
   isEdit?: boolean;
@@ -179,15 +180,31 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
     },
   });
 
-  const handleSelectOpportunity = (opp: any) => {
-    setSelectedOppId(opp.backendId);
-    methods.reset({
-      ...methods.getValues(),
-      projectName: opp.name,
-      finalCustomer: { name: opp.customer, companyId: opp.customerCompanyId },
-      contractPartner: { name: opp.customer, companyId: opp.customerCompanyId },
-      // 기타 매핑 필요한 필드
-    });
+  const handleSelectOpportunity = async (opp: any) => {
+    setSelectedOppId(opp.backendId ?? null);
+    methods.setValue("projectName", opp.name);
+    methods.setValue("finalCustomer.companyId", opp.customerCompanyId);
+    methods.setValue("finalCustomer.managerId", "");
+    methods.setValue("finalCustomer.contact", "");
+    methods.setValue("contractPartner.companyId", opp.customerCompanyId);
+    methods.setValue("contractPartner.managerId", "");
+    methods.setValue("contractPartner.contact", "");
+
+    if (opp.customerCompanyId) {
+      try {
+        const managers = await loadBackendCompanyManagers(opp.customerCompanyId);
+        if (managers.length > 0) {
+          const first = managers[0];
+          const contact = first.mobilePhone || first.officePhone || first.email || "";
+          methods.setValue("finalCustomer.managerId", first.id);
+          methods.setValue("finalCustomer.contact", contact);
+          methods.setValue("contractPartner.managerId", first.id);
+          methods.setValue("contractPartner.contact", contact);
+        }
+      } catch {
+        // 담당자 로드 실패 시 빈 상태 유지
+      }
+    }
   };
 
   const onSubmit = async (formData: any) => {
@@ -198,20 +215,56 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
       return;
     }
 
+    // 신규 등록 시 이미 수주보고서가 있는 사업 기회인지 사전 확인
+    if (!isEdit) {
+      try {
+        const existing = await orderReportApi.getOrderReports();
+        const duplicate = existing.data?.find((r: any) => r.projectOpportunityId === projectOpportunityId);
+        if (duplicate) {
+          toast.error("선택한 사업 기회에 이미 수주보고서가 존재합니다. 다른 사업 기회를 선택해주세요.");
+          return;
+        }
+      } catch {
+        // 목록 조회 실패 시 그대로 진행 (백엔드가 검증)
+      }
+    }
+
+    if (!formData.pmId) {
+      toast.error("수행PM을 선택해주세요.");
+      return;
+    }
+    if (!formData.contractPartner?.companyId) {
+      toast.error("계약상대 회사를 선택해주세요.");
+      return;
+    }
+    if (!formData.contractPartner?.managerId) {
+      toast.error("계약상대 담당자를 선택해주세요.");
+      return;
+    }
+    if (!formData.finalCustomer?.companyId) {
+      toast.error("최종고객사를 선택해주세요.");
+      return;
+    }
+    if (!formData.finalCustomer?.managerId) {
+      toast.error("최종고객사 담당자를 선택해주세요.");
+      return;
+    }
+
     // 폼 데이터를 백엔드 요청 형식으로 변환
     const parseNum = (val: string | number | undefined) => {
       if (!val) return 0;
       return Number(String(val).replace(/,/g, "")) || 0;
     };
 
+    // 단가 미설정 라이선스 항목 검증 (백엔드에서 unitPrice null이면 500 발생)
+    const noPriceLicenses = (formData.licenseDetails || []).filter((l: any) => l.productModuleId && !parseNum(l.unitPrice));
+    if (noPriceLicenses.length > 0) {
+      toast.error("단가가 설정되지 않은 제품이 포함되어 있습니다. 관리자 메뉴에서 해당 제품의 단가를 먼저 등록해주세요.");
+      return;
+    }
+
     const payload: OrderReportRequest = {
-      type: (formData.type === "솔루션" || formData.type === "SOLUTION"
-        ? "SOLUTION"
-        : formData.type === "유지보수" || formData.type === "MAINTENANCE"
-          ? "MAINTENANCE"
-          : formData.type === "용역" || formData.type === "SERVICE"
-            ? "SERVICE"
-            : "SOLUTION") as any,
+      type: (formData.type === "SOLUTION" || formData.type === "MAINTENANCE" || formData.type === "SERVICE" ? formData.type : "SOLUTION") as OrderReportType,
       vatType: formData.vatType === "VAT포함" ? "INCLUDED" : formData.vatType === "VAT별도" ? "EXCLUDED" : undefined,
       quotationProvided: formData.attachments?.quotation === "Y",
       contractProvided: formData.attachments?.contract === "Y",
@@ -222,10 +275,8 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
       channel: formData.hasChannel === "Y",
       codeType: (() => {
         const raw = formData.codeClassification || formData.codeType || "GN";
-        const match = raw.match(/[A-Z]+(-[A-Z]+)?$/);
-        const code = match ? match[0] : raw;
-        return code.replace("-", "");
-      })() as any,
+        return raw.replace("-", "") as CodeType;
+      })(),
       contractDate: formData.contractDate || new Date().toISOString().split("T")[0],
       freeMaintenancePeriodMonths: formData.freeMaintenancePeriod ? parseInt(formData.freeMaintenancePeriod) : undefined,
       contractStartDate: formData.startDate || undefined,
@@ -306,7 +357,16 @@ export function OrderReportForm({ onSuccess, onCancel, inheritedData, isEdit, or
       }
       onSuccess();
     } catch (error: any) {
-      const message = error?.response?.data?.message || (isEdit ? "수주보고서 수정에 실패했습니다. 다시 시도해주세요." : "수주보고서 등록에 실패했습니다. 다시 시도해주세요.");
+      const status = error?.response?.status;
+      const backendMsg: string | undefined = error?.response?.data?.message;
+      let message: string;
+      if (backendMsg && backendMsg !== "서버 에러입니다.") {
+        message = backendMsg;
+      } else if (!isEdit && status === 500) {
+        message = "선택한 사업 기회에 이미 수주보고서가 등록된 이력이 있습니다. 다른 사업 기회를 선택하거나 관리자에게 문의해주세요.";
+      } else {
+        message = isEdit ? "수주보고서 수정에 실패했습니다. 다시 시도해주세요." : "수주보고서 등록에 실패했습니다. 다시 시도해주세요.";
+      }
       toast.error(message);
     } finally {
       setIsSubmitting(false);
