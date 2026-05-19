@@ -135,12 +135,13 @@ export default function CustomerSupportActivityDetailPage() {
   }, [selectedHistoryId]);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="flex flex-1 flex-col">
+      <div className="flex-1 flex flex-col">
         <Header title="고객지원 활동 결과 상세" />
-        <main className="flex-1 overflow-auto bg-background p-6">
-          <Breadcrumb className="mb-6">
+        <main className="flex-1 overflow-auto p-6">
+          <div className="mx-auto max-w-5xl space-y-6">
+            <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem><BreadcrumbLink asChild><Link href="/maintenance">유지보수</Link></BreadcrumbLink></BreadcrumbItem>
               <BreadcrumbSeparator />
@@ -172,7 +173,7 @@ export default function CustomerSupportActivityDetailPage() {
 
           {/* 히스토리가 활성화된 경우: 이력 스냅샷 정보 출력 */}
           {selectedHistoryId != null && historyData && (
-            <div className="space-y-6 max-w-3xl animate-in fade-in duration-300">
+            <div className="space-y-6 animate-in fade-in duration-300">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <h1 className="text-2xl font-bold flex items-center gap-2 text-primary">
@@ -263,7 +264,7 @@ export default function CustomerSupportActivityDetailPage() {
 
           {/* 기본 상태: 현재 고객지원 활동 결과 상세 정보 + 하단에 히스토리 목록 출력 */}
           {selectedHistoryId == null && !loading && !error && item && (
-            <div className="space-y-6 max-w-3xl">
+            <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">고객지원 활동 결과 #{item.id}</h1>
                 <Badge variant="outline">{item.activityType}</Badge>
@@ -407,6 +408,7 @@ export default function CustomerSupportActivityDetailPage() {
               </Card>
             </div>
           )}
+          </div>
         </main>
       </div>
     </div>
