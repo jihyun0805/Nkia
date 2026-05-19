@@ -359,7 +359,7 @@ export default function MaintenancePage() {
                       </TableHeader>
                       <TableBody>
                         {filteredSupportHistories.map((item) => (
-                          <TableRow key={item.id} className="hover:bg-muted/50 cursor-pointer">
+                          <TableRow key={`${item.recordType}-${item.id}`} className="hover:bg-muted/50 cursor-pointer" onClick={() => router.push(`/maintenance/${item.recordType === "request" ? "support-requests" : "support-activities"}/${item.id}`)}>
                             <TableCell>
                               <Badge
                                 variant={item.recordType === "request" ? "default" : "outline"}

@@ -237,3 +237,97 @@ export const deleteMaintenance = async (id: number): Promise<ApiResponse<void>> 
   return await customInstance({ url: `/maintenances/${id}`, method: "delete" });
 };
 
+// ---------------------------------------------------------------------------
+// Customer Support Request (고객지원 요청) – /maintenances/customer-supports/requests
+// ---------------------------------------------------------------------------
+
+export interface CustomerSupportCreateRequest {
+  customerCompanyCode: number;
+  requestStartDate: string;
+  requestEndDate: string;
+  requestContent: string;
+  requesterId: string;
+  registrantId: string;
+  salesRepId: string;
+  supportManagerId: string;
+  remarks?: string;
+  attachedFileIds?: number[];
+}
+
+export interface CustomerSupportRequestListResponse {
+  id: number;
+  customerName: string;
+  requestStartDate: string;
+  requestEndDate: string;
+  requesterName: string;
+  salesRepName: string;
+  supportManagerName: string;
+}
+
+export const getCustomerSupportRequests = async (): Promise<ApiResponse<CustomerSupportRequestListResponse[]>> => {
+  return await customInstance({ url: "/maintenances/customer-supports/requests", method: "get" });
+};
+
+export const createCustomerSupportRequest = async (data: CustomerSupportCreateRequest): Promise<ApiResponse<number>> => {
+  return await customInstance({ url: "/maintenances/customer-supports/requests", method: "post", data });
+};
+
+export interface CustomerSupportRequestDetailResponse {
+  id: number;
+  workflowId: number | null;
+  status: string;
+  customerName: string;
+  requestStartDate: string;
+  requestEndDate: string;
+  requestContent: string;
+  requesterName: string;
+  supportManagerName: string;
+  registrantName: string;
+  salesRepName: string;
+  remarks: string;
+  attachedFileIds: number[];
+}
+
+export const getCustomerSupportRequestDetail = async (id: number): Promise<ApiResponse<CustomerSupportRequestDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/requests/${id}`, method: "get" });
+};
+
+// ---------------------------------------------------------------------------
+// Customer Support Activity (고객지원 활동 결과) – /maintenances/customer-supports/activities
+// ---------------------------------------------------------------------------
+
+export interface CustomerSupportActivityCreateRequest {
+  requestId?: number | null;
+  maintenanceId?: number | null;
+  customerCompanyCode: number;
+  activityType: "REGULAR" | "REQUEST";
+  activityStartTime: string;
+  activityEndTime: string;
+  activityContent: string;
+  registrantId: string;
+  remarks?: string;
+  participantList?: { userId: string; roleDescription: string }[];
+  attachedFileIds?: number[];
+}
+
+export const createCustomerSupportActivity = async (data: CustomerSupportActivityCreateRequest): Promise<ApiResponse<number>> => {
+  return await customInstance({ url: "/maintenances/customer-supports/activities", method: "post", data });
+};
+
+export interface CustomerSupportActivityDetailResponse {
+  id: number;
+  requestId: number | null;
+  customerName: string;
+  activityType: string;
+  activityStartTime: string;
+  activityEndTime: string;
+  activityContent: string;
+  registrantName: string;
+  remarks: string;
+  participants: { userName: string; roleDescription: string }[];
+  attachedFileIds: number[];
+}
+
+export const getCustomerSupportActivityDetail = async (id: number): Promise<ApiResponse<CustomerSupportActivityDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/activities/${id}`, method: "get" });
+};
