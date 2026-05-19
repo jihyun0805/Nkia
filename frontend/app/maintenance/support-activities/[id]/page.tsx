@@ -373,11 +373,12 @@ export default function CustomerSupportActivityDetailPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>변경일시</TableHead>
+                          <TableHead>구분</TableHead>
                           <TableHead>고객사</TableHead>
-                          <TableHead>활동 유형</TableHead>
-                          <TableHead>개시 일시</TableHead>
-                          <TableHead>완료 일시</TableHead>
-                          <TableHead>등록자</TableHead>
+                          <TableHead>요청/활동구분</TableHead>
+                          <TableHead>요청/등록자</TableHead>
+                          <TableHead>영업대표</TableHead>
+                          <TableHead>고객지원 담당자</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -390,15 +391,23 @@ export default function CustomerSupportActivityDetailPage() {
                             <TableCell className="text-xs text-muted-foreground font-medium">
                               {formatDate(history.savedAt)}
                             </TableCell>
-                            <TableCell>{history.customerName ?? "-"}</TableCell>
-                            <TableCell>{history.activityType ?? "-"}</TableCell>
-                            <TableCell className="text-sm">
-                              {formatDateTime(history.activityStartTime)}
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className="bg-purple-100 text-purple-700 hover:bg-purple-100"
+                              >
+                                활동 결과
+                              </Badge>
                             </TableCell>
-                            <TableCell className="text-sm">
-                              {formatDateTime(history.activityEndTime)}
+                            <TableCell>{history.customerName ?? "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="font-normal text-xs">
+                                {history.activityType ?? "-"}
+                              </Badge>
                             </TableCell>
                             <TableCell>{history.registrantName ?? "-"}</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
