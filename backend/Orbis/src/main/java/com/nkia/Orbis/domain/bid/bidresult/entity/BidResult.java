@@ -93,10 +93,6 @@ public class BidResult extends BaseEntity {
     @Column(name = "bid_announcement_date")
     private LocalDate bidAnnouncementDate;
 
-    // 제안 발표일
-    @Column(name = "presentation_date")
-    private LocalDate presentationDate;
-
     @Embedded
     private CompanyScore ourCompanyScore;
 
@@ -118,8 +114,7 @@ public class BidResult extends BaseEntity {
                      User projectManager, BigDecimal budget, Boolean isExternalPdInvolved,
                      String keySuccessFactors, String rfpIssues, String proposalStrategy,
                      BidOutcome bidOutcome, DisclosureStatus disclosureStatus,
-                     CompanyScore ourCompanyScore,
-                     LocalDate bidAnnouncementDate, LocalDate presentationDate) { // 파라미터 추가
+                     CompanyScore ourCompanyScore, LocalDate bidAnnouncementDate) { // 파라미터 추가
         this.projectOpportunity = projectOpportunity;
         this.proposal = proposal;
         this.salesRepresentative = salesRepresentative;
@@ -133,7 +128,6 @@ public class BidResult extends BaseEntity {
         this.disclosureStatus = disclosureStatus;
         this.ourCompanyScore = ourCompanyScore;
         this.bidAnnouncementDate = bidAnnouncementDate; // 할당 추가
-        this.presentationDate = presentationDate;       // 할당 추가
         this.totalAnalysisScore = 0;
         this.status = ApprovalStatus.DRAFT;
     }
@@ -215,12 +209,10 @@ public class BidResult extends BaseEntity {
     /**
      * 2. 입찰 기본 정보 및 일정 수정
      */
-    public void updateBidDetails(BigDecimal budget, Boolean isExternalPdInvolved,
-                                 LocalDate bidAnnouncementDate, LocalDate presentationDate) {
+    public void updateBidDetails(BigDecimal budget, Boolean isExternalPdInvolved, LocalDate bidAnnouncementDate) {
         this.budget = budget;
         this.isExternalPdInvolved = isExternalPdInvolved != null ? isExternalPdInvolved : false;
         this.bidAnnouncementDate = bidAnnouncementDate;
-        this.presentationDate = presentationDate;
     }
 
     /**
