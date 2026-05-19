@@ -219,12 +219,36 @@ export default function ProjectPage() {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-  const statusLabel = (status: string) => {
-    if (status === "REQUESTED") return "발행 요청";
-    if (status === "APPROVED") return "결재 완료";
-    if (status === "ISSUED") return "발행완료";
-    if (status === "COLLECTED") return "수금완료";
-    return status;
+  const getBillingStatusInfo = (item: BillingListResponse) => {
+    const raw = (item as any).status;
+    let key: string;
+
+    if (typeof raw === "string" && raw) {
+      const u = raw.toUpperCase();
+      if (u === "REQUESTED" || raw === "발행 요청" || raw === "결재 요청 중") key = "REQUESTED";
+      else if (u === "APPROVED" || raw === "결재 완료") key = "APPROVED";
+      else if (u === "ISSUED" || raw === "발행 완료") key = "ISSUED";
+      else if (u === "COLLECTED" || raw === "수금 완료") key = "COLLECTED";
+      else key = u;
+    } else if (typeof raw === "number") {
+      key = (["REQUESTED", "APPROVED", "ISSUED", "COLLECTED"] as const)[raw] ?? "REQUESTED";
+    } else {
+      // status 필드가 없을 경우 날짜 값으로 추론
+      if (item.collectedAt) key = "COLLECTED";
+      else if (item.issuedAt) key = "ISSUED";
+      else key = "REQUESTED";
+    }
+
+    switch (key) {
+      case "COLLECTED":
+        return { label: "수금 완료", className: "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-700" };
+      case "ISSUED":
+        return { label: "발행 완료", className: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700" };
+      case "APPROVED":
+        return { label: "결재 완료", className: "bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-700" };
+      default:
+        return { label: "결재 요청 중", className: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700" };
+    }
   };
 
   return (
@@ -399,9 +423,14 @@ export default function ProjectPage() {
                               <TableCell>{item.salesRepName}</TableCell>
                               <TableCell>{item.requesterName}</TableCell>
                               <TableCell className="text-center">
-                                <Badge variant={item.status === "COLLECTED" ? "default" : item.status === "ISSUED" ? "secondary" : item.status === "APPROVED" ? "secondary" : "outline"}>
-                                  {item.status ? statusLabel(item.status) : "-"}
-                                </Badge>
+                                {(() => {
+                                  const { label, className } = getBillingStatusInfo(item);
+                                  return (
+                                    <Badge variant="outline" className={className}>
+                                      {label}
+                                    </Badge>
+                                  );
+                                })()}
                               </TableCell>
                             </TableRow>
                           ))}
