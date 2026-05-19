@@ -1,6 +1,6 @@
-package com.nkia.Orbis.domain.project.project.repository;
+package com.nkia.Orbis.domain.project.projecthistory.repository;
 
-import com.nkia.Orbis.domain.project.project.entity.ProjectHistory;
+import com.nkia.Orbis.domain.project.projecthistory.entity.ProjectHistory;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
