@@ -58,9 +58,7 @@ import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportuni
 import {
   approveQuotationStep,
   deleteQuotationVersion,
-  getQuotations,
   rejectQuotationStep,
-  subscribeQuotationUpdates,
 } from "@/lib/quotation-workflow"
 
 function buildQuotationDetailForm(record: QuotationRecord) {
@@ -247,20 +245,20 @@ export default function ActivityDetailPage() {
   useEffect(() => {
     let cancelled = false
 
-    const sync = () => {
-      if (!cancelled) {
-        setQuotations(getQuotations())
-      }
-    }
-
     loadBackendQuotationRecords()
-      .then(() => sync())
-      .catch(() => sync())
+      .then((records) => {
+        if (!cancelled) {
+          setQuotations(records)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setQuotations([])
+        }
+      })
 
-    const unsubscribe = subscribeQuotationUpdates(sync)
     return () => {
       cancelled = true
-      unsubscribe()
     }
   }, [])
 
