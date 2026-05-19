@@ -648,6 +648,7 @@ def _build_draft_compose_node(*, embedder: EmbeddingModel):
                 response = attach_edit_field_action_to_response(
                     response=response,
                     graph_state=graph_state,
+                    user_context=user_context,
                 )
             except Exception:
                 pass
