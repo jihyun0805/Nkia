@@ -322,7 +322,6 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
     date: input.date || saved.activityDateTime?.slice(0, 10) || today(),
     requester: input.requester,
     receiver: input.receiver,
-    title: saved.title ?? fallbackTitle,
     type: input.type,
     customerCode: input.customerCode,
     customer: input.customer,
