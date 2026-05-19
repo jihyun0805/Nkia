@@ -86,15 +86,15 @@ public class CustomerSupportActivityService {
         Company company = getCompanyOrNull(dto.getCustomerCompanyCode());
         User registrant = getUserOrNull(dto.getRegistrantId());
 
+        // 히스토리 생성 (수정 전 시점의 스냅샷 저장!)
+        historyRepository.save(CustomerSupportHistory.createSnapshot(support));
+
         support.update(company, dto.getActivityType(), dto.getActivityStartTime(),
                 dto.getActivityEndTime(), dto.getActivityContent(), registrant, dto.getRemarks());
 
         support.clearCollections();
         mapParticipants(support, dto.getParticipantList());
         mapAttachedFiles(support, dto.getAttachedFileIds());
-
-        // 히스토리 생성 (수정 시점)
-        historyRepository.save(CustomerSupportHistory.createSnapshot(support));
 
         return CustomerSupportDetailResponse.from(support);
     }

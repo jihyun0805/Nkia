@@ -9,83 +9,128 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete";
 import { UserIdPicker } from "@/components/erp/user-id-picker";
-import { loadBackendUsers, type BackendUserSummary } from "@/lib/finding-backend";
-import { createCustomerSupportRequest } from "@/lib/api/maintenance";
+import { loadBackendUsers, type BackendUserSummary, loadBackendFindingData } from "@/lib/finding-backend";
+import { createCustomerSupportRequest, updateCustomerSupportRequest } from "@/lib/api/maintenance";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 interface SupportRequestFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  initialData?: any;
 }
 
-export function SupportRequestForm({ onSuccess, onCancel }: SupportRequestFormProps) {
+export function SupportRequestForm({ onSuccess, onCancel, initialData }: SupportRequestFormProps) {
   const router = useRouter();
   const { register, handleSubmit, setValue, control, formState: { isSubmitting } } = useForm({
     defaultValues: {
       customerCompanyCode: null as number | null,
-      customerCompanyName: "",
-      requestStartDate: "",
-      requestEndDate: "",
-      requestContent: "",
+      customerCompanyName: initialData?.customerName ?? "",
+      requestStartDate: initialData?.requestStartDate ?? "",
+      requestEndDate: initialData?.requestEndDate ?? "",
+      requestContent: initialData?.requestContent ?? "",
       requesterId: "",
       registrantId: "",
       salesRepId: "",
       supportManagerId: "",
-      remarks: "",
+      remarks: initialData?.remarks ?? "",
     },
   });
 
   const [users, setUsers] = useState<BackendUserSummary[]>([]);
 
   useEffect(() => {
-    loadBackendUsers().then(setUsers).catch(console.error);
-  }, []);
+    loadBackendUsers().then((loadedUsers) => {
+      setUsers(loadedUsers);
+      if (initialData) {
+        // Pre-populate user IDs based on names from initialData
+        const requester = loadedUsers.find(u => u.name === initialData.requesterName);
+        const registrant = loadedUsers.find(u => u.name === initialData.registrantName);
+        const salesRep = loadedUsers.find(u => u.name === initialData.salesRepName);
+        const supportManager = loadedUsers.find(u => u.name === initialData.supportManagerName);
+
+        if (requester) setValue("requesterId", requester.id);
+        if (registrant) setValue("registrantId", registrant.id);
+        if (salesRep) setValue("salesRepId", salesRep.id);
+        if (supportManager) setValue("supportManagerId", supportManager.id);
+      }
+    }).catch(console.error);
+
+    loadBackendFindingData().then((data) => {
+      if (initialData) {
+        const foundCompany = data.customers.find(c => c.name === initialData.customerName);
+        if (foundCompany && foundCompany.backendId) {
+          setValue("customerCompanyCode", foundCompany.backendId);
+          setValue("customerCompanyName", foundCompany.name);
+        }
+      }
+    }).catch(console.error);
+  }, [initialData, setValue]);
 
   const onSubmit = async (data: any) => {
     if (!data.customerCompanyCode) {
       toast.error("고객사를 선택해주세요.");
       return;
     }
-    if (!data.requesterId || !data.registrantId || !data.salesRepId || !data.supportManagerId) {
-      toast.error("모든 담당자 및 요청자를 선택해주세요.");
+    if (!data.requesterId || !data.supportManagerId) {
+      toast.error("요청자 및 담당자를 선택해주세요.");
+      return;
+    }
+    if (!initialData && (!data.registrantId || !data.salesRepId)) {
+      toast.error("등록자 및 영업대표를 선택해주세요.");
       return;
     }
 
     try {
-      const res = await createCustomerSupportRequest({
-        customerCompanyCode: data.customerCompanyCode,
-        requestStartDate: data.requestStartDate,
-        requestEndDate: data.requestEndDate,
-        requestContent: data.requestContent,
-        requesterId: data.requesterId,
-        registrantId: data.registrantId,
-        salesRepId: data.salesRepId,
-        supportManagerId: data.supportManagerId,
-        remarks: data.remarks,
-        attachedFileIds: [],
-      });
+      let res;
+      if (initialData) {
+        res = await updateCustomerSupportRequest(initialData.id, {
+          customerCompanyCode: data.customerCompanyCode,
+          requestStartDate: data.requestStartDate,
+          requestEndDate: data.requestEndDate,
+          requestContent: data.requestContent,
+          requesterId: data.requesterId,
+          supportManagerId: data.supportManagerId,
+          remarks: data.remarks,
+          attachedFileIds: [],
+        });
+      } else {
+        res = await createCustomerSupportRequest({
+          customerCompanyCode: data.customerCompanyCode,
+          requestStartDate: data.requestStartDate,
+          requestEndDate: data.requestEndDate,
+          requestContent: data.requestContent,
+          requesterId: data.requesterId,
+          registrantId: data.registrantId,
+          salesRepId: data.salesRepId,
+          supportManagerId: data.supportManagerId,
+          remarks: data.remarks,
+          attachedFileIds: [],
+        });
+      }
 
       if (res.success || (res as any).result === "SUCCESS") {
-        toast.success("고객지원 요청이 등록되었습니다.");
+        toast.success(initialData ? "고객지원 요청이 수정되었습니다." : "고객지원 요청이 등록되었습니다.");
         onSuccess();
-        const createdId = res.data ?? (res as any).id ?? (res as any).body?.data;
-        if (createdId) {
-          router.push(`/maintenance/support-requests/${createdId}`);
+        if (!initialData) {
+          const createdId = res.data ?? (res as any).id ?? (res as any).body?.data;
+          if (createdId) {
+            router.push(`/maintenance/support-requests/${createdId}`);
+          }
         }
       } else {
-        toast.error(res.message || "등록 실패했습니다.");
+        toast.error(res.message || (initialData ? "수정 실패했습니다." : "등록 실패했습니다."));
       }
     } catch (err: any) {
       console.error(err);
-      toast.error("등록하는 도중 에러가 발생했습니다.");
+      toast.error(initialData ? "수정하는 도중 에러가 발생했습니다." : "등록하는 도중 에러가 발생했습니다.");
     }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>고객지원 요청 등록</CardTitle>
+        <CardTitle>{initialData ? "고객지원 요청 수정" : "고객지원 요청 등록"}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -163,40 +208,44 @@ export function SupportRequestForm({ onSuccess, onCancel }: SupportRequestFormPr
             </div>
 
             {/* 등록자 */}
-            <div className="space-y-2">
-              <Label htmlFor="registrantId">등록자 (내부 직원)</Label>
-              <Controller
-                name="registrantId"
-                control={control}
-                rules={{ required: true }}
-                render={({ field }) => (
-                  <UserIdPicker
-                    value={field.value}
-                    users={users}
-                    onValueChange={field.onChange}
-                    placeholder="등록자 검색"
-                  />
-                )}
-              />
-            </div>
+            {!initialData && (
+              <div className="space-y-2">
+                <Label htmlFor="registrantId">등록자 (내부 직원)</Label>
+                <Controller
+                  name="registrantId"
+                  control={control}
+                  rules={{ required: true }}
+                  render={({ field }) => (
+                    <UserIdPicker
+                      value={field.value}
+                      users={users}
+                      onValueChange={field.onChange}
+                      placeholder="등록자 검색"
+                    />
+                  )}
+                />
+              </div>
+            )}
 
             {/* 영업대표 */}
-            <div className="space-y-2">
-              <Label htmlFor="salesRepId">영업대표</Label>
-              <Controller
-                name="salesRepId"
-                control={control}
-                rules={{ required: true }}
-                render={({ field }) => (
-                  <UserIdPicker
-                    value={field.value}
-                    users={users}
-                    onValueChange={field.onChange}
-                    placeholder="영업대표 검색"
-                  />
-                )}
-              />
-            </div>
+            {!initialData && (
+              <div className="space-y-2">
+                <Label htmlFor="salesRepId">영업대표</Label>
+                <Controller
+                  name="salesRepId"
+                  control={control}
+                  rules={{ required: true }}
+                  render={({ field }) => (
+                    <UserIdPicker
+                      value={field.value}
+                      users={users}
+                      onValueChange={field.onChange}
+                      placeholder="영업대표 검색"
+                    />
+                  )}
+                />
+              </div>
+            )}
 
             {/* 고객지원 담당자 */}
             <div className="space-y-2">

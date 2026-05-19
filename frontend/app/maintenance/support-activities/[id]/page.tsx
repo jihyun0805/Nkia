@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, AlertCircle, ArrowLeft, History, FileText } from "lucide-react";
+import { Loader2, AlertCircle, ArrowLeft, History, FileText, Edit, Trash2 } from "lucide-react";
 import {
   getCustomerSupportActivityDetail,
   type CustomerSupportActivityDetailResponse,
@@ -20,7 +20,10 @@ import {
   getCustomerSupportActivityHistoryDetail,
   type CustomerSupportHistoryListResponse,
   type CustomerSupportHistoryDetailResponse,
+  deleteCustomerSupportActivity,
 } from "@/lib/api/maintenance";
+import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
+import { toast } from "sonner";
 
 function formatDateTime(value?: string) {
   if (!value) return "-";
@@ -40,6 +43,11 @@ export default function CustomerSupportActivityDetailPage() {
   const [item, setItem] = useState<CustomerSupportActivityDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 수정 및 삭제 상태 추가
+  const [isEditing, setIsEditing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   // 이력 관리 상태 추가
   const [histories, setHistories] = useState<CustomerSupportHistoryListResponse[]>([]);
@@ -64,6 +72,27 @@ export default function CustomerSupportActivityDetailPage() {
       return `${y}-${m}-${d} ${h}:${min}:${s}`;
     } catch {
       return isoString;
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("정말로 이 고객지원 활동 결과를 삭제하시겠습니까?")) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const res = await deleteCustomerSupportActivity(parseInt(id));
+      if (res.success || (res as any).result === "SUCCESS") {
+        toast.success("고객지원 활동 결과가 삭제되었습니다.");
+        router.push("/maintenance");
+      } else {
+        toast.error(res.message || "삭제에 실패했습니다.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("삭제하는 도중 에러가 발생했습니다.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -92,7 +121,7 @@ export default function CustomerSupportActivityDetailPage() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, reloadTrigger]);
 
   useEffect(() => {
     const fetchHistories = async () => {
@@ -111,7 +140,7 @@ export default function CustomerSupportActivityDetailPage() {
       }
     };
     fetchHistories();
-  }, [id, selectedHistoryId]);
+  }, [id, selectedHistoryId, reloadTrigger]);
 
   useEffect(() => {
     if (selectedHistoryId === null) {
@@ -264,8 +293,18 @@ export default function CustomerSupportActivityDetailPage() {
 
           {/* 기본 상태: 현재 고객지원 활동 결과 상세 정보 + 하단에 히스토리 목록 출력 */}
           {selectedHistoryId == null && !loading && !error && item && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
+            isEditing ? (
+              <SupportResultForm
+                initialData={item}
+                onSuccess={() => {
+                  setIsEditing(false);
+                  setReloadTrigger(prev => prev + 1);
+                }}
+                onCancel={() => setIsEditing(false)}
+              />
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">고객지원 활동 결과 #{item.id}</h1>
                 <Badge variant="outline">{item.activityType}</Badge>
               </div>
@@ -343,11 +382,25 @@ export default function CustomerSupportActivityDetailPage() {
                 </Card>
               )}
 
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => router.push("/maintenance")}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  목록으로
+              <div className="flex justify-between items-center mt-6">
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  삭제
                 </Button>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => router.push("/maintenance")}>
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    목록으로
+                  </Button>
+                  <Button onClick={() => setIsEditing(true)}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    수정
+                  </Button>
+                </div>
               </div>
 
               {/* 하단 변경 이력 카드 추가 */}
@@ -416,7 +469,8 @@ export default function CustomerSupportActivityDetailPage() {
                 </CardContent>
               </Card>
             </div>
-          )}
+          )
+        )}
           </div>
         </main>
       </div>
