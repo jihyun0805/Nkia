@@ -52,7 +52,6 @@ export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
               <TableRow>
                 <TableHead>수주코드</TableHead>
                 <TableHead>사업명</TableHead>
-                <TableHead>최종고객사</TableHead>
                 <TableHead>PM</TableHead>
                 <TableHead className="text-right">수주금액</TableHead>
                 <TableHead>계약일</TableHead>
@@ -63,8 +62,7 @@ export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
               {reports.map((order) => (
                 <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/orders/${order.id}`)}>
                   <TableCell className="font-mono text-xs">{order.orderReportCode}</TableCell>
-                  <TableCell className="max-w-[180px] truncate font-medium">{order.projectName}</TableCell>
-                  <TableCell>{order.finalCustomerCompanyName ?? "-"}</TableCell>
+                  <TableCell className="max-w-[250px] truncate font-medium">{order.projectName}</TableCell>
                   <TableCell>{order.pmName ?? "-"}</TableCell>
                   <TableCell className="text-right font-medium">₩{(order.totalAmount ?? 0).toLocaleString()}</TableCell>
                   <TableCell>{order.contractDate ?? "-"}</TableCell>
