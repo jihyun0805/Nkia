@@ -37,6 +37,15 @@ class UserContext(BaseModel):
         default_factory=dict,
         description="추가 식별 정보 (사번, 본부 코드 등)",
     )
+    domain_actions: dict[str, list[str]] = Field(
+        default_factory=dict,
+        alias="domainActions",
+        description=(
+            "도메인별 허용 액션 목록. "
+            "키는 BE PermissionDomain enum 이름(UPPER_SNAKE), 값은 PermissionAction 이름 리스트. "
+            "예: {'PROJECT_OPPORTUNITY': ['READ', 'UPDATE']}"
+        ),
+    )
 
     def is_unrestricted(self) -> bool:
         # Backend unrestricted users still send readable source types

@@ -525,12 +525,17 @@ def build_metadata_filter(metadata_filters: dict[str, Any] | None) -> str:
 
     conditions: list[str] = []
     if metadata_filters.get("customerGroup"):
+        # NOTE: 의미상 customerGroup ≈ BE company.sector (공공/민간/해외).
+        # 색인 정규화로 sector → customerGroup canonical 키가 채워지지만,
+        # 과거 데이터가 customerType / sector 키로 직접 들어간 경우를 폴백한다.
         conditions.append(
             """
             upper(coalesce(
                 nullif(s.metadata->>'customerGroup', ''),
+                nullif(s.metadata->>'sector', ''),
                 nullif(s.metadata->>'customerType', ''),
                 nullif(c.metadata->>'customerGroup', ''),
+                nullif(c.metadata->>'sector', ''),
                 nullif(c.metadata->>'customerType', '')
             )) = ANY(%(metadata_customer_groups)s::varchar[])
             """
