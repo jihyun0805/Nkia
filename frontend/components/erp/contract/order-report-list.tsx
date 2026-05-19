@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { type OrderReportListResponse, type ApprovalStatus } from "@/lib/api/contract-api";
+import { type OrderReportListResponse } from "@/lib/api/contract-api";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface OrderReportListProps {
@@ -12,18 +12,21 @@ interface OrderReportListProps {
   isLoading?: boolean;
 }
 
-const statusLabel: Record<ApprovalStatus, string> = {
-  PENDING: "대기중",
-  IN_PROGRESS: "결재중",
-  APPROVED: "승인완료",
-  REJECTED: "반려",
+// 백엔드가 ApprovalStatus.getDescription() 한글 문자열로 반환
+const statusLabel: Record<string, string> = {
+  "결재 대기": "대기중",
+  "결재중": "결재중",
+  "승인 완료": "승인완료",
+  "반려": "반려",
+  "취소": "취소",
 };
 
-const statusStyle: Record<ApprovalStatus, string> = {
-  PENDING: "bg-gray-100 text-gray-700 hover:bg-gray-100",
-  IN_PROGRESS: "bg-amber-100 text-amber-700 hover:bg-amber-100",
-  APPROVED: "bg-green-100 text-green-700 hover:bg-green-100",
-  REJECTED: "bg-red-100 text-red-700 hover:bg-red-100",
+const statusStyle: Record<string, string> = {
+  "결재 대기": "bg-gray-100 text-gray-700 hover:bg-gray-100",
+  "결재중": "bg-amber-100 text-amber-700 hover:bg-amber-100",
+  "승인 완료": "bg-green-100 text-green-700 hover:bg-green-100",
+  "반려": "bg-red-100 text-red-700 hover:bg-red-100",
+  "취소": "bg-gray-100 text-gray-500 hover:bg-gray-100",
 };
 
 export function OrderReportList({ reports, isLoading }: OrderReportListProps) {

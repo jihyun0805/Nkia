@@ -3,14 +3,32 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { type OrderReportResponse, type VisitCycle, orderReportApi } from "@/lib/api/contract-api";
+import { approveBackendWorkflow, rejectBackendWorkflow, loadBackendCurrentUserInfo, type BackendUserSummary } from "@/lib/workflow-backend";
+import { useBackendUsers } from "@/lib/use-backend-users";
+import { UserPicker } from "@/components/erp/user-picker";
+import { emitAlarmUpdate } from "@/hooks/use-alarms";
+import { getBackendApiBaseUrl } from "@/lib/api-base-url";
+import { buildAuthHeaders } from "@/lib/auth-session";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+
+type WorkflowLineData = {
+  stepOrder: number;
+  stepName: string;
+  approverName: string;
+  approverPosition: string;
+  status: string;
+};
 
 interface OrderReportDetailProps {
   report: OrderReportResponse;
+  onRefresh?: () => void;
 }
 
 const parseNum = (val: string | number | undefined) => {
@@ -26,6 +44,14 @@ const fmt = (num: number | null | undefined) => {
 };
 
 const cellBase = "px-2 py-1.5 text-sm min-h-[32px]";
+
+const positionLevel = (pos: string | undefined): number => {
+  const p = pos?.trim() ?? "";
+  if (p === "HEAD_DIRECTOR" || p === "본부장") return 3;
+  if (p === "TEAM_LEADER" || p === "팀장") return 2;
+  if (p === "TEAM_MEMBER" || p === "팀원") return 1;
+  return 0;
+};
 
 const cycleMap: Record<VisitCycle, string> = {
   MONTHLY: "매월",
@@ -46,7 +72,7 @@ const typeMap: Record<string, string> = {
   MAINTENANCE_ONLY: "유지보수",
 };
 
-export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
+export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailProps) {
   const licenseDetails = r.licenses || [];
   const serviceDetails = r.services || [];
   const maintenanceDetails = r.maintenances || [];
@@ -54,6 +80,7 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
   const purchaseDetails = r.purchases || [];
   const maintenanceOnlyItems = r.maintenanceOnlyItems || [];
   const router = useRouter();
+  const users = useBackendUsers();
 
   const computedEmsMaintenanceSummary = maintenanceDetails.reduce((sum, m) => {
     const content = (m.content || "").toUpperCase();
@@ -72,7 +99,164 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
     }, 0) +
     (r.serviceTotal || 0) +
     (r.otherTotal || 0);
+
+  // 백엔드는 ApprovalStatus.getDescription()을 반환
+  const isDraft = r.status === "결재 대기";
+  const isInProgress = r.status === "결재중";
+  const isApproved = r.status === "승인 완료";
+  const isRejected = r.status === "반려";
+
+  // 삭제
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 결재 상신
+  const [firstApprover, setFirstApprover] = useState<BackendUserSummary | null>(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  // 결재 처리
+  const [approvalComment, setApprovalComment] = useState("");
+  const [nextApprover, setNextApprover] = useState<BackendUserSummary | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [needNextApprover, setNeedNextApprover] = useState<boolean | null>(null);
+  const [currentStepOrder, setCurrentStepOrder] = useState<number | null>(null);
+  const [isCurrentApprover, setIsCurrentApprover] = useState<boolean | null>(null);
+  const [workflowLines, setWorkflowLines] = useState<WorkflowLineData[] | null>(null);
+
+  // 워크플로우 정보 조회 (결재중 상태일 때만)
+  useEffect(() => {
+    if (!isInProgress || !r.workflowId) return;
+
+    setNeedNextApprover(null);
+    setCurrentStepOrder(null);
+    setIsCurrentApprover(null);
+    setWorkflowLines(null);
+
+    (async () => {
+      try {
+        const userInfo = await loadBackendCurrentUserInfo();
+        if (!userInfo.userId) {
+          setNeedNextApprover(true);
+          setIsCurrentApprover(false);
+          return;
+        }
+
+        const res = await fetch(`${getBackendApiBaseUrl()}/admin/workflows/my/${userInfo.userId}`, {
+          headers: buildAuthHeaders(),
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          setNeedNextApprover(true);
+          setIsCurrentApprover(false);
+          return;
+        }
+
+        const json = await res.json();
+        const workflows: Array<{
+          id: number;
+          targetId: number;
+          needNextApprover: boolean;
+          currentStepOrder: number;
+          lines: WorkflowLineData[];
+        }> = json?.data ?? [];
+
+        const matched = workflows.find((w) => w.id === r.workflowId);
+        if (!matched) {
+          setNeedNextApprover(true);
+          setIsCurrentApprover(false);
+          return;
+        }
+
+        const lines = matched.lines ?? [];
+        setWorkflowLines(lines);
+        setNeedNextApprover(matched.needNextApprover ?? false);
+        setCurrentStepOrder(matched.currentStepOrder ?? null);
+
+        const activeLine = lines.find((l) => l.stepOrder === matched.currentStepOrder && l.status === "진행중");
+        setIsCurrentApprover(!!userInfo.name && userInfo.name === activeLine?.approverName);
+      } catch {
+        setNeedNextApprover(true);
+        setIsCurrentApprover(false);
+      }
+    })();
+  }, [r.workflowId, isInProgress]);
+
+  const handleSubmitReport = async () => {
+    if (!firstApprover?.id) {
+      toast.error("1차 결재자(팀장)를 선택해주세요.");
+      return;
+    }
+    if (positionLevel(firstApprover.position) < 2) {
+      toast.error("1차 결재자는 팀장 이상의 직급이어야 합니다. 팀장 또는 본부장을 선택해주세요.", { duration: 5000 });
+      return;
+    }
+    setIsSubmittingReport(true);
+    try {
+      await orderReportApi.submitOrderReport(r.id, firstApprover.id);
+      toast.success("결재 상신이 완료되었습니다.");
+      emitAlarmUpdate();
+      onRefresh?.();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "결재 상신에 실패했습니다.");
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!r.workflowId) return;
+    if (needNextApprover && !nextApprover?.id) {
+      toast.error("다음 결재자를 선택해주세요.");
+      return;
+    }
+    if (needNextApprover && nextApprover) {
+      // Step 1 → next approver must be HEAD_DIRECTOR (본부장) for step 2
+      if (currentStepOrder === 1 && positionLevel(nextApprover.position) < 3) {
+        toast.error("2차 결재자는 본부장 이상의 직급이어야 합니다. 본부장을 선택해주세요.", { duration: 5000 });
+        return;
+      }
+    }
+    setIsApproving(true);
+    try {
+      await approveBackendWorkflow(r.workflowId, {
+        nextApproverId: nextApprover?.id ?? null,
+        comment: approvalComment,
+      });
+      toast.success("승인 처리되었습니다.");
+      emitAlarmUpdate();
+      setApprovalComment("");
+      setNextApprover(null);
+      onRefresh?.();
+    } catch (error: any) {
+      const msg: string = error?.message ?? "";
+      // 직급 관련 에러인 경우 명확한 안내 메시지 표시
+      const isPositionError = msg.includes("직급") || msg.includes("권한") || msg.includes("position") || msg.includes("POSITION") || msg.includes("forbidden") || msg.includes("Forbidden");
+      toast.error(isPositionError ? `결재자 지정에 실패했습니다. 선택한 결재자의 직급이 해당 단계에 맞지 않습니다.\n(${msg})` : msg || "승인 처리에 실패했습니다.", { duration: 5000 });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!r.workflowId) return;
+    if (!approvalComment.trim()) {
+      toast.error("반려 사유를 입력해주세요.");
+      return;
+    }
+    setIsRejecting(true);
+    try {
+      await rejectBackendWorkflow(r.workflowId, { comment: approvalComment });
+      toast.success("반려 처리되었습니다.");
+      emitAlarmUpdate();
+      setApprovalComment("");
+      onRefresh?.();
+    } catch (error: any) {
+      toast.error(error?.message || "반려에 실패했습니다.");
+    } finally {
+      setIsRejecting(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!confirm("정말로 이 수주보고서를 삭제하시겠습니까?")) return;
@@ -106,8 +290,11 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant={r.status === "APPROVED" ? "default" : "secondary"} className={r.status === "APPROVED" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}>
-            {r.status === "APPROVED" ? "승인완료" : r.status === "REJECTED" ? "반려" : r.status === "IN_PROGRESS" ? "결재중" : "대기중"}
+          <Badge
+            variant="secondary"
+            className={isApproved ? "bg-green-100 text-green-700" : isRejected ? "bg-red-100 text-red-700" : isInProgress ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-700"}
+          >
+            {isApproved ? "승인완료" : isRejected ? "반려" : isInProgress ? "결재중" : "대기중"}
           </Badge>
           <span className="text-sm text-muted-foreground">PM: {r.pmName}</span>
         </div>
@@ -592,6 +779,153 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
           삭제
         </Button>
       </div>
+
+      {/* 결재 반려 알림 */}
+      {isRejected && (
+        <Card className="border-destructive dark:border-red-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-destructive">
+              <AlertCircle className="w-4 h-4" />
+              결재 반려
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">수주보고서가 반려되었습니다. 내용을 수정 후 재상신해 주세요.</p>
+          </CardHeader>
+        </Card>
+      )}
+
+      {/* 결재 상신 패널 (대기 상태) */}
+      {isDraft && (
+        <Card className="border-blue-200 dark:border-blue-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-blue-800 dark:text-blue-300">
+              <CheckCircle2 className="w-4 h-4" />
+              결재 상신
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">1차 결재자(팀장)를 지정하고 결재를 상신하세요.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>
+                1차 결재자 (팀장) <span className="text-destructive">*</span>
+              </Label>
+              <UserPicker value={firstApprover?.name ?? ""} users={users.filter((u) => positionLevel(u.position) >= 2)} onSelect={setFirstApprover} placeholder="팀장을 선택하세요" />
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSubmitReport} disabled={isSubmittingReport || !firstApprover?.id}>
+                {isSubmittingReport ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    상신 중...
+                  </>
+                ) : (
+                  "결재 상신"
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 결재 처리 패널 (결재중 상태) */}
+      {isInProgress && r.workflowId && (
+        <Card className="border-amber-200 dark:border-amber-800">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                <CheckCircle2 className="w-4 h-4" />
+                결재 처리
+              </CardTitle>
+              {currentStepOrder && (
+                <Badge variant="outline" className="text-amber-700 border-amber-400 dark:text-amber-300 dark:border-amber-700">
+                  {currentStepOrder}차 결재 진행 중
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">결재 요청이 접수되었습니다.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* 결재 현황 */}
+            {workflowLines && workflowLines.length > 0 && (
+              <div className="border rounded-md p-3 space-y-2">
+                <p className="text-xs text-muted-foreground mb-2">결재 현황</p>
+                {workflowLines.map((line) => (
+                  <div key={line.stepOrder} className="flex items-center gap-3 text-sm">
+                    <span className="w-8 text-xs text-muted-foreground shrink-0">{line.stepOrder}차</span>
+                    <span className="w-16 text-xs text-muted-foreground shrink-0">{line.approverPosition}</span>
+                    <span className="flex-1 font-medium">{line.approverName}</span>
+                    <Badge variant={line.status === "승인" ? "default" : line.status === "반려" ? "destructive" : line.status === "진행중" ? "secondary" : "outline"} className="text-xs">
+                      {line.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isCurrentApprover === null ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                결재 단계 확인 중...
+              </div>
+            ) : !isCurrentApprover ? (
+              <div className="rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">현재 {currentStepOrder}차 결재 담당자가 검토 중입니다. 검토 완료 후 다음 단계로 진행됩니다.</div>
+            ) : (
+              <>
+                {needNextApprover === null ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    결재 단계 확인 중...
+                  </div>
+                ) : needNextApprover ? (
+                  <div className="space-y-2">
+                    <Label>
+                      다음 결재자{" "}
+                      <span className="text-xs text-muted-foreground font-normal">{currentStepOrder === 1 ? "(본부장 선택)" : currentStepOrder === 2 ? "(배포·공유 권한자 선택)" : ""}</span>{" "}
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <UserPicker
+                      value={nextApprover?.name ?? ""}
+                      users={currentStepOrder === 1 ? users.filter((u) => positionLevel(u.position) >= 3) : users}
+                      onSelect={setNextApprover}
+                      placeholder={currentStepOrder === 1 ? "본부장을 선택하세요" : "다음 결재자를 선택하세요"}
+                    />
+                    <p className="text-xs text-muted-foreground">{currentStepOrder === 1 ? "2차 결재자(본부장)를 지정해주세요." : "배포·공유 담당자를 지정해주세요."}</p>
+                  </div>
+                ) : (
+                  <div className="rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-800 dark:text-green-300">
+                    최종 결재 단계입니다. 승인 시 결재가 완료됩니다.
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="approvalComment">결재 의견 (반려 시 필수)</Label>
+                  <Textarea id="approvalComment" value={approvalComment} onChange={(e) => setApprovalComment(e.target.value)} placeholder="결재 의견을 입력해 주세요." rows={3} />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="destructive" onClick={handleReject} disabled={isRejecting || isApproving || needNextApprover === null}>
+                    {isRejecting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        반려 중...
+                      </>
+                    ) : (
+                      "반려"
+                    )}
+                  </Button>
+                  <Button onClick={handleApprove} disabled={isApproving || isRejecting || needNextApprover === null}>
+                    {isApproving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        승인 중...
+                      </>
+                    ) : (
+                      "승인"
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

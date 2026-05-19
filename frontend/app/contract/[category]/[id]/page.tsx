@@ -23,6 +23,7 @@ export default function ContractDetailPage() {
   const [data, setData] = useState<OrderReportResponse | ContractResponse | LicenseResponse | PurchaseResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (isNaN(numericId)) {
@@ -85,7 +86,7 @@ export default function ContractDetailPage() {
     };
 
     fetchData();
-  }, [category, numericId]);
+  }, [category, numericId, refreshKey]);
 
   if (loading) {
     return (
@@ -195,7 +196,7 @@ export default function ContractDetailPage() {
               </BreadcrumbList>
             </Breadcrumb>
             {category === "orders" ? (
-              <OrderReportDetail report={data as OrderReportResponse} />
+              <OrderReportDetail report={data as OrderReportResponse} onRefresh={() => setRefreshKey((k) => k + 1)} />
             ) : (
               <DetailFormCard
                 title={`${label} 상세`}
