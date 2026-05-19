@@ -147,8 +147,11 @@ export default function ActivityDetailPage() {
     }
   }
 
-  useEffect(() => {
-    if (category !== "activities") return
+  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false)
+const [approveComment, setApproveComment] = useState("승인합니다.")
+const [approveNextApproverId, setApproveNextApproverId] = useState("")
+
+useEffect(() => {    if (category !== "activities") return
 
     let cancelled = false
 
@@ -545,8 +548,8 @@ const handleSubmitQuotation = async () => {
         setIsApprovingQuotation(true)
 
         await approveBackendWorkflow(quotationItem.workflowId!, {
-          nextApproverId: nextApproverId || null,
-          comment: "승인합니다.",
+          nextApproverId: approveNextApproverId  || null,
+          comment: approveComment,
         })
 
         toast({
@@ -699,6 +702,9 @@ const handleSubmitQuotation = async () => {
                     <div className="px-3 py-1 rounded-md bg-muted text-sm font-medium">
                       {quotationItem?.status ?? "결재 대기"}
                     </div>   
+                    <div className="text-xs text-red-500">
+                      workflowId: {quotationItem?.workflowId}
+                    </div>
                     <TabsList>
                       <TabsTrigger value="document">견적서</TabsTrigger>
                       <TabsTrigger value="history">변경 이력</TabsTrigger>
@@ -905,7 +911,7 @@ const handleSubmitQuotation = async () => {
                         {isQuotation && quotationItem?.status === "결재중" && (
                           <>
                             <Button
-                              onClick={handleApproveQuotation}
+                              onClick={() => setIsApproveModalOpen(true)}
                               disabled={isApprovingQuotation}
                               className="bg-green-600 hover:bg-green-700"
                             >
@@ -956,6 +962,47 @@ const handleSubmitQuotation = async () => {
               onClick={() => setIsSubmitModalOpen(false)}
             >
               취소
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isApproveModalOpen} onOpenChange={setIsApproveModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>견적서 승인</DialogTitle>
+            <DialogDescription>
+              다음 결재자와 승인 의견을 입력해주세요.
+            </DialogDescription>
+          </DialogHeader>
+
+          <UserIdPicker
+            users={workflowUsers}
+            value={approveNextApproverId}
+            onValueChange={setApproveNextApproverId}
+            placeholder="다음 결재자 검색"
+          />
+
+          <Textarea
+            value={approveComment}
+            onChange={(event) => setApproveComment(event.target.value)}
+            rows={4}
+            placeholder="승인 의견"
+          />
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsApproveModalOpen(false)}
+            >
+              취소
+            </Button>
+
+            <Button
+              onClick={handleApproveQuotation}
+              disabled={isApprovingQuotation}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isApprovingQuotation ? "승인 중..." : "승인"}
             </Button>
           </DialogFooter>
         </DialogContent>
