@@ -40,59 +40,70 @@ public class RfpAnalyzeResult extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "project_name", nullable = false)
-    private String projectName;
-
-    @Column(name = "hardware_provider", length = 100)
-    private String hardwareProvider;
-
-    @Column(name = "budget_amount", precision = 15, scale = 2)
-    private BigDecimal budgetAmount;
-
-    @Column(name = "expected_duration", length = 100)
-    private String expectedDuration;
-
-    @Column(name = "project_location", length = 255)
-    private String projectLocation;
-
-    @Column(name = "proposal_deadline")
-    private LocalDateTime proposalDeadline;
-
-    @Column(name = "project_description", columnDefinition = "TEXT")
-    private String projectDescription;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20, nullable = false)
-    private RfpStatus status;
-
+    // 제안 형태
     @Enumerated(EnumType.STRING)
     @Column(name = "proposal_type", length = 20)
     private ProposalType proposalType;
 
+    // HW 제공 주체
+    @Column(name = "hardware_provider", length = 100)
+    private String hardwareProvider;
+
+    // 금액 규모
+    @Column(name = "budget_amount", precision = 15, scale = 2)
+    private BigDecimal budgetAmount;
+
+    // 예상 사업 기간
+    @Column(name = "expected_duration", length = 100)
+    private String expectedDuration;
+
+    // 사업 장소
+    @Column(name = "project_location", length = 255)
+    private String projectLocation;
+
+    // 제안서 접수 마감일
+    @Column(name = "proposal_deadline")
+    private LocalDateTime proposalDeadline;
+
+    // 요청자 이름
+    private String requestUserName;
+
+    // 상태
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20, nullable = false)
+    private RfpStatus status;
+
+    // 주요 사업 내용
+    @Column(name = "project_description", columnDefinition = "TEXT")
+    private String projectDescription;
+
+    // 담당자
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignee_id")
     private User assignee;
 
+    // 사업 기회
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_opportunity_id", unique = true)
     private ProjectOpportunity projectOpportunity;
 
     // 양방향 연관관계 추가 (일대다)
+    // 요구사항
     @OneToMany(mappedBy = "rfpAnalyzeResult", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RfpRequirement> requirements = new ArrayList<>();
 
     @Builder
-    public RfpAnalyzeResult(String projectName, String hardwareProvider, BigDecimal budgetAmount,
-                            String expectedDuration, String projectLocation, LocalDateTime proposalDeadline,
-                            String projectDescription, RfpStatus status, ProposalType proposalType, User assignee,
+    public RfpAnalyzeResult(String hardwareProvider, BigDecimal budgetAmount, String expectedDuration,
+                            String projectLocation, LocalDateTime proposalDeadline, String projectDescription,
+                            String requestUserName, RfpStatus status, ProposalType proposalType, User assignee,
                             ProjectOpportunity projectOpportunity) {
-        this.projectName = projectName;
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
         this.expectedDuration = expectedDuration;
         this.projectLocation = projectLocation;
         this.proposalDeadline = proposalDeadline;
         this.projectDescription = projectDescription;
+        this.requestUserName = requestUserName;
         // 생성 시 상태값이 없으면 '접수'를 기본값으로 설정
         this.status = (status != null) ? status : RfpStatus.RECEIVED;
         this.proposalType = proposalType;
@@ -112,10 +123,10 @@ public class RfpAnalyzeResult extends BaseEntity {
     }
 
     // 기존 데이터 수정 메서드 (더티 체킹용)
-    public void update(String projectName, String hardwareProvider, BigDecimal budgetAmount,
+    public void update(String hardwareProvider, BigDecimal budgetAmount,
                        String expectedDuration, String projectLocation, LocalDateTime proposalDeadline,
-                       String projectDescription, ProposalType proposalType, User assignee) {
-        this.projectName = projectName;
+                       String projectDescription, ProposalType proposalType, User assignee,
+                       ProjectOpportunity projectOpportunity) {
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
         this.expectedDuration = expectedDuration;
@@ -124,6 +135,7 @@ public class RfpAnalyzeResult extends BaseEntity {
         this.projectDescription = projectDescription;
         this.proposalType = proposalType;
         this.assignee = assignee;
+        this.projectOpportunity = projectOpportunity;
     }
 
     public void assignProjectOpportunity(ProjectOpportunity projectOpportunity) {

@@ -5,11 +5,17 @@ import com.nkia.Orbis.domain.bid.prbresult.entity.PrbResult;
 import java.time.LocalDateTime;
 
 public record PrbResultListResponse(
+        // PRB 결과 id
         Long id,
+        // 고객사명
         String customerCompanyName,
+        // 사업 기회명
         String opportunityName,
+        // 제안서 마감일
         LocalDateTime proposalDeadlineDatetime,
+        // 작성일
         String createdByUserName,
+        // 작성자
         LocalDateTime createdAt
 ) {
     public static PrbResultListResponse of(PrbResult entity, User creator) {

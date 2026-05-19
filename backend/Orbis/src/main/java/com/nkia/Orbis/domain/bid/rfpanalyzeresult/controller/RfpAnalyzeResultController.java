@@ -9,6 +9,7 @@ import com.nkia.Orbis.domain.bid.rfpanalyzeresult.service.RfpAnalyzeResultServic
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +18,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,9 +46,9 @@ public class RfpAnalyzeResultController {
     @PostMapping
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'RFP_ANALYSE_RESULT', 'CREATE')")
     public ResponseEntity<ApiResponse<RfpAnalyzeResultDetailResponse>> createRfpAnalyzeResult(
-            @Valid @RequestBody RfpAnalyzeResultCreateRequest request) {
-        RfpAnalyzeResultDetailResponse response =
-                rfpAnalyzeResultService.createRfpAnalyzeResult(request);
+            @Valid @RequestBody RfpAnalyzeResultCreateRequest request, @AuthenticationPrincipal UUID requestUserId) {
+        RfpAnalyzeResultDetailResponse response
+                = rfpAnalyzeResultService.createRfpAnalyzeResult(request, requestUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 

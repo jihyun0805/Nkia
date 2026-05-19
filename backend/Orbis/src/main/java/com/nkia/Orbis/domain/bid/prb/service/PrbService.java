@@ -45,15 +45,16 @@ public class PrbService {
         // 1. 연관 엔티티 조회
         ProjectOpportunity opportunity = findProjectOpportunity(request.getProjectOpportunityId());
         if (opportunity.getPrb() != null) {
-            throw new ApiException(PrbErrorCode.PRB_ALREADY_EXISTS); // 에러 코드 추가 필요
+            throw new ApiException(PrbErrorCode.PRB_ALREADY_EXISTS);
         }
         User salesRepresentative = findUser(request.getSalesRepresentativeId());
+        User reviewer = findUser(request.getReviewerId());
 
         // 2. PRB 코드 채번 (실제로는 시퀀스나 채번 규칙에 따라 구현)
         String prbCode = generatePrbCode();
 
         // 3. DTO 내부의 toEntity를 통한 생성 및 데이터 매핑
-        Prb prb = request.toEntity(prbCode, salesRepresentative, opportunity);
+        Prb prb = request.toEntity(prbCode, salesRepresentative, reviewer, opportunity);
 
         // 4. 간접비 및 총 비용 계산 오케스트레이션
         prb.calculateTotalCost(request.getIndirectExpenseRate());
@@ -71,9 +72,11 @@ public class PrbService {
         // 1. 기존 PRB 엔티티 및 변경될 영업 대표 조회
         Prb prb = findPrb(id);
         User newSalesRepresentative = findUser(request.getSalesRepresentativeId());
+        User newReviewer = findUser(request.getReviewerId());
+        ProjectOpportunity newProjectOpportunity = findProjectOpportunity(request.getProjectOpportunityId());
 
         // 2. DTO 내부의 updateEntity를 호출하여 기존 객체 정보 덮어쓰기
-        request.updateEntity(prb, newSalesRepresentative);
+        request.updateEntity(prb, newSalesRepresentative, newReviewer, newProjectOpportunity);
 
         // 3. 변경된 비용을 바탕으로 간접비 및 총 비용 재계산
         prb.calculateTotalCost(request.getIndirectExpenseRate());

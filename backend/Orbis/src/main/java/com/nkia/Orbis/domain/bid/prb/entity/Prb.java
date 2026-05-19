@@ -42,10 +42,11 @@ public class Prb extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // PRB 상태
     @Enumerated(EnumType.STRING)
     private ApprovalStatus status = ApprovalStatus.DRAFT;
 
-    // 1. PRB 코드
+    // 1. PRB 코드 = 관리 번호
     @Column(name = "prb_code", unique = true, nullable = false, updatable = false, length = 50)
     private String prbCode;
 
@@ -65,13 +66,20 @@ public class Prb extends BaseEntity {
     @Column(name = "sales_representative_opinion", columnDefinition = "TEXT")
     private String salesRepresentativeOpinion;
 
+    // 사업 기회
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_opportunity_id", unique = true)
     private ProjectOpportunity projectOpportunity;
 
+    // 영업 대표
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sales_representative_id")
     private User salesRepresentative;
+
+    // 검토자
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewer_id")
+    private User reviewer;
 
     @Builder.Default
     @Embedded
@@ -144,12 +152,19 @@ public class Prb extends BaseEntity {
 
     // 기본 정보 수정 메서드
     public void updateBasicInfo(LocalDate prbDate, String maintenanceDescription,
-                                String salesRepresentativeOpinion, User salesRepresentative) {
+                                String salesRepresentativeOpinion, User salesRepresentative, User reviewer,
+                                ProjectOpportunity projectOpportunity) {
         this.prbDate = prbDate;
         this.maintenanceDescription = maintenanceDescription;
         this.salesRepresentativeOpinion = salesRepresentativeOpinion;
         if (salesRepresentative != null) {
             this.salesRepresentative = salesRepresentative;
+        }
+        if (reviewer != null) {
+            this.reviewer = reviewer;
+        }
+        if (projectOpportunity != null) {
+            this.projectOpportunity = projectOpportunity;
         }
     }
 

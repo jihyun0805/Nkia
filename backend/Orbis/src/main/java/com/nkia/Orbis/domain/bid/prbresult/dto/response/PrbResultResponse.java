@@ -11,16 +11,24 @@ import java.util.UUID;
 public record PrbResultResponse(
         Long id,
 
+        // 결재 프로세스 관련
         Long workflowId,
-
         ApprovalStatus status,
 
+        // PRB id
         Long prbId,
+
+        // 리스크 요인
         String riskFactors,
+        // 종합 의견
         String comprehensiveOpinion,
+        // 장소
         String meetingLocation,
+        // 일시
         LocalDateTime meetingDateTime,
+        // 참석자 의견
         List<PrbResultAttendeeOpinionResponse> attendeeOpinions,
+        // ?
         String createdByUserName,
         LocalDateTime createdAt
 ) {

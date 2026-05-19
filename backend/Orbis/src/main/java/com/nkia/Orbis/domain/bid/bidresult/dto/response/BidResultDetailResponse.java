@@ -30,16 +30,29 @@ public class BidResultDetailResponse {
 
     // --- 1. BidResult 기본 필드 ---
     private Long id;
+    // 예산
     private BigDecimal budget;
+    // 외부 PD 작업 여부
     private Boolean isExternalPdInvolved;
+    // 핵심 성공 요소
     private String keySuccessFactors;
+    // RFP 이슈 사항
     private String rfpIssues;
+    // 제안 전략
     private String proposalStrategy;
+
+    // 수주/실주 여부
     private BidOutcome bidOutcome;
+    // 평가 결과 공개/비공개 여부
     private DisclosureStatus disclosureStatus;
+
+    // 입찰 공고일
     private LocalDate bidAnnouncementDate;
-    private LocalDate presentationDate;
+
+    // 합계 점수
     private Integer totalAnalysisScore;
+
+    // 결재 프로세스 관련
     private Long workflowId;
     private ApprovalStatus status;
 
@@ -56,16 +69,23 @@ public class BidResultDetailResponse {
     private String customerCompanyName;
 
     // --- 5. Proposal 관련 필드 ---
+    // 제안서 등록 (코드)
     private Long proposalId;
+    // 제안 작성 참여자명
     private String proposalCreatorName;
 
     // --- 6. RFP Analyze Result 관련 필드 ---
+    // 제안서 접수 마감일
     private LocalDateTime proposalDeadline;
 
-    // --- 7. Product Module 관련 필드 ---
+    // --- 7. PRB 관련 필드 ---
+    // 제안 발표일
+    private LocalDateTime presentationDate;
+
+    // --- 8. Product Module 관련 필드 ---
     private List<ProductModuleSummaryDto> productModules;
 
-    // --- 8. VO 필드 ---
+    // --- 9. VO 필드 ---
     private CompanyScoreDto ourCompanyScore;
     private List<CompanyScoreDto> competitorScores;
     private List<WinLossAnalysisDto> analyses;
@@ -87,7 +107,6 @@ public class BidResultDetailResponse {
                 .bidOutcome(bidResult.getBidOutcome())
                 .disclosureStatus(bidResult.getDisclosureStatus())
                 .bidAnnouncementDate(bidResult.getBidAnnouncementDate())
-                .presentationDate(bidResult.getPresentationDate())
                 .totalAnalysisScore(bidResult.getTotalAnalysisScore())
                 .workflowId(workflowId)
                 .status(bidResult.getStatus())
@@ -106,6 +125,8 @@ public class BidResultDetailResponse {
                 .proposalCreatorName(proposalCreatorName)
                 .proposalDeadline(
                         po.getRfpAnalyzeResult() != null ? po.getRfpAnalyzeResult().getProposalDeadline() : null)
+                .presentationDate(
+                        po.getPrb() != null ? po.getPrb().getProjectInfo().getProposalPresentationDatetime() : null)
 
                 // 컬렉션 및 복합 객체 매핑 (Private Helper Method 호출)
                 .productModules(extractProductModules(po))
