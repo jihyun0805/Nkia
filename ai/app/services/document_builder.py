@@ -90,12 +90,14 @@ INDEXED_CONFIGS: tuple[DocumentConfig, ...] = (
         table="rfp_analyze_result",
         source_type=SourceType.RFP_ANALYSIS,
         id_fields=("rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
-        title_fields=("project_name", "opportunity_name", "rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
+        # S14P31S106-381 (2026-05-19): project_name 컬럼 삭제 → opportunity_name 로 대체.
+        title_fields=("opportunity_name", "rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
         content_fields=(
             "issuer", "project_scope", "project_period",
             "requirements", "risk_factors", "special_notes",
             "key_requirements", "analysis_summary",
-            "project_name", "project_description", "expected_duration",
+            # S14P31S106-381: project_name 삭제, request_user_name 신규.
+            "request_user_name", "project_description", "expected_duration",
             "project_location", "proposal_deadline", "analysis_status", "status",
         ),
         payload_aliases={

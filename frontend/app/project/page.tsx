@@ -119,6 +119,9 @@ export default function ProjectPage() {
         monthlyData[monthStr] = { month: monthStr, ems: 0, itg: 0, iot: 0, other: 0, emsMaint: 0, itgMaint: 0 };
       }
 
+      // 백엔드 ProductCategory enum → 프론트 필드 매핑
+      // IOT = 수주보고서 aiotionSummary (DATACENTER·RCA·DCA 라이선스 합계)
+      // ETC = itoSummary + otherSummary + dashboardSummary
       data.forEach((categoryData) => {
         const cat = categoryData.productCategory;
         const monthlyRevenue = categoryData.monthlyRevenue ?? {};
@@ -219,12 +222,36 @@ export default function ProjectPage() {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-  const statusLabel = (status: string) => {
-    if (status === "REQUESTED") return "발행 요청";
-    if (status === "APPROVED") return "결재 완료";
-    if (status === "ISSUED") return "발행완료";
-    if (status === "COLLECTED") return "수금완료";
-    return status;
+  const getBillingStatusInfo = (item: BillingListResponse) => {
+    const raw = (item as any).status;
+    let key: string;
+
+    if (typeof raw === "string" && raw) {
+      const u = raw.toUpperCase();
+      if (u === "REQUESTED" || raw === "발행 요청" || raw === "결재 요청 중") key = "REQUESTED";
+      else if (u === "APPROVED" || raw === "결재 완료") key = "APPROVED";
+      else if (u === "ISSUED" || raw === "발행 완료") key = "ISSUED";
+      else if (u === "COLLECTED" || raw === "수금 완료") key = "COLLECTED";
+      else key = u;
+    } else if (typeof raw === "number") {
+      key = (["REQUESTED", "APPROVED", "ISSUED", "COLLECTED"] as const)[raw] ?? "REQUESTED";
+    } else {
+      // status 필드가 없을 경우 날짜 값으로 추론
+      if (item.collectedAt) key = "COLLECTED";
+      else if (item.issuedAt) key = "ISSUED";
+      else key = "REQUESTED";
+    }
+
+    switch (key) {
+      case "COLLECTED":
+        return { label: "수금 완료", className: "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-700" };
+      case "ISSUED":
+        return { label: "발행 완료", className: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700" };
+      case "APPROVED":
+        return { label: "결재 완료", className: "bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-700" };
+      default:
+        return { label: "결재 요청 중", className: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700" };
+    }
   };
 
   return (
@@ -399,9 +426,14 @@ export default function ProjectPage() {
                               <TableCell>{item.salesRepName}</TableCell>
                               <TableCell>{item.requesterName}</TableCell>
                               <TableCell className="text-center">
-                                <Badge variant={item.status === "COLLECTED" ? "default" : item.status === "ISSUED" ? "secondary" : item.status === "APPROVED" ? "secondary" : "outline"}>
-                                  {item.status ? statusLabel(item.status) : "-"}
-                                </Badge>
+                                {(() => {
+                                  const { label, className } = getBillingStatusInfo(item);
+                                  return (
+                                    <Badge variant="outline" className={className}>
+                                      {label}
+                                    </Badge>
+                                  );
+                                })()}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -498,10 +530,10 @@ export default function ProjectPage() {
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-muted/50">
-                            <TableHead className="w-[100px] font-semibold text-center">월</TableHead>
+                            <TableHead className="w-[80px] font-semibold text-center">월</TableHead>
                             <TableHead className="text-right font-semibold">EMS</TableHead>
                             <TableHead className="text-right font-semibold">ITG</TableHead>
-                            <TableHead className="text-right font-semibold">IoT</TableHead>
+                            <TableHead className="text-right font-semibold">AIOTION</TableHead>
                             <TableHead className="text-right font-semibold">기타</TableHead>
                             <TableHead className="text-right font-semibold">EMS 유지보수</TableHead>
                             <TableHead className="text-right font-semibold">ITG 유지보수</TableHead>
@@ -511,29 +543,33 @@ export default function ProjectPage() {
                         <TableBody>
                           {expectedRevenue.map((row) => {
                             const monthTotal = row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
+                            const fmtAmt = (v: number) => (v === 0 ? "-" : `₩${Math.round(v).toLocaleString()}`);
+                            const monthNum = parseInt(row.month.split("-")[1]);
                             return (
                               <TableRow key={row.month} className="hover:bg-muted/30 transition-colors">
-                                <TableCell className="font-medium text-center">{row.month}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.ems).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.itg).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.iot).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.other).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.emsMaint).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.itgMaint).toLocaleString()}</TableCell>
-                                <TableCell className="text-right font-bold text-primary bg-primary/5">₩{Math.round(monthTotal).toLocaleString()}</TableCell>
+                                <TableCell className="font-medium text-center">{monthNum}월</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.ems)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.itg)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.iot)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.other)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.emsMaint)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.itgMaint)}</TableCell>
+                                <TableCell className={`text-right font-bold bg-primary/5 ${monthTotal === 0 ? "text-muted-foreground" : "text-primary"}`}>
+                                  {monthTotal === 0 ? "-" : `₩${Math.round(monthTotal).toLocaleString()}`}
+                                </TableCell>
                               </TableRow>
                             );
                           })}
                         </TableBody>
                         <TableFooter>
                           <TableRow className="bg-muted font-bold hover:bg-muted">
-                            <TableCell className="text-center">연말 합계</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalEms).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalItg).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalIot).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalOther).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalEmsMaint).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalItgMaint).toLocaleString()}</TableCell>
+                            <TableCell className="text-center">연간 합계</TableCell>
+                            <TableCell className="text-right">{totalEms === 0 ? "-" : `₩${Math.round(totalEms).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalItg === 0 ? "-" : `₩${Math.round(totalItg).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalIot === 0 ? "-" : `₩${Math.round(totalIot).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalOther === 0 ? "-" : `₩${Math.round(totalOther).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalEmsMaint === 0 ? "-" : `₩${Math.round(totalEmsMaint).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalItgMaint === 0 ? "-" : `₩${Math.round(totalItgMaint).toLocaleString()}`}</TableCell>
                             <TableCell className="text-right text-primary text-lg">₩{Math.round(totalRevenue).toLocaleString()}</TableCell>
                           </TableRow>
                         </TableFooter>

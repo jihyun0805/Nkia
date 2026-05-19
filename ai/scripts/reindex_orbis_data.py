@@ -131,10 +131,12 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         table="rfp_analyze_result",
         source_type=SourceType.RFP_ANALYSIS,
         id_fields=("rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
-        title_fields=("project_name", "opportunity_name", "rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
+        # S14P31S106-381 (2026-05-19): project_name 컬럼 삭제 → opportunity_name 로 대체.
+        title_fields=("opportunity_name", "rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
         content_fields=(
             # 실제 DB 컬럼 (entity RfpAnalyzeResult.java 검증):
-            "project_name",
+            # S14P31S106-381: project_name 삭제, request_user_name 신규.
+            "request_user_name",
             "project_description",   # TEXT — RFP 분석 본문
             "hardware_provider",
             "budget_amount",
@@ -224,7 +226,8 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
             "bid_outcome", "company_name",
             "key_success_factors", "proposal_strategy", "rfp_issues",
             "technical_score", "price_score", "sum_score",
-            "presentation_date", "bid_announcement_date",
+            # S14P31S106-381 (2026-05-19): presentation_date 컬럼 삭제 — bid_announcement_date 만 유지.
+            "bid_announcement_date",
             "disclosure_status",
             # ElementCollection enrichment (build_current_bid_result_documents):
             "competitor_scores_text",      # 경쟁사 점수 요약
@@ -1128,7 +1131,8 @@ def build_current_rfp_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
         row=row,
         override_source_type=SourceType.RFP,
         override_id_fields=("rfpCode", "rfp_code", "rfpAnalysisCode", "rfp_analysis_code", "id"),
-        override_title_fields=("project_name", "opportunity_name", "rfpCode", "rfp_analysis_code", "id"),
+        # S14P31S106-381 (2026-05-19): project_name 컬럼 삭제 → opportunity_name 우선.
+        override_title_fields=("opportunity_name", "rfpCode", "rfp_analysis_code", "id"),
     )
     analysis_doc = build_document(config=config, row=row)
     return [doc for doc in (rfp_doc, analysis_doc) if doc is not None]
