@@ -30,6 +30,9 @@ _TRIGGER_KEYWORDS: tuple[str, ...] = (
     "top", "상위", "가장 큰", "가장 작은", "가장 많", "가장 적",
     "최근", "최다", "최소", "건수", "합산", "집계", "통계",
     "얼마", "평균값", "총액", "총합",
+    # 도메인 키워드 — "X 사업의 견적/RFP/PRB" 류 cross-domain 패턴 잡기 위해 추가
+    "견적", "rfp", "prb", "입찰", "계약", "유지보수", "수주",
+    "청구", "수금", "미수금", "고객지원", "라이선스", "제안서",
 )
 
 # 단일 엔티티 코드 패턴 (예: AUTO-OPP-2026-119, CNT-2025-008)
@@ -212,6 +215,82 @@ _AGG_KEYWORDS: dict[str, str] = {
 
 _TOPN_RE = re.compile(r"(?:top|상위)\s*(\d{1,2})|(\d{1,2})\s*건", re.IGNORECASE)
 
+# action 의도 키워드 — fast-path lookup 으로 종결되지 않게 우회.
+# edit_intent / draft action 핸들러가 답변 생성하도록 양보.
+_ACTION_KEYWORDS: tuple[str, ...] = (
+    "수정해", "수정 해", "수정하", "수정해줘",
+    "변경해", "변경 해", "변경하", "바꿔", "바꿔줘",
+    "등록해", "등록 해", "등록하", "등록해줘", "추가해",
+    "작성해", "작성 해", "작성하", "작성해줘", "만들어", "생성해", "초안",
+)
+
+
+# 사업제목 substring 추출 시 제거할 stop tokens (조사·도메인키워드·일반동사 등)
+_NAME_STOP_TOKENS: frozenset[str] = frozenset({
+    "사업", "사업기회", "사업명", "프로젝트", "고객사", "발주처", "회사",
+    "견적", "견적서", "유지보수", "수주", "수주보고", "수주보고서",
+    "계약", "청구", "수금", "미수금", "활동", "영업활동", "rfp", "rfp분석",
+    "분석", "결과", "요약", "알려줘", "알려", "보여줘", "보여", "정리",
+    "현황", "상태", "내역", "정보",
+    "prb", "prb결과", "제안서", "입찰", "입찰결과", "라이선스", "고객지원",
+    "은", "는", "이", "가", "을", "를", "에", "의", "와", "과", "로",
+    "그", "이", "저", "그것", "이것",
+})
+
+
+def _lookup_opportunity_codes_by_text(query: str, target_domain: str) -> list[str]:
+    """query 에서 사업기회 제목·고객사명 후보를 뽑아 DB LIKE 로 opportunity_code 매칭.
+
+    - 도메인 키워드/조사/일반 동사를 제거하고 남은 토큰들 중 길이 >= 2 후보 모음
+    - project_opportunity.opportunity_name 또는 company.name 에 대해 ILIKE
+    - 매칭된 사업기회 code list 반환 (상위 5건). 정확도 우선 위해 가장 긴 토큰부터 시도.
+    """
+    import re as _re
+    import psycopg
+    from psycopg.rows import dict_row
+
+    tokens = _re.findall(r"[가-힣A-Za-z0-9·]+", query)
+    candidates: list[str] = []
+    for t in tokens:
+        low = t.lower()
+        if len(t) < 2 or low in _NAME_STOP_TOKENS:
+            continue
+        candidates.append(t)
+    if not candidates:
+        return []
+    # 긴 토큰 우선 (사업명 본체일 가능성)
+    candidates.sort(key=len, reverse=True)
+
+    db_url = (settings.ai_database_url or "").strip()
+    if not db_url:
+        return []
+    try:
+        with psycopg.connect(db_url, row_factory=dict_row) as conn, conn.cursor() as cur:
+            for tok in candidates[:6]:
+                cur.execute(
+                    """
+                    SELECT po.opportunity_code, po.opportunity_name
+                    FROM project_opportunity po
+                    LEFT JOIN company c ON c.id = po.customer_company_id
+                    WHERE po.deleted = false
+                      AND (po.opportunity_name ILIKE %s OR c.name ILIKE %s)
+                    ORDER BY length(po.opportunity_name) DESC
+                    LIMIT 5
+                    """,
+                    (f"%{tok}%", f"%{tok}%"),
+                )
+                rows = cur.fetchall() or []
+                if rows:
+                    return [r["opportunity_code"] for r in rows if r.get("opportunity_code")]
+    except Exception as exc:
+        logger.warning("[fast-path] opp-by-name lookup 실패: %s", exc)
+    return []
+
+
+def _has_action_intent(query: str) -> bool:
+    low = query.lower()
+    return any(kw in low for kw in _ACTION_KEYWORDS)
+
 
 def _detect_domain(query: str) -> str | None:
     low = query.lower()
@@ -331,7 +410,7 @@ def _format_tool_result_as_answer(name: str, args: dict, result: dict) -> str:
             code = next((str(r.get(k)) for k in code_keys if r.get(k) is not None), "-")
             name_keys = ("opportunity_name","customer_name","product_name","title","project_name","name")
             name_v = next((str(r.get(k)) for k in name_keys if r.get(k) is not None), "")
-            metric_keys = ("expected_budget","total_price","total_amount","contract_amount","bill_amount","bid_amount","monthly_supply_price")
+            metric_keys = ("expected_budget","total_price","total_amount","contract_amount","billing_amount","bill_amount","bid_amount","monthly_supply_price")
             metric_v = next((r.get(k) for k in metric_keys if r.get(k) is not None), None)
             metric_str = ""
             if metric_v is not None:
@@ -352,6 +431,11 @@ def _try_fast_path(
     embedder: EmbeddingModel | None,
 ) -> AnswerResponse | None:
     """LLM 거치지 않고 명백한 패턴 → tool 직접 호출."""
+    # action 의도 (수정/변경/등록/작성/초안 등) 가 있으면 fast-path 우회 —
+    # edit_intent / draft 핸들러가 처리하도록 양보.
+    if _has_action_intent(query):
+        return None
+
     # 1) 단일 entity code → lookup_entity
     code_match = _ENTITY_CODE_RE.search(query.upper())
     if code_match:
@@ -368,11 +452,38 @@ def _try_fast_path(
             dom = "maintenance_quotation"
 
         # 다른 도메인 키워드 (RFP/PRB/견적/계약/유지보수/입찰/제안서/청구 등) 가
-        # 함께 있으면 단순 단건 조회로 끝내지 말고 RAG/structured path 에 양보.
-        # 예: "AUTO-OPP-2026-119 RFP 분석해줘" 은 RFP 본문이 필요하지 사업기회
-        # snapshot 만 답하면 안 됨.
+        # 함께 있으면 "그 사업기회의 X 도메인 row" 를 직접 list_entities 로 조회.
+        # 0 건이면 "없습니다" 로 정직하게 답변. 사업기회 snapshot 으로 도배하지 않음.
         cross_domain_hit = _detect_domain(query)
-        if cross_domain_hit and cross_domain_hit != dom:
+        if cross_domain_hit and cross_domain_hit != dom and dom == "project_opportunity":
+            args = {
+                "domain": cross_domain_hit,
+                "sort_by": _default_metric_for(cross_domain_hit) or "id",
+                "sort_dir": "desc",
+                "top_n": 10,
+                "filters": {"opportunity_code": code},
+            }
+            sub_result = execute_tool("list_entities", args, user_context)
+            if sub_result.get("ok"):
+                rows = sub_result.get("rows") or []
+                if rows:
+                    return _build_fast_response(query, "list_entities", args, sub_result, embedder)
+                # 0 건 — 명시적 "없음" 응답
+                empty_summary = (
+                    f"결론: 사업기회 {code} 의 "
+                    f"{_DOMAIN_LABEL.get(cross_domain_hit, cross_domain_hit)}: 0건입니다."
+                )
+                empty_result = {"ok": True, "rows": [], "metric_value": None, "summary": empty_summary, "error": None}
+                return AnswerResponse(
+                    query=query,
+                    answer=empty_summary,
+                    embeddingModel=(embedder.config.model_name if embedder else "fast-path"),
+                    chatModel="tool-fast-path",
+                    route="tool_use",
+                    evidences=_tool_results_to_evidences([{"name": "list_entities", "result": empty_result}]),
+                    excludedSourceTypes=[],
+                )
+            # ok=False (예: 컬럼 미지원) → fall-through 해서 RAG 처리
             return None
 
         result = execute_tool("lookup_entity", {"domain": dom, "code": code}, user_context)
@@ -382,6 +493,39 @@ def _try_fast_path(
     dom = _detect_domain(query)
     op = _detect_agg_op(query)
     topn_match = _TOPN_RE.search(query)
+
+    # 1.5) 사업기회 제목 + cross-domain (예: "KB국민은행 ... RFP 분석 결과 알려줘",
+    # "롯데카드 ... 청구 현황", "키움증권 ... 계약 알려줘") — code 없이도
+    # 사업제목 substring 으로 opportunity_code 찾고 target 도메인 list 답변.
+    if dom and dom != "project_opportunity" and not topn_match and not op:
+        opp_codes = _lookup_opportunity_codes_by_text(query, dom)
+        if opp_codes:
+            args = {
+                "domain": dom,
+                "sort_by": _default_metric_for(dom) or "id",
+                "sort_dir": "desc",
+                "top_n": 10,
+                "filters": {"opportunity_code": opp_codes[0]},
+            }
+            sub_result = execute_tool("list_entities", args, user_context)
+            if sub_result.get("ok"):
+                rows = sub_result.get("rows") or []
+                if rows:
+                    return _build_fast_response(query, "list_entities", args, sub_result, embedder)
+                empty_summary = (
+                    f"결론: 사업기회 {opp_codes[0]} 의 "
+                    f"{_DOMAIN_LABEL.get(dom, dom)}: 0건입니다."
+                )
+                empty_result = {"ok": True, "rows": [], "metric_value": None, "summary": empty_summary, "error": None}
+                return AnswerResponse(
+                    query=query,
+                    answer=empty_summary,
+                    embeddingModel=(embedder.config.model_name if embedder else "fast-path"),
+                    chatModel="tool-fast-path",
+                    route="tool_use",
+                    evidences=_tool_results_to_evidences([{"name": "list_entities", "result": empty_result}]),
+                    excludedSourceTypes=[],
+                )
 
     # 2) TOP N 우선 (TOPN 키워드가 있으면 list. "가장 큰 TOP3" 같이 agg op 와 충돌 시 list 가 자연스러움)
     if topn_match and dom:
@@ -454,6 +598,11 @@ def run_tool_loop(
        - max_iterations=2 (불필요한 추가 step 차단)
     조건 안 맞으면 None 반환 (caller 가 fallback).
     """
+    # action 의도 (수정/변경/등록/작성/초안 등) 가 있으면 tool_loop 전체 우회 —
+    # answer_service 의 graph extension 이 edit_field / draft action 을 attach.
+    if _has_action_intent(query):
+        return None
+
     # === Fast-path (rule-based dispatch) ===
     fast_response = _try_fast_path(query=query, user_context=user_context, embedder=embedder)
     if fast_response is not None:

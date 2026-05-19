@@ -364,9 +364,10 @@ def _search_documents(
     """기존 search_knowledge 서비스 위임."""
     try:
         from app.services.search_service import search_knowledge
-        from app.embeddings.model import EmbeddingModel
+        from app.embeddings.model import EmbeddingModel, EmbeddingConfig
 
-        embedder = EmbeddingModel()
+        # EmbeddingModel 은 EmbeddingConfig 필수. settings 에서 모델 이름 가져옴.
+        embedder = EmbeddingModel(EmbeddingConfig.from_settings(_settings))
         result = search_knowledge(
             query=query,
             limit=10,
@@ -430,11 +431,40 @@ def _apply_filters(
         where_clauses.append("customer_name ILIKE %s")
         params.append(f"%{customer_name}%")
 
-    # opportunity_code: 직접 컬럼이 있으면 exact match
+    # opportunity_code: 도메인별 FK 경로 매핑 — 직접 / order_report / project / maintenance / prb 경유
     opp_code = filters.get("opportunity_code")
     if opp_code is not None:
-        where_clauses.append("opportunity_code = %s")
-        params.append(opp_code)
+        opp_subquery = "(SELECT id FROM project_opportunity WHERE opportunity_code = %s)"
+        # 직접 project_opportunity_id 보유
+        _DIRECT = {"quotation", "sales_activity", "rfp_analyze_result", "prb",
+                   "bid_result", "proposal", "order_report"}
+        # order_report_id 보유 → 1-hop
+        _VIA_ORDER_REPORT = {"billing", "contract", "license"}
+        # project_id 보유 → 2-hop
+        _VIA_PROJECT = {"maintenance", "maintenance_quotation"}
+        clause: str | None = None
+        if spec.name == "project_opportunity":
+            clause = "opportunity_code = %s"
+        elif spec.name in _DIRECT:
+            clause = f"project_opportunity_id IN {opp_subquery}"
+        elif spec.name in _VIA_ORDER_REPORT:
+            clause = f"order_report_id IN (SELECT id FROM order_report WHERE project_opportunity_id IN {opp_subquery})"
+        elif spec.name in _VIA_PROJECT:
+            clause = (
+                "project_id IN (SELECT id FROM project WHERE order_report_id IN "
+                f"(SELECT id FROM order_report WHERE project_opportunity_id IN {opp_subquery}))"
+            )
+        elif spec.name == "customer_support":
+            clause = (
+                "maintenance_id IN (SELECT id FROM maintenance WHERE project_id IN "
+                "(SELECT id FROM project WHERE order_report_id IN "
+                f"(SELECT id FROM order_report WHERE project_opportunity_id IN {opp_subquery})))"
+            )
+        elif spec.name == "prb_result":
+            clause = f"prb_id IN (SELECT id FROM prb WHERE project_opportunity_id IN {opp_subquery})"
+        if clause:
+            where_clauses.append(clause)
+            params.append(opp_code)
 
     # 기타 임의 필터 (허용된 identifier 컬럼명에 한해)
     _KNOWN_FILTER_KEYS = {"status", "time_from", "time_to", "customer_name", "opportunity_code"}
