@@ -11,11 +11,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { Loader2, AlertCircle, ArrowLeft, Edit, Trash2 } from "lucide-react";
 import {
   getCustomerSupportRequestDetail,
   type CustomerSupportRequestDetailResponse,
+  deleteCustomerSupportRequest,
 } from "@/lib/api/maintenance";
+import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
+import { toast } from "sonner";
 
 function statusLabel(status?: string) {
   switch (status) {
@@ -45,6 +48,32 @@ export default function CustomerSupportRequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 수정 및 삭제 상태 추가
+  const [isEditing, setIsEditing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+
+  const handleDelete = async () => {
+    if (!window.confirm("정말로 이 고객지원 요청을 삭제하시겠습니까?")) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const res = await deleteCustomerSupportRequest(parseInt(id));
+      if (res.success || (res as any).result === "SUCCESS") {
+        toast.success("고객지원 요청이 삭제되었습니다.");
+        router.push("/maintenance");
+      } else {
+        toast.error(res.message || "삭제에 실패했습니다.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("삭제하는 도중 에러가 발생했습니다.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -70,7 +99,7 @@ export default function CustomerSupportRequestDetailPage() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, reloadTrigger]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,8 +132,18 @@ export default function CustomerSupportRequestDetailPage() {
           )}
 
           {!loading && !error && item && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
+            isEditing ? (
+              <SupportRequestForm
+                initialData={item}
+                onSuccess={() => {
+                  setIsEditing(false);
+                  setReloadTrigger(prev => prev + 1);
+                }}
+                onCancel={() => setIsEditing(false)}
+              />
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">고객지원 요청 #{item.id}</h1>
                 <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
               </div>
@@ -157,14 +196,29 @@ export default function CustomerSupportRequestDetailPage() {
                 </Card>
               )}
 
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => router.push("/maintenance")}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  목록으로
+              <div className="flex justify-between items-center mt-6">
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  삭제
                 </Button>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => router.push("/maintenance")}>
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    목록으로
+                  </Button>
+                  <Button onClick={() => setIsEditing(true)}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    수정
+                  </Button>
+                </div>
               </div>
             </div>
-          )}
+          )
+        )}
           </div>
         </main>
       </div>

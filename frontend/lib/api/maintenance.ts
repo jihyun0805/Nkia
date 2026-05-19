@@ -364,3 +364,24 @@ export const getCustomerSupportActivityHistories = async (id: number): Promise<A
 export const getCustomerSupportActivityHistoryDetail = async (historyId: number): Promise<ApiResponse<CustomerSupportHistoryDetailResponse>> => {
   return await customInstance({ url: `/maintenances/customer-supports/activities/histories/${historyId}`, method: "get" });
 };
+
+// Update Customer Support Request
+export const updateCustomerSupportRequest = async (id: number, data: any): Promise<ApiResponse<CustomerSupportRequestDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/requests/${id}`, method: "put", data });
+};
+
+// Delete Customer Support Request
+export const deleteCustomerSupportRequest = async (id: number): Promise<ApiResponse<void>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/requests/${id}`, method: "delete" });
+};
+
+// Update Customer Support Activity
+export const updateCustomerSupportActivity = async (id: number, data: any): Promise<ApiResponse<CustomerSupportActivityDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/activities/${id}`, method: "put", data });
+};
+
+// Delete Customer Support Activity
+export const deleteCustomerSupportActivity = async (id: number): Promise<ApiResponse<void>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/activities/${id}`, method: "delete" });
+};
+
