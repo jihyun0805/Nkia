@@ -115,7 +115,8 @@ export function formatUserSubtitle(user?: UserLike | null) {
   if (!user) return ""
 
   const position = user.position ? POSITION_LABELS[user.position] ?? user.position : ""
-  return [position, user.departmentName, user.employeeNumber, user.email]
+  const userId = user.id?.trim() ?? ""
+  return [position, user.departmentName, userId]
     .filter((value): value is string => Boolean(value && value.trim()))
     .join(" · ")
 }

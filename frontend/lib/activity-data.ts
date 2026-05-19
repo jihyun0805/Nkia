@@ -32,6 +32,7 @@ export type ActivityRecord = {
 
 export type QuotationRecord = {
   id: string
+  backendId?: number
   workflowId?: number
   requestId?: string
   refNumber?: string
@@ -113,6 +114,7 @@ export type QuotationRecord = {
     steps: {
       label: string
       assignee: string
+      assigneeId?: string
       status: "pending" | "approved" | "rejected"
       actedAt?: string
       actedBy?: string

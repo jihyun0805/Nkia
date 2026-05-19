@@ -44,9 +44,9 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
-import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
+import { type CustomerRecord, type OpportunityRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
-import { getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
+import { getQuotations, subscribeQuotationUpdates } from "@/lib/quotation-workflow"
 import { loadBackendActivityRecord, loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import {
@@ -336,7 +336,6 @@ export default function ActivityEditPage() {
       const entryCode = (entry as OpportunityRecord & { opportunityCode?: string }).opportunityCode ?? String(entry.id)
       const entryName = (entry as OpportunityRecord & { opportunityName?: string }).opportunityName ?? entry.name
       return [entryCode, String(entry.id), entryName]
-        .filter((candidate): candidate is string | number => candidate != null)
         .some((candidate) => String(candidate).trim().toLowerCase() === normalizedValue)
     })
     setActivityOpportunity(value)
@@ -387,18 +386,13 @@ export default function ActivityEditPage() {
           title: "견적 수정 완료",
           description: `${updatedQuotation.customer} 견적서가 수정되었습니다.`,
         })
-        router.push(`/activity/${category}/${id}`)
+        router.push(`/activity/${category}/${id}?historyRefresh=${Date.now()}`)
         return
       } catch {
-        const updatedQuotation: QuotationRecord | null = updateQuotation(id, normalized)
-        if (!updatedQuotation) return
-
-        scrollToTop()
         toast({
-          title: "견적 수정 완료",
-          description: `${normalized.customer} 견적서가 수정되었습니다.`,
+          title: "견적 수정 실패",
+          description: "백엔드에서 견적서를 수정하지 못했습니다.",
         })
-        router.push(`/activity/${category}/${id}`)
       }
       return
     }
@@ -424,7 +418,7 @@ export default function ActivityEditPage() {
       const opportunityName = activityOpportunity === "미확인" ? "" : selectedActivityOpportunity?.name ?? activityOpportunity
       try {
         const updatedActivity = await updateBackendActivityRecord(id, {
-          projectOpportunityId: selectedActivityOpportunity?.id ?? (item as ActivityRecord).projectOpportunityId,
+          projectOpportunityId: selectedActivityOpportunity?.backendId ?? (item as ActivityRecord).projectOpportunityId,
           customerName: activityCustomer,
           opportunityName,
           opportunityCode:
