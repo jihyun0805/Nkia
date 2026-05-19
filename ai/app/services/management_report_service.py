@@ -115,7 +115,7 @@ def create_management_report(
             title=effective_title,
             reportType=report_type,
             reportStatus="insufficient_evidence",
-            report="경영 리포트를 생성할 근거가 부족하다. 기간, 고객 구분, 사업 유형, 진행단계 조건 조정이 필요하다.",
+            report="경영 리포트를 생성할 근거가 부족합니다. 기간, 고객 구분, 사업 유형, 진행단계 조건을 조정해 주세요.",
             embeddingModel=search_response.embeddingModel,
             chatModel="evidence-guard",
             retrievalConfidence=search_response.retrievalConfidence,
@@ -631,7 +631,7 @@ def build_extractive_report(*, title: str, evidences: list[AnswerEvidence]) -> s
         f"# {title}",
         "",
         "## 요약",
-        "LLM 리포트 생성이 불가하여 검색된 근거를 요약한 대체 리포트다.",
+        "LLM 리포트 생성이 불가하여 검색된 근거를 요약한 대체 리포트입니다.",
         "",
         "## 검색된 근거 요약",
     ]
