@@ -225,6 +225,10 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
+        if (billing.getStatus() != BillingStatus.REQUESTED) {
+            throw new ApiException(ProjectErrorCode.BILLING_CANNOT_DELETE_APPROVED);
+        }
+
         if (billing.getInvoiceImageId() != null) {
             uploadFileService.getUploadFile(billing.getInvoiceImageId()).delete();
         }
