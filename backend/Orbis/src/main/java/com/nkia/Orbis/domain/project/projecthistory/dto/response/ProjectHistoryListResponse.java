@@ -1,6 +1,6 @@
-package com.nkia.Orbis.domain.project.project.dto.response;
+package com.nkia.Orbis.domain.project.projecthistory.dto.response;
 
-import com.nkia.Orbis.domain.project.project.entity.ProjectHistory;
+import com.nkia.Orbis.domain.project.projecthistory.entity.ProjectHistory;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
