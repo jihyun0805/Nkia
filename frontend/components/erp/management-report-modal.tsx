@@ -15,7 +15,6 @@ import {
 } from "recharts"
 import { BarChart3, Download, FileText, Loader2, PieChartIcon, Sparkles, Table2 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -131,53 +130,6 @@ const TABLE_COLUMNS: Record<string, string> = {
   "Expected Bid Date": "예상 입찰일",
   "Expected Budget": "예상 사업비",
 }
-
-const SOURCE_TYPE_LABELS: Record<string, string> = {
-  PROJECT_OPPORTUNITY: "사업기회",
-  SALES_ACTIVITY: "영업활동",
-  QUOTATION: "견적",
-  RFP: "RFP",
-  RFP_ANALYSIS: "RFP 분석",
-  PRB: "PRB",
-  PRB_RESULT: "PRB 결과",
-  BID_RESULT: "입찰 결과",
-  WON: "수주",
-  LOST: "실주",
-  ORDER_REPORT: "수주 보고",
-  CONTRACT: "계약",
-  PROJECT: "프로젝트",
-  PROJECT_RESULT_REPORT: "사업 결과",
-  MAINTENANCE: "유지보수",
-  MAINTENANCE_QUOTE: "유지보수 견적",
-  CUSTOMER_SUPPORT: "고객지원",
-  LICENSE: "라이선스",
-  BILLING: "청구",
-}
-
-const EVIDENCE_FIELD_LABELS: Record<string, string> = {
-  recent_activity_summary: "최근 활동",
-  comprehensive_opinion: "종합 의견",
-  customer_interest: "고객 관심사",
-  issue: "이슈",
-  next_activity: "다음 활동",
-  meeting_date_time: "회의 일시",
-  meeting_location: "회의 장소",
-  opportunity_name: "사업기회",
-  customer_name: "고객",
-  business_type: "사업유형",
-  project_type: "사업유형",
-}
-
-const EVIDENCE_SYSTEM_FIELDS = new Set([
-  "created_at",
-  "created_by",
-  "deleted",
-  "deleted_at",
-  "deleted_by",
-  "id",
-  "updated_at",
-  "updated_by",
-])
 
 const VALUE_LABELS: Record<string, string> = {
   ALL: "전체",
@@ -493,30 +445,6 @@ export function ManagementReportModal() {
                     </Card>
                   ))}
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">검색된 근거 문서</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {report.evidences.length > 0 ? (
-                        report.evidences.slice(0, 8).map((evidence, index) => (
-                          <div key={`${evidence.sourceType}-${evidence.sourceId}-${index}`} className="rounded-md border p-3">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">{SOURCE_TYPE_LABELS[evidence.sourceType] ?? evidence.sourceType}</Badge>
-                              <span className="text-sm font-medium">{evidenceTitle(evidence)}</span>
-                            </div>
-                            {evidence.content && (
-                              <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                                {evidenceSummary(evidence)}
-                              </p>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">표시할 근거 문서가 없습니다.</p>
-                      )}
-                    </CardContent>
-                  </Card>
                 </>
               )}
             </div>
@@ -888,92 +816,6 @@ function renderMarkdownHtml(content: string) {
   return parts.join("\n")
 }
 
-function evidenceTitle(evidence: { sourceType: string; sourceId: string; title?: string | null; metadata?: Record<string, unknown> | null }) {
-  const metadataTitle = firstMetadataText(evidence.metadata, [
-    "rootOpportunityName",
-    "opportunityName",
-    "projectName",
-    "maintenanceName",
-    "customerName",
-  ])
-  const title = cleanEvidenceText(metadataTitle || evidence.title || "")
-  if (title && title !== evidence.sourceId && !/^\d+$/.test(title)) return title
-
-  const label = SOURCE_TYPE_LABELS[evidence.sourceType] ?? evidence.sourceType
-  return `${label} #${evidence.sourceId}`
-}
-
-function evidenceSummary(evidence: { content?: string | null }) {
-  const content = cleanEvidenceText(evidence.content ?? "")
-  if (!content) return ""
-
-  const entries = extractEvidenceFields(content)
-    .filter((entry) => !EVIDENCE_SYSTEM_FIELDS.has(entry.key))
-    .filter((entry) => entry.value.length > 0)
-    .slice(0, 4)
-
-  if (entries.length > 0) {
-    return entries
-      .map((entry) => `${EVIDENCE_FIELD_LABELS[entry.key] ?? toReadableFieldLabel(entry.key)}: ${entry.value}`)
-      .join(" / ")
-  }
-
-  return stripRawEvidenceFields(content)
-}
-
-function extractEvidenceFields(content: string) {
-  const fieldPattern = /(?:^|\s)([A-Za-z][A-Za-z0-9_]{1,40}):\s*/g
-  const matches = Array.from(content.matchAll(fieldPattern))
-  return matches.map((match, index) => {
-    const key = match[1]
-    const valueStart = (match.index ?? 0) + match[0].length
-    const valueEnd = index + 1 < matches.length ? matches[index + 1].index ?? content.length : content.length
-    return {
-      key,
-      value: cleanEvidenceText(content.slice(valueStart, valueEnd)),
-    }
-  })
-}
-
-function stripRawEvidenceFields(content: string) {
-  return cleanEvidenceText(
-    content
-      .replace(/^제목:\s*/u, "")
-      .replace(/\s+[A-Za-z][A-Za-z0-9_]{1,40}:\s*/g, " / ")
-      .split(" / ")
-      .filter((part) => {
-        const key = part.split(":")[0]?.trim()
-        return key && !EVIDENCE_SYSTEM_FIELDS.has(key)
-      })
-      .join(" / "),
-  )
-}
-
-function cleanEvidenceText(value: string) {
-  return value
-    .replace(/^제목:\s*/u, "")
-    .replace(/\s+/g, " ")
-    .replace(/\s*\/\s*/g, " / ")
-    .trim()
-}
-
-function toReadableFieldLabel(key: string) {
-  return key
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
-}
-
-function firstMetadataText(metadata: Record<string, unknown> | null | undefined, keys: string[]) {
-  if (!metadata) return null
-  for (const key of keys) {
-    const value = metadata[key]
-    if (typeof value === "string" && value.trim()) return value.trim()
-  }
-  return null
-}
-
 function displayReportText(report: ManagementReportResponse) {
   if (report.reportStatus === "insufficient_evidence") {
     return "선택한 조건에 해당하는 근거 데이터가 부족해 리포트를 생성할 수 없습니다. 기간, 고객 구분, 사업 유형, 진행 단계 조건을 조정한 뒤 다시 생성해 주세요."
@@ -1065,19 +907,6 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
     })
     .join("")
 
-  const evidences = (report.evidences ?? [])
-    .slice(0, 8)
-    .map(
-      (evidence) => `
-        <li>
-          <strong>${escapeHtml(evidenceTitle(evidence))}</strong>
-          <span>${escapeHtml(SOURCE_TYPE_LABELS[evidence.sourceType] ?? evidence.sourceType)}</span>
-          ${evidence.content ? `<p>${escapeHtml(evidenceSummary(evidence))}</p>` : ""}
-        </li>
-      `,
-    )
-    .join("")
-
   return `
     <!doctype html>
     <html lang="ko">
@@ -1127,10 +956,6 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
         </section>
         ${charts}
         ${tables}
-        <section>
-          <h2>검색된 근거 문서</h2>
-          <ul>${evidences || "<li>표시할 근거 문서가 없습니다.</li>"}</ul>
-        </section>
       </body>
     </html>
   `
