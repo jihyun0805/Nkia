@@ -30,11 +30,18 @@ public class PrbResponseDto {
 
     // 1. PRB 메타 정보
     private Long prbId;
-    private String prbCode;
+    // 작성일자
     private LocalDateTime createdAt;
+    // PRB 일자
     private LocalDate prbDate;
+    // 관리번호
+    private String prbCode;
+    // 유지보수
     private String maintenanceDescription;
+    // 영업 대표 의견
     private String salesRepresentativeOpinion;
+
+    // 결재 관련
     private Long workflowId;
     private ApprovalStatus status;
 
@@ -46,10 +53,16 @@ public class PrbResponseDto {
     private String salesRepresentativeName;
     private String salesRepresentativeDepartmentName;
 
+    private UUID reviewerId;
+    private String reviewerName;
+
     // 3. ProjectOpportunity (사업 기회) 정보 - Flattening
     private Long projectOpportunityId;
+    // 사업 기회명
     private String opportunityName;
+    // 사업 구분
     private ProductClass projectType;
+    // 사업 개요
     private String projectDescription;
 
     // 4. Company (고객사) 정보 - Flattening
@@ -75,6 +88,7 @@ public class PrbResponseDto {
 
         mapBaseInfo(builder, entity, workflowId);
         mapSalesRepresentativeInfo(builder, entity.getSalesRepresentative());
+        mapReviewerInfo(builder, entity.getReviewer());
         mapProjectOpportunityInfo(builder, entity.getProjectOpportunity());
         mapValueObjects(builder, entity);
 
@@ -103,6 +117,14 @@ public class PrbResponseDto {
                 .salesRepresentativeName(salesRep.getName())
                 .salesRepresentativeDepartmentName(
                         salesRep.getDepartment() != null ? salesRep.getDepartment().getTeam() : null);
+    }
+
+    private static void mapReviewerInfo(PrbResponseDtoBuilder builder, User reviewer) {
+        if (reviewer == null) {
+            return;
+        }
+        builder.reviewerId(reviewer.getId())
+                .reviewerName(reviewer.getName());
     }
 
     private static void mapProjectOpportunityInfo(PrbResponseDtoBuilder builder,
