@@ -847,7 +847,7 @@ export async function updateBackendQuotationRecord(id: string, input: QuotationC
     remarks: input.remarks,
     amount: input.amount,
     validity: input.validity,
-    status: "검토중",
+    status: input.status,
   }
   const mergedLocalIndex = new Map(localIndex)
   mergedLocalIndex.set(String(saved.id ?? id), localFallback)
@@ -887,4 +887,24 @@ export async function deleteBackendQuotationRecord(id: string) {
   const remaining = Array.from(localIndex.values()).filter((item) => item.id !== id)
   saveMergedQuotations(remaining)
   return true
+}
+
+
+export async function submitBackendQuotationRecord(
+  quotationId: number,
+  request: { firstApproverId: string },
+): Promise<string> {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/activity/quotations/quotations/submit/${quotationId}`,
+    {
+      method: "POST",
+      headers: buildAuthHeaders(),
+      body: JSON.stringify(request),
+    },
+  )
+
+  return parseApiResponse<string>(
+    response,
+    "견적서 결재 상신에 실패했습니다.",
+  )
 }
