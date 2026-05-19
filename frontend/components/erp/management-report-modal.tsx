@@ -976,7 +976,7 @@ function firstMetadataText(metadata: Record<string, unknown> | null | undefined,
 
 function displayReportText(report: ManagementReportResponse) {
   if (report.reportStatus === "insufficient_evidence") {
-    return "선택한 조건에 해당하는 근거 데이터가 부족해 리포트를 생성할 수 없다. 기간, 고객 구분, 사업 유형, 진행 단계 조건 조정이 필요하다."
+    return "선택한 조건에 해당하는 근거 데이터가 부족해 리포트를 생성할 수 없습니다. 기간, 고객 구분, 사업 유형, 진행 단계 조건을 조정한 뒤 다시 생성해 주세요."
   }
   return report.report
 }
