@@ -122,6 +122,7 @@ export interface BillingCreateRequest {
   billingAmount: number;
   requestedIssueDate: string;
   remarks?: string;
+  invoiceManager: string;
 }
 
 /** 청구 발행 확인 요청 */
