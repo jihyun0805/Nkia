@@ -206,10 +206,6 @@ public class QuotationService {
                         quotation.getQuotationCode()
                 );
 
-        if (histories.isEmpty()) {
-            throw new ApiException(ActivityErrorCode.QUOTATION_HISTORY_NOT_FOUND);
-        }
-
         return histories.stream()
                 .map(QuotationHistoryListResponse::from)
                 .toList();

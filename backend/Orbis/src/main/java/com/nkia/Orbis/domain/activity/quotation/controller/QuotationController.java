@@ -89,7 +89,7 @@ public class QuotationController {
     }
 
     @Operation(summary = "견적서 변경 이력 목록 조회")
-    @GetMapping("/{quotationId}/histories/")
+    @GetMapping({"/{quotationId}/histories", "/{quotationId}/histories/"})
     @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'READ')")
     public ResponseEntity<ApiResponse<List<QuotationHistoryListResponse>>> getQuotationHistories(
             @PathVariable("quotationId") Long quotationId
