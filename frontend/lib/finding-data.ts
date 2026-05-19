@@ -1,180 +1,181 @@
-import type { StoredFileAttachment } from "@/lib/attachments"
-import { fuzzyMatch } from "@/lib/fuzzy-match"
+import type { StoredFileAttachment } from "@/lib/attachments";
+import { fuzzyMatch } from "@/lib/fuzzy-match";
 
-export type FindingCategory = "opportunities" | "customers" | "partners"
-export type CustomerAttachment = StoredFileAttachment
+export type FindingCategory = "opportunities" | "customers" | "partners";
+export type CustomerAttachment = StoredFileAttachment;
 export type CustomerRecord = {
-  id: string
-  backendId?: number
-  name: string
-  category: string
-  opportunities: number
-  contracts: number
-  contact: string
-  phone: string
-  contacts?: CustomerContact[]
-  contactName?: string
-  position?: string
-  department?: string
-  email?: string
-  mobilePhone?: string
-  landlinePhone?: string
-  fax?: string
-  duty?: string
-  address?: string
-  memo?: string
-  aliases?: string[]
-  attachments?: CustomerAttachment[]
-}
+  id: string;
+  backendId?: number;
+  name: string;
+  category: string;
+  opportunities: number;
+  contracts: number;
+  contact: string;
+  phone: string;
+  contacts?: CustomerContact[];
+  contactName?: string;
+  position?: string;
+  department?: string;
+  email?: string;
+  mobilePhone?: string;
+  landlinePhone?: string;
+  fax?: string;
+  duty?: string;
+  address?: string;
+  memo?: string;
+  aliases?: string[];
+  attachments?: CustomerAttachment[];
+};
 export type CustomerContact = {
-  name: string
-  position?: string
-  department?: string
-  email?: string
-  mobilePhone?: string
-  landlinePhone?: string
-  fax?: string
-  duty?: string
-  memo?: string
-  businessCardImage?: string
-}
+  name: string;
+  position?: string;
+  department?: string;
+  email?: string;
+  mobilePhone?: string;
+  landlinePhone?: string;
+  fax?: string;
+  duty?: string;
+  memo?: string;
+  businessCardImage?: string;
+};
 export type PartnerRecord = {
-  id: string
-  backendId?: number
-  name: string
-  type: string
-  opportunities: number
-  projects: number
-  contact: string
-  phone: string
-  contacts?: CustomerContact[]
-  contactName?: string
-  position?: string
-  department?: string
-  email?: string
-  mobilePhone?: string
-  landlinePhone?: string
-  fax?: string
-  duty?: string
-  address?: string
-  memo?: string
-  attachments?: CustomerAttachment[]
-}
+  id: string;
+  backendId?: number;
+  name: string;
+  type: string;
+  opportunities: number;
+  projects: number;
+  contact: string;
+  phone: string;
+  contacts?: CustomerContact[];
+  contactName?: string;
+  position?: string;
+  department?: string;
+  email?: string;
+  mobilePhone?: string;
+  landlinePhone?: string;
+  fax?: string;
+  duty?: string;
+  address?: string;
+  memo?: string;
+  attachments?: CustomerAttachment[];
+};
 export type OpportunityRecord = {
-  id: string
-  backendId?: number
-  createdAt: string
-  createUserName?: string
-  customerCode: string
-  partnerCode: string
-  partnerCodes?: string[]
-  name: string
-  registrant: string
-  customer: string
-  partner: string
-  partners?: string[]
-  category: string
-  product: string
-  module: string
-  expectedAmount: string
-  expectedDate: string
-  issue: string
-  competition: string
-  decisionInfo: string
-  partnerType: string
-  partnerContact: string
-  partnerPhone: string
-  status: string
-  salesRepresentativeId?: string
-  salesRep: string
-  partnerCompanyIds?: number[]
-  partnerCompanyNames?: string[]
-  productModuleIds?: number[]
-  productModuleNames?: string[]
-  rfpFileIds?: number[]
-  rfpFileNames?: string[]
-  rfpFileSizes?: number[]
-  rfpAttachments?: OpportunityAttachment[]
-}
+  id: string;
+  backendId?: number;
+  customerCompanyId?: number;
+  createdAt: string;
+  createUserName?: string;
+  customerCode: string;
+  partnerCode: string;
+  partnerCodes?: string[];
+  name: string;
+  registrant: string;
+  customer: string;
+  partner: string;
+  partners?: string[];
+  category: string;
+  product: string;
+  module: string;
+  expectedAmount: string;
+  expectedDate: string;
+  issue: string;
+  competition: string;
+  decisionInfo: string;
+  partnerType: string;
+  partnerContact: string;
+  partnerPhone: string;
+  status: string;
+  salesRepresentativeId?: string;
+  salesRep: string;
+  partnerCompanyIds?: number[];
+  partnerCompanyNames?: string[];
+  productModuleIds?: number[];
+  productModuleNames?: string[];
+  rfpFileIds?: number[];
+  rfpFileNames?: string[];
+  rfpFileSizes?: number[];
+  rfpAttachments?: OpportunityAttachment[];
+};
 export type OpportunityAttachment = {
-  id: string
-  name: string
-  size: number
-  contentType: string
-  dataUrl: string
-  summary: string
-  createdAt: string
-}
+  id: string;
+  name: string;
+  size: number;
+  contentType: string;
+  dataUrl: string;
+  summary: string;
+  createdAt: string;
+};
 export type FindingFormField = {
-  label: string
-  required?: boolean
-  type?: "text" | "textarea" | "select" | "file"
-  options?: string[]
-}
+  label: string;
+  required?: boolean;
+  type?: "text" | "textarea" | "select" | "file";
+  options?: string[];
+};
 
 export type FindingFormSection = {
-  title: string
-  fields: FindingFormField[]
-}
+  title: string;
+  fields: FindingFormField[];
+};
 
 type CustomerRegistrationInput = {
-  name: string
-  category: string
-  contacts: CustomerContact[]
-  address?: string
-  memo?: string
-  aliases?: string[]
-  attachments?: CustomerAttachment[]
-}
+  name: string;
+  category: string;
+  contacts: CustomerContact[];
+  address?: string;
+  memo?: string;
+  aliases?: string[];
+  attachments?: CustomerAttachment[];
+};
 
 type CustomerUpdateInput = {
-  name: string
-  category: string
-  contacts: CustomerContact[]
-  address?: string
-  memo?: string
-  aliases?: string[]
-  attachments?: CustomerAttachment[]
-}
+  name: string;
+  category: string;
+  contacts: CustomerContact[];
+  address?: string;
+  memo?: string;
+  aliases?: string[];
+  attachments?: CustomerAttachment[];
+};
 
 type OpportunityRegistrationInput = {
-  customerCode: string
-  category: string
-  name: string
-  registrant: string
-  partner?: string
-  partners?: string[]
-  expectedDate?: string
-  expectedAmount?: string
-  product: string
-  module?: string
-  issue?: string
-  competition?: string
-  decisionInfo?: string
-  status?: string
-  salesRep?: string
-  rfpAttachments?: OpportunityAttachment[]
-}
+  customerCode: string;
+  category: string;
+  name: string;
+  registrant: string;
+  partner?: string;
+  partners?: string[];
+  expectedDate?: string;
+  expectedAmount?: string;
+  product: string;
+  module?: string;
+  issue?: string;
+  competition?: string;
+  decisionInfo?: string;
+  status?: string;
+  salesRep?: string;
+  rfpAttachments?: OpportunityAttachment[];
+};
 
-type OpportunityUpdateInput = OpportunityRegistrationInput
+type OpportunityUpdateInput = OpportunityRegistrationInput;
 type PartnerRegistrationInput = {
-  name: string
-  type: string
-  contacts: CustomerContact[]
-  address?: string
-  memo?: string
-  attachments?: CustomerAttachment[]
-}
-type PartnerUpdateInput = PartnerRegistrationInput
+  name: string;
+  type: string;
+  contacts: CustomerContact[];
+  address?: string;
+  memo?: string;
+  attachments?: CustomerAttachment[];
+};
+type PartnerUpdateInput = PartnerRegistrationInput;
 
-const customerStorageKey = "orbis.customers"
-const deletedCustomerIdsStorageKey = "orbis.deleted-customer-ids"
-const opportunityStorageKey = "orbis.opportunities"
-const deletedOpportunityIdsStorageKey = "orbis.deleted-opportunity-ids"
-const partnerStorageKey = "orbis.partners"
-const deletedPartnerIdsStorageKey = "orbis.deleted-partner-ids"
-const customerGroupOptions = ["공공", "민간", "해외"]
-const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"]
+const customerStorageKey = "orbis.customers";
+const deletedCustomerIdsStorageKey = "orbis.deleted-customer-ids";
+const opportunityStorageKey = "orbis.opportunities";
+const deletedOpportunityIdsStorageKey = "orbis.deleted-opportunity-ids";
+const partnerStorageKey = "orbis.partners";
+const deletedPartnerIdsStorageKey = "orbis.deleted-partner-ids";
+const customerGroupOptions = ["공공", "민간", "해외"];
+const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"];
 
 export const findingFormSections: FindingFormSection[] = [
   {
@@ -196,60 +197,39 @@ export const findingFormSections: FindingFormSection[] = [
     title: "첨부파일",
     fields: [{ label: "첨부파일", type: "file" }],
   },
-]
+];
 
-export const opportunities: OpportunityRecord[] = []
+export const opportunities: OpportunityRecord[] = [];
 
-export const customers: CustomerRecord[] = []
+export const customers: CustomerRecord[] = [];
 
-export const partners: PartnerRecord[] = []
+export const partners: PartnerRecord[] = [];
 
-export const findingStatuses: string[] = ["진행중", "발굴", "유망"]
+export const findingStatuses: string[] = ["진행중", "발굴", "유망"];
 
 function normalizePartnerNames(partners: string[] = []) {
-  return Array.from(
-    new Set(
-      partners
-        .map((partner) => partner.trim())
-        .filter(Boolean),
-    ),
-  )
+  return Array.from(new Set(partners.map((partner) => partner.trim()).filter(Boolean)));
 }
 
 function buildOpportunityPartnerData(partners: string[]) {
-  const normalizedPartners = normalizePartnerNames(partners)
-  const matchedPartners = normalizedPartners
-    .map((partnerName) => getPartnerByName(partnerName))
-    .filter((partner): partner is PartnerRecord => Boolean(partner))
+  const normalizedPartners = normalizePartnerNames(partners);
+  const matchedPartners = normalizedPartners.map((partnerName) => getPartnerByName(partnerName)).filter((partner): partner is PartnerRecord => Boolean(partner));
 
   return {
     partner: normalizedPartners.length > 0 ? normalizedPartners.join(", ") : "-",
     partners: normalizedPartners,
     partnerCode: matchedPartners.length > 0 ? matchedPartners.map((partner) => partner.id).join(", ") : "-",
     partnerCodes: matchedPartners.map((partner) => partner.id),
-    partnerType:
-      matchedPartners.length > 1
-        ? "복수"
-        : matchedPartners[0]?.type ?? (normalizedPartners.length > 0 ? "기타" : "-"),
-    partnerContact:
-      matchedPartners.length > 0
-        ? matchedPartners
-            .map((partner) => partner.contactName ?? partner.contact ?? "-")
-            .join(", ")
-        : "-",
-    partnerPhone:
-      matchedPartners.length > 0
-        ? matchedPartners
-            .map((partner) => partner.mobilePhone ?? partner.phone ?? "-")
-            .join(", ")
-        : "-",
-  }
+    partnerType: matchedPartners.length > 1 ? "복수" : (matchedPartners[0]?.type ?? (normalizedPartners.length > 0 ? "기타" : "-")),
+    partnerContact: matchedPartners.length > 0 ? matchedPartners.map((partner) => partner.contactName ?? partner.contact ?? "-").join(", ") : "-",
+    partnerPhone: matchedPartners.length > 0 ? matchedPartners.map((partner) => partner.mobilePhone ?? partner.phone ?? "-").join(", ") : "-",
+  };
 }
 
 export function getFindingItem(category: FindingCategory, id: string) {
-  if (category === "opportunities") return getOpportunities().find((item) => item.id === id) ?? null
-  if (category === "customers") return getCustomers().find((item) => item.id === id) ?? null
-  return getPartners().find((item) => item.id === id) ?? null
+  if (category === "opportunities") return getOpportunities().find((item) => item.id === id) ?? null;
+  if (category === "customers") return getCustomers().find((item) => item.id === id) ?? null;
+  return getPartners().find((item) => item.id === id) ?? null;
 }
 
 export function getFindingFields(category: FindingCategory, item: any) {
@@ -273,20 +253,25 @@ export function getFindingFields(category: FindingCategory, item: any) {
       { label: "경쟁 상황", value: item.competition },
       { label: "고객사 의사결정구조 및 담당자 정보", value: item.decisionInfo },
       { label: "상태", value: item.status },
-    ]
+    ];
   }
   if (category === "customers") {
-    const contacts = Array.isArray(item.contacts) && item.contacts.length > 0 ? item.contacts : [{
-      name: item.contactName ?? item.contact ?? "-",
-      position: item.position ?? "",
-      department: item.department ?? "",
-      email: item.email ?? "",
-      mobilePhone: item.mobilePhone ?? item.phone ?? "",
-      landlinePhone: item.landlinePhone ?? "",
-      fax: item.fax ?? "",
-      duty: item.duty ?? "",
-      memo: item.memo ?? "",
-    }]
+    const contacts =
+      Array.isArray(item.contacts) && item.contacts.length > 0
+        ? item.contacts
+        : [
+            {
+              name: item.contactName ?? item.contact ?? "-",
+              position: item.position ?? "",
+              department: item.department ?? "",
+              email: item.email ?? "",
+              mobilePhone: item.mobilePhone ?? item.phone ?? "",
+              landlinePhone: item.landlinePhone ?? "",
+              fax: item.fax ?? "",
+              duty: item.duty ?? "",
+              memo: item.memo ?? "",
+            },
+          ];
     return [
       { label: "고객사코드", value: item.id },
       { label: "고객사명", value: item.name },
@@ -295,7 +280,7 @@ export function getFindingFields(category: FindingCategory, item: any) {
       { label: "담당자 요약", value: contacts.map((contact: CustomerContact, index: number) => `${index + 1}. ${contact.name}${contact.position ? ` / ${contact.position}` : ""}`).join(" | ") },
       { label: "주소", value: item.address ?? "-" },
       { label: "메모", value: item.memo ?? `진행중 사업기회 ${item.opportunities}건 / 계약 ${item.contracts}건` },
-    ]
+    ];
   }
   return [
     { label: "협력사코드", value: item.id },
@@ -304,15 +289,15 @@ export function getFindingFields(category: FindingCategory, item: any) {
     { label: "담당자", value: item.contact },
     { label: "연락처", value: item.phone },
     { label: "주요 협업 분야", value: `진행중 사업기회 ${item.opportunities}건 / 진행중 프로젝트 ${item.projects}건` },
-  ]
+  ];
 }
 
 export function getFindingFormFieldValue(category: FindingCategory, item: any, label: string) {
   if (category === "opportunities") {
     const values: Record<string, string> = {
-      "사업명": item.name,
-      "고객군": item.category,
-      "협력사명": item.partner,
+      사업명: item.name,
+      고객군: item.category,
+      협력사명: item.partner,
       "예상 입찰 또는 계약 시점": item.expectedDate,
       "예상 예산 또는 매출": item.expectedAmount,
       "사업 구분": item.product,
@@ -320,145 +305,126 @@ export function getFindingFormFieldValue(category: FindingCategory, item: any, l
       "주요 사업 내용 및 주요 이슈 내용": item.issue,
       "경쟁 상황": item.competition,
       "고객사 의사결정구조 및 담당자 정보": item.decisionInfo,
-    }
-    return values[label] ?? ""
+    };
+    return values[label] ?? "";
   }
 
   if (category === "customers") {
     const values: Record<string, string> = {
-      "사업명": item.name,
-      "고객군": item.category,
+      사업명: item.name,
+      고객군: item.category,
       "고객사 의사결정구조 및 담당자 정보": `${item.contactName ?? item.contact} / ${item.mobilePhone ?? item.phone}`,
-      "주소": item.address ?? "",
-      "메모": item.memo ?? "",
-    }
-    return values[label] ?? ""
+      주소: item.address ?? "",
+      메모: item.memo ?? "",
+    };
+    return values[label] ?? "";
   }
 
   const values: Record<string, string> = {
-    "협력사명": item.name,
-  }
-  return values[label] ?? ""
+    협력사명: item.name,
+  };
+  return values[label] ?? "";
 }
 
 export function getFindingCategoryLabel(category: FindingCategory) {
-  if (category === "opportunities") return "사업기회"
-  if (category === "customers") return "고객사"
-  return "협력사"
+  if (category === "opportunities") return "사업기회";
+  if (category === "customers") return "고객사";
+  return "협력사";
 }
 
 export function hasRegisteredCustomer(customerName: string) {
-  const normalized = customerName.trim().toLowerCase()
-  if (!normalized) return false
+  const normalized = customerName.trim().toLowerCase();
+  if (!normalized) return false;
 
-  return getCustomers().some((item) => item.name.trim().toLowerCase() === normalized)
+  return getCustomers().some((item) => item.name.trim().toLowerCase() === normalized);
 }
 
 export function getCustomerByName(customerName: string) {
-  const normalized = normalizeCustomerKeyword(customerName)
-  if (!normalized) return null
+  const normalized = normalizeCustomerKeyword(customerName);
+  if (!normalized) return null;
 
   return (
     getCustomers().find((item) => {
-      if (normalizeCustomerKeyword(item.name) === normalized) return true
-      return item.aliases?.some((alias) => normalizeCustomerKeyword(alias) === normalized)
+      if (normalizeCustomerKeyword(item.name) === normalized) return true;
+      return item.aliases?.some((alias) => normalizeCustomerKeyword(alias) === normalized);
     }) ?? null
-  )
+  );
 }
 
 export function getCustomerByCode(customerCode: string) {
-  const normalized = customerCode.trim().toLowerCase()
-  if (!normalized) return null
+  const normalized = customerCode.trim().toLowerCase();
+  if (!normalized) return null;
 
-  return getCustomers().find((item) => item.id.trim().toLowerCase() === normalized) ?? null
+  return getCustomers().find((item) => item.id.trim().toLowerCase() === normalized) ?? null;
 }
 
 export function getOpportunitiesByCustomerName(customerName: string) {
-  const customer = getCustomerByName(customerName)
-  if (!customer) return []
+  const customer = getCustomerByName(customerName);
+  if (!customer) return [];
 
-  return getOpportunities().filter((item) => item.customerCode === customer.id)
+  return getOpportunities().filter((item) => item.customerCode === customer.id);
 }
 
 export function normalizeCustomerKeyword(value: string) {
-  return value.trim().toLowerCase().replace(/[\s\-_.()/]/g, "")
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\-_.()/]/g, "");
 }
 
 export function searchCustomers(query: string) {
-  if (!query || !query.trim()) return getCustomers()
-  const hits = fuzzyMatch(
-    query,
-    getCustomers(),
-    (c) => [c.name, c.id, ...(c.aliases ?? [])],
-    20,
-  )
-  return hits.map((h) => h.item)
+  if (!query || !query.trim()) return getCustomers();
+  const hits = fuzzyMatch(query, getCustomers(), (c) => [c.name, c.id, ...(c.aliases ?? [])], 20);
+  return hits.map((h) => h.item);
 }
 
 export function searchPartners(query: string) {
-  if (!query || !query.trim()) return getPartners()
-  const hits = fuzzyMatch(
-    query,
-    getPartners(),
-    (p) => [p.name, p.id, p.contactName ?? "", p.email ?? ""],
-    20,
-  )
-  return hits.map((h) => h.item)
+  if (!query || !query.trim()) return getPartners();
+  const hits = fuzzyMatch(query, getPartners(), (p) => [p.name, p.id, p.contactName ?? "", p.email ?? ""], 20);
+  return hits.map((h) => h.item);
 }
 
 export function searchOpportunities(query: string) {
-  if (!query || !query.trim()) return getOpportunities()
-  const hits = fuzzyMatch(
-    query,
-    getOpportunities(),
-    (o) => [o.name, o.id, o.customer, o.customerCode, o.product],
-    20,
-  )
-  return hits.map((h) => h.item)
+  if (!query || !query.trim()) return getOpportunities();
+  const hits = fuzzyMatch(query, getOpportunities(), (o) => [o.name, o.id, o.customer, o.customerCode, o.product], 20);
+  return hits.map((h) => h.item);
 }
 
 function getStoredCustomers(): CustomerRecord[] {
-  if (typeof window === "undefined") return []
+  if (typeof window === "undefined") return [];
 
-  const stored = window.localStorage.getItem(customerStorageKey)
-  if (!stored) return []
+  const stored = window.localStorage.getItem(customerStorageKey);
+  if (!stored) return [];
 
   try {
-    const parsed = JSON.parse(stored) as CustomerRecord[]
+    const parsed = JSON.parse(stored) as CustomerRecord[];
     return Array.isArray(parsed)
       ? parsed
           .filter((item) => item && typeof item.id === "string" && typeof item.name === "string")
           .map((item) => ({
             ...item,
             aliases: Array.isArray(item.aliases) ? item.aliases.filter((alias) => typeof alias === "string") : [],
-            attachments: Array.isArray(item.attachments)
-              ? item.attachments.filter((attachment) => attachment && typeof attachment.id === "string" && typeof attachment.name === "string")
-              : [],
+            attachments: Array.isArray(item.attachments) ? item.attachments.filter((attachment) => attachment && typeof attachment.id === "string" && typeof attachment.name === "string") : [],
           }))
-      : []
+      : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 function getStoredOpportunities(): OpportunityRecord[] {
-  if (typeof window === "undefined") return []
+  if (typeof window === "undefined") return [];
 
-  const stored = window.localStorage.getItem(opportunityStorageKey)
-  if (!stored) return []
+  const stored = window.localStorage.getItem(opportunityStorageKey);
+  if (!stored) return [];
 
   try {
-    const parsed = JSON.parse(stored) as OpportunityRecord[]
+    const parsed = JSON.parse(stored) as OpportunityRecord[];
     return Array.isArray(parsed)
       ? parsed
           .filter(
             (item) =>
-            item &&
-            typeof item.id === "string" &&
-            typeof item.createdAt === "string" &&
-            typeof item.customerCode === "string" &&
-            typeof item.name === "string" &&
-            typeof item.customer === "string",
+              item && typeof item.id === "string" && typeof item.createdAt === "string" && typeof item.customerCode === "string" && typeof item.name === "string" && typeof item.customer === "string",
           )
           .map((item) => ({
             ...item,
@@ -473,171 +439,172 @@ function getStoredOpportunities(): OpportunityRecord[] {
             partnerCodes: Array.isArray(item.partnerCodes)
               ? item.partnerCodes.filter((partnerCode) => typeof partnerCode === "string")
               : typeof item.partnerCode === "string" && item.partnerCode !== "-"
-                ? item.partnerCode.split(",").map((partnerCode) => partnerCode.trim()).filter(Boolean)
+                ? item.partnerCode
+                    .split(",")
+                    .map((partnerCode) => partnerCode.trim())
+                    .filter(Boolean)
                 : [],
           }))
-      : []
+      : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 function getStoredPartners(): PartnerRecord[] {
-  if (typeof window === "undefined") return []
+  if (typeof window === "undefined") return [];
 
-  const stored = window.localStorage.getItem(partnerStorageKey)
-  if (!stored) return []
+  const stored = window.localStorage.getItem(partnerStorageKey);
+  if (!stored) return [];
 
   try {
-    const parsed = JSON.parse(stored) as PartnerRecord[]
+    const parsed = JSON.parse(stored) as PartnerRecord[];
     return Array.isArray(parsed)
       ? parsed
           .filter((item) => item && typeof item.id === "string" && typeof item.name === "string")
           .map((item) => ({
             ...item,
-            attachments: Array.isArray(item.attachments)
-              ? item.attachments.filter((attachment) => attachment && typeof attachment.id === "string" && typeof attachment.name === "string")
-              : [],
+            attachments: Array.isArray(item.attachments) ? item.attachments.filter((attachment) => attachment && typeof attachment.id === "string" && typeof attachment.name === "string") : [],
           }))
-      : []
+      : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 function getDeletedCustomerIds(): string[] {
-  if (typeof window === "undefined") return []
+  if (typeof window === "undefined") return [];
 
-  const stored = window.localStorage.getItem(deletedCustomerIdsStorageKey)
-  if (!stored) return []
+  const stored = window.localStorage.getItem(deletedCustomerIdsStorageKey);
+  if (!stored) return [];
 
   try {
-    const parsed = JSON.parse(stored) as string[]
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+    const parsed = JSON.parse(stored) as string[];
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 function getDeletedPartnerIds(): string[] {
-  if (typeof window === "undefined") return []
+  if (typeof window === "undefined") return [];
 
-  const stored = window.localStorage.getItem(deletedPartnerIdsStorageKey)
-  if (!stored) return []
+  const stored = window.localStorage.getItem(deletedPartnerIdsStorageKey);
+  if (!stored) return [];
 
   try {
-    const parsed = JSON.parse(stored) as string[]
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+    const parsed = JSON.parse(stored) as string[];
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 function getDeletedOpportunityIds(): string[] {
-  if (typeof window === "undefined") return []
+  if (typeof window === "undefined") return [];
 
-  const stored = window.localStorage.getItem(deletedOpportunityIdsStorageKey)
-  if (!stored) return []
+  const stored = window.localStorage.getItem(deletedOpportunityIdsStorageKey);
+  if (!stored) return [];
 
   try {
-    const parsed = JSON.parse(stored) as string[]
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : []
+    const parsed = JSON.parse(stored) as string[];
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 function setStoredCustomers(value: CustomerRecord[]) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(customerStorageKey, JSON.stringify(value))
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(customerStorageKey, JSON.stringify(value));
 }
 
 function setDeletedCustomerIds(value: string[]) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(deletedCustomerIdsStorageKey, JSON.stringify(value))
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(deletedCustomerIdsStorageKey, JSON.stringify(value));
 }
 
 function setStoredOpportunities(value: OpportunityRecord[]) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(opportunityStorageKey, JSON.stringify(value))
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(opportunityStorageKey, JSON.stringify(value));
 }
 
 function setStoredPartners(value: PartnerRecord[]) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(partnerStorageKey, JSON.stringify(value))
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(partnerStorageKey, JSON.stringify(value));
 }
 
 function setDeletedPartnerIds(value: string[]) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(deletedPartnerIdsStorageKey, JSON.stringify(value))
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(deletedPartnerIdsStorageKey, JSON.stringify(value));
 }
 
 function setDeletedOpportunityIds(value: string[]) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(deletedOpportunityIdsStorageKey, JSON.stringify(value))
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(deletedOpportunityIdsStorageKey, JSON.stringify(value));
 }
 
 function parseCustomerCode(customerId: string) {
-  const match = customerId.match(/^CUS-(\d+)$/i)
-  return match ? Number.parseInt(match[1], 10) : 0
+  const match = customerId.match(/^CUS-(\d+)$/i);
+  return match ? Number.parseInt(match[1], 10) : 0;
 }
 
 function parseOpportunityCode(opportunityId: string) {
-  const match = opportunityId.match(/^OPP-(\d{4})-(\d+)$/i)
-  return match ? Number.parseInt(match[2], 10) : 0
+  const match = opportunityId.match(/^OPP-(\d{4})-(\d+)$/i);
+  return match ? Number.parseInt(match[2], 10) : 0;
 }
 
 function parsePartnerCode(partnerId: string) {
-  const match = partnerId.match(/^PTN-(\d+)$/i)
-  return match ? Number.parseInt(match[1], 10) : 0
+  const match = partnerId.match(/^PTN-(\d+)$/i);
+  return match ? Number.parseInt(match[1], 10) : 0;
 }
 
 function formatDateKey(date: Date) {
-  return date.toISOString().slice(0, 10)
+  return date.toISOString().slice(0, 10);
 }
 
 export function getCustomers(): CustomerRecord[] {
-  const deletedIds = new Set(getDeletedCustomerIds())
-  return getStoredCustomers().filter((customer) => !deletedIds.has(customer.id))
+  const deletedIds = new Set(getDeletedCustomerIds());
+  return getStoredCustomers().filter((customer) => !deletedIds.has(customer.id));
 }
 
 export function getNextCustomerCode() {
-  const nextNumber = getCustomers().reduce((max, customer) => Math.max(max, parseCustomerCode(customer.id)), 0) + 1
-  return `CUS-${String(nextNumber).padStart(3, "0")}`
+  const nextNumber = getCustomers().reduce((max, customer) => Math.max(max, parseCustomerCode(customer.id)), 0) + 1;
+  return `CUS-${String(nextNumber).padStart(3, "0")}`;
 }
 
 export function getOpportunities() {
-  const deletedIds = new Set(getDeletedOpportunityIds())
-  return getStoredOpportunities().filter((opportunity) => !deletedIds.has(opportunity.id))
+  const deletedIds = new Set(getDeletedOpportunityIds());
+  return getStoredOpportunities().filter((opportunity) => !deletedIds.has(opportunity.id));
 }
 
 export function getPartners() {
-  const deletedIds = new Set(getDeletedPartnerIds())
-  return getStoredPartners().filter((partner) => !deletedIds.has(partner.id))
+  const deletedIds = new Set(getDeletedPartnerIds());
+  return getStoredPartners().filter((partner) => !deletedIds.has(partner.id));
 }
 
 export function getNextPartnerCode() {
-  const nextNumber = getPartners().reduce((max, partner) => Math.max(max, parsePartnerCode(partner.id)), 0) + 1
-  return `PTN-${String(nextNumber).padStart(3, "0")}`
+  const nextNumber = getPartners().reduce((max, partner) => Math.max(max, parsePartnerCode(partner.id)), 0) + 1;
+  return `PTN-${String(nextNumber).padStart(3, "0")}`;
 }
 
 export function getNextOpportunityCode() {
-  const nextNumber = getOpportunities().reduce((max, opportunity) => Math.max(max, parseOpportunityCode(opportunity.id)), 0) + 1
-  return `OPP-2026-${String(nextNumber).padStart(3, "0")}`
+  const nextNumber = getOpportunities().reduce((max, opportunity) => Math.max(max, parseOpportunityCode(opportunity.id)), 0) + 1;
+  return `OPP-2026-${String(nextNumber).padStart(3, "0")}`;
 }
 
 export function getPartnerByName(partnerName: string) {
-  const normalized = partnerName.trim().toLowerCase()
-  if (!normalized) return null
+  const normalized = partnerName.trim().toLowerCase();
+  if (!normalized) return null;
 
-  return getPartners().find((item) => item.name.trim().toLowerCase() === normalized) ?? null
+  return getPartners().find((item) => item.name.trim().toLowerCase() === normalized) ?? null;
 }
 
 export function registerCustomer(input: CustomerRegistrationInput) {
-  const name = input.name.trim()
-  const existing = getCustomerByName(name)
+  const name = input.name.trim();
+  const existing = getCustomerByName(name);
   if (existing) {
-    return { status: "duplicate" as const, customer: existing }
+    return { status: "duplicate" as const, customer: existing };
   }
 
   const created: CustomerRecord = {
@@ -666,19 +633,19 @@ export function registerCustomer(input: CustomerRegistrationInput) {
     memo: input.memo?.trim() ?? "",
     aliases: input.aliases?.filter(Boolean) ?? [],
     attachments: input.attachments ?? [],
-  }
+  };
 
-  const storedCustomers = getStoredCustomers()
-  setStoredCustomers([...storedCustomers, created])
-  setDeletedCustomerIds(getDeletedCustomerIds().filter((item) => item !== created.id))
+  const storedCustomers = getStoredCustomers();
+  setStoredCustomers([...storedCustomers, created]);
+  setDeletedCustomerIds(getDeletedCustomerIds().filter((item) => item !== created.id));
 
-  return { status: "created" as const, customer: created }
+  return { status: "created" as const, customer: created };
 }
 
 export function registerOpportunity(input: OpportunityRegistrationInput) {
-  const customer = getCustomerByCode(input.customerCode)
-  if (!customer) return { status: "customer_not_found" as const }
-  const partnerData = buildOpportunityPartnerData(input.partners ?? (input.partner ? [input.partner] : []))
+  const customer = getCustomerByCode(input.customerCode);
+  if (!customer) return { status: "customer_not_found" as const };
+  const partnerData = buildOpportunityPartnerData(input.partners ?? (input.partner ? [input.partner] : []));
 
   const created: OpportunityRecord = {
     id: getNextOpportunityCode(),
@@ -705,18 +672,18 @@ export function registerOpportunity(input: OpportunityRegistrationInput) {
     status: input.status?.trim() || "발굴",
     salesRep: input.salesRep?.trim() || "미지정",
     rfpAttachments: input.rfpAttachments ?? [],
-  }
+  };
 
-  setStoredOpportunities([...getStoredOpportunities(), created])
-  setDeletedOpportunityIds(getDeletedOpportunityIds().filter((item) => item !== created.id))
-  return { status: "created" as const, opportunity: created }
+  setStoredOpportunities([...getStoredOpportunities(), created]);
+  setDeletedOpportunityIds(getDeletedOpportunityIds().filter((item) => item !== created.id));
+  return { status: "created" as const, opportunity: created };
 }
 
 export function registerPartner(input: PartnerRegistrationInput) {
-  const name = input.name.trim()
-  const existing = getPartnerByName(name)
+  const name = input.name.trim();
+  const existing = getPartnerByName(name);
   if (existing) {
-    return { status: "duplicate" as const, partner: existing }
+    return { status: "duplicate" as const, partner: existing };
   }
 
   const contacts = input.contacts
@@ -732,7 +699,7 @@ export function registerPartner(input: PartnerRegistrationInput) {
       memo: contact.memo?.trim() ?? "",
       businessCardImage: "",
     }))
-    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
+    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo);
 
   const created: PartnerRecord = {
     id: getNextPartnerCode(),
@@ -754,20 +721,20 @@ export function registerPartner(input: PartnerRegistrationInput) {
     address: input.address?.trim() ?? "",
     memo: input.memo?.trim() ?? "",
     attachments: input.attachments ?? [],
-  }
+  };
 
-  setStoredPartners([...getStoredPartners(), created])
-  setDeletedPartnerIds(getDeletedPartnerIds().filter((item) => item !== created.id))
+  setStoredPartners([...getStoredPartners(), created]);
+  setDeletedPartnerIds(getDeletedPartnerIds().filter((item) => item !== created.id));
 
-  return { status: "created" as const, partner: created }
+  return { status: "created" as const, partner: created };
 }
 
 export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
-  const normalizedId = customerId.trim()
-  const existing = getCustomers().find((item) => item.id === normalizedId)
-  if (!existing) return { status: "not_found" as const }
+  const normalizedId = customerId.trim();
+  const existing = getCustomers().find((item) => item.id === normalizedId);
+  if (!existing) return { status: "not_found" as const };
 
-  const storedCustomers = getStoredCustomers().filter((item) => item.id !== normalizedId)
+  const storedCustomers = getStoredCustomers().filter((item) => item.id !== normalizedId);
   const contacts = input.contacts
     .map((contact) => ({
       name: contact.name.trim(),
@@ -781,7 +748,7 @@ export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
       memo: contact.memo?.trim() ?? "",
       businessCardImage: "",
     }))
-    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
+    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo);
 
   const nextRecord: CustomerRecord = {
     ...existing,
@@ -802,21 +769,21 @@ export function updateCustomer(customerId: string, input: CustomerUpdateInput) {
     duty: contacts[0]?.duty ?? existing.duty,
     aliases: input.aliases?.filter(Boolean) ?? existing.aliases ?? [],
     attachments: input.attachments ?? existing.attachments ?? [],
-  }
+  };
 
-  setStoredCustomers([...storedCustomers, nextRecord])
-  setDeletedCustomerIds(getDeletedCustomerIds().filter((item) => item !== normalizedId))
-  return { status: "updated" as const, customer: nextRecord }
+  setStoredCustomers([...storedCustomers, nextRecord]);
+  setDeletedCustomerIds(getDeletedCustomerIds().filter((item) => item !== normalizedId));
+  return { status: "updated" as const, customer: nextRecord };
 }
 
 export function updateOpportunity(opportunityId: string, input: OpportunityUpdateInput) {
-  const normalizedId = opportunityId.trim()
-  const existing = getOpportunities().find((item) => item.id === normalizedId)
-  if (!existing) return { status: "not_found" as const }
+  const normalizedId = opportunityId.trim();
+  const existing = getOpportunities().find((item) => item.id === normalizedId);
+  if (!existing) return { status: "not_found" as const };
 
-  const customer = getCustomerByCode(input.customerCode)
-  if (!customer) return { status: "customer_not_found" as const }
-  const partnerData = buildOpportunityPartnerData(input.partners ?? (input.partner ? [input.partner] : []))
+  const customer = getCustomerByCode(input.customerCode);
+  if (!customer) return { status: "customer_not_found" as const };
+  const partnerData = buildOpportunityPartnerData(input.partners ?? (input.partner ? [input.partner] : []));
 
   const nextRecord: OpportunityRecord = {
     ...existing,
@@ -842,18 +809,18 @@ export function updateOpportunity(opportunityId: string, input: OpportunityUpdat
     partnerContact: partnerData.partnerContact,
     partnerPhone: partnerData.partnerPhone,
     rfpAttachments: input.rfpAttachments ?? existing.rfpAttachments ?? [],
-  }
+  };
 
-  const storedOpportunities = getStoredOpportunities().filter((item) => item.id !== normalizedId)
-  setStoredOpportunities([...storedOpportunities, nextRecord])
-  setDeletedOpportunityIds(getDeletedOpportunityIds().filter((item) => item !== normalizedId))
-  return { status: "updated" as const, opportunity: nextRecord }
+  const storedOpportunities = getStoredOpportunities().filter((item) => item.id !== normalizedId);
+  setStoredOpportunities([...storedOpportunities, nextRecord]);
+  setDeletedOpportunityIds(getDeletedOpportunityIds().filter((item) => item !== normalizedId));
+  return { status: "updated" as const, opportunity: nextRecord };
 }
 
 export function updatePartner(partnerId: string, input: PartnerUpdateInput) {
-  const normalizedId = partnerId.trim()
-  const existing = getPartners().find((item) => item.id === normalizedId)
-  if (!existing) return { status: "not_found" as const }
+  const normalizedId = partnerId.trim();
+  const existing = getPartners().find((item) => item.id === normalizedId);
+  if (!existing) return { status: "not_found" as const };
 
   const contacts = input.contacts
     .map((contact) => ({
@@ -868,7 +835,7 @@ export function updatePartner(partnerId: string, input: PartnerUpdateInput) {
       memo: contact.memo?.trim() ?? "",
       businessCardImage: "",
     }))
-    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo)
+    .filter((contact) => contact.name || contact.position || contact.department || contact.email || contact.mobilePhone || contact.landlinePhone || contact.fax || contact.duty || contact.memo);
 
   const nextRecord: PartnerRecord = {
     ...existing,
@@ -888,56 +855,56 @@ export function updatePartner(partnerId: string, input: PartnerUpdateInput) {
     fax: contacts[0]?.fax ?? existing.fax,
     duty: contacts[0]?.duty ?? existing.duty,
     attachments: input.attachments ?? existing.attachments ?? [],
-  }
+  };
 
-  const storedPartners = getStoredPartners().filter((item) => item.id !== normalizedId)
-  setStoredPartners([...storedPartners, nextRecord])
-  setDeletedPartnerIds(getDeletedPartnerIds().filter((item) => item !== normalizedId))
+  const storedPartners = getStoredPartners().filter((item) => item.id !== normalizedId);
+  setStoredPartners([...storedPartners, nextRecord]);
+  setDeletedPartnerIds(getDeletedPartnerIds().filter((item) => item !== normalizedId));
 
-  return { status: "updated" as const, partner: nextRecord }
+  return { status: "updated" as const, partner: nextRecord };
 }
 
 export function deleteOpportunity(opportunityId: string) {
-  const normalizedId = opportunityId.trim()
-  const existing = getOpportunities().find((item) => item.id === normalizedId)
-  if (!existing) return { status: "not_found" as const }
+  const normalizedId = opportunityId.trim();
+  const existing = getOpportunities().find((item) => item.id === normalizedId);
+  if (!existing) return { status: "not_found" as const };
 
-  const filteredStoredOpportunities = getStoredOpportunities().filter((item) => item.id !== normalizedId)
-  const deletedIds = new Set(getDeletedOpportunityIds())
-  deletedIds.add(normalizedId)
+  const filteredStoredOpportunities = getStoredOpportunities().filter((item) => item.id !== normalizedId);
+  const deletedIds = new Set(getDeletedOpportunityIds());
+  deletedIds.add(normalizedId);
 
-  setStoredOpportunities(filteredStoredOpportunities)
-  setDeletedOpportunityIds([...deletedIds])
+  setStoredOpportunities(filteredStoredOpportunities);
+  setDeletedOpportunityIds([...deletedIds]);
 
-  return { status: "deleted" as const, opportunity: existing }
+  return { status: "deleted" as const, opportunity: existing };
 }
 
 export function deleteCustomer(customerId: string) {
-  const normalizedId = customerId.trim()
-  const existing = getCustomers().find((item) => item.id === normalizedId)
-  if (!existing) return { status: "not_found" as const }
+  const normalizedId = customerId.trim();
+  const existing = getCustomers().find((item) => item.id === normalizedId);
+  if (!existing) return { status: "not_found" as const };
 
-  const filteredStoredCustomers = getStoredCustomers().filter((item) => item.id !== normalizedId)
-  const deletedIds = new Set(getDeletedCustomerIds())
-  deletedIds.add(normalizedId)
+  const filteredStoredCustomers = getStoredCustomers().filter((item) => item.id !== normalizedId);
+  const deletedIds = new Set(getDeletedCustomerIds());
+  deletedIds.add(normalizedId);
 
-  setStoredCustomers(filteredStoredCustomers)
-  setDeletedCustomerIds([...deletedIds])
+  setStoredCustomers(filteredStoredCustomers);
+  setDeletedCustomerIds([...deletedIds]);
 
-  return { status: "deleted" as const, customer: existing }
+  return { status: "deleted" as const, customer: existing };
 }
 
 export function deletePartner(partnerId: string) {
-  const normalizedId = partnerId.trim()
-  const existing = getPartners().find((item) => item.id === normalizedId)
-  if (!existing) return { status: "not_found" as const }
+  const normalizedId = partnerId.trim();
+  const existing = getPartners().find((item) => item.id === normalizedId);
+  if (!existing) return { status: "not_found" as const };
 
-  const filteredStoredPartners = getStoredPartners().filter((item) => item.id !== normalizedId)
-  const deletedIds = new Set(getDeletedPartnerIds())
-  deletedIds.add(normalizedId)
+  const filteredStoredPartners = getStoredPartners().filter((item) => item.id !== normalizedId);
+  const deletedIds = new Set(getDeletedPartnerIds());
+  deletedIds.add(normalizedId);
 
-  setStoredPartners(filteredStoredPartners)
-  setDeletedPartnerIds([...deletedIds])
+  setStoredPartners(filteredStoredPartners);
+  setDeletedPartnerIds([...deletedIds]);
 
-  return { status: "deleted" as const, partner: existing }
+  return { status: "deleted" as const, partner: existing };
 }

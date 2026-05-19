@@ -54,6 +54,24 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
   const purchaseDetails = r.purchases || [];
   const maintenanceOnlyItems = r.maintenanceOnlyItems || [];
   const router = useRouter();
+
+  const computedEmsMaintenanceSummary = maintenanceDetails.reduce((sum, m) => {
+    const content = (m.content || "").toUpperCase();
+    return content.includes("ITG") || content.includes("ITSM") ? sum : sum + (m.totalPrice || 0);
+  }, 0);
+  const computedItgMaintenanceSummary = maintenanceDetails.reduce((sum, m) => {
+    const content = (m.content || "").toUpperCase();
+    return content.includes("ITG") || content.includes("ITSM") ? sum + (m.totalPrice || 0) : sum;
+  }, 0);
+
+  const knownClasses = new Set(["EMS", "ITSM", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITAM"]);
+  const computedOtherSummary =
+    licenseDetails.reduce((sum, l) => {
+      const cat = (l.productClass || "").toUpperCase();
+      return cat && !knownClasses.has(cat) ? sum + (l.totalPrice || 0) : sum;
+    }, 0) +
+    (r.serviceTotal || 0) +
+    (r.otherTotal || 0);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -174,13 +192,13 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
                 EMS유지보수
               </th>
               <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
-                {fmt(r.emsMaintenanceSummary)}
+                {fmt(computedEmsMaintenanceSummary)}
               </td>
               <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
                 ITG유지보수
               </th>
               <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
-                {fmt(r.itgMaintenanceSummary)}
+                {fmt(computedItgMaintenanceSummary)}
               </td>
               <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
                 ITO
@@ -192,10 +210,13 @@ export function OrderReportDetail({ report: r }: OrderReportDetailProps) {
                 기타
               </th>
               <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
-                {fmt(r.otherSummary)}
+                {fmt(computedOtherSummary)}
               </td>
               <td className="bg-red-50 text-center text-red-600 font-bold px-2 py-1.5 text-sm border-l border-black" colSpan={1}>
-                {fmt(r.totalAmount - (r.emsSummary + r.itgSummary + r.dashboardSummary + r.aiotionSummary + r.emsMaintenanceSummary + r.itgMaintenanceSummary + r.itoSummary + r.otherSummary))}
+                {fmt(
+                  r.totalAmount -
+                    (r.emsSummary + r.itgSummary + r.dashboardSummary + r.aiotionSummary + computedEmsMaintenanceSummary + computedItgMaintenanceSummary + r.itoSummary + computedOtherSummary),
+                )}
               </td>
             </tr>
           </tbody>
