@@ -9,8 +9,8 @@ export interface ApiResponse<T> {
 }
 
 // 수주보고서 (Order Report) 타입
-export type OrderReportType = "NEW" | "RENEWAL" | "MAINTENANCE_ONLY";
-export type CodeType = "DIRECT" | "INDIRECT";
+export type OrderReportType = "SOLUTION" | "MAINTENANCE" | "SERVICE";
+export type CodeType = "GN" | "GA" | "JN" | "JA" | "MN" | "MA" | "GNMA" | "GEMA" | "GLMA" | "MNMA" | "MEMA" | "MLMA";
 export type ApprovalStatus = "PENDING" | "IN_PROGRESS" | "APPROVED" | "REJECTED";
 export type VisitCycle = "MONTHLY" | "QUARTERLY" | "SEMI_ANNUAL" | "ANNUAL" | "AS_NEEDED";
 export type ProductClass = "EMS" | "ITSM" | "DASHBOARD" | "DATACENTER" | "RCA" | "DCA" | "ITAM" | "ETC";
