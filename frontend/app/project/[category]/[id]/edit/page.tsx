@@ -213,7 +213,7 @@ export default function EditPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-row">
+    <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Header 
