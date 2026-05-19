@@ -12,13 +12,13 @@ import com.nkia.Orbis.domain.project.project.dto.request.ProjectCombinedUpdateRe
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectCreateResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
-import com.nkia.Orbis.domain.project.project.dto.response.ProjectHistoryDetailResponse;
-import com.nkia.Orbis.domain.project.project.dto.response.ProjectHistoryListResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
 import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.project.entity.ProjectCode;
-import com.nkia.Orbis.domain.project.project.entity.ProjectHistory;
-import com.nkia.Orbis.domain.project.project.repository.ProjectHistoryRepository;
+import com.nkia.Orbis.domain.project.projecthistory.dto.response.ProjectHistoryDetailResponse;
+import com.nkia.Orbis.domain.project.projecthistory.dto.response.ProjectHistoryListResponse;
+import com.nkia.Orbis.domain.project.projecthistory.entity.ProjectHistory;
+import com.nkia.Orbis.domain.project.projecthistory.repository.ProjectHistoryRepository;
 import com.nkia.Orbis.domain.project.project.repository.ProjectRepository;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
 import com.nkia.Orbis.domain.uploadfile.repository.UploadFileRepository;
@@ -138,12 +138,6 @@ public class ProjectService {
         User salesRep = getUser(request.getSalesRepresentativeId());
 
         project.updateProjectInfo(request.getStartDate(), request.getEndDate(), manager, salesRep);
-
-        ProjectResultReport latestReport = project.getResultReports().stream()
-                .max(Comparator.comparing(ProjectResultReport::getCreatedAt))
-                .orElse(null);
-                
-        projectHistoryRepository.save(ProjectHistory.createSnapshot(project, latestReport));
     }
 
     /**
