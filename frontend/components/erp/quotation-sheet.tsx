@@ -422,7 +422,7 @@ export function createEmptyQuotationForm(): QuotationFormState {
     remarks: "",
     amount: "0",
     validity: "",
-    status: "검토중",
+    status: "",
   }
 }
 
