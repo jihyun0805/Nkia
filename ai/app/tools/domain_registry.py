@@ -99,6 +99,16 @@ _REGISTRY: dict[str, DomainSpec] = {
         name="customer_support",
         date_column="created_at",
     ),
+    "project": DomainSpec(
+        name="project",
+        code_column="code",
+        date_column="start_date",
+        default_metric="total_amount",
+    ),
+    "project_result_report": DomainSpec(
+        name="project_result_report",
+        date_column="created_at",
+    ),
     "users": DomainSpec(
         name="users",
         code_column="id",

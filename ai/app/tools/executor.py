@@ -439,9 +439,9 @@ def _apply_filters(
         _DIRECT = {"quotation", "sales_activity", "rfp_analyze_result", "prb",
                    "bid_result", "proposal", "order_report"}
         # order_report_id 보유 → 1-hop
-        _VIA_ORDER_REPORT = {"billing", "contract", "license"}
+        _VIA_ORDER_REPORT = {"billing", "contract", "license", "project"}
         # project_id 보유 → 2-hop
-        _VIA_PROJECT = {"maintenance", "maintenance_quotation"}
+        _VIA_PROJECT = {"maintenance", "maintenance_quotation", "project_result_report"}
         clause: str | None = None
         if spec.name == "project_opportunity":
             clause = "opportunity_code = %s"
