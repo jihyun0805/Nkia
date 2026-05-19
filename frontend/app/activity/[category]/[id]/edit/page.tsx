@@ -44,7 +44,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
-import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
+import { type CustomerRecord, type OpportunityRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
 import { loadBackendActivityRecord, loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
@@ -336,7 +336,6 @@ export default function ActivityEditPage() {
       const entryCode = (entry as OpportunityRecord & { opportunityCode?: string }).opportunityCode ?? String(entry.id)
       const entryName = (entry as OpportunityRecord & { opportunityName?: string }).opportunityName ?? entry.name
       return [entryCode, String(entry.id), entryName]
-        .filter((candidate): candidate is string | number => candidate != null)
         .some((candidate) => String(candidate).trim().toLowerCase() === normalizedValue)
     })
     setActivityOpportunity(value)
@@ -424,7 +423,7 @@ export default function ActivityEditPage() {
       const opportunityName = activityOpportunity === "미확인" ? "" : selectedActivityOpportunity?.name ?? activityOpportunity
       try {
         const updatedActivity = await updateBackendActivityRecord(id, {
-          projectOpportunityId: selectedActivityOpportunity?.id ?? (item as ActivityRecord).projectOpportunityId,
+          projectOpportunityId: selectedActivityOpportunity?.backendId ?? (item as ActivityRecord).projectOpportunityId,
           customerName: activityCustomer,
           opportunityName,
           opportunityCode:

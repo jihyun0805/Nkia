@@ -103,12 +103,7 @@ function createDefaultApprovalProcess() {
     overallStatus: "진행중" as const,
     currentStepIndex: 0,
     steps: [
-      { label: "상신자", assignee: currentUser.name, status: "pending" as const },
-      { label: "팀장", assignee: "팀장", status: "pending" as const },
-      { label: "본부장", assignee: "본부장", status: "pending" as const },
-      { label: "사업본부장", assignee: "사업본부장", status: "pending" as const },
-      { label: "경영지원팀장", assignee: "경영지원팀장", status: "pending" as const },
-      { label: "대표이사", assignee: "대표이사", status: "pending" as const },
+      { label: "상신자", assignee: currentUser.name, assigneeId: currentUser.id, status: "pending" as const },
     ],
   }
 }
@@ -455,7 +450,11 @@ export function deleteQuotationVersion(id: string, version: string) {
   return updatedRecord
 }
 
-export function approveQuotationStep(id: string, note = "") {
+export function approveQuotationStep(
+  id: string,
+  nextApprover: { id: string; name: string } | null = null,
+  note = "",
+) {
   const records = getQuotations()
   let updatedRecord: QuotationRecord | null = null
 
@@ -473,7 +472,7 @@ export function approveQuotationStep(id: string, note = "") {
     }
 
     const approvalProcess = item.approvalProcess
-    const nextSteps = approvalProcess.steps.map((currentStep, index) => {
+    const approvedSteps = approvalProcess.steps.map((currentStep, index) => {
       if (index < approvalProcess.currentStepIndex) {
         return { ...currentStep, status: "approved" as const }
       }
@@ -489,16 +488,28 @@ export function approveQuotationStep(id: string, note = "") {
       return { ...currentStep }
     })
 
-    const nextStepIndex = approvalProcess.currentStepIndex + 1
-    const completed = nextStepIndex >= nextSteps.length
+    const nextSteps =
+      nextApprover && nextApprover.id.trim()
+        ? [
+            ...approvedSteps.slice(0, approvalProcess.currentStepIndex + 1),
+            {
+              label: nextApprover.name,
+              assignee: nextApprover.name,
+              assigneeId: nextApprover.id,
+              status: "pending" as const,
+            },
+          ]
+        : approvedSteps
+    const nextStepIndex = nextApprover ? approvalProcess.currentStepIndex + 1 : approvedSteps.length - 1
+    const completed = !nextApprover
 
     updatedRecord = normalizeQuotation({
       ...item,
-        approvalProcess: {
-          overallStatus: completed ? "승인완료" : "진행중",
-          currentStepIndex: completed ? nextSteps.length - 1 : nextStepIndex,
-          steps: nextSteps,
-        },
+      approvalProcess: {
+        overallStatus: completed ? "승인완료" : "진행중",
+        currentStepIndex: completed ? approvedSteps.length - 1 : nextStepIndex,
+        steps: nextSteps,
+      },
       status: completed ? "승인완료" : item.status,
       changeHistory: [
         ...(item.changeHistory ?? []),
@@ -507,7 +518,7 @@ export function approveQuotationStep(id: string, note = "") {
           changedAt: todayTimestamp(),
           changedBy: currentUser.name,
           action: "updated",
-          summary: `${step.label} 승인`,
+          summary: nextApprover ? `${step.label} 승인 후 ${nextApprover.name}에게 결재 요청` : `${step.label} 승인`,
         },
       ],
     })

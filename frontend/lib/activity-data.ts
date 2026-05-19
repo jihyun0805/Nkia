@@ -113,6 +113,7 @@ export type QuotationRecord = {
     steps: {
       label: string
       assignee: string
+      assigneeId?: string
       status: "pending" | "approved" | "rejected"
       actedAt?: string
       actedBy?: string

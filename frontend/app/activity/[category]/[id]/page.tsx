@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -33,7 +34,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { toast } from "@/hooks/use-toast"
-import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, resolveWorkflowApproverId } from "@/lib/workflow-backend"
+import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, type BackendUserSummary } from "@/lib/workflow-backend"
 import {
   type ActivityAttachment,
   type ActivityCategory,
@@ -117,6 +118,8 @@ export default function ActivityDetailPage() {
   const [versionDeleteTarget, setVersionDeleteTarget] = useState<string>("")
   const [quotationDetailTab, setQuotationDetailTab] = useState("document")
   const [selectedQuotationVersion, setSelectedQuotationVersion] = useState("")
+  const [workflowUsers, setWorkflowUsers] = useState<BackendUserSummary[]>([])
+  const [nextApproverId, setNextApproverId] = useState("")
 
   const scrollToTop = () => {
     window.scrollTo(0, 0)
@@ -177,6 +180,26 @@ export default function ActivityDetailPage() {
     return () => {
       cancelled = true
       unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void loadBackendUsers()
+      .then((users) => {
+        if (!cancelled) {
+          setWorkflowUsers(Array.isArray(users) ? users : [])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWorkflowUsers([])
+        }
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -254,6 +277,9 @@ export default function ActivityDetailPage() {
         { label: "대표이사", assignee: "대표이사", status: "pending" as const },
       ],
     }
+  useEffect(() => {
+    setNextApproverId("")
+  }, [quotationItem?.id])
   const quotationVersions =
     quotationItem?.versionSnapshots
       ?.map((snapshot) => ({
@@ -304,6 +330,13 @@ export default function ActivityDetailPage() {
   const selectedQuotationVersionDeleted =
     Boolean(selectedQuotationVersion) && (quotationItem?.deletedVersions?.includes(selectedQuotationVersion) ?? false)
   const activeApprovalStep = quotationApprovalProcess.steps[quotationApprovalProcess.currentStepIndex] ?? null
+  const approvalSteps = quotationApprovalProcess.steps.slice(0, quotationApprovalProcess.currentStepIndex + 1)
+  const nextApproverOptions = workflowUsers.filter((user) => {
+    const id = user.id?.trim()
+    const name = user.name?.trim()
+    return Boolean(id && name && id !== currentUser.id)
+  })
+  const selectedNextApprover = nextApproverOptions.find((user) => user.id === nextApproverId) ?? null
   const canActOnApprovalStep =
     Boolean(quotationItem) &&
     quotationApprovalProcess.overallStatus === "진행중" &&
@@ -385,27 +418,34 @@ export default function ActivityDetailPage() {
 
   const handleApproveQuotation = () => {
     if (!quotationItem || !canActOnApprovalStep) return
+    if (!selectedNextApprover) {
+      toast({
+        title: "다음 승인자 선택 필요",
+        description: "승인 요청을 보낼 다음 사용자를 먼저 선택해 주세요.",
+      })
+      return
+    }
 
     scrollToTop()
     void (async () => {
       try {
         if (quotationItem.workflowId) {
-          const users = await loadBackendUsers()
-          const nextStep = quotationApprovalProcess.steps[quotationApprovalProcess.currentStepIndex + 1] ?? null
-          const nextApproverId = nextStep ? resolveWorkflowApproverId(nextStep.assignee, users) : null
-
           await approveBackendWorkflow(quotationItem.workflowId, {
-            nextApproverId,
+            nextApproverId: selectedNextApprover.id,
           })
         }
 
-        const updated = approveQuotationStep(quotationItem.id)
+        const updated = approveQuotationStep(quotationItem.id, {
+          id: selectedNextApprover.id,
+          name: selectedNextApprover.name,
+        })
         if (!updated) return
 
         toast({
           title: "견적 승인 완료",
-          description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되었습니다.`,
+          description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되어 ${selectedNextApprover.name}(${selectedNextApprover.id})에게 요청했습니다.`,
         })
+        setNextApproverId("")
       } catch (error) {
         toast({
           title: "견적 승인 실패",
@@ -514,7 +554,7 @@ export default function ActivityDetailPage() {
     )
   }
 
-  const quotationBreadcrumbValue = quotationItem?.refNumber?.trim() || quotationItem?.quotationCode?.trim() || item.id
+  const quotationBreadcrumbValue = quotationItem?.refNumber?.trim() || item.id
 
   return (
     <div className="min-h-screen bg-background">
@@ -567,7 +607,7 @@ export default function ActivityDetailPage() {
                     <TabsContent value="approval" className="mt-0">
                       <div className="space-y-6 rounded-lg border p-6">
                         <div className="flex flex-wrap items-center gap-3">
-                          {quotationApprovalProcess.steps.map((step, index) => {
+                          {approvalSteps.map((step, index) => {
                             const isCurrent = index === quotationApprovalProcess.currentStepIndex
                             const isDone = index < quotationApprovalProcess.currentStepIndex
                             const isRejected =
@@ -589,7 +629,7 @@ export default function ActivityDetailPage() {
                                 >
                                   {step.label}
                                 </div>
-                                {index < quotationApprovalProcess.steps.length - 1 && (
+                                {index < approvalSteps.length - 1 && (
                                   <span className="text-2xl text-muted-foreground">→</span>
                                 )}
                               </div>
@@ -611,12 +651,26 @@ export default function ActivityDetailPage() {
                             <Input readOnly value={quotationApprovalProcess.overallStatus} />
                           </div>
                           <div className="space-y-2">
+                            <Label>다음 승인자</Label>
+                            <UserIdPicker
+                              value={nextApproverId}
+                              users={nextApproverOptions}
+                              onValueChange={setNextApproverId}
+                              placeholder={
+                                nextApproverOptions.length > 0 ? "다음 승인자를 선택하세요" : "선택 가능한 사용자가 없습니다"
+                              }
+                              disabled={!canActOnApprovalStep || quotationApprovalProcess.overallStatus !== "진행중"}
+                            />
+                          </div>
+                          <div className="space-y-2">
                             <Label>내부 처리</Label>
                             <Input
                               readOnly
                               value={
                                 canActOnApprovalStep
-                                  ? `${currentUser.name} 님이 현재 단계 승인/반려를 처리할 수 있습니다.`
+                                  ? selectedNextApprover
+                                    ? `${currentUser.name} 님이 승인하면 ${selectedNextApprover.name}(${selectedNextApprover.id})에게 결재 요청을 보냅니다.`
+                                    : `${currentUser.name} 님이 승인/반려를 처리할 수 있습니다. 다음 승인자를 선택해 주세요.`
                                   : "현재 단계 담당자만 승인/반려할 수 있습니다."
                               }
                             />
@@ -633,10 +687,14 @@ export default function ActivityDetailPage() {
                           </Button>
                           <Button
                             className="bg-primary hover:bg-primary/90"
-                            disabled={!canActOnApprovalStep || quotationApprovalProcess.overallStatus !== "진행중"}
+                            disabled={
+                              !canActOnApprovalStep ||
+                              quotationApprovalProcess.overallStatus !== "진행중" ||
+                              !selectedNextApprover
+                            }
                             onClick={handleApproveQuotation}
                           >
-                            승인
+                            승인 후 요청
                           </Button>
                         </div>
                       </div>
