@@ -455,7 +455,6 @@ export function ManagementReportModal() {
                           <Download className="h-4 w-4" />
                           PDF 저장
                         </Button>
-                        <Badge variant="secondary">{statusLabel(report.reportStatus)}</Badge>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -641,13 +640,6 @@ function EmptyState({ label }: { label: string }) {
       <CardContent className="p-8 text-center text-sm text-muted-foreground">{label}</CardContent>
     </Card>
   )
-}
-
-function statusLabel(status: string) {
-  if (status === "good_report") return "생성 완료"
-  if (status === "insufficient_evidence") return "근거 부족"
-  if (status === "upstream_degraded") return "부분 생성"
-  return status
 }
 
 type MarkdownBlock =
@@ -984,7 +976,7 @@ function firstMetadataText(metadata: Record<string, unknown> | null | undefined,
 
 function displayReportText(report: ManagementReportResponse) {
   if (report.reportStatus === "insufficient_evidence") {
-    return "선택한 조건에 해당하는 근거 데이터가 부족해 리포트를 생성할 수 없습니다. 기간, 고객 구분, 사업 유형, 진행 단계 조건을 조정한 뒤 다시 생성해 주세요."
+    return "선택한 조건에 해당하는 근거 데이터가 부족해 리포트를 생성할 수 없다. 기간, 고객 구분, 사업 유형, 진행 단계 조건 조정이 필요하다."
   }
   return report.report
 }
@@ -1097,7 +1089,6 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
           body { color: #111827; font-family: Arial, "Malgun Gothic", sans-serif; font-size: 12px; line-height: 1.6; }
           h1 { font-size: 22px; margin: 0 0 8px; }
           h2 { font-size: 15px; margin: 24px 0 8px; }
-          .meta { color: #4b5563; margin-bottom: 18px; }
           .filters { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; margin-bottom: 18px; }
           .filters div { margin: 2px 0; }
           .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
@@ -1123,7 +1114,6 @@ function buildReportPrintHtml(report: ManagementReportResponse, request: Managem
       </head>
       <body>
         <h1>${escapeHtml(report.title)}</h1>
-        <div class="meta">상태: ${escapeHtml(statusLabel(report.reportStatus))}</div>
         <div class="filters">
           <div><strong>기간:</strong> ${escapeHtml(request.startAt)} ~ ${escapeHtml(request.endAt)} (예상 입찰일 기준)</div>
           <div><strong>고객 구분:</strong> ${escapeHtml(VALUE_LABELS[request.customerGroup ?? "ALL"] ?? request.customerGroup ?? "전체")}</div>
