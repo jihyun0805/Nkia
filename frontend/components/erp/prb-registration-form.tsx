@@ -711,7 +711,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
 
           <SectionRow title="1. 사업 정보" />
           <tr>
-            <th className="bg-slate-50 px-3 py-2">고객 구분</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">고객 구분</th>
             <td colSpan={3} className="px-1 py-1">
               <Select value={form.formData.customerType} onValueChange={(value) => updateFormData("customerType", value)}>
                 <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
@@ -723,7 +723,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
                 </SelectContent>
               </Select>
             </td>
-            <th className="bg-slate-50 px-3 py-2">사업 구분</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">사업 구분</th>
             <td colSpan={3} className="px-1 py-1">
               <div className="w-full">
                 <Select value={form.formData.businessType} onValueChange={(value) => updateFormData("businessType", value)}>
@@ -742,7 +742,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             </td>
           </tr>
           <tr>
-            <th className="bg-slate-50 px-3 py-2">고객명</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">고객명</th>
             <td colSpan={3} className="px-1 py-1">
               <Select value={form.customerCode} onValueChange={handleCustomerChange}>
                 <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
@@ -755,7 +755,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
                 </SelectContent>
               </Select>
             </td>
-            <th className="bg-slate-50 px-3 py-2">사업명</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">사업명</th>
             <td colSpan={3} className="px-1 py-1">
               <Select value={form.opportunityCode} onValueChange={handleOpportunityChange}>
                 <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
@@ -772,17 +772,17 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             </td>
           </tr>
           <tr>
-            <th className="bg-slate-50 px-3 py-2">사업 기간</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">사업 기간</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.businessPeriod} onChange={(value) => updateFormData("businessPeriod", value)} /></td>
-            <th className="bg-slate-50 px-3 py-2">유지보수</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">유지보수</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.maintenance} onChange={(value) => updateFormData("maintenance", value)} /></td>
           </tr>
           <tr>
-            <th className="bg-slate-50 px-3 py-2">사업 개요</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">사업 개요</th>
             <td colSpan={7} className="px-1 py-1"><FieldInput value={form.formData.businessOverview} onChange={(value) => updateFormData("businessOverview", value)} multiline /></td>
           </tr>
           <tr>
-            <th className="bg-slate-50 px-3 py-2">영업대표</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">영업대표</th>
             <td className="px-1 py-1">
               <UserIdPicker
                 value={form.salesRepresentativeId}
@@ -801,12 +801,12 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
               />
             </td>
             <td colSpan={2} className="px-1 py-1"><FieldInput value={form.formData.salesDepartment} onChange={(value) => updateFormData("salesDepartment", value)} className="text-center" readOnly /></td>
-            <th className="bg-slate-50 px-3 py-2">담당부서</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">담당부서</th>
             <td className="px-1 py-1"><FieldInput value={form.formData.ownerDepartment} onChange={(value) => updateFormData("ownerDepartment", value)} className="text-center" readOnly /></td>
             <td colSpan={2} className="px-2 py-1 text-center">{status}</td>
           </tr>
           <tr>
-            <th className="bg-slate-50 px-3 py-2">입찰 구분</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">입찰 구분</th>
             <td colSpan={2} className="px-1 py-1">
               <Select value={form.formData.bidType} onValueChange={(value) => updateFormData("bidType", value)}>
                 <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
@@ -838,21 +838,21 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             </td>
           </tr>
           <tr>
-            <th className="bg-slate-50 px-3 py-2">사전 규격 공고일</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">사전 규격 공고일</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.preliminaryNoticeDate} onChange={(value) => updateFormData("preliminaryNoticeDate", value)} /></td>
-            <th className="bg-slate-50 px-3 py-2">정식 공고 공고일</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">정식 공고 공고일</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.officialNoticeDate} onChange={(value) => updateFormData("officialNoticeDate", value)} /></td>
           </tr>
           <tr>
-            <th className="bg-slate-50 px-3 py-2">가격 투찰일</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">가격 투찰일</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.priceBidDate} onChange={(value) => updateFormData("priceBidDate", value)} /></td>
-            <th className="bg-slate-50 px-3 py-2">제안서 마감일</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">제안서 마감일</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.proposalDeadlineDate} onChange={(value) => updateFormData("proposalDeadlineDate", value)} /></td>
           </tr>
           <tr>
-            <th className="bg-slate-50 px-3 py-2">제안 발표일</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">제안 발표일</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput type="date" value={form.formData.proposalPresentationDate} onChange={(value) => updateFormData("proposalPresentationDate", value)} /></td>
-            <th className="bg-slate-50 px-3 py-2">기술 : 가격 평가 비율</th>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap">기술 : 가격 평가 비율</th>
             <td colSpan={3} className="px-1 py-1"><FieldInput value={form.formData.evaluationRatio} onChange={(value) => updateFormData("evaluationRatio", value)} /></td>
           </tr>
 
@@ -914,7 +914,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             <td className="px-2 py-1 text-center">-</td>
             <td></td>
             <td></td>
-            <td className="px-2 py-1 text-center">-</td>
+            <td className="px-4 py-1 text-right">-</td>
             <td colSpan={2}></td>
           </tr>
           {form.personnelItems.map((item, index) => {
