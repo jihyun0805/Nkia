@@ -120,14 +120,14 @@ public class ProjectRevenueService {
      */
     private Long getAmountByCategory(OrderReport report, ProductCategory category) {
         return switch (category) {
-            case EMS -> report.getEmsSummary();
-            case ITG -> report.getItgSummary();
-            case IOT -> report.getAiotionSummary();
+            case EMS -> nullSafe(report.getEmsSummary());
+            case ITG -> nullSafe(report.getItgSummary());
+            case IOT -> nullSafe(report.getAiotionSummary());
             case ETC -> nullSafe(report.getItoSummary())
                     + nullSafe(report.getOtherSummary())
                     + nullSafe(report.getDashboardSummary());
-            case EMS_MAINTENANCE -> report.getEmsMaintenanceSummary();
-            case ITG_MAINTENANCE -> report.getItgMaintenanceSummary();
+            case EMS_MAINTENANCE -> nullSafe(report.getEmsMaintenanceSummary());
+            case ITG_MAINTENANCE -> nullSafe(report.getItgMaintenanceSummary());
         };
     }
 
