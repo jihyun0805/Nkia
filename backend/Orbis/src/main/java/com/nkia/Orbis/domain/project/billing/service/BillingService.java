@@ -197,6 +197,9 @@ public class BillingService {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
 
+        // 수정하기 전의 상태를 히스토리에 기록
+        saveHistory(billing);
+
         Long oldImageId = null;
         if (billing.getStatus() == BillingStatus.ISSUED && billing.getInvoiceImageId() != null
                 && !billing.getInvoiceImageId().equals(request.getInvoiceImageId())) {
@@ -207,10 +210,6 @@ public class BillingService {
 
         if (oldImageId != null) {
             uploadFileService.getUploadFile(oldImageId).delete();
-        }
-
-        if (billing.getCollectedAt() != null) {
-            saveHistory(billing);
         }
 
         return BillingDetailResponse.from(billing, getWorkflowId(billing.getId()),
@@ -224,6 +223,10 @@ public class BillingService {
     public void deleteBilling(Long billingId) {
         Billing billing = billingRepository.findById(billingId)
                 .orElseThrow(() -> new ApiException(ProjectErrorCode.BILLING_NOT_FOUND));
+
+        if (billing.getStatus() != BillingStatus.REQUESTED) {
+            throw new ApiException(ProjectErrorCode.BILLING_CANNOT_DELETE_APPROVED);
+        }
 
         if (billing.getInvoiceImageId() != null) {
             uploadFileService.getUploadFile(billing.getInvoiceImageId()).delete();

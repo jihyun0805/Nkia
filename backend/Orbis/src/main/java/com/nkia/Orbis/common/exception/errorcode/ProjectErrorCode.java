@@ -21,7 +21,8 @@ public enum ProjectErrorCode implements ErrorCode {
     BILLING_ALREADY_COLLECTED(HttpStatus.BAD_REQUEST, "PROJECT_0012", "이미 수금 완료된 청구건입니다."),
     INVALID_BILLING_STATUS(HttpStatus.BAD_REQUEST, "PROJECT_0013", "유효하지 않은 billing status 입니다."),
     PROJECT_HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_0014", "요청한 사업 이력을 찾을 수 없습니다."),
-    BILLING_HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_0015", "요청한 청구 이력을 찾을 수 없습니다.");
+    BILLING_HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_0015", "요청한 청구 이력을 찾을 수 없습니다."),
+    BILLING_CANNOT_DELETE_APPROVED(HttpStatus.BAD_REQUEST, "PROJECT_0016", "최종 결재 승인된 청구 건은 삭제할 수 없습니다.");
     private final HttpStatus httpStatus;
     private final String code;
     private final String message;
