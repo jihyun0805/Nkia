@@ -65,13 +65,16 @@ export function OrderBasicSection() {
 
     licenseData.forEach((item: any) => {
       const sub = parseNum(item.subtotal);
-      const cat = item.category;
-      if (cat === "EMS") ems += sub;
-      else if (cat === "ITSM") itg += sub;
-      else if (cat === "DASHBOARD") dashboard += sub;
-      else if (cat === "DATACENTER" || cat === "RCA" || cat === "DCA") aiotion += sub;
-      else if (cat === "ITAM") ito += sub;
-      else if (cat) others += sub;
+      const cat = item.category || "";
+      if (!cat) return;
+      // 백엔드 ProductClass enum 기준 매핑 (대소문자·공백·언더스코어 무관)
+      const catNorm = cat.toUpperCase().replace(/[\s_]/g, "");
+      if (catNorm === "EMS") ems += sub;
+      else if (catNorm === "ITSM") itg += sub;
+      else if (catNorm === "DASHBOARD") dashboard += sub;
+      else if (catNorm === "DATACENTER" || catNorm === "RCA" || catNorm === "DCA" || cat === "상면 관리") aiotion += sub;
+      else if (catNorm === "ITAM") ito += sub;
+      else others += sub;
     });
 
     // 라이선스 할인 + 용역 총합 + 기타 매출 총합을 기타 매출분류로 합산
