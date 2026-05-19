@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { toast } from "@/hooks/use-toast"
+import { adminApi } from "@/lib/api/admin-api"
 import { notifyPrbApprovalRequested } from "@/lib/activity-request-workflow"
 import {
   approvePrbStep,
@@ -268,9 +269,16 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
+  const [productClasses, setProductClasses] = useState<string[]>([])
   const users = useBackendUsers()
   const selectedReviewerId = resolveUserId(form.reviewer, users)
   const rfpAnalyses = useMemo(() => getRfpAnalyses(), [])
+  const businessTypeOptions = useMemo(() => {
+    const values = new Set<string>(productClasses)
+    const current = form.formData.businessType.trim()
+    if (current) values.add(current)
+    return Array.from(values)
+  }, [form.formData.businessType, productClasses])
 
   useEffect(() => {
     let cancelled = false
@@ -284,6 +292,33 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
         if (cancelled) return
         setCustomers([])
         setOpportunities([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void adminApi
+      .getProducts()
+      .then((response) => {
+        if (cancelled) return
+        const classes = Array.isArray(response.data)
+          ? Array.from(
+              new Set(
+                response.data
+                  .map((item) => item.productClass?.trim() ?? "")
+                  .filter((value): value is string => value !== ""),
+              ),
+            ).sort((a, b) => a.localeCompare(b))
+          : []
+        setProductClasses(classes)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setProductClasses([])
       })
 
     return () => {
@@ -642,8 +677,8 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const reportTable = (
-    <div className="overflow-x-auto rounded-md border border-r-0">
-      <table className="min-w-[1180px] border-collapse text-sm [&_td]:border [&_th]:border">
+    <div className="rounded-md border border-r-0">
+      <table className="w-full table-auto border-collapse text-sm [&_td]:border [&_th]:border [&_td]:whitespace-normal [&_th]:whitespace-normal">
         <tbody>
           <tr>
             <th colSpan={8} className="bg-white px-3 py-4 text-center text-xl font-bold">
@@ -677,19 +712,40 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
           <SectionRow title="1. 사업 정보" />
           <tr>
             <th className="bg-slate-50 px-3 py-2">고객 구분</th>
-            <td className="px-2 py-1 text-center">신규</td>
-            <td className="px-2 py-1 text-center">기존</td>
+            <td colSpan={3} className="px-1 py-1">
+              <Select value={form.formData.customerType} onValueChange={(value) => updateFormData("customerType", value)}>
+                <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
+                  <SelectValue placeholder="고객 구분 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="신규">신규</SelectItem>
+                  <SelectItem value="기존">기존</SelectItem>
+                </SelectContent>
+              </Select>
+            </td>
             <th className="bg-slate-50 px-3 py-2">사업 구분</th>
-            <td className="px-2 py-1 text-center">설치/납품</td>
-            <td className="px-2 py-1 text-center">개발</td>
-            <td className="px-2 py-1 text-center">SI</td>
-            <td className="px-2 py-1 text-center">ITO</td>
+            <td colSpan={3} className="px-1 py-1">
+              <div className="w-full">
+                <Select value={form.formData.businessType} onValueChange={(value) => updateFormData("businessType", value)}>
+                  <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
+                    <SelectValue placeholder="제품분류 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {businessTypeOptions.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </td>
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2">고객명</th>
             <td colSpan={3} className="px-1 py-1">
               <Select value={form.customerCode} onValueChange={handleCustomerChange}>
-                <SelectTrigger className="border-0 shadow-none focus:ring-0">
+                <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
                   <SelectValue placeholder="고객사 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -702,7 +758,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             <th className="bg-slate-50 px-3 py-2">사업명</th>
             <td colSpan={3} className="px-1 py-1">
               <Select value={form.opportunityCode} onValueChange={handleOpportunityChange}>
-                <SelectTrigger className="border-0 shadow-none focus:ring-0">
+                <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
                   <SelectValue placeholder="사업기회 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -753,7 +809,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             <th className="bg-slate-50 px-3 py-2">입찰 구분</th>
             <td colSpan={2} className="px-1 py-1">
               <Select value={form.formData.bidType} onValueChange={(value) => updateFormData("bidType", value)}>
-                <SelectTrigger className="border-0 shadow-none focus:ring-0">
+                <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
                   <SelectValue placeholder="입찰 구분 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -768,7 +824,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             <td colSpan={2} className="px-2 py-1 text-center">조달 입찰 / 조달 평가</td>
             <td colSpan={3} className="px-1 py-1">
               <Select value={form.formData.bidType} onValueChange={(value) => updateFormData("bidType", value)}>
-                <SelectTrigger className="border-0 shadow-none focus:ring-0">
+                <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
                   <SelectValue placeholder="입찰 구분 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -859,7 +915,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             <td></td>
             <td></td>
             <td className="px-2 py-1 text-center">-</td>
-            <td></td>
+            <td colSpan={2}></td>
           </tr>
           {form.personnelItems.map((item, index) => {
             const isResidentStart = index === 0
