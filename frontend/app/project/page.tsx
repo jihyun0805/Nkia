@@ -119,6 +119,9 @@ export default function ProjectPage() {
         monthlyData[monthStr] = { month: monthStr, ems: 0, itg: 0, iot: 0, other: 0, emsMaint: 0, itgMaint: 0 };
       }
 
+      // 백엔드 ProductCategory enum → 프론트 필드 매핑
+      // IOT = 수주보고서 aiotionSummary (DATACENTER·RCA·DCA 라이선스 합계)
+      // ETC = itoSummary + otherSummary + dashboardSummary
       data.forEach((categoryData) => {
         const cat = categoryData.productCategory;
         const monthlyRevenue = categoryData.monthlyRevenue ?? {};
@@ -527,10 +530,10 @@ export default function ProjectPage() {
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-muted/50">
-                            <TableHead className="w-[100px] font-semibold text-center">월</TableHead>
+                            <TableHead className="w-[80px] font-semibold text-center">월</TableHead>
                             <TableHead className="text-right font-semibold">EMS</TableHead>
                             <TableHead className="text-right font-semibold">ITG</TableHead>
-                            <TableHead className="text-right font-semibold">IoT</TableHead>
+                            <TableHead className="text-right font-semibold">AIOTION</TableHead>
                             <TableHead className="text-right font-semibold">기타</TableHead>
                             <TableHead className="text-right font-semibold">EMS 유지보수</TableHead>
                             <TableHead className="text-right font-semibold">ITG 유지보수</TableHead>
@@ -540,29 +543,33 @@ export default function ProjectPage() {
                         <TableBody>
                           {expectedRevenue.map((row) => {
                             const monthTotal = row.ems + row.itg + row.iot + row.other + row.emsMaint + row.itgMaint;
+                            const fmtAmt = (v: number) => (v === 0 ? "-" : `₩${Math.round(v).toLocaleString()}`);
+                            const monthNum = parseInt(row.month.split("-")[1]);
                             return (
                               <TableRow key={row.month} className="hover:bg-muted/30 transition-colors">
-                                <TableCell className="font-medium text-center">{row.month}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.ems).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.itg).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.iot).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.other).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.emsMaint).toLocaleString()}</TableCell>
-                                <TableCell className="text-right">₩{Math.round(row.itgMaint).toLocaleString()}</TableCell>
-                                <TableCell className="text-right font-bold text-primary bg-primary/5">₩{Math.round(monthTotal).toLocaleString()}</TableCell>
+                                <TableCell className="font-medium text-center">{monthNum}월</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.ems)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.itg)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.iot)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.other)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.emsMaint)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{fmtAmt(row.itgMaint)}</TableCell>
+                                <TableCell className={`text-right font-bold bg-primary/5 ${monthTotal === 0 ? "text-muted-foreground" : "text-primary"}`}>
+                                  {monthTotal === 0 ? "-" : `₩${Math.round(monthTotal).toLocaleString()}`}
+                                </TableCell>
                               </TableRow>
                             );
                           })}
                         </TableBody>
                         <TableFooter>
                           <TableRow className="bg-muted font-bold hover:bg-muted">
-                            <TableCell className="text-center">연말 합계</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalEms).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalItg).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalIot).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalOther).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalEmsMaint).toLocaleString()}</TableCell>
-                            <TableCell className="text-right">₩{Math.round(totalItgMaint).toLocaleString()}</TableCell>
+                            <TableCell className="text-center">연간 합계</TableCell>
+                            <TableCell className="text-right">{totalEms === 0 ? "-" : `₩${Math.round(totalEms).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalItg === 0 ? "-" : `₩${Math.round(totalItg).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalIot === 0 ? "-" : `₩${Math.round(totalIot).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalOther === 0 ? "-" : `₩${Math.round(totalOther).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalEmsMaint === 0 ? "-" : `₩${Math.round(totalEmsMaint).toLocaleString()}`}</TableCell>
+                            <TableCell className="text-right">{totalItgMaint === 0 ? "-" : `₩${Math.round(totalItgMaint).toLocaleString()}`}</TableCell>
                             <TableCell className="text-right text-primary text-lg">₩{Math.round(totalRevenue).toLocaleString()}</TableCell>
                           </TableRow>
                         </TableFooter>
