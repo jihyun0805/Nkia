@@ -350,8 +350,6 @@ export default function MaintenancePage() {
                           <TableHead className="w-[100px]">구분</TableHead>
                           <TableHead>고객사</TableHead>
                           <TableHead>요청/활동구분</TableHead>
-                          <TableHead>개시일시</TableHead>
-                          <TableHead>완료일시</TableHead>
                           <TableHead>요청/등록자</TableHead>
                           <TableHead>영업대표</TableHead>
                           <TableHead>고객지원 담당자</TableHead>
@@ -378,8 +376,6 @@ export default function MaintenancePage() {
                                 </Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-sm">{item.startDate}</TableCell>
-                            <TableCell className="text-sm">{item.endDate}</TableCell>
                             <TableCell>{item.recordType === "request" ? item.requester : item.registrant}</TableCell>
                             <TableCell>{item.salesRep}</TableCell>
                             <TableCell>{item.supportRep}</TableCell>
