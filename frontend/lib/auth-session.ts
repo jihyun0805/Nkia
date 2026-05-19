@@ -185,20 +185,24 @@ function scheduleTokenRefresh(session: AuthSession) {
   if (remaining <= 0) return;
 
   const delay = Math.max(remaining - TOKEN_REFRESH_BUFFER_MS, 1000);
+  // 스케줄 등록 시점의 accessToken 기억 → 이미 갱신된 경우 중복 방지
+  const scheduledAccessToken = session.accessToken;
 
   refreshTimerId = setTimeout(async () => {
-    const handleRefreshFailure = () => {
-      clearAuthSession();
-      if (typeof window !== "undefined") {
-        window.location.href = "/";
-      }
-    };
-
     try {
       const currentSession = loadAuthSession();
       if (!currentSession?.refreshToken) return;
+
+      // customAxios reactive refresh가 이미 갱신한 경우 → 중복 실행 방지
+      if (currentSession.accessToken !== scheduledAccessToken) {
+        scheduleTokenRefresh(currentSession);
+        return;
+      }
+
       if (isTokenExpired(currentSession.refreshToken)) {
-        handleRefreshFailure();
+        // refreshToken도 만료 → 세션 정리 후 로그인 페이지로
+        clearAuthSession();
+        if (typeof window !== "undefined") window.location.href = "/";
         return;
       }
 
@@ -213,7 +217,12 @@ function scheduleTokenRefresh(session: AuthSession) {
       });
 
       if (!response.ok) {
-        handleRefreshFailure();
+        // 서버가 401/403 반환 → refreshToken 무효 → 로그아웃
+        if (response.status === 401 || response.status === 403) {
+          clearAuthSession();
+          if (typeof window !== "undefined") window.location.href = "/";
+        }
+        // 그 외 서버 오류(500 등)는 silent fail → 다음 API 호출의 reactive refresh가 처리
         return;
       }
 
@@ -222,11 +231,10 @@ function scheduleTokenRefresh(session: AuthSession) {
       const newRefreshToken = result?.data?.refreshToken;
 
       if (!newAccessToken) {
-        handleRefreshFailure();
+        // 응답은 왔지만 토큰 없음 → silent fail
         return;
       }
 
-      // 세션 업데이트
       saveAuthSession({
         ...currentSession,
         accessToken: newAccessToken,
@@ -235,9 +243,9 @@ function scheduleTokenRefresh(session: AuthSession) {
       });
 
       console.log("[Auth] 토큰 선제적 갱신 완료");
-    } catch (error) {
-      console.error("[Auth] 토큰 선제적 갱신 실패:", error);
-      handleRefreshFailure();
+    } catch {
+      // 네트워크 오류 등 일시적 실패 → 로그아웃 X, reactive refresh에 위임
+      // refreshToken이 만료되지 않은 이상 다음 API 호출에서 customAxios가 처리
     }
   }, delay);
 }
