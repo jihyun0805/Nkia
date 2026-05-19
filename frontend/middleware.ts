@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_SESSION_STORAGE_KEY } from "@/lib/auth-session";
 
 // 로그인 없이 접근 가능한 경로 (페이지 및 API)
 const PUBLIC_PATHS = ["/", "/auth"];
