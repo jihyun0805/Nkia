@@ -332,7 +332,7 @@ export function updateQuotation(id: string, input: Omit<QuotationRecord, "id">) 
       })),
       approvalFlow: input.approvalFlow ?? current?.approvalFlow,
       approvalProcess: createDefaultApprovalProcess(),
-      status: item?.status ?? "DRAFT",
+    status: "",
       deletedVersions: current?.deletedVersions ?? input.deletedVersions ?? [],
       changeHistory: current?.changeHistory ?? [],
     })

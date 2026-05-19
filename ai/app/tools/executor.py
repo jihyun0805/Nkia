@@ -301,9 +301,6 @@ def _lookup_entity(
     except ValueError as exc:
         return _err(str(exc))
 
-    if not spec.code_column:
-        return _err(f"domain {spec.name!r} 에 대한 code 컬럼 매핑 없음")
-
     if user_context and not user_context.is_unrestricted() and not spec.is_public:
         codes = _opportunity_codes_from_context(user_context)
         if codes is not None:
@@ -327,8 +324,36 @@ def _lookup_entity(
                 }
 
     deleted_clause = "" if spec.is_public else " AND deleted = false"
-    sql = f"SELECT * FROM {spec.name} WHERE {spec.code_column} = %s{deleted_clause} LIMIT 1"
-    params: list[Any] = [code]
+
+    # code_column 결정 (fallback 분기). 모든 컬럼명은 registry 출처 → 사용자 입력 X.
+    params: list[Any]
+    if spec.code_column and _is_safe_identifier(spec.code_column):
+        sql = (
+            f"SELECT * FROM {spec.name} WHERE {spec.code_column} = %s"
+            f"{deleted_clause} LIMIT 1"
+        )
+        params = [code]
+    else:
+        # code_column 미정의 도메인 → id 또는 name_column 로 LIKE
+        code_str = str(code) if code is not None else ""
+        is_numeric = isinstance(code, int) or (code_str.isdigit())
+        if is_numeric:
+            sql = (
+                f"SELECT * FROM {spec.name} WHERE id = %s"
+                f"{deleted_clause} LIMIT 1"
+            )
+            params = [int(code_str)]
+        elif spec.name_column and _is_safe_identifier(spec.name_column):
+            sql = (
+                f"SELECT * FROM {spec.name} WHERE {spec.name_column} ILIKE %s"
+                f"{deleted_clause} LIMIT 1"
+            )
+            params = [f"%{code_str}%"]
+        else:
+            return _err(
+                f"domain {spec.name!r} 에 대한 code/name 컬럼 매핑 없음 "
+                f"(숫자 id 또는 name_column 지정 필요)"
+            )
 
     try:
         with psycopg.connect(build_backend_database_url(), row_factory=dict_row) as conn:
@@ -439,9 +464,9 @@ def _apply_filters(
         _DIRECT = {"quotation", "sales_activity", "rfp_analyze_result", "prb",
                    "bid_result", "proposal", "order_report"}
         # order_report_id 보유 → 1-hop
-        _VIA_ORDER_REPORT = {"billing", "contract", "license"}
+        _VIA_ORDER_REPORT = {"billing", "contract", "license", "project"}
         # project_id 보유 → 2-hop
-        _VIA_PROJECT = {"maintenance", "maintenance_quotation"}
+        _VIA_PROJECT = {"maintenance", "maintenance_quotation", "project_result_report"}
         clause: str | None = None
         if spec.name == "project_opportunity":
             clause = "opportunity_code = %s"

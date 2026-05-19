@@ -86,13 +86,15 @@ export interface BillingListResponse {
   collectedAt: string | null;
   salesRepName: string;
   requesterName: string;
-  status?: "REQUESTED" | "ISSUED" | "COLLECTED"; // 있을 경우 배지 표시
+  status?: "REQUESTED" | "APPROVED" | "ISSUED" | "COLLECTED"; // 있을 경우 배지 표시
   createdAt?: string;
 }
 
 /** 청구 상세 응답 */
 export interface BillingDetailResponse {
   id: number;
+  workflowId: number | null;
+  approvalStatus: string | null;
   orderReportId: number;
   customerName: string;
   projectName: string;
@@ -102,7 +104,7 @@ export interface BillingDetailResponse {
   collectedAt: string | null;
   remarks: string | null;
   invoiceImageId: number | null;
-  status: "REQUESTED" | "ISSUED" | "COLLECTED";
+  status: "REQUESTED" | "APPROVED" | "ISSUED" | "COLLECTED";
   createdBy: string;
   createdAt: string;
 }
@@ -266,3 +268,32 @@ export const projectApi = {
       method: "DELETE",
     }),
 };
+
+/** 세금계산서 이미지 업로드 (multipart/form-data) */
+export async function uploadBillingInvoiceFile(file: File): Promise<number> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  // category=BILLING은 쿼리 파라미터로 전달
+  const { getBackendApiBaseUrl } = await import("@/lib/api-base-url");
+  const { getAccessToken } = await import("@/lib/auth-session");
+  const baseUrl = getBackendApiBaseUrl();
+  const token = getAccessToken();
+
+  const response = await fetch(`${baseUrl}/files/upload?category=BILLING`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error("파일 업로드에 실패했습니다.");
+  }
+
+  const result = await response.json();
+  const fileId = result?.data;
+  if (!fileId || typeof fileId !== "number") {
+    throw new Error("업로드된 파일 ID를 받지 못했습니다.");
+  }
+  return fileId;
+}

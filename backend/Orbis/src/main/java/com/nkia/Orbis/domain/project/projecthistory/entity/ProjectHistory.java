@@ -1,5 +1,6 @@
-package com.nkia.Orbis.domain.project.project.entity;
+package com.nkia.Orbis.domain.project.projecthistory.entity;
 
+import com.nkia.Orbis.domain.project.project.entity.Project;
 import com.nkia.Orbis.domain.project.projectresultreport.entity.ProjectResultReport;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

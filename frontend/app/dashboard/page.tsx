@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { Search, Activity, FileText, Handshake, Briefcase, Wrench, ArrowRight, AlertCircle } from "lucide-react";
+import { Search, Activity, FileText, Handshake, Briefcase, Wrench, ArrowRight, AlertCircle, Bell, ChevronDown, ChevronUp } from "lucide-react";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
 import { StatCard } from "@/components/erp/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { loadAuthSession } from "@/lib/auth-session";
 import { contractApi } from "@/lib/api/contract-api";
 import { projectApi } from "@/lib/api/project-api";
@@ -16,6 +18,9 @@ import { getFreeMaintenanceList, getPaidMaintenanceList } from "@/lib/api/mainte
 import { getSalesActivities } from "@/lib/api/generated/sales-activity/sales-activity";
 import { getBackendApiBaseUrl } from "@/lib/api-base-url";
 import { buildAuthHeaders } from "@/lib/auth-session";
+import { useAlarmHistory } from "@/hooks/use-alarms";
+import { getAlarmNavigationUrl, type AlarmResponse } from "@/lib/api/alarm";
+import type { CachedAlarm } from "@/hooks/use-alarms";
 
 type DashboardMetrics = {
   opportunityCount: number;
@@ -124,6 +129,149 @@ async function fetchRfpMetrics() {
     total: payload.totalElements ?? rows.length,
     inProgress: rows.filter((item) => item.status !== "COMPLETED").length,
   };
+}
+
+function alarmTypeLabel(type: AlarmResponse["type"]): string {
+  const labels: Record<string, string> = {
+    BILLING_ISSUE_REQUEST: "세금계산서 발행",
+    BILLING_COLLECTION_REQUEST: "수금 확인",
+    FREE_MAINTENANCE_EXPIRY: "무상유지보수 만료",
+    PAID_MAINTENANCE_EXPIRY: "유상유지보수 만료",
+    CUSTOMER_SUPPORT_APPROVAL_REQUEST: "고객지원 결재",
+    BILLING_APPROVAL_REQUEST: "세금계산서 결재",
+    BILLING_APPROVED: "세금계산서 승인",
+    BILLING_REJECTED: "세금계산서 반려",
+    ORDER_REPORT_APPROVAL_REQUEST: "수주보고서 결재",
+    CONTRACT_APPROVAL_REQUEST: "계약 결재",
+  };
+  return labels[type] ?? "알림";
+}
+
+function AlarmRow({
+  alarm,
+  showDismissedAt,
+  onProcess,
+  onDismiss,
+}: {
+  alarm: CachedAlarm;
+  showDismissedAt?: boolean;
+  onProcess?: () => void;
+  onDismiss?: () => void;
+}) {
+  const url = getAlarmNavigationUrl(alarm.type, alarm.targetId);
+  return (
+    <div
+      className={`flex items-start justify-between gap-4 rounded-lg border p-3 transition-colors ${
+        alarm.dismissedAt ? "bg-muted/20 opacity-70" : alarm.isRead ? "bg-muted/30" : "bg-background"
+      }`}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <Badge variant={alarm.isRead || alarm.dismissedAt ? "secondary" : "outline"} className="text-xs shrink-0">
+            {alarmTypeLabel(alarm.type)}
+          </Badge>
+          {!alarm.isRead && !alarm.dismissedAt && (
+            <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+          )}
+          <span className="text-xs text-muted-foreground">{alarm.createdAt?.slice(0, 10)}</span>
+          {showDismissedAt && alarm.dismissedAt && (
+            <span className="text-xs text-muted-foreground">· 완료 {alarm.dismissedAt.slice(0, 10)}</span>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground">{alarm.message}</p>
+      </div>
+      {(onProcess || onDismiss) && (
+        <div className="flex items-center gap-2 shrink-0">
+          {onProcess && url && (
+            <Button size="sm" variant={alarm.isRead ? "ghost" : "outline"} onClick={onProcess}>
+              처리하기
+            </Button>
+          )}
+          {onDismiss && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={onDismiss}
+            >
+              완료
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MyTasksCard() {
+  const router = useRouter();
+  const { pending, completed, dismiss, dismissAll } = useAlarmHistory();
+  const [showCompleted, setShowCompleted] = useState(false);
+
+  if (pending.length === 0 && completed.length === 0) return null;
+
+  const unreadCount = pending.filter((a) => !a.isRead).length;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Bell className="w-5 h-5 text-primary" />
+            나의 업무
+            {unreadCount > 0 && (
+              <Badge className="text-xs">{unreadCount}건 미처리</Badge>
+            )}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{pending.length}건 대기</Badge>
+            {pending.length > 0 && (
+              <Button variant="ghost" size="sm" className="text-xs h-7" onClick={dismissAll}>
+                전체 완료
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {pending.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-2">처리 대기 중인 업무가 없습니다.</p>
+          )}
+          {pending.map((alarm: CachedAlarm) => {
+            const url = getAlarmNavigationUrl(alarm.type, alarm.targetId);
+            return (
+              <AlarmRow
+                key={alarm.id}
+                alarm={alarm}
+                onProcess={url ? () => { dismiss(alarm.id); router.push(url); } : undefined}
+                onDismiss={() => dismiss(alarm.id)}
+              />
+            );
+          })}
+
+          {completed.length > 0 && (
+            <div className="pt-1">
+              <button
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                onClick={() => setShowCompleted((v) => !v)}
+              >
+                {showCompleted ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                처리 완료 {completed.length}건 (30일간 보관)
+              </button>
+              {showCompleted && (
+                <div className="space-y-2 mt-2">
+                  {completed.map((alarm: CachedAlarm) => (
+                    <AlarmRow key={alarm.id} alarm={alarm} showDismissedAt />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function DashboardPage() {
@@ -274,7 +422,9 @@ export default function DashboardPage() {
             />
           </div>
 
-          <Card className="mb-6">
+          <MyTasksCard />
+
+          <Card className="mb-6 mt-6">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-semibold">영업관리 단계별 현황</CardTitle>
             </CardHeader>

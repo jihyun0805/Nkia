@@ -67,9 +67,7 @@ import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportuni
 import {
   approveQuotationStep,
   deleteQuotationVersion,
-  getQuotations,
   rejectQuotationStep,
-  subscribeQuotationUpdates,
 } from "@/lib/quotation-workflow"
 
 function buildQuotationDetailForm(record: QuotationRecord) {
@@ -255,20 +253,20 @@ export default function ActivityDetailPage() {
   useEffect(() => {
     let cancelled = false
 
-    const sync = () => {
-      if (!cancelled) {
-        setQuotations(getQuotations())
-      }
-    }
-
     loadBackendQuotationRecords()
-      .then(() => sync())
-      .catch(() => sync())
+      .then((records) => {
+        if (!cancelled) {
+          setQuotations(records)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setQuotations([])
+        }
+      })
 
-    const unsubscribe = subscribeQuotationUpdates(sync)
     return () => {
       cancelled = true
-      unsubscribe()
     }
   }, [])
 
@@ -287,7 +285,11 @@ export default function ActivityDetailPage() {
   const quotationItem = isQuotation && item ? (item as QuotationRecord) : null
   const isViewingQuotationHistoryDetail = Boolean(selectedQuotationHistoryDetail)
   const requestMatchedCustomer = requestItem ? getCustomerByName(requestItem.customer) : null
+
   const isDeletedQuotation = Boolean(quotationItem?.deletedAt)
+
+  const [isApprovingQuotation, setIsApprovingQuotation] = useState(false)
+  const [isRejectingQuotation, setIsRejectingQuotation] = useState(false)
 
 const handleSubmitQuotation = async () => {
   if (!quotationItem?.backendId) return
@@ -315,7 +317,6 @@ const handleSubmitQuotation = async () => {
 
     setIsSubmitModalOpen(false)
     setSelectedApproverId("")
-    refreshQuotationDetail()
   } catch (error) {
     toast({
       title: "상신 실패",
@@ -528,66 +529,78 @@ const handleSubmitQuotation = async () => {
   }
 
   const handleApproveQuotation = () => {
-    if (!quotationItem || !canActOnApprovalStep) return
-    if (!selectedNextApprover) {
+    if (!quotationItem?.workflowId) {
       toast({
-        title: "다음 승인자 선택 필요",
-        description: "승인 요청을 보낼 다음 사용자를 먼저 선택해 주세요.",
+        title: "결재 정보 없음",
+        description: "워크플로우 ID가 없습니다.",
+        variant: "destructive",
       })
       return
     }
 
     scrollToTop()
+
     void (async () => {
       try {
-        if (quotationItem.workflowId) {
-          await approveBackendWorkflow(quotationItem.workflowId, {
-            nextApproverId: selectedNextApprover.id,
-          })
-        }
+        setIsApprovingQuotation(true)
 
-        const updated = approveQuotationStep(quotationItem.id, {
-          id: selectedNextApprover.id,
-          name: selectedNextApprover.name,
+        await approveBackendWorkflow(quotationItem.workflowId!, {
+          nextApproverId: nextApproverId || null,
+          comment: "승인합니다.",
         })
-        if (!updated) return
 
         toast({
           title: "견적 승인 완료",
-          description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되어 ${selectedNextApprover.name}(${selectedNextApprover.id})에게 요청했습니다.`,
+          description: "결재 승인이 처리되었습니다.",
         })
-        setNextApproverId("")
+
+        router.refresh()
       } catch (error) {
         toast({
           title: "견적 승인 실패",
           description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
+          variant: "destructive",
         })
+      } finally {
+        setIsApprovingQuotation(false)
       }
     })()
   }
 
   const handleRejectQuotation = () => {
-    if (!quotationItem || !canActOnApprovalStep) return
+    if (!quotationItem?.workflowId) {
+      toast({
+        title: "결재 정보 없음",
+        description: "워크플로우 ID가 없습니다.",
+        variant: "destructive",
+      })
+      return
+    }
 
     scrollToTop()
+
     void (async () => {
       try {
-        if (quotationItem.workflowId) {
-          await rejectBackendWorkflow(quotationItem.workflowId)
-        }
+        setIsRejectingQuotation(true)
 
-        const updated = rejectQuotationStep(quotationItem.id)
-        if (!updated) return
+        await rejectBackendWorkflow(quotationItem.workflowId!, {
+          comment: "반려합니다.",
+        })
 
         toast({
           title: "견적 반려 완료",
-          description: `${activeApprovalStep?.label ?? "현재 단계"} 반려가 처리되었습니다.`,
+          description: "결재 반려가 처리되었습니다.",
         })
+
+        router.refresh()
       } catch (error) {
         toast({
           title: "견적 반려 실패",
           description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
+          variant: "destructive",
         })
+      } finally {
+        setIsRejectingQuotation(false)
       }
     })()
   }
@@ -684,7 +697,7 @@ const handleSubmitQuotation = async () => {
                 {isQuotation && quotationItem ? (
                   <Tabs value={quotationDetailTab} onValueChange={setQuotationDetailTab} className="space-y-6">
                     <div className="px-3 py-1 rounded-md bg-muted text-sm font-medium">
-                      {quotationItem?.status ?? "DRAFT"}
+                      {quotationItem?.status ?? "결재 대기"}
                     </div>   
                     <TabsList>
                       <TabsTrigger value="document">견적서</TabsTrigger>
@@ -879,13 +892,34 @@ const handleSubmitQuotation = async () => {
                           </Link>
                         </Button>
 
-                        {isQuotation && (
+                        {isQuotation && quotationItem?.status === "결재 대기" && (
                           <Button
                             onClick={() => setIsSubmitModalOpen(true)}
+                            disabled={isSubmittingQuotation}
                             className="bg-blue-600 hover:bg-blue-700"
                           >
                             {isSubmittingQuotation ? "상신 중..." : "상신"}
                           </Button>
+                        )}
+
+                        {isQuotation && quotationItem?.status === "결재중" && (
+                          <>
+                            <Button
+                              onClick={handleApproveQuotation}
+                              disabled={isApprovingQuotation}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              {isApprovingQuotation ? "승인 중..." : "승인"}
+                            </Button>
+
+                            <Button
+                              onClick={handleRejectQuotation}
+                              disabled={isRejectingQuotation}
+                              variant="destructive"
+                            >
+                              {isRejectingQuotation ? "반려 중..." : "반려"}
+                            </Button>
+                          </>
                         )}
                       </>
                     )}
@@ -922,14 +956,6 @@ const handleSubmitQuotation = async () => {
               onClick={() => setIsSubmitModalOpen(false)}
             >
               취소
-            </Button>
-
-            <Button
-              onClick={handleSubmitQuotation}
-              disabled={isSubmittingQuotation || !selectedApproverId}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {isSubmittingQuotation ? "상신 중..." : "상신"}
             </Button>
           </DialogFooter>
         </DialogContent>

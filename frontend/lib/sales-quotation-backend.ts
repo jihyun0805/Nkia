@@ -545,7 +545,7 @@ function mapBackendQuotationRecord(
     remarks: local?.remarks ?? quotation.note ?? "",
     amount: String(quotation.totalPrice ?? local?.amount ?? solutionTotal + laborTotal),
     validity: local?.validity ?? addDays(date, 30),
-    status: local?.status ?? "검토중",
+    status: "",
   }
 }
 
@@ -706,7 +706,7 @@ export async function createBackendQuotationRecord(input: QuotationCreateInput) 
   const localFallback: QuotationRecord = {
     ...input,
     id: String(saved.id ?? `${Date.now()}`),
-    backendId: saved.id ?? local?.backendId,
+    backendId: saved.id,
     workflowId: saved.workflowId,
     refNumber: saved.refNo ?? input.refNumber,
     customerCode: input.customerCode,
@@ -748,7 +748,7 @@ export async function createBackendQuotationRecord(input: QuotationCreateInput) 
     remarks: input.remarks,
     amount: input.amount,
     validity: input.validity,
-    status: input.status,
+    status: input.status ?? "",
   }
   const mergedLocalIndex = new Map(localIndex)
   mergedLocalIndex.set(String(saved.id ?? localFallback.id), localFallback)
@@ -810,7 +810,7 @@ export async function updateBackendQuotationRecord(id: string, input: QuotationC
   const localFallback: QuotationRecord = {
     ...input,
     id: String(saved.id ?? id),
-    backendId: saved.id ?? local?.backendId,
+    backendId: saved.id,
     workflowId: saved.workflowId,
     refNumber: saved.refNo ?? input.refNumber,
     customerCode: input.customerCode,
@@ -847,7 +847,7 @@ export async function updateBackendQuotationRecord(id: string, input: QuotationC
     remarks: input.remarks,
     amount: input.amount,
     validity: input.validity,
-    status: input.status,
+    status: input.status ?? "",
   }
   const mergedLocalIndex = new Map(localIndex)
   mergedLocalIndex.set(String(saved.id ?? id), localFallback)
@@ -889,16 +889,20 @@ export async function deleteBackendQuotationRecord(id: string) {
   return true
 }
 
-
 export async function submitBackendQuotationRecord(
   quotationId: number,
   request: { firstApproverId: string },
 ): Promise<string> {
   const response = await fetch(
-    `${getBackendApiBaseUrl()}/activity/quotations/quotations/submit/${quotationId}`,
+    `${getBackendApiBaseUrl()}/activity/quotations/submit/${quotationId}`,
     {
       method: "POST",
-      headers: buildAuthHeaders(),
+      headers: {
+        ...buildAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      cache: "no-store",
       body: JSON.stringify(request),
     },
   )
@@ -906,5 +910,58 @@ export async function submitBackendQuotationRecord(
   return parseApiResponse<string>(
     response,
     "견적서 결재 상신에 실패했습니다.",
+  )
+}
+
+export async function approveBackendWorkflow(
+  workflowId: number,
+  request: {
+    nextApproverId?: string | null
+    comment?: string
+  },
+): Promise<string> {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/admin/workflows/${workflowId}/approve`,
+    {
+      method: "POST",
+      headers: {
+        ...buildAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      cache: "no-store",
+      body: JSON.stringify(request),
+    },
+  )
+
+  return parseApiResponse<string>(
+    response,
+    "결재 승인에 실패했습니다.",
+  )
+}
+
+export async function rejectBackendWorkflow(
+  workflowId: number,
+  request: {
+    comment?: string
+  },
+): Promise<string> {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/admin/workflows/${workflowId}/reject`,
+    {
+      method: "POST",
+      headers: {
+        ...buildAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      cache: "no-store",
+      body: JSON.stringify(request),
+    },
+  )
+
+  return parseApiResponse<string>(
+    response,
+    "결재 반려에 실패했습니다.",
   )
 }

@@ -5,9 +5,9 @@ import com.nkia.Orbis.domain.project.project.dto.request.ProjectCombinedUpdateRe
 import com.nkia.Orbis.domain.project.project.dto.request.ProjectCreateRequest;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectCreateResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectDetailResponse;
-import com.nkia.Orbis.domain.project.project.dto.response.ProjectHistoryDetailResponse;
-import com.nkia.Orbis.domain.project.project.dto.response.ProjectHistoryListResponse;
 import com.nkia.Orbis.domain.project.project.dto.response.ProjectListResponse;
+import com.nkia.Orbis.domain.project.projecthistory.dto.response.ProjectHistoryDetailResponse;
+import com.nkia.Orbis.domain.project.projecthistory.dto.response.ProjectHistoryListResponse;
 import com.nkia.Orbis.domain.project.project.service.ProjectFacadeService;
 import com.nkia.Orbis.domain.project.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
