@@ -34,6 +34,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { toast } from "@/hooks/use-toast"
 import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, type BackendUserSummary } from "@/lib/workflow-backend"
 import {
@@ -53,6 +61,7 @@ import {
   loadBackendQuotationHistoryRecord,
   loadBackendQuotationHistoryRecords,
   loadBackendQuotationRecords,
+  submitBackendQuotationRecord,
 } from "@/lib/sales-quotation-backend"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import {
@@ -130,7 +139,6 @@ export default function ActivityDetailPage() {
   >([])
   const [selectedQuotationHistoryKey, setSelectedQuotationHistoryKey] = useState<string | null>(null)
   const [selectedQuotationHistoryDetail, setSelectedQuotationHistoryDetail] = useState<QuotationRecord | null>(null)
-
   const scrollToTop = () => {
     window.scrollTo(0, 0)
     const scrollContainer = document.querySelector("main")
@@ -139,8 +147,11 @@ export default function ActivityDetailPage() {
     }
   }
 
-  useEffect(() => {
-    if (category !== "activities") return
+  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false)
+const [approveComment, setApproveComment] = useState("승인합니다.")
+const [approveNextApproverId, setApproveNextApproverId] = useState("")
+
+useEffect(() => {    if (category !== "activities") return
 
     let cancelled = false
 
@@ -268,13 +279,58 @@ export default function ActivityDetailPage() {
     return requestDetail ?? requests.find((entry) => entry.id === id) ?? null
   }, [activityRecord, category, id, quotations, requests, requestDetail])
   const categoryLabel = getCategoryLabel(category)
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
+  const [selectedApproverId, setSelectedApproverId] = useState("")
+  const [isSubmittingQuotation, setIsSubmittingQuotation] = useState(false)
   const isRequest = category === "requests"
   const isQuotation = category === "quotations"
   const requestItem = isRequest && item ? (item as ActivityRequestRecord) : null
   const quotationItem = isQuotation && item ? (item as QuotationRecord) : null
   const isViewingQuotationHistoryDetail = Boolean(selectedQuotationHistoryDetail)
   const requestMatchedCustomer = requestItem ? getCustomerByName(requestItem.customer) : null
+
   const isDeletedQuotation = Boolean(quotationItem?.deletedAt)
+
+  const [isApprovingQuotation, setIsApprovingQuotation] = useState(false)
+  const [isRejectingQuotation, setIsRejectingQuotation] = useState(false)
+
+const handleSubmitQuotation = async () => {
+  if (!quotationItem?.backendId) return
+
+  if (!selectedApproverId) {
+    toast({
+      title: "결재자 선택 필요",
+      description: "첫 번째 결재자를 선택해주세요.",
+      variant: "destructive",
+    })
+    return
+  }
+
+  try {
+    setIsSubmittingQuotation(true)
+
+    await submitBackendQuotationRecord(quotationItem.backendId, {
+      firstApproverId: selectedApproverId,
+    })
+
+    toast({
+      title: "상신 완료",
+      description: "견적서가 결재 상신되었습니다.",
+    })
+
+    setIsSubmitModalOpen(false)
+    setSelectedApproverId("")
+  } catch (error) {
+    toast({
+      title: "상신 실패",
+      description:
+        error instanceof Error ? error.message : "견적서 상신 중 오류가 발생했습니다.",
+      variant: "destructive",
+    })
+  } finally {
+    setIsSubmittingQuotation(false)
+  }
+}
   const quotationApprovalProcess =
     quotationItem?.approvalProcess ?? {
       overallStatus: "진행중" as const,
@@ -476,66 +532,78 @@ export default function ActivityDetailPage() {
   }
 
   const handleApproveQuotation = () => {
-    if (!quotationItem || !canActOnApprovalStep) return
-    if (!selectedNextApprover) {
+    if (!quotationItem?.workflowId) {
       toast({
-        title: "다음 승인자 선택 필요",
-        description: "승인 요청을 보낼 다음 사용자를 먼저 선택해 주세요.",
+        title: "결재 정보 없음",
+        description: "워크플로우 ID가 없습니다.",
+        variant: "destructive",
       })
       return
     }
 
     scrollToTop()
+
     void (async () => {
       try {
-        if (quotationItem.workflowId) {
-          await approveBackendWorkflow(quotationItem.workflowId, {
-            nextApproverId: selectedNextApprover.id,
-          })
-        }
+        setIsApprovingQuotation(true)
 
-        const updated = approveQuotationStep(quotationItem.id, {
-          id: selectedNextApprover.id,
-          name: selectedNextApprover.name,
+        await approveBackendWorkflow(quotationItem.workflowId!, {
+          nextApproverId: approveNextApproverId  || null,
+          comment: approveComment,
         })
-        if (!updated) return
 
         toast({
           title: "견적 승인 완료",
-          description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되어 ${selectedNextApprover.name}(${selectedNextApprover.id})에게 요청했습니다.`,
+          description: "결재 승인이 처리되었습니다.",
         })
-        setNextApproverId("")
+
+        router.refresh()
       } catch (error) {
         toast({
           title: "견적 승인 실패",
           description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
+          variant: "destructive",
         })
+      } finally {
+        setIsApprovingQuotation(false)
       }
     })()
   }
 
   const handleRejectQuotation = () => {
-    if (!quotationItem || !canActOnApprovalStep) return
+    if (!quotationItem?.workflowId) {
+      toast({
+        title: "결재 정보 없음",
+        description: "워크플로우 ID가 없습니다.",
+        variant: "destructive",
+      })
+      return
+    }
 
     scrollToTop()
+
     void (async () => {
       try {
-        if (quotationItem.workflowId) {
-          await rejectBackendWorkflow(quotationItem.workflowId)
-        }
+        setIsRejectingQuotation(true)
 
-        const updated = rejectQuotationStep(quotationItem.id)
-        if (!updated) return
+        await rejectBackendWorkflow(quotationItem.workflowId!, {
+          comment: "반려합니다.",
+        })
 
         toast({
           title: "견적 반려 완료",
-          description: `${activeApprovalStep?.label ?? "현재 단계"} 반려가 처리되었습니다.`,
+          description: "결재 반려가 처리되었습니다.",
         })
+
+        router.refresh()
       } catch (error) {
         toast({
           title: "견적 반려 실패",
           description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
+          variant: "destructive",
         })
+      } finally {
+        setIsRejectingQuotation(false)
       }
     })()
   }
@@ -631,9 +699,14 @@ export default function ActivityDetailPage() {
               <CardContent className="space-y-6">
                 {isQuotation && quotationItem ? (
                   <Tabs value={quotationDetailTab} onValueChange={setQuotationDetailTab} className="space-y-6">
+                    <div className="px-3 py-1 rounded-md bg-muted text-sm font-medium">
+                      {quotationItem?.status ?? "결재 대기"}
+                    </div>   
+                    <div className="text-xs text-red-500">
+                      workflowId: {quotationItem?.workflowId}
+                    </div>
                     <TabsList>
                       <TabsTrigger value="document">견적서</TabsTrigger>
-                      <TabsTrigger value="approval">결재 프로세스</TabsTrigger>
                       <TabsTrigger value="history">변경 이력</TabsTrigger>
                     </TabsList>
                     <TabsContent value="document" className="mt-0">
@@ -661,101 +734,6 @@ export default function ActivityDetailPage() {
                           }
                           referenceId={quotationItem.id}
                         />
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="approval" className="mt-0">
-                      <div className="space-y-6 rounded-lg border p-6">
-                        <div className="flex flex-wrap items-center gap-3">
-                          {approvalSteps.map((step, index) => {
-                            const isCurrent = index === quotationApprovalProcess.currentStepIndex
-                            const isDone = index < quotationApprovalProcess.currentStepIndex
-                            const isRejected =
-                              quotationApprovalProcess.overallStatus === "반려" && isCurrent && step.status === "rejected"
-
-                            return (
-                              <div key={`${step.label}-${index}`} className="flex items-center gap-3">
-                                <div
-                                  className={[
-                                    "rounded-full px-4 py-2 text-sm font-semibold transition-colors",
-                                    isRejected
-                                      ? "bg-red-600 text-white"
-                                      : isDone
-                                        ? "bg-green-100 text-green-700"
-                                        : isCurrent
-                                          ? "bg-amber-100 text-amber-800 ring-2 ring-amber-400"
-                                          : "bg-slate-100 text-slate-500",
-                                  ].join(" ")}
-                                >
-                                  {step.label}
-                                </div>
-                                {index < approvalSteps.length - 1 && (
-                                  <span className="text-2xl text-muted-foreground">→</span>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>현재 단계</Label>
-                            <Input readOnly value={activeApprovalStep?.label ?? "-"} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>담당자</Label>
-                            <Input readOnly value={activeApprovalStep?.assignee ?? "-"} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>결재 상태</Label>
-                            <Input readOnly value={quotationApprovalProcess.overallStatus} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>다음 승인자</Label>
-                            <UserIdPicker
-                              value={nextApproverId}
-                              users={nextApproverOptions}
-                              onValueChange={setNextApproverId}
-                              placeholder={
-                                nextApproverOptions.length > 0 ? "다음 승인자를 선택하세요" : "선택 가능한 사용자가 없습니다"
-                              }
-                              disabled={!canActOnApprovalStep || quotationApprovalProcess.overallStatus !== "진행중"}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>내부 처리</Label>
-                            <Input
-                              readOnly
-                              value={
-                                canActOnApprovalStep
-                                  ? selectedNextApprover
-                                    ? `${currentUser.name} 님이 승인하면 ${selectedNextApprover.name}(${selectedNextApprover.id})에게 결재 요청을 보냅니다.`
-                                    : `${currentUser.name} 님이 승인/반려를 처리할 수 있습니다. 다음 승인자를 선택해 주세요.`
-                                  : "현재 단계 담당자만 승인/반려할 수 있습니다."
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            disabled={!canActOnApprovalStep || quotationApprovalProcess.overallStatus !== "진행중"}
-                            onClick={handleRejectQuotation}
-                          >
-                            반려
-                          </Button>
-                          <Button
-                            className="bg-primary hover:bg-primary/90"
-                            disabled={
-                              !canActOnApprovalStep ||
-                              quotationApprovalProcess.overallStatus !== "진행중" ||
-                              !selectedNextApprover
-                            }
-                            onClick={handleApproveQuotation}
-                          >
-                            승인 후 요청
-                          </Button>
-                        </div>
                       </div>
                     </TabsContent>
                     <TabsContent value="history" className="mt-0">
@@ -909,13 +887,48 @@ export default function ActivityDetailPage() {
                     </Button>
                   )}
                   {!isRequest &&
-                    (!isQuotation || (quotationDetailTab === "document" && !isViewingQuotationHistoryDetail && !isDeletedQuotation)) && (
-                    <Button asChild className="bg-primary hover:bg-primary/90">
-                      <Link href={`/activity/${category}/${id}/edit`} onClick={scrollToTop}>
-                        수정
-                      </Link>
-                    </Button>
-                  )}
+                    (!isQuotation ||
+                      (quotationDetailTab === "document" &&
+                        !isViewingQuotationHistoryDetail &&
+                        !isDeletedQuotation)) && (
+                      <>
+                        <Button asChild className="bg-primary hover:bg-primary/90">
+                          <Link href={`/activity/${category}/${id}/edit`} onClick={scrollToTop}>
+                            수정
+                          </Link>
+                        </Button>
+
+                        {isQuotation && quotationItem?.status === "결재 대기" && (
+                          <Button
+                            onClick={() => setIsSubmitModalOpen(true)}
+                            disabled={isSubmittingQuotation}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            {isSubmittingQuotation ? "상신 중..." : "상신"}
+                          </Button>
+                        )}
+
+                        {isQuotation && quotationItem?.status === "결재중" && (
+                          <>
+                            <Button
+                              onClick={() => setIsApproveModalOpen(true)}
+                              disabled={isApprovingQuotation}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              {isApprovingQuotation ? "승인 중..." : "승인"}
+                            </Button>
+
+                            <Button
+                              onClick={handleRejectQuotation}
+                              disabled={isRejectingQuotation}
+                              variant="destructive"
+                            >
+                              {isRejectingQuotation ? "반려 중..." : "반려"}
+                            </Button>
+                          </>
+                        )}
+                      </>
+                    )}
                   {category === "activities" && (
                     <Button variant="destructive" onClick={() => setIsActivityDeleteDialogOpen(true)}>
                       삭제
@@ -927,7 +940,73 @@ export default function ActivityDetailPage() {
           </div>
         </main>
       </div>
+      <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>견적서 상신</DialogTitle>
+            <DialogDescription>
+              다음 결재자를 선택해주세요.
+            </DialogDescription>
+          </DialogHeader>
 
+          <UserIdPicker
+            users={workflowUsers}
+            value={selectedApproverId}
+            onValueChange={setSelectedApproverId}
+            placeholder="결재자 검색"
+          />
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsSubmitModalOpen(false)}
+            >
+              취소
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isApproveModalOpen} onOpenChange={setIsApproveModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>견적서 승인</DialogTitle>
+            <DialogDescription>
+              다음 결재자와 승인 의견을 입력해주세요.
+            </DialogDescription>
+          </DialogHeader>
+
+          <UserIdPicker
+            users={workflowUsers}
+            value={approveNextApproverId}
+            onValueChange={setApproveNextApproverId}
+            placeholder="다음 결재자 검색"
+          />
+
+          <Textarea
+            value={approveComment}
+            onChange={(event) => setApproveComment(event.target.value)}
+            rows={4}
+            placeholder="승인 의견"
+          />
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsApproveModalOpen(false)}
+            >
+              취소
+            </Button>
+
+            <Button
+              onClick={handleApproveQuotation}
+              disabled={isApprovingQuotation}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isApprovingQuotation ? "승인 중..." : "승인"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

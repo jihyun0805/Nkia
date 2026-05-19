@@ -889,3 +889,80 @@ export async function deleteBackendQuotationRecord(id: string) {
   saveMergedQuotations(remaining)
   return true
 }
+
+export async function submitBackendQuotationRecord(
+  quotationId: number,
+  request: { firstApproverId: string },
+): Promise<string> {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/activity/quotations/submit/${quotationId}`,
+    {
+      method: "POST",
+      headers: {
+        ...buildAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      cache: "no-store",
+      body: JSON.stringify(request),
+    },
+  )
+
+  return parseApiResponse<string>(
+    response,
+    "견적서 결재 상신에 실패했습니다.",
+  )
+}
+
+export async function approveBackendWorkflow(
+  workflowId: number,
+  request: {
+    nextApproverId?: string | null
+    comment?: string
+  },
+): Promise<string> {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/admin/workflows/${workflowId}/approve`,
+    {
+      method: "POST",
+      headers: {
+        ...buildAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      cache: "no-store",
+      body: JSON.stringify(request),
+    },
+  )
+
+  return parseApiResponse<string>(
+    response,
+    "결재 승인에 실패했습니다.",
+  )
+}
+
+export async function rejectBackendWorkflow(
+  workflowId: number,
+  request: {
+    comment?: string
+  },
+): Promise<string> {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/admin/workflows/${workflowId}/reject`,
+    {
+      method: "POST",
+      headers: {
+        ...buildAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      cache: "no-store",
+      body: JSON.stringify(request),
+    },
+  )
+
+  return parseApiResponse<string>(
+    response,
+    "결재 반려에 실패했습니다.",
+  )
+}
