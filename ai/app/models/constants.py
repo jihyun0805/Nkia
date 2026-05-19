@@ -92,22 +92,31 @@ METADATA_ALIASES: dict[str, tuple[str, ...]] = {
         "rootOpportunityName", "root_opportunity_name",
     ),
     # ── 고객사 ──────────────────────────────────────────────────────────────
+    # NOTE: BE Company entity 실 컬럼 = code / name / company_type / sector / category
+    #   - sector  : 공공/민간/해외  ↔ AI customerGroup
+    #   - category: SI/직접사용 등  ↔ AI customerCategory (별도 키로 보존)
+    #   - company_type : 고객/협력사/자사 등 ↔ AI customerType
+    # company 도메인 직쿼리/색인 결과의 정규화를 위해 BE 실 컬럼명을 후보에 포함한다.
     "customerCode": (
         "customerCode", "customer_code", "customerCompanyCode",
-        "customer_company_code",
+        "customer_company_code", "companyCode", "company_code",
     ),
     "customerName": (
         "customerName", "customer_name", "customerCompanyName",
-        "customer_company_name", "custName",
+        "customer_company_name", "custName", "companyName", "company_name",
     ),
     "rootCustomerName": (
         "rootCustomerName", "root_customer_name",
     ),
     "customerGroup": (
-        "customerGroup", "customer_group",
+        "customerGroup", "customer_group", "sector",
     ),
     "customerType": (
-        "customerType", "customer_type",
+        "customerType", "customer_type", "companyType", "company_type",
+    ),
+    "customerCategory": (
+        "customerCategory", "customer_category", "companyCategory",
+        "company_category", "category",
     ),
     # ── 사업 속성 ───────────────────────────────────────────────────────────
     "businessType": (
