@@ -233,7 +233,7 @@ export function OrderDetailTables() {
                           productReg.onChange(e);
                           const selectedProd = productOptions.find((p: any) => String(p.id) === e.target.value);
                           if (selectedProd) {
-                            setValue(`licenseDetails.${i}.unitPrice`, formatTotal((selectedProd.price || 0) * 1000));
+                            setValue(`licenseDetails.${i}.unitPrice`, formatTotal(selectedProd.price || 0));
                           }
                         }}
                         disabled={!currentGroup} // 상위항목 미선택시 비활성화

@@ -72,44 +72,10 @@ export default function ProjectPage() {
     setBillingsError(null);
     try {
       const res = await projectApi.getBillings();
-      const rawBillings = res.data ?? [];
-      
-      // TODO : 백엔드 DTO에 id 필드 누락으로 임시처리
-      // 목록을 우선 보여주고 조회
-      setBillings(rawBillings);
-      setBillingsLoading(false);
-
-      // 백그라운드에서 ID 매핑을 위해 1 ~ 150 범위의 상세 조회 병렬 스캔 실행
-      const scanPromises = Array.from({ length: 150 }, (_, i) => i + 1).map((id) =>
-        projectApi
-          .getBilling(id)
-          .then((detailRes) => detailRes.data)
-          .catch(() => null)
-      );
-
-      const details = (await Promise.all(scanPromises)).filter(Boolean) as BillingDetailResponse[];
-
-      // 필드를 매칭하여 목록 아이템에 ID 주입
-      const mappedBillings = rawBillings.map((item) => {
-        const matched = details.find(
-          (d) =>
-            d.customerName === item.customerName &&
-            d.projectName === item.projectName &&
-            d.billingAmount === item.billingAmount &&
-            (d.issuedAt === item.issuedAt || (!d.issuedAt && !item.issuedAt)) &&
-            (d.collectedAt === item.collectedAt || (!d.collectedAt && !item.collectedAt)) &&
-            d.createdBy === item.requesterName
-        );
-        return {
-          ...item,
-          id: matched ? matched.id : undefined,
-          status: matched ? (matched.status as any) : item.status,
-        };
-      });
-
-      setBillings(mappedBillings);
+      setBillings(res.data ?? []);
     } catch {
       setBillingsError("청구 목록을 불러오는 데 실패했습니다.");
+    } finally {
       setBillingsLoading(false);
     }
   }, []);

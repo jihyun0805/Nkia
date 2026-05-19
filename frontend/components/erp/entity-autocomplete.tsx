@@ -25,6 +25,7 @@ type EntityAutocompleteProps = {
   filterSuggestion?: (suggestion: EntitySuggestion) => boolean
   /** BE 결과가 비거나 부족할 때 함께 검색할 로컬 후보. 한영/유사 매칭 강화용. */
   localCandidates?: EntitySuggestion[]
+  inputClassName?: string
 }
 
 export function EntityAutocomplete({
@@ -38,6 +39,7 @@ export function EntityAutocomplete({
   emptyMessage = "추천 결과가 없습니다.",
   filterSuggestion,
   localCandidates,
+  inputClassName,
 }: EntityAutocompleteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
@@ -128,6 +130,7 @@ export function EntityAutocomplete({
           value={query}
           disabled={disabled}
           placeholder={placeholder}
+          className={inputClassName}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
             const nextValue = event.target.value
