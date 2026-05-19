@@ -325,6 +325,7 @@ export function updateQuotation(id: string, input: Omit<QuotationRecord, "id">) 
     const normalizedInput = normalizeQuotation({
       ...input,
       id,
+      backendId: current?.backendId,
       items: input.items.map((entry, index) => ({
         ...entry,
         id: entry.id || `${id}-ITEM-${index + 1}`,

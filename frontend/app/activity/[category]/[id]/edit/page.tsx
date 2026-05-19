@@ -46,7 +46,7 @@ import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } 
 import { currentUser } from "@/lib/current-user"
 import { type CustomerRecord, type OpportunityRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
-import { getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
+import { getQuotations, subscribeQuotationUpdates } from "@/lib/quotation-workflow"
 import { loadBackendActivityRecord, loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import {
@@ -386,18 +386,13 @@ export default function ActivityEditPage() {
           title: "견적 수정 완료",
           description: `${updatedQuotation.customer} 견적서가 수정되었습니다.`,
         })
-        router.push(`/activity/${category}/${id}`)
+        router.push(`/activity/${category}/${id}?historyRefresh=${Date.now()}`)
         return
       } catch {
-        const updatedQuotation: QuotationRecord | null = updateQuotation(id, normalized)
-        if (!updatedQuotation) return
-
-        scrollToTop()
         toast({
-          title: "견적 수정 완료",
-          description: `${normalized.customer} 견적서가 수정되었습니다.`,
+          title: "견적 수정 실패",
+          description: "백엔드에서 견적서를 수정하지 못했습니다.",
         })
-        router.push(`/activity/${category}/${id}`)
       }
       return
     }

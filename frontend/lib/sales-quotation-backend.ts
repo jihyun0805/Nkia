@@ -65,6 +65,13 @@ type BackendQuotationDetailItem = BackendQuotationListItem & {
   quotationLaborItems?: BackendQuotationLaborItem[]
 }
 
+type BackendQuotationHistoryListItem = {
+  id?: number
+  version?: number
+  quotationCode?: string
+  quotationDate?: string
+}
+
 type BackendProjectOpportunitySummary = {
   id?: number
   opportunityCode?: string
@@ -452,6 +459,7 @@ function mapBackendQuotationRecord(
 
   return {
     id: String(quotation.id ?? local?.id ?? `QT-${Date.now()}`),
+    backendId: typeof quotation.id === "number" ? quotation.id : local?.backendId,
     workflowId: quotation.workflowId ?? local?.workflowId,
     requestId: local?.requestId,
     refNumber: quotation.refNo ?? quotation.quotationCode ?? local?.refNumber ?? "",
@@ -613,6 +621,26 @@ function mergeAndSaveQuotation(quotation: BackendQuotationDetailItem | BackendQu
   return merged
 }
 
+async function fetchQuotationHistoryList(quotationId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/quotations/${quotationId}/histories`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendQuotationHistoryListItem[]>(response, "견적서 변경이력 목록을 불러오지 못했습니다.")
+}
+
+async function fetchQuotationHistoryDetail(historyId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/quotations/histories/${historyId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendQuotationResponse>(response, "견적서 변경이력 상세를 불러오지 못했습니다.")
+}
+
 export async function loadBackendQuotationRecords() {
   const localIndex = loadLocalQuotationIndex()
   const backendQuotations = await fetchQuotationList()
@@ -634,6 +662,15 @@ export async function loadBackendQuotationRecords() {
 
   saveMergedQuotations(records)
   return records
+}
+
+export async function loadBackendQuotationHistoryRecords(quotationId: number) {
+  return fetchQuotationHistoryList(quotationId)
+}
+
+export async function loadBackendQuotationHistoryRecord(historyId: number) {
+  const detail = await fetchQuotationHistoryDetail(historyId)
+  return mapBackendQuotationRecord(detail, undefined)
 }
 
 export async function createBackendQuotationRecord(input: QuotationCreateInput) {
@@ -669,6 +706,7 @@ export async function createBackendQuotationRecord(input: QuotationCreateInput) 
   const localFallback: QuotationRecord = {
     ...input,
     id: String(saved.id ?? `${Date.now()}`),
+    backendId: saved.id ?? local?.backendId,
     workflowId: saved.workflowId,
     refNumber: saved.refNo ?? input.refNumber,
     customerCode: input.customerCode,
@@ -772,6 +810,7 @@ export async function updateBackendQuotationRecord(id: string, input: QuotationC
   const localFallback: QuotationRecord = {
     ...input,
     id: String(saved.id ?? id),
+    backendId: saved.id ?? local?.backendId,
     workflowId: saved.workflowId,
     refNumber: saved.refNo ?? input.refNumber,
     customerCode: input.customerCode,
