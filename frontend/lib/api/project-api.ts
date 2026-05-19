@@ -194,7 +194,41 @@ export interface ProjectHistoryDetailResponse {
   savedAt: string;
 }
 
+/** 청구 변경이력 목록 응답 */
+export interface BillingHistoryListResponse {
+  id: number;
+  originalBillingId: number;
+  customerName: string | null;
+  projectName: string | null;
+  billingAmount: number;
+  issuedAt: string | null;
+  collectedAt: string | null;
+  salesRepName: string | null;
+  requesterName: string;
+  createdAt: string;
+  status: "REQUESTED" | "APPROVED" | "ISSUED" | "COLLECTED";
+}
+
+/** 청구 변경이력 상세 응답 */
+export interface BillingHistoryDetailResponse {
+  id: number;
+  originalBillingId: number;
+  approvalStatus: string | null;
+  customerName: string | null;
+  projectName: string | null;
+  billingAmount: number;
+  requestedIssueDate: string;
+  issuedAt: string | null;
+  collectedAt: string | null;
+  remarks: string | null;
+  invoiceImageId: number | null;
+  status: "REQUESTED" | "APPROVED" | "ISSUED" | "COLLECTED";
+  createdBy: string;
+  createdAt: string;
+}
+
 // API 함수 모음
+
 
 export const projectApi = {
   // 사업
@@ -318,6 +352,20 @@ export const projectApi = {
     customInstance<ApiResponse<null>>({
       url: `/projects/billings/${billingId}`,
       method: "DELETE",
+    }),
+
+  /** 특정 청구 건의 이력 목록 조회 */
+  getBillingHistories: (billingId: number) =>
+    customInstance<ApiResponse<BillingHistoryListResponse[]>>({
+      url: `/projects/billings/${billingId}/histories`,
+      method: "GET",
+    }),
+
+  /** 특정 청구 이력 상세 조회 */
+  getBillingHistory: (historyId: number) =>
+    customInstance<ApiResponse<BillingHistoryDetailResponse>>({
+      url: `/projects/billings/histories/${historyId}`,
+      method: "GET",
     }),
 };
 

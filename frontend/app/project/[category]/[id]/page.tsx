@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, AlertCircle, FileText, Download, Upload, CheckCircle2 } from "lucide-react";
-import { projectApi, type ProjectDetailResponse, type BillingDetailResponse, uploadBillingInvoiceFile, ProjectHistoryDetailResponse, ProjectHistoryListResponse } from "@/lib/api/project-api";
+import { projectApi, type ProjectDetailResponse, type BillingDetailResponse, uploadBillingInvoiceFile, ProjectHistoryDetailResponse, ProjectHistoryListResponse, type BillingHistoryListResponse, type BillingHistoryDetailResponse } from "@/lib/api/project-api";
 import { emitAlarmUpdate } from "@/hooks/use-alarms";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
@@ -372,6 +372,23 @@ function BillingDetail({ id }: { id: number }) {
   const [collectedAt, setCollectedAt] = useState("");
   const [collecting, setCollecting] = useState(false);
 
+  // 변경 이력 상태
+  const [histories, setHistories] = useState<BillingHistoryListResponse[]>([]);
+  const [historiesLoading, setHistoriesLoading] = useState(false);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null);
+  const [historyData, setHistoryData] = useState<BillingHistoryDetailResponse | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyInvoiceImageUrl, setHistoryInvoiceImageUrl] = useState<string | null>(null);
+
+  const fetchHistories = () => {
+    setHistoriesLoading(true);
+    projectApi
+      .getBillingHistories(id)
+      .then((res) => setHistories(res.data ?? []))
+      .catch((e) => console.error("히스토리를 불러오는 데 실패했습니다.", e))
+      .finally(() => setHistoriesLoading(false));
+  };
+
   const loadData = () => {
     setLoading(true);
     projectApi
@@ -379,11 +396,38 @@ function BillingDetail({ id }: { id: number }) {
       .then((res) => setData(res.data))
       .catch(() => setError("청구 정보를 불러오는 데 실패했습니다."))
       .finally(() => setLoading(false));
+    fetchHistories();
   };
 
   useEffect(() => {
     loadData();
   }, [id]);
+
+  useEffect(() => {
+    if (selectedHistoryId == null) {
+      setHistoryData(null);
+      return;
+    }
+    setHistoryLoading(true);
+    projectApi
+      .getBillingHistory(selectedHistoryId)
+      .then((res) => setHistoryData(res.data))
+      .catch((e) => console.error("히스토리 상세 정보를 불러오는 데 실패했습니다.", e))
+      .finally(() => setHistoryLoading(false));
+  }, [selectedHistoryId]);
+
+  useEffect(() => {
+    if (!historyData?.invoiceImageId) {
+      setHistoryInvoiceImageUrl(null);
+      return;
+    }
+    customInstance<{ code: number; message: string; data: string }>({
+      url: `/files/${historyData.invoiceImageId}/view`,
+      method: "GET",
+    })
+      .then((res) => setHistoryInvoiceImageUrl(res.data))
+      .catch(() => setHistoryInvoiceImageUrl(null));
+  }, [historyData?.invoiceImageId]);
 
   // 인보이스 이미지 presigned URL 조회
   useEffect(() => {
@@ -538,12 +582,18 @@ function BillingDetail({ id }: { id: number }) {
   };
 
   const handleDelete = async () => {
+    if (!data) return;
+    if (data.status !== "REQUESTED") {
+      alert("최종 결재 승인된 청구 건은 삭제할 수 없습니다.");
+      return;
+    }
     if (!confirm("청구 정보를 삭제하시겠습니까?")) return;
     try {
       await projectApi.deleteBilling(id);
       router.push("/project?tab=billingAndCollection");
-    } catch {
-      alert("삭제에 실패했습니다.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "삭제에 실패했습니다.";
+      alert(msg);
     }
   };
 
@@ -611,6 +661,106 @@ function BillingDetail({ id }: { id: number }) {
 
   if (loading) return <LoadingState />;
   if (error || !data) return <ErrorState message={error ?? "데이터를 찾을 수 없습니다."} />;
+
+  // 히스토리 상세 로딩
+  if (selectedHistoryId != null && (historyLoading || !historyData)) {
+    return <LoadingState />;
+  }
+
+  // 히스토리가 활성화된 경우: 이력 스냅샷 정보 출력
+  if (selectedHistoryId != null && historyData) {
+    const historyFields = [
+      { label: "고객사", value: historyData.customerName },
+      { label: "사업명", value: historyData.projectName },
+      { label: "청구금액", value: `₩${historyData.billingAmount.toLocaleString()}` },
+      { label: "발행 희망일", value: historyData.requestedIssueDate },
+      { label: "세금계산서 발행일", value: historyData.issuedAt ?? "-" },
+      { label: "수금일", value: historyData.collectedAt ?? "-" },
+      { label: "요청자", value: historyData.createdBy },
+      { label: "요청일", value: historyData.createdAt?.slice(0, 10) },
+      { label: "특기사항", value: historyData.remarks },
+    ];
+
+    const formatDate = (isoString?: string | null) => {
+      if (!isoString) return "-";
+      try {
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return isoString;
+
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        const h = String(date.getHours()).padStart(2, "0");
+        const min = String(date.getMinutes()).padStart(2, "0");
+        const s = String(date.getSeconds()).padStart(2, "0");
+
+        return `${y}-${m}-${d} ${h}:${min}:${s}`;
+      } catch {
+        return isoString;
+      }
+    };
+
+    return (
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <div className="space-y-1">
+            <CardTitle>청구 상세 이력</CardTitle>
+            <p className="text-xs text-muted-foreground">이력 저장일시: {formatDate(historyData.createdAt)}</p>
+          </div>
+          <Badge variant={statusVariant(historyData.status)}>{statusLabel(historyData.status)}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            {historyFields.map((f) => (
+              <div key={f.label}>
+                <p className="text-xs text-muted-foreground mb-1">{f.label}</p>
+                <p className="font-medium">{f.value ?? "-"}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 세금계산서 이미지 */}
+          {historyData.invoiceImageId && (
+            <div className="border-t pt-4">
+              <p className="text-xs text-muted-foreground mb-2">세금계산서 (이력 시점)</p>
+              <div className="flex items-center gap-3 bg-muted/50 rounded-md p-3">
+                <FileText className="w-5 h-5 text-blue-500" />
+                <span className="text-sm font-medium flex-1">세금계산서 파일</span>
+                {historyInvoiceImageUrl ? (
+                  <a href={historyInvoiceImageUrl} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="ghost">
+                      <Download className="w-4 h-4 mr-1" />
+                      보기/다운로드
+                    </Button>
+                  </a>
+                ) : (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 관련 문서 */}
+          <div className="border-t pt-4 flex gap-4 text-sm">
+            {data?.orderReportId && (
+              <Link href={`/contract/orders/${data.orderReportId}`} className="text-blue-600 hover:underline">
+                수주보고서 #{data.orderReportId}
+              </Link>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" asChild>
+              <Link href="/project?tab=billingAndCollection">목록으로</Link>
+            </Button>
+            <Button variant="secondary" onClick={() => setSelectedHistoryId(null)}>
+              현재 상세로 돌아가기
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const fields = [
     { label: "고객사", value: data.customerName },
@@ -691,12 +841,21 @@ function BillingDetail({ id }: { id: number }) {
           </div>
 
           <div className="flex justify-between pt-4 border-t">
-            <Button variant="destructive" size="sm" onClick={handleDelete}>
-              삭제
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/project?tab=billingAndCollection">목록으로</Link>
-            </Button>
+            {data.status === "REQUESTED" ? (
+              <Button variant="destructive" size="sm" onClick={handleDelete}>
+                삭제
+              </Button>
+            ) : (
+              <span /> // empty element to preserve justify-between layout
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/project?tab=billingAndCollection">목록으로</Link>
+              </Button>
+              <Button asChild>
+                <Link href={`/project/billingAndCollection/${id}/edit`}>수정</Link>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -884,6 +1043,99 @@ function BillingDetail({ id }: { id: number }) {
           </CardContent>
         </Card>
       )}
+
+      {/* 변경 이력 카드 */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">변경 이력</CardTitle>
+            <Badge variant="secondary">{histories.length}건</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {historiesLoading ? (
+            <div className="flex justify-center items-center py-16 gap-2 text-muted-foreground">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              불러오는 중...
+            </div>
+          ) : histories.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 변경 이력이 없습니다.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>변경일시</TableHead>
+                  <TableHead>고객사</TableHead>
+                  <TableHead>사업명</TableHead>
+                  <TableHead className="text-right">청구금액</TableHead>
+                  <TableHead>세금계산서 발행일</TableHead>
+                  <TableHead>수금일</TableHead>
+                  <TableHead>영업대표</TableHead>
+                  <TableHead>요청자</TableHead>
+                  <TableHead className="text-center">상태</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {histories.map((history) => (
+                  <TableRow key={history.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedHistoryId(history.id)}>
+                    <TableCell className="text-xs text-muted-foreground font-medium">
+                      {(() => {
+                        if (!history.createdAt) return "-";
+                        try {
+                          const date = new Date(history.createdAt);
+                          if (isNaN(date.getTime())) return history.createdAt;
+                          const y = date.getFullYear();
+                          const m = String(date.getMonth() + 1).padStart(2, "0");
+                          const d = String(date.getDate()).padStart(2, "0");
+                          const h = String(date.getHours()).padStart(2, "0");
+                          const min = String(date.getMinutes()).padStart(2, "0");
+                          const s = String(date.getSeconds()).padStart(2, "0");
+                          return `${y}-${m}-${d} ${h}:${min}:${s}`;
+                        } catch {
+                          return history.createdAt;
+                        }
+                      })()}
+                    </TableCell>
+                    <TableCell>{history.customerName ?? "-"}</TableCell>
+                    <TableCell className="max-w-[150px] truncate">{history.projectName ?? "-"}</TableCell>
+                    <TableCell className="text-right font-medium">₩{history.billingAmount.toLocaleString()}</TableCell>
+                    <TableCell>{history.issuedAt ?? "-"}</TableCell>
+                    <TableCell>{history.collectedAt ?? "-"}</TableCell>
+                    <TableCell>{history.salesRepName ?? "-"}</TableCell>
+                    <TableCell>{history.requesterName ?? "-"}</TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        const status = history.status;
+                        const label = statusLabel(status);
+                        let className = "";
+                        switch (status) {
+                          case "COLLECTED":
+                            className = "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-700";
+                            break;
+                          case "ISSUED":
+                            className = "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700";
+                            break;
+                          case "APPROVED":
+                            className = "bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-700";
+                            break;
+                          default:
+                            className = "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700";
+                            break;
+                        }
+                        return (
+                          <Badge variant="outline" className={className}>
+                            {label}
+                          </Badge>
+                        );
+                      })()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

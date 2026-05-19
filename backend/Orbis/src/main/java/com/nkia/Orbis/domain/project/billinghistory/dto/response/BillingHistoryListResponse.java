@@ -1,5 +1,6 @@
 package com.nkia.Orbis.domain.project.billinghistory.dto.response;
 
+import com.nkia.Orbis.domain.project.billing.entity.BillingStatus;
 import com.nkia.Orbis.domain.project.billinghistory.entity.BillingHistory;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -30,6 +31,8 @@ public class BillingHistoryListResponse {
     
     private LocalDateTime createdAt;
 
+    private BillingStatus status;
+
     public static BillingHistoryListResponse from(BillingHistory history) {
         return BillingHistoryListResponse.builder()
                 .id(history.getId())
@@ -42,6 +45,7 @@ public class BillingHistoryListResponse {
                 .salesRepName(history.getSalesRepName())
                 .requesterName(history.getRequesterName())
                 .createdAt(history.getCreatedAt())
+                .status(history.getStatus())
                 .build();
     }
 }
