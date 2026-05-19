@@ -11,10 +11,15 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Loader2, AlertCircle, ArrowLeft, History, FileText } from "lucide-react";
 import {
   getCustomerSupportActivityDetail,
   type CustomerSupportActivityDetailResponse,
+  getCustomerSupportActivityHistories,
+  getCustomerSupportActivityHistoryDetail,
+  type CustomerSupportHistoryListResponse,
+  type CustomerSupportHistoryDetailResponse,
 } from "@/lib/api/maintenance";
 
 function formatDateTime(value?: string) {
@@ -35,6 +40,32 @@ export default function CustomerSupportActivityDetailPage() {
   const [item, setItem] = useState<CustomerSupportActivityDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 이력 관리 상태 추가
+  const [histories, setHistories] = useState<CustomerSupportHistoryListResponse[]>([]);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null);
+  const [historyData, setHistoryData] = useState<CustomerSupportHistoryDetailResponse | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyListLoading, setHistoryListLoading] = useState(false);
+
+  const formatDate = (isoString?: string | null) => {
+    if (!isoString) return "-";
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return isoString;
+
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      const h = String(date.getHours()).padStart(2, "0");
+      const min = String(date.getMinutes()).padStart(2, "0");
+      const s = String(date.getSeconds()).padStart(2, "0");
+
+      return `${y}-${m}-${d} ${h}:${min}:${s}`;
+    } catch {
+      return isoString;
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,13 +94,54 @@ export default function CustomerSupportActivityDetailPage() {
     fetchData();
   }, [id]);
 
+  useEffect(() => {
+    const fetchHistories = async () => {
+      const numericId = parseInt(id);
+      if (isNaN(numericId)) return;
+      setHistoryListLoading(true);
+      try {
+        const res = await getCustomerSupportActivityHistories(numericId);
+        if (res.success || (res as any).result === "SUCCESS") {
+          setHistories(res.data ?? []);
+        }
+      } catch (err) {
+        console.error("히스토리 목록을 불러오는 데 실패했습니다.", err);
+      } finally {
+        setHistoryListLoading(false);
+      }
+    };
+    fetchHistories();
+  }, [id, selectedHistoryId]);
+
+  useEffect(() => {
+    if (selectedHistoryId === null) {
+      setHistoryData(null);
+      return;
+    }
+    const fetchHistoryDetail = async () => {
+      setHistoryLoading(true);
+      try {
+        const res = await getCustomerSupportActivityHistoryDetail(selectedHistoryId);
+        if (res.success || (res as any).result === "SUCCESS") {
+          setHistoryData(res.data ?? null);
+        }
+      } catch (err) {
+        console.error("히스토리 상세를 불러오는 데 실패했습니다.", err);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+    fetchHistoryDetail();
+  }, [selectedHistoryId]);
+
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="flex flex-1 flex-col">
-        <Header />
-        <main className="flex-1 overflow-auto bg-background p-6">
-          <Breadcrumb className="mb-6">
+      <div className="flex-1 flex flex-col">
+        <Header title="고객지원 활동 결과 상세" />
+        <main className="flex-1 overflow-auto p-6">
+          <div className="mx-auto max-w-5xl space-y-6">
+            <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem><BreadcrumbLink asChild><Link href="/maintenance">유지보수</Link></BreadcrumbLink></BreadcrumbItem>
               <BreadcrumbSeparator />
@@ -92,8 +164,107 @@ export default function CustomerSupportActivityDetailPage() {
             </Card>
           )}
 
-          {!loading && !error && item && (
-            <div className="space-y-6 max-w-3xl">
+          {/* 히스토리 상세 로딩 */}
+          {selectedHistoryId != null && (historyLoading || !historyData) && (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {/* 히스토리가 활성화된 경우: 이력 스냅샷 정보 출력 */}
+          {selectedHistoryId != null && historyData && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h1 className="text-2xl font-bold flex items-center gap-2 text-primary">
+                    <History className="w-6 h-6 text-primary" />
+                    고객지원활동 상세 이력
+                  </h1>
+                  <p className="text-xs text-muted-foreground">이력 저장일시: {formatDate(historyData.savedAt)}</p>
+                </div>
+                <Badge variant="secondary">{historyData.activityType}</Badge>
+              </div>
+
+              <Card>
+                <CardHeader><CardTitle className="text-lg">기본 정보</CardTitle></CardHeader>
+                <CardContent>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                    <div>
+                      <dt className="text-muted-foreground">고객사</dt>
+                      <dd className="font-medium mt-1">{historyData.customerName}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">활동 유형</dt>
+                      <dd className="font-medium mt-1">{historyData.activityType}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">개시 일시</dt>
+                      <dd className="font-medium mt-1">{formatDateTime(historyData.activityStartTime)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">완료 일시</dt>
+                      <dd className="font-medium mt-1">{formatDateTime(historyData.activityEndTime)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">등록자</dt>
+                      <dd className="font-medium mt-1">{historyData.registrantName}</dd>
+                    </div>
+                  </dl>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle className="text-lg">활동 내용</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="text-sm whitespace-pre-wrap">{historyData.activityContent || "-"}</p>
+                </CardContent>
+              </Card>
+
+              {historyData.participantsInfo && (
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">지원 인력</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {historyData.participantsInfo.split(", ").map((part, idx) => {
+                        const match = part.match(/(.*?)\((.*?)\)/);
+                        const name = match ? match[1] : part;
+                        const role = match ? match[2] : "";
+                        return (
+                          <div key={idx} className="flex items-center gap-4 p-3 bg-muted/30 rounded-md text-sm">
+                            <span className="font-medium min-w-[80px]">{name}</span>
+                            <span className="text-muted-foreground">{role || "참여자"}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {historyData.remarks && (
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">특기사항</CardTitle></CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap">{historyData.remarks}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => router.push("/maintenance")}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  목록으로
+                </Button>
+                <Button variant="secondary" onClick={() => setSelectedHistoryId(null)}>
+                  현재 상세로 돌아가기
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* 기본 상태: 현재 고객지원 활동 결과 상세 정보 + 하단에 히스토리 목록 출력 */}
+          {selectedHistoryId == null && !loading && !error && item && (
+            <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">고객지원 활동 결과 #{item.id}</h1>
                 <Badge variant="outline">{item.activityType}</Badge>
@@ -178,8 +349,75 @@ export default function CustomerSupportActivityDetailPage() {
                   목록으로
                 </Button>
               </div>
+
+              {/* 하단 변경 이력 카드 추가 */}
+              <Card className="mt-8 border-t border-muted">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <History className="w-5 h-5 text-muted-foreground" />
+                    변경 이력
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {historyListLoading ? (
+                    <div className="flex items-center justify-center py-8 text-sm text-muted-foreground gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      불러오는 중...
+                    </div>
+                  ) : histories.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                      등록된 변경 이력이 없습니다.
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>변경일시</TableHead>
+                          <TableHead>구분</TableHead>
+                          <TableHead>고객사</TableHead>
+                          <TableHead>요청/활동구분</TableHead>
+                          <TableHead>요청/등록자</TableHead>
+                          <TableHead>영업대표</TableHead>
+                          <TableHead>고객지원 담당자</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {histories.map((history) => (
+                          <TableRow
+                            key={history.historyId}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setSelectedHistoryId(history.historyId)}
+                          >
+                            <TableCell className="text-xs text-muted-foreground font-medium">
+                              {formatDate(history.savedAt)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className="bg-purple-100 text-purple-700 hover:bg-purple-100"
+                              >
+                                활동 결과
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{history.customerName ?? "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="font-normal text-xs">
+                                {history.activityType ?? "-"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{history.registrantName ?? "-"}</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           )}
+          </div>
         </main>
       </div>
     </div>
