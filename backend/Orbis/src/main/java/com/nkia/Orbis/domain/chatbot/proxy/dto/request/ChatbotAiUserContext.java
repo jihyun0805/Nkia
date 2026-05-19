@@ -35,4 +35,13 @@ public class ChatbotAiUserContext {
 
     @Builder.Default
     private Map<String, String> metadata = new LinkedHashMap<>();
+
+    /**
+     * 사용자가 도메인별로 보유한 액션 권한 매핑.
+     * <p>키: {@link com.nkia.Orbis.domain.admin.permission.entity.PermissionDomain} enum 이름 (UPPER_SNAKE)</p>
+     * <p>값: 해당 도메인에 대해 사용자가 가진 {@link com.nkia.Orbis.domain.admin.permission.entity.PermissionAction}
+     * enum 이름 리스트 (예: ["READ", "UPDATE"]). 권한이 없으면 entry 자체를 넣지 않는다.</p>
+     */
+    @Builder.Default
+    private Map<String, List<String>> domainActions = new LinkedHashMap<>();
 }

@@ -13,6 +13,7 @@ import {
   getChatbotSessions,
   postChatbotAnswer,
   updateChatbotSessionTitle,
+  type ChatbotDraftAction,
   type ChatbotEvidence,
   type ChatbotTypedEvidences,
   type ChatMessagePayload,
@@ -39,14 +40,19 @@ import {
   X,
 } from "lucide-react"
 import { buildEvidenceNavigationLink } from "@/lib/chatbot-evidence-links"
+import { ChatActions } from "@/components/erp/chatbot/ChatActions"
 
 type ChatMessage = {
   id: string
   role: "user" | "assistant"
   content: string
   createdAt: string
+  threadId?: string
+  route?: string
+  answerStatus?: string
   evidences?: ChatbotEvidence[]
   typedEvidences?: ChatbotTypedEvidences
+  actions?: ChatbotDraftAction[]
 }
 
 type ChatSession = {
@@ -690,8 +696,12 @@ export function ChatbotModal() {
         role: "assistant",
         content: data.answer,
         createdAt: nowIso(),
+        threadId: data.threadId ?? undefined,
+        route: data.route ?? undefined,
+        answerStatus: data.answerStatus ?? undefined,
         evidences: data.evidences,
         typedEvidences: data.typedEvidences,
+        actions: data.actions,
       }
 
       appendAssistantMessage(activeSession.id, assistantMessage)
@@ -1027,6 +1037,10 @@ export function ChatbotModal() {
                                 <span className="ml-0.5 inline-block h-4 w-1 animate-pulse rounded-full bg-sky-500 align-[-2px]" />
                               )}
                             </div>
+
+                            {message.role === "assistant" && !isTypingMessage && (
+                              <ChatActions actions={message.actions} />
+                            )}
 
                             {message.role === "assistant" && !isTypingMessage && message.evidences && message.evidences.length > 0 && (
                               <div className="mt-5 border-t border-slate-100 pt-4">
