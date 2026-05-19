@@ -104,18 +104,21 @@ function TableInput({
   onChange,
   readOnly = false,
   type = "text",
+  placeholder,
   className = "",
 }: {
   value: string
   onChange?: (value: string) => void
   readOnly?: boolean
   type?: "text" | "date"
+  placeholder?: string
   className?: string
 }) {
   return (
     <Input
       type={type}
       readOnly={readOnly}
+      placeholder={placeholder}
       value={value}
       className={`h-10 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-0 ${className}`}
       onChange={onChange ? (event) => onChange(event.target.value) : undefined}
@@ -405,8 +408,8 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
               <table className="min-w-[920px] w-full table-fixed border-collapse text-sm">
                 <colgroup>
                   <col className="w-[100px]" />
-                  <col className="w-[100px]" />
-                  <col />
+                  <col className="w-[160px]" />
+                  <col className="w-[420px]" />
                   <col className="w-[104px]" />
                 </colgroup>
                 <tbody>
@@ -444,15 +447,19 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
                           참석자 의견
                         </th>
                       )}
-                      <td className="border border-slate-400 bg-slate-50 px-3 py-2 font-medium whitespace-nowrap">
-                        참석자 {index + 1}
-                      </td>
                       <td className="border border-slate-400 px-2 py-1">
                         <UserIdPicker
                           value={item.participant}
                           users={attendeeUsers}
                           onValueChange={(value) => updateAttendee(index, "participant", value)}
                           placeholder="사용자를 선택하세요"
+                        />
+                      </td>
+                      <td className="border border-slate-400 px-2">
+                        <TableInput
+                          value={item.opinion}
+                          onChange={(value) => updateAttendee(index, "opinion", value)}
+                          placeholder="의견을 입력하세요"
                         />
                       </td>
                       <td className="border border-slate-400 px-2">
