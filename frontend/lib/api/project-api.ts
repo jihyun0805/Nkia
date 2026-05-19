@@ -12,6 +12,7 @@ export interface ApiResponse<T> {
 /** 사업 목록 응답 */
 export interface ProjectListResponse {
   id: number;
+  pjtNumber: string | null;
   customerName: string | null;
   projectName: string | null;
   totalAmount: number | null;
@@ -121,6 +122,7 @@ export interface BillingCreateRequest {
   billingAmount: number;
   requestedIssueDate: string;
   remarks?: string;
+  invoiceManager: string;
 }
 
 /** 청구 발행 확인 요청 */

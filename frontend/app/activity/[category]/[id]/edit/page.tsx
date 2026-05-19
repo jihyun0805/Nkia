@@ -44,10 +44,10 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
-import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
+import { type CustomerRecord, type OpportunityRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
-import { getQuotations, subscribeQuotationUpdates, updateQuotation } from "@/lib/quotation-workflow"
-import { loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
+import { getQuotations, subscribeQuotationUpdates } from "@/lib/quotation-workflow"
+import { loadBackendActivityRecord, loadBackendActivityRecords, updateBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import {
   deleteBackendQuotationRecord,
@@ -66,6 +66,7 @@ export default function ActivityEditPage() {
   const id = params.id
   const backendUsers = useBackendUsers()
   const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([])
+  const [activityDetail, setActivityDetail] = useState<ActivityRecord | null | undefined>(undefined)
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [activityCustomer, setActivityCustomer] = useState("")
@@ -108,6 +109,33 @@ export default function ActivityEditPage() {
       scrollContainer.scrollTo(0, 0)
     }
   }
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (category !== "activities") {
+      setActivityDetail(undefined)
+      return
+    }
+
+    setActivityDetail(undefined)
+
+    loadBackendActivityRecord(id)
+      .then((record) => {
+        if (!cancelled) {
+          setActivityDetail(record)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityDetail(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category, id])
 
   useEffect(() => {
     let cancelled = false
@@ -176,10 +204,10 @@ export default function ActivityEditPage() {
   }, [])
 
   const item = useMemo(() => {
-    if (category === "activities") return activityRecords.find((entry) => entry.id === id) ?? null
+    if (category === "activities") return activityDetail ?? activityRecords.find((entry) => entry.id === id) ?? null
     if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
     return requests.find((entry) => entry.id === id) ?? null
-  }, [activityRecords, category, id, quotations, requests])
+  }, [activityDetail, activityRecords, category, id, quotations, requests])
 
   useEffect(() => {
     if (category !== "activities" || !item) return
@@ -270,30 +298,61 @@ export default function ActivityEditPage() {
   const matchedCustomer = category === "requests" ? getCustomerByName(requestForm.customer) : null
   const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(requestForm.customer) : []
   const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
+  const activityRequestBackendId = (item as ActivityRecord | null)?.salesActivityRequestId
   const receiverUser = findUserByToken(backendUsers, requestForm.receiver)
   const receiverUserId = receiverUser?.id ?? ""
+  const resolveSelectedActivityOpportunity = (value: string, code?: string) => {
+    const normalizedValue = value.trim().toLowerCase()
+    const normalizedCode = code?.trim().toLowerCase()
+    if ((!normalizedValue || normalizedValue === "미확인") && !normalizedCode) return null
+
+    return (
+      activityOpportunityOptions.find((entry) => {
+        const entryCode = (entry as OpportunityRecord & { opportunityCode?: string }).opportunityCode ?? String(entry.id)
+        const entryName = (entry as OpportunityRecord & { opportunityName?: string }).opportunityName ?? entry.name
+        const candidates = [entryCode, String(entry.id), entryName]
+          .filter((candidate): candidate is string => typeof candidate === "string")
+          .map((candidate) => candidate.trim().toLowerCase())
+
+        if (normalizedCode && candidates.includes(normalizedCode)) {
+          return true
+        }
+
+        return normalizedValue ? candidates.includes(normalizedValue) : false
+      }) ?? null
+    )
+  }
 
   const handleActivityCustomerSelect = (customer: CustomerRecord | null) => {
     setActivityCustomer(customer?.name ?? "")
     setActivityCustomerCode(customer?.id ?? "")
-    const firstOpportunity = customer ? getOpportunitiesByCustomerName(customer.name)[0] : null
-    setActivityOpportunity(firstOpportunity?.name ?? (customer ? "미확인" : ""))
-    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+    setActivityOpportunity("")
+    setActivityOpportunityCode("")
   }
 
   const handleActivityOpportunityChange = (value: string) => {
-    const opportunity = activityOpportunityOptions.find((entry) => entry.name === value)
+    const normalizedValue = value.trim().toLowerCase()
+    const opportunity = activityOpportunityOptions.find((entry) => {
+      const entryCode = (entry as OpportunityRecord & { opportunityCode?: string }).opportunityCode ?? String(entry.id)
+      const entryName = (entry as OpportunityRecord & { opportunityName?: string }).opportunityName ?? entry.name
+      return [entryCode, String(entry.id), entryName]
+        .some((candidate) => String(candidate).trim().toLowerCase() === normalizedValue)
+    })
     setActivityOpportunity(value)
-    setActivityOpportunityCode(value === "미확인" ? "" : opportunity?.id ?? "")
+    setActivityOpportunityCode(
+      value === "미확인"
+        ? ""
+        : (opportunity as OpportunityRecord & { opportunityCode?: string } | undefined)?.opportunityCode ??
+            (opportunity?.id != null ? String(opportunity.id) : ""),
+    )
   }
 
   const handleActivityCustomerValueChange = (value: string) => {
     setActivityCustomer(value)
     const matchedCustomer = getCustomerByName(value)
     setActivityCustomerCode(matchedCustomer?.id ?? "")
-    const firstOpportunity = matchedCustomer ? getOpportunitiesByCustomerName(matchedCustomer.name)[0] : null
-    setActivityOpportunity(firstOpportunity?.name ?? (matchedCustomer ? "미확인" : value ? activityOpportunity : ""))
-    setActivityOpportunityCode(firstOpportunity?.id ?? "")
+    setActivityOpportunity("")
+    setActivityOpportunityCode("")
   }
 
   const handleActivityOpportunitySuggestionSelect = (suggestion: EntitySuggestion | null) => {
@@ -327,18 +386,13 @@ export default function ActivityEditPage() {
           title: "견적 수정 완료",
           description: `${updatedQuotation.customer} 견적서가 수정되었습니다.`,
         })
-        router.push(`/activity/${category}/${id}`)
+        router.push(`/activity/${category}/${id}?historyRefresh=${Date.now()}`)
         return
       } catch {
-        const updatedQuotation: QuotationRecord | null = updateQuotation(id, normalized)
-        if (!updatedQuotation) return
-
-        scrollToTop()
         toast({
-          title: "견적 수정 완료",
-          description: `${normalized.customer} 견적서가 수정되었습니다.`,
+          title: "견적 수정 실패",
+          description: "백엔드에서 견적서를 수정하지 못했습니다.",
         })
-        router.push(`/activity/${category}/${id}`)
       }
       return
     }
@@ -352,16 +406,24 @@ export default function ActivityEditPage() {
         return
       }
 
-      const opportunityName = activityOpportunity === "미확인" ? "" : activityOpportunity
-      const localRequestId = Number.parseInt((item as ActivityRecord).requestId ?? "", 10)
-      const salesActivityRequestId = Number.isNaN(localRequestId) ? undefined : localRequestId
+      const selectedActivityOpportunity = resolveSelectedActivityOpportunity(activityOpportunity, activityOpportunityCode)
+      if (activityOpportunityOptions.length > 0 && !selectedActivityOpportunity) {
+        toast({
+          title: "사업기회 선택 필요",
+          description: "고객사에 연결된 사업기회를 목록에서 선택해주십시오.",
+        })
+        return
+      }
 
+      const opportunityName = activityOpportunity === "미확인" ? "" : selectedActivityOpportunity?.name ?? activityOpportunity
       try {
         const updatedActivity = await updateBackendActivityRecord(id, {
-          projectOpportunityId: (item as ActivityRecord).projectOpportunityId,
+          projectOpportunityId: selectedActivityOpportunity?.backendId ?? (item as ActivityRecord).projectOpportunityId,
           customerName: activityCustomer,
           opportunityName,
-          opportunityCode: activityOpportunityCode,
+          opportunityCode:
+            (selectedActivityOpportunity as OpportunityRecord & { opportunityCode?: string } | null)?.opportunityCode ??
+            activityOpportunityCode,
           registrant: activityRegistrant,
           requester: activityRequester,
           activityMode: activityForm.activityMode,
@@ -373,7 +435,7 @@ export default function ActivityEditPage() {
           nextAction: activityForm.nextAction,
           attendees: activityForm.attendees,
           status: (item as ActivityRecord).status,
-          salesActivityRequestId,
+          salesActivityRequestId: activityRequestBackendId,
         })
 
         scrollToTop()
@@ -478,6 +540,7 @@ export default function ActivityEditPage() {
                   <ActivityFormFields
                     defaultValues={{
                       ...(item as ActivityRecord),
+                      activityMode: activityForm.activityMode || (item as ActivityRecord).activityMode,
                       requester: activityRequester,
                       registrant: activityRegistrant,
                       activityContent: activityForm.activityContent || (item as ActivityRecord).activityContent,
@@ -494,6 +557,7 @@ export default function ActivityEditPage() {
                     opportunityOptions={activityOpportunityOptions}
                     onOpportunityChange={handleActivityOpportunityChange}
                     onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
+                    opportunitySelectionOnly
                     requesterValue={activityRequester}
                     onRequesterChange={setActivityRequester}
                     values={activityForm}

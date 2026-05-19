@@ -3,8 +3,10 @@
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
+import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -33,7 +35,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { toast } from "@/hooks/use-toast"
-import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, resolveWorkflowApproverId } from "@/lib/workflow-backend"
+import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, type BackendUserSummary } from "@/lib/workflow-backend"
 import {
   type ActivityAttachment,
   type ActivityCategory,
@@ -45,8 +47,13 @@ import {
 import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
 import { deleteBackendActivityRecord, loadBackendActivityRecord } from "@/lib/sales-activity-backend"
-import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
-import { deleteBackendQuotationRecord, loadBackendQuotationRecords } from "@/lib/sales-quotation-backend"
+import { loadBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
+import {
+  deleteBackendQuotationRecord,
+  loadBackendQuotationHistoryRecord,
+  loadBackendQuotationHistoryRecords,
+  loadBackendQuotationRecords,
+} from "@/lib/sales-quotation-backend"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import {
   approveQuotationStep,
@@ -103,18 +110,28 @@ function buildQuotationDetailForm(record: QuotationRecord) {
 
 export default function ActivityDetailPage() {
   const params = useParams<{ category: ActivityCategory; id: string }>()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const category = params.category
   const id = params.id
+  const historyRefreshToken = searchParams.get("historyRefresh") ?? ""
   const [activityRecord, setActivityRecord] = useState<ActivityRecord | null | undefined>(undefined)
   const [requests, setRequests] = useState<ActivityRequestRecord[]>([])
+  const [requestDetail, setRequestDetail] = useState<ActivityRequestRecord | null | undefined>(undefined)
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
+  const [isRequestsLoaded, setIsRequestsLoaded] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isActivityDeleteDialogOpen, setIsActivityDeleteDialogOpen] = useState(false)
   const [isVersionDeleteDialogOpen, setIsVersionDeleteDialogOpen] = useState(false)
   const [versionDeleteTarget, setVersionDeleteTarget] = useState<string>("")
   const [quotationDetailTab, setQuotationDetailTab] = useState("document")
-  const [selectedQuotationVersion, setSelectedQuotationVersion] = useState("")
+  const [workflowUsers, setWorkflowUsers] = useState<BackendUserSummary[]>([])
+  const [nextApproverId, setNextApproverId] = useState("")
+  const [quotationHistoryRecords, setQuotationHistoryRecords] = useState<
+    { id: number; version: number; quotationCode: string; quotationDate: string }[]
+  >([])
+  const [selectedQuotationHistoryKey, setSelectedQuotationHistoryKey] = useState<string | null>(null)
+  const [selectedQuotationHistoryDetail, setSelectedQuotationHistoryDetail] = useState<QuotationRecord | null>(null)
 
   const scrollToTop = () => {
     window.scrollTo(0, 0)
@@ -161,10 +178,14 @@ export default function ActivityDetailPage() {
       .then((items) => {
         if (!cancelled) {
           setRequests(items)
+          setIsRequestsLoaded(true)
         }
       })
       .catch(() => {
         sync()
+        if (!cancelled) {
+          setIsRequestsLoaded(true)
+        }
       })
 
     const unsubscribe = subscribeWorkflowUpdates(sync)
@@ -173,6 +194,55 @@ export default function ActivityDetailPage() {
       unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void loadBackendUsers()
+      .then((users) => {
+        if (!cancelled) {
+          setWorkflowUsers(Array.isArray(users) ? users : [])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWorkflowUsers([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (category !== "requests") return
+
+    let cancelled = false
+    setRequestDetail(undefined)
+
+    const requestId = Number(id)
+    if (Number.isNaN(requestId)) {
+      setRequestDetail(null)
+      return
+    }
+
+    loadBackendActivityRequest(requestId)
+      .then((request) => {
+        if (!cancelled) {
+          setRequestDetail(request)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRequestDetail(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category, id])
 
   useEffect(() => {
     let cancelled = false
@@ -197,13 +267,14 @@ export default function ActivityDetailPage() {
   const item = useMemo(() => {
     if (category === "activities") return activityRecord ?? null
     if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
-    return requests.find((entry) => entry.id === id) ?? null
-  }, [activityRecord, category, id, quotations, requests])
+    return requestDetail ?? requests.find((entry) => entry.id === id) ?? null
+  }, [activityRecord, category, id, quotations, requests, requestDetail])
   const categoryLabel = getCategoryLabel(category)
   const isRequest = category === "requests"
   const isQuotation = category === "quotations"
   const requestItem = isRequest && item ? (item as ActivityRequestRecord) : null
   const quotationItem = isQuotation && item ? (item as QuotationRecord) : null
+  const isViewingQuotationHistoryDetail = Boolean(selectedQuotationHistoryDetail)
   const requestMatchedCustomer = requestItem ? getCustomerByName(requestItem.customer) : null
   const isDeletedQuotation = Boolean(quotationItem?.deletedAt)
   const quotationApprovalProcess =
@@ -219,56 +290,114 @@ export default function ActivityDetailPage() {
         { label: "대표이사", assignee: "대표이사", status: "pending" as const },
       ],
     }
-  const quotationVersions =
-    quotationItem?.versionSnapshots
-      ?.map((snapshot) => ({
-        key: snapshot.version,
-        label: snapshot.version,
-        capturedAt: snapshot.capturedAt,
-        form: {
-          ...snapshot.form,
-          changeHistory: quotationItem.changeHistory?.map((entry) => ({ ...entry })) ?? [],
-          versionSnapshots: [],
-        },
-      }))
-      .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt)) ?? []
-  const quotationHistoryRows =
-    quotationItem?.versionSnapshots
-      ?.map((snapshot) => {
-        const versionEntries = quotationItem.changeHistory?.filter((entry) => entry.version === snapshot.version) ?? []
-        const versionHistory = versionEntries.length > 0 ? versionEntries[versionEntries.length - 1] : null
-        const isDeleted = quotationItem.deletedVersions?.includes(snapshot.version) ?? false
-        const latestAction = versionHistory?.action ?? "created"
+  useEffect(() => {
+    setNextApproverId("")
+  }, [quotationItem?.backendId, historyRefreshToken])
+  useEffect(() => {
+    let cancelled = false
 
-        return {
-          version: snapshot.version,
-          changedAt: versionHistory?.changedAt ?? snapshot.capturedAt,
-          changedBy: versionHistory?.changedBy ?? quotationItem.salesRep,
-          action: isDeleted ? "deleted" : latestAction,
-          summary:
-            versionHistory?.summary ??
-            (isDeleted ? `${snapshot.version} 삭제` : `견적서 ${snapshot.version} 버전`),
-          deleted: isDeleted,
+    const quotationId = quotationItem?.backendId
+    if (!quotationItem || quotationId == null) {
+      setQuotationHistoryRecords([])
+      setSelectedQuotationHistoryKey(null)
+      setSelectedQuotationHistoryDetail(null)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setQuotationHistoryRecords([])
+    setSelectedQuotationHistoryKey(null)
+    setSelectedQuotationHistoryDetail(null)
+
+    void loadBackendQuotationHistoryRecords(quotationId)
+      .then((records) => {
+        if (cancelled) return
+        setQuotationHistoryRecords(
+          records
+            .filter((record): record is { id: number; version: number; quotationCode: string; quotationDate: string } => {
+              return typeof record.id === "number" && typeof record.version === "number"
+            })
+            .sort((a, b) => b.version - a.version),
+        )
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setQuotationHistoryRecords([])
         }
       })
-      .concat(
-        quotationItem?.deletedAt
-          ? [
-              {
-                version: "전체삭제",
-                changedAt: quotationItem.deletedAt,
-                changedBy: quotationItem.deletedBy ?? quotationItem.salesRep,
-                action: "deleted" as const,
-                summary: "견적서 전체삭제",
-                deleted: true,
-              },
-            ]
-          : [],
-      )
-      .sort((a, b) => b.changedAt.localeCompare(a.changedAt)) ?? []
-  const selectedQuotationVersionDeleted =
-    Boolean(selectedQuotationVersion) && (quotationItem?.deletedVersions?.includes(selectedQuotationVersion) ?? false)
+
+    return () => {
+      cancelled = true
+    }
+  }, [quotationItem?.backendId, historyRefreshToken])
+
+  useEffect(() => {
+    if (!historyRefreshToken) return
+    if (quotationHistoryRecords.length > 0) {
+      setQuotationDetailTab("history")
+      setSelectedQuotationHistoryKey(`backend:${quotationHistoryRecords[0].id}`)
+    }
+  }, [historyRefreshToken, quotationHistoryRecords, quotationItem])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const quotationId = quotationItem?.backendId
+    if (!quotationItem || quotationId == null || selectedQuotationHistoryKey == null) {
+      setSelectedQuotationHistoryDetail(null)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (!selectedQuotationHistoryKey.startsWith("backend:")) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const historyId = Number(selectedQuotationHistoryKey.replace("backend:", ""))
+    if (Number.isNaN(historyId)) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    void loadBackendQuotationHistoryRecord(historyId)
+      .then((record) => {
+        if (!cancelled) {
+          setSelectedQuotationHistoryDetail(record)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSelectedQuotationHistoryDetail(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [quotationItem?.backendId, selectedQuotationHistoryKey, quotationItem])
   const activeApprovalStep = quotationApprovalProcess.steps[quotationApprovalProcess.currentStepIndex] ?? null
+  const approvalSteps = quotationApprovalProcess.steps.slice(0, quotationApprovalProcess.currentStepIndex + 1)
+  type WorkflowUserOption = BackendUserSummary & { id: string; name: string }
+
+  const nextApproverOptions = workflowUsers.filter((user): user is WorkflowUserOption => {
+    const id = user.id?.trim()
+    const name = user.name?.trim()
+    return Boolean(id && name && id !== currentUser.id)
+  })
+  const selectedNextApprover = nextApproverOptions.find((user) => user.id === nextApproverId) ?? null
+  const quotationHistoryRows =
+    quotationHistoryRecords.map((record) => ({
+      key: `backend:${record.id}`,
+      versionLabel: `v${record.version}`,
+      quotationDate: record.quotationDate,
+      quotationCode: record.quotationCode,
+      historyId: record.id,
+    }))
   const canActOnApprovalStep =
     Boolean(quotationItem) &&
     quotationApprovalProcess.overallStatus === "진행중" &&
@@ -350,27 +479,34 @@ export default function ActivityDetailPage() {
 
   const handleApproveQuotation = () => {
     if (!quotationItem || !canActOnApprovalStep) return
+    if (!selectedNextApprover) {
+      toast({
+        title: "다음 승인자 선택 필요",
+        description: "승인 요청을 보낼 다음 사용자를 먼저 선택해 주세요.",
+      })
+      return
+    }
 
     scrollToTop()
     void (async () => {
       try {
         if (quotationItem.workflowId) {
-          const users = await loadBackendUsers()
-          const nextStep = quotationApprovalProcess.steps[quotationApprovalProcess.currentStepIndex + 1] ?? null
-          const nextApproverId = nextStep ? resolveWorkflowApproverId(nextStep.assignee, users) : null
-
           await approveBackendWorkflow(quotationItem.workflowId, {
-            nextApproverId,
+            nextApproverId: selectedNextApprover.id,
           })
         }
 
-        const updated = approveQuotationStep(quotationItem.id)
+        const updated = approveQuotationStep(quotationItem.id, {
+          id: selectedNextApprover.id,
+          name: selectedNextApprover.name,
+        })
         if (!updated) return
 
         toast({
           title: "견적 승인 완료",
-          description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되었습니다.`,
+          description: `${activeApprovalStep?.label ?? "현재 단계"} 승인이 처리되어 ${selectedNextApprover.name}(${selectedNextApprover.id})에게 요청했습니다.`,
         })
+        setNextApproverId("")
       } catch (error) {
         toast({
           title: "견적 승인 실패",
@@ -411,25 +547,8 @@ export default function ActivityDetailPage() {
 
     scrollToTop()
 
-    if (quotationDetailTab === "document" && selectedQuotationVersion) {
-      setVersionDeleteTarget(selectedQuotationVersion)
-      setIsVersionDeleteDialogOpen(true)
-      return
-    }
-
     setIsDeleteDialogOpen(true)
   }
-
-  useEffect(() => {
-    if (!quotationVersions.length) {
-      setSelectedQuotationVersion("")
-      return
-    }
-
-    if (!quotationVersions.some((version) => version.key === selectedQuotationVersion)) {
-      setSelectedQuotationVersion(quotationVersions[0].key)
-    }
-  }, [quotationVersions, selectedQuotationVersion])
 
   if (category === "activities" && activityRecord === undefined) {
     return (
@@ -447,11 +566,39 @@ export default function ActivityDetailPage() {
     )
   }
 
-  if (!item) {
-    return null
+  if (category === "requests" && requestDetail === undefined) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title={`${categoryLabel} 상세`} description={`${categoryLabel} 건을 페이지에서 확인합니다`} />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto flex max-w-6xl items-center justify-center py-24 text-sm text-muted-foreground">
+              활동요청 상세를 불러오는 중입니다.
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
-  const quotationBreadcrumbValue = quotationItem?.refNumber?.trim() || quotationItem?.quotationCode?.trim() || item.id
+  if (!item) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title={`${categoryLabel} 상세`} description={`${categoryLabel} 건을 페이지에서 확인합니다`} />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto flex max-w-6xl items-center justify-center py-24 text-sm text-muted-foreground">
+              {category === "requests" ? "활동요청 정보를 찾을 수 없습니다." : `${categoryLabel} 정보를 찾을 수 없습니다.`}
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  const quotationBreadcrumbValue = quotationItem?.refNumber?.trim() || item.id
 
   return (
     <div className="min-h-screen bg-background">
@@ -492,19 +639,36 @@ export default function ActivityDetailPage() {
                       <TabsTrigger value="history">변경 이력</TabsTrigger>
                     </TabsList>
                     <TabsContent value="document" className="mt-0">
-                      <QuotationSheet
-                        mode="detail"
-                        form={
-                          quotationVersions.find((version) => version.key === selectedQuotationVersion)?.form ??
-                          buildQuotationDetailForm(quotationItem)
-                        }
-                        referenceId={quotationItem.id}
-                      />
+                      <div className="space-y-3">
+                        {isViewingQuotationHistoryDetail && (
+                              <div className="flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => {
+                                setSelectedQuotationHistoryKey(null)
+                                setSelectedQuotationHistoryDetail(null)
+                              }}
+                                >
+                              현재 버전 보기
+                            </Button>
+                          </div>
+                        )}
+                        <QuotationSheet
+                          mode="detail"
+                          form={
+                            selectedQuotationHistoryDetail
+                              ? buildQuotationDetailForm(selectedQuotationHistoryDetail)
+                              : buildQuotationDetailForm(quotationItem)
+                          }
+                          referenceId={quotationItem.id}
+                        />
+                      </div>
                     </TabsContent>
                     <TabsContent value="approval" className="mt-0">
                       <div className="space-y-6 rounded-lg border p-6">
                         <div className="flex flex-wrap items-center gap-3">
-                          {quotationApprovalProcess.steps.map((step, index) => {
+                          {approvalSteps.map((step, index) => {
                             const isCurrent = index === quotationApprovalProcess.currentStepIndex
                             const isDone = index < quotationApprovalProcess.currentStepIndex
                             const isRejected =
@@ -526,7 +690,7 @@ export default function ActivityDetailPage() {
                                 >
                                   {step.label}
                                 </div>
-                                {index < quotationApprovalProcess.steps.length - 1 && (
+                                {index < approvalSteps.length - 1 && (
                                   <span className="text-2xl text-muted-foreground">→</span>
                                 )}
                               </div>
@@ -548,12 +712,26 @@ export default function ActivityDetailPage() {
                             <Input readOnly value={quotationApprovalProcess.overallStatus} />
                           </div>
                           <div className="space-y-2">
+                            <Label>다음 승인자</Label>
+                            <UserIdPicker
+                              value={nextApproverId}
+                              users={nextApproverOptions}
+                              onValueChange={setNextApproverId}
+                              placeholder={
+                                nextApproverOptions.length > 0 ? "다음 승인자를 선택하세요" : "선택 가능한 사용자가 없습니다"
+                              }
+                              disabled={!canActOnApprovalStep || quotationApprovalProcess.overallStatus !== "진행중"}
+                            />
+                          </div>
+                          <div className="space-y-2">
                             <Label>내부 처리</Label>
                             <Input
                               readOnly
                               value={
                                 canActOnApprovalStep
-                                  ? `${currentUser.name} 님이 현재 단계 승인/반려를 처리할 수 있습니다.`
+                                  ? selectedNextApprover
+                                    ? `${currentUser.name} 님이 승인하면 ${selectedNextApprover.name}(${selectedNextApprover.id})에게 결재 요청을 보냅니다.`
+                                    : `${currentUser.name} 님이 승인/반려를 처리할 수 있습니다. 다음 승인자를 선택해 주세요.`
                                   : "현재 단계 담당자만 승인/반려할 수 있습니다."
                               }
                             />
@@ -570,10 +748,14 @@ export default function ActivityDetailPage() {
                           </Button>
                           <Button
                             className="bg-primary hover:bg-primary/90"
-                            disabled={!canActOnApprovalStep || quotationApprovalProcess.overallStatus !== "진행중"}
+                            disabled={
+                              !canActOnApprovalStep ||
+                              quotationApprovalProcess.overallStatus !== "진행중" ||
+                              !selectedNextApprover
+                            }
                             onClick={handleApproveQuotation}
                           >
-                            승인
+                            승인 후 요청
                           </Button>
                         </div>
                       </div>
@@ -584,29 +766,18 @@ export default function ActivityDetailPage() {
                           <thead>
                             <tr className="bg-slate-100 text-center font-semibold">
                               <th className="border-b border-r px-3 py-3">버전</th>
-                              <th className="border-b border-r px-3 py-3">변경일시</th>
-                              <th className="border-b border-r px-3 py-3">변경자</th>
-                              <th className="border-b border-r px-3 py-3">상태</th>
-                              <th className="border-b border-r px-3 py-3">내용</th>
+                              <th className="border-b border-r px-3 py-3">견적일자</th>
+                              <th className="border-b border-r px-3 py-3">견적서코드</th>
                               <th className="border-b px-3 py-3">보기</th>
                             </tr>
                           </thead>
                           <tbody>
                             {quotationHistoryRows.length > 0 ? (
-                              quotationHistoryRows.map((entry, index) => (
-                                <tr key={`${entry.version}-${entry.changedAt}-${index}`}>
-                                  <td className="border-r border-t px-3 py-3 text-center">
-                                    <div className="space-y-1">
-                                      <div>{entry.version}</div>
-                                      {entry.deleted && <div className="text-xs font-medium text-red-600">삭제됨</div>}
-                                    </div>
-                                  </td>
-                                  <td className="border-r border-t px-3 py-3 text-center">{entry.changedAt}</td>
-                                  <td className="border-r border-t px-3 py-3 text-center">{entry.changedBy}</td>
-                                  <td className="border-r border-t px-3 py-3 text-center">
-                                    {entry.action === "created" ? "등록" : entry.action === "updated" ? "수정" : "삭제됨"}
-                                  </td>
-                                  <td className="border-r border-t px-3 py-3">{entry.summary}</td>
+                              quotationHistoryRows.map((entry) => (
+                                <tr key={entry.key}>
+                                  <td className="border-r border-t px-3 py-3 text-center">{entry.versionLabel}</td>
+                                  <td className="border-r border-t px-3 py-3 text-center">{entry.quotationDate}</td>
+                                  <td className="border-r border-t px-3 py-3 text-center">{entry.quotationCode}</td>
                                   <td className="border-t px-3 py-3 text-center">
                                     <Button
                                       type="button"
@@ -614,10 +785,10 @@ export default function ActivityDetailPage() {
                                       size="sm"
                                       onClick={() => {
                                         scrollToTop()
-                                        setSelectedQuotationVersion(entry.version)
+                                        setSelectedQuotationHistoryKey(entry.key)
                                         setQuotationDetailTab("document")
                                       }}
-                                      >
+                                    >
                                       보기
                                     </Button>
                                   </td>
@@ -625,8 +796,8 @@ export default function ActivityDetailPage() {
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
-                                  아직 변경 이력이 없습니다.
+                                <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                                  변경 이력이 없습니다.
                                 </td>
                               </tr>
                             )}
@@ -714,11 +885,16 @@ export default function ActivityDetailPage() {
                   <Button variant="outline" asChild>
                     <Link href={listHref}>목록</Link>
                   </Button>
-                  {requestItem && (
-                    <Button variant="outline" asChild>
-                      <Link href={`/activity/new/activities?requestId=${id}`}>활동 등록</Link>
-                    </Button>
-                  )}
+                  {requestItem &&
+                    (requestItem.salesActivityId ? (
+                      <Button variant="outline" asChild>
+                        <Link href={`/activity/activities/${requestItem.salesActivityId}`}>활동 보기</Link>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" asChild>
+                        <Link href={`/activity/new/activities?requestId=${id}`}>활동 등록</Link>
+                      </Button>
+                    ))}
                   {requestItem && requestItem.type === "RFP 분석" && requestItem.receiver === currentUser.name && (
                     <Button asChild className="bg-red-600 hover:bg-red-700">
                       <Link href={`/bid/new/rfp?requestId=${id}`}>RFP 분석 실행</Link>
@@ -729,13 +905,13 @@ export default function ActivityDetailPage() {
                       승인(접수)
                     </Button>
                   )}
-                  {isQuotation && quotationDetailTab === "document" && !selectedQuotationVersionDeleted && !isDeletedQuotation && (
+                  {isQuotation && quotationDetailTab === "document" && !isViewingQuotationHistoryDetail && !isDeletedQuotation && (
                     <Button variant="destructive" onClick={handleOpenQuotationDelete}>
                       삭제
                     </Button>
                   )}
                   {!isRequest &&
-                    (!isQuotation || (quotationDetailTab === "document" && !selectedQuotationVersionDeleted && !isDeletedQuotation)) && (
+                    (!isQuotation || (quotationDetailTab === "document" && !isViewingQuotationHistoryDetail && !isDeletedQuotation)) && (
                     <Button asChild className="bg-primary hover:bg-primary/90">
                       <Link href={`/activity/${category}/${id}/edit`} onClick={scrollToTop}>
                         수정

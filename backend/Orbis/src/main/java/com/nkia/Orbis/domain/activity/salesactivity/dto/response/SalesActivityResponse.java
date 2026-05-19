@@ -2,6 +2,7 @@ package com.nkia.Orbis.domain.activity.salesactivity.dto.response;
 
 import com.nkia.Orbis.domain.activity.salesactivity.entity.SalesActivity;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
@@ -45,6 +46,8 @@ public class SalesActivityResponse {
 
     private String salesActivityRequestTitle;
 
+    private List<SalesActivityAttendeeResponse> attendees;
+
     public static SalesActivityResponse from(SalesActivity salesActivity, String createdByName) {
         return SalesActivityResponse.builder()
                 .id(salesActivity.getId())
@@ -72,6 +75,11 @@ public class SalesActivityResponse {
                         salesActivity.getSalesActivityRequest() != null
                                 ? salesActivity.getSalesActivityRequest().getTitle()
                                 : null
+                )
+                .attendees(
+                        salesActivity.getAttendees().stream()
+                                .map(SalesActivityAttendeeResponse::from)
+                                .toList()
                 )
                 .build();
     }

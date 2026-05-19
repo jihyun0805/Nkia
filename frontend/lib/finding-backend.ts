@@ -115,6 +115,17 @@ export type FindingBackendData = {
 };
 
 const opportunityDisplayOverrideStorageKey = "orbis.project-opportunity-display-overrides";
+const rfpAttachmentSummaryStorageKey = "orbis.project-opportunity-rfp-summaries";
+
+type RfpAttachmentSummaryRecord = {
+  opportunityId?: number;
+  opportunityCode?: string;
+  fileId?: number;
+  name: string;
+  size?: number;
+  summary: string;
+  updatedAt: string;
+};
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -172,6 +183,77 @@ function getOpportunityDisplayOverride(opportunityCode?: string) {
   const normalizedCode = opportunityCode?.trim();
   if (!normalizedCode) return null;
   return loadOpportunityDisplayOverrides()[normalizedCode] ?? null;
+}
+
+function loadRfpAttachmentSummaryRecords() {
+  if (!isBrowser()) return [] as RfpAttachmentSummaryRecord[];
+
+  const stored = window.localStorage.getItem(rfpAttachmentSummaryStorageKey);
+  if (!stored) return [];
+
+  try {
+    const parsed = JSON.parse(stored) as RfpAttachmentSummaryRecord[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRfpAttachmentSummaryRecords(records: RfpAttachmentSummaryRecord[]) {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(rfpAttachmentSummaryStorageKey, JSON.stringify(records));
+}
+
+function getRfpAttachmentSummary(params: {
+  opportunityId?: number;
+  opportunityCode?: string;
+  fileId?: number;
+  name?: string;
+  size?: number;
+}) {
+  const opportunityCode = params.opportunityCode?.trim();
+  const matched = loadRfpAttachmentSummaryRecords().find((record) => {
+    const sameOpportunity =
+      (params.opportunityId != null && record.opportunityId === params.opportunityId) ||
+      (opportunityCode && record.opportunityCode === opportunityCode);
+    if (!sameOpportunity) return false;
+    if (params.fileId != null && record.fileId === params.fileId) return true;
+    return Boolean(params.name && record.name === params.name && (params.size == null || record.size === params.size));
+  });
+
+  return matched?.summary ?? "";
+}
+
+export function saveRfpAttachmentSummariesForOpportunity(
+  opportunity: Pick<ProjectOpportunitySummaryResponse, "id" | "opportunityCode">,
+  attachments: Array<{ fileId?: number; name: string; size?: number; summary?: string }>,
+) {
+  const summarized = attachments
+    .filter((attachment) => String(attachment.summary ?? "").trim())
+    .map((attachment) => ({
+      opportunityId: opportunity.id,
+      opportunityCode: opportunity.opportunityCode,
+      fileId: attachment.fileId,
+      name: attachment.name,
+      size: attachment.size,
+      summary: String(attachment.summary).trim(),
+      updatedAt: new Date().toISOString(),
+    }));
+
+  if (summarized.length === 0) return;
+
+  const retained = loadRfpAttachmentSummaryRecords().filter((record) => {
+    return !summarized.some((item) => {
+      const sameOpportunity =
+        (item.opportunityId != null && record.opportunityId === item.opportunityId) ||
+        (item.opportunityCode && record.opportunityCode === item.opportunityCode);
+      if (!sameOpportunity) return false;
+      if (item.fileId != null && record.fileId === item.fileId) return true;
+      return record.name === item.name && record.size === item.size;
+    });
+  });
+
+  saveRfpAttachmentSummaryRecords([...retained, ...summarized]);
 }
 
 function normalizeLookupText(value?: string | number | null) {
@@ -461,6 +543,14 @@ async function loadProjectOpportunities() {
   return payload.content ?? [];
 }
 
+export async function loadBackendProjectOpportunitiesByCustomer(companyId: number) {
+  const payload = await fetchList<PageResponse<ProjectOpportunitySummaryResponse>>(
+    `${getBackendApiBaseUrl()}/project-opportunities/customer/${companyId}?size=2000`,
+    "고객사별 사업기회 목록을 불러오지 못했습니다.",
+  );
+  return payload.content ?? [];
+}
+
 export async function loadBackendProjectOpportunity(id: number) {
   const payload = await fetchList<ProjectOpportunitySummaryResponse>(
     `${getBackendApiBaseUrl()}/project-opportunities/${id}`,
@@ -549,6 +639,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
     return {
       id: item.opportunityCode ?? String(item.id ?? `OPP-${index + 1}`),
       backendId: item.id,
+      customerCompanyId: item.customerCompanyId,
       createdAt: "",
       createUserName: item.createUserName ?? "-",
       customerCode: item.customerCompanyId != null ? buildCustomerRecordCode(customerLookup.get(item.customerCompanyId)) : "",
@@ -586,7 +677,13 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
         size: rfpFileSizes[fileIndex] ?? 0,
         contentType: "",
         dataUrl: "",
-        summary: "",
+        summary: getRfpAttachmentSummary({
+          opportunityId: item.id,
+          opportunityCode: item.opportunityCode,
+          fileId,
+          name: rfpFileNames[fileIndex],
+          size: rfpFileSizes[fileIndex],
+        }),
         createdAt: "",
       })),
     };

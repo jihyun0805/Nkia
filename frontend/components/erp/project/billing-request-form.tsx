@@ -13,6 +13,9 @@ import { projectApi, type BillingFormInitResponse } from "@/lib/api/project-api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OrderReportSelector } from "@/components/erp/contract/order-report-selector";
 import { type OrderReportListResponse } from "@/lib/api/order-report-api";
+import { UserPicker } from "@/components/erp/user-picker";
+import { useBackendUsers } from "@/lib/use-backend-users";
+import { type BackendUserSummary } from "@/lib/workflow-backend";
 
 interface BillingRequestFormProps {
   onSuccess: () => void;
@@ -40,6 +43,9 @@ interface FormValues {
 }
 
 export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: BillingRequestFormProps) {
+  const users = useBackendUsers();
+  const [invoiceManager, setInvoiceManager] = useState<BackendUserSummary | null>(null);
+
   const [initData, setInitData] = useState<BillingFormInitResponse | null>(null);
   const [initLoading, setInitLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,6 +159,11 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
       return;
     }
 
+    if (!invoiceManager?.id) {
+      alert("세금계산서 발행 담당자를 선택해주세요.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await projectApi.createBilling({
@@ -160,6 +171,7 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
         billingAmount: amountNum,
         requestedIssueDate: data.requestedIssueDate,
         remarks: data.remarks || undefined,
+        invoiceManager: invoiceManager.id,
       });
       alert("세금계산서 발행 요청이 등록되었습니다.");
       onSuccess();
@@ -276,6 +288,17 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
                 <Input id="requestedIssueDate" type="date" {...register("requestedIssueDate", { required: true })} />
               </div>
 
+              {/* 세금계산서 발행 담당자 */}
+              <div className="space-y-2">
+                <Label>세금계산서 발행 담당자 *</Label>
+                <UserPicker
+                  value={invoiceManager?.name ?? ""}
+                  users={users}
+                  onSelect={setInvoiceManager}
+                  placeholder="담당자 지정"
+                />
+              </div>
+
               {/* 요청일 */}
               <div className="space-y-2">
                 <Label htmlFor="requestDate">요청일</Label>
@@ -323,7 +346,7 @@ export function BillingRequestForm({ onSuccess, onCancel, inheritedData }: Billi
               <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
                 취소
               </Button>
-              <Button type="submit" disabled={isSubmitting || isDataMissing}>
+              <Button type="submit" disabled={isSubmitting || isDataMissing || !invoiceManager}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 w-4 h-4 animate-spin" />

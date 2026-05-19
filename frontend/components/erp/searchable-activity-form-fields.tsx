@@ -43,8 +43,12 @@ type ActivityFormFieldsProps = {
   opportunityOptions?: OpportunityRecord[]
   onOpportunityChange?: (value: string) => void
   onOpportunitySuggestionSelect?: (suggestion: EntitySuggestion | null) => void
+  opportunitySelectionOnly?: boolean
   requestValue?: string
   requestOptions?: ActivityRequestRecord[]
+  requestTitle?: string
+  requesterLocked?: boolean
+  requestLocked?: boolean
   onRequestChange?: (value: string) => void
   requesterValue?: string
   onRequesterChange?: (value: string) => void
@@ -95,8 +99,12 @@ export function ActivityFormFields({
   opportunityOptions,
   onOpportunityChange,
   onOpportunitySuggestionSelect,
+  opportunitySelectionOnly = false,
   requestValue,
   requestOptions,
+  requestTitle,
+  requesterLocked = false,
+  requestLocked = false,
   onRequestChange,
   requesterValue,
   onRequesterChange,
@@ -128,13 +136,49 @@ export function ActivityFormFields({
   const resolvedRequester = resolveUserId(requester, requesterUsers)
   const requesterDisplay = formatUserDisplayName(findUserByToken(requesterUsers, requester) ?? (requester ? { id: requester } : null))
   const linkedRequestId = typeof requestValue === "string" ? requestValue : defaultValues?.requestId ?? ""
-  const requestTitle = requestOptions?.find((item) => item.id === linkedRequestId)?.title ?? ""
+  const selectedRequestTitle = requestOptions?.find((item) => item.id === linkedRequestId)?.title ?? ""
+  const resolvedRequestTitle = selectedRequestTitle || requestTitle || ""
+  const normalizedRequester = requester.trim().toLowerCase()
+  const opportunityCandidates = useMemo(
+    () =>
+      (opportunityOptions ?? [])
+        .map((item) => ({
+          type: "PROJECT_OPPORTUNITY" as const,
+          id: String(item.backendId ?? item.id ?? item.opportunityCode ?? item.name),
+          code: item.opportunityCode ?? item.id ?? "",
+          label: item.name ?? item.opportunityName ?? item.opportunityCode ?? "",
+          subtitle:
+            [item.customer ?? item.customerCompanyName, item.category, item.module]
+              .filter((value): value is string => typeof value === "string" && value.trim())
+              .join(" · ") || null,
+          score: 0,
+          matchedBy: "contains" as const,
+          metadata: {
+            customerCode: item.customerCode,
+            customerName: item.customer ?? item.customerCompanyName,
+            customerCompanyName: item.customer ?? item.customerCompanyName,
+            customerId: item.customerCode,
+            opportunityCode: item.id,
+            opportunityName: item.name,
+          },
+        }))
+        .filter((item) => Boolean(item.label.trim())),
+    [opportunityOptions],
+  )
   const visibleRequestOptions = useMemo(() => {
     if (!requestOptions) return []
     const query = requestQuery.trim().toLowerCase()
-    if (!query) return requestOptions
+    const requesterScopedOptions = normalizedRequester
+      ? requestOptions.filter((request) => (request.receiver ?? "").trim().toLowerCase() === normalizedRequester)
+      : requestOptions
+    const selectedRequest = requestOptions.find((request) => request.id === linkedRequestId)
+    const optionsWithSelection =
+      selectedRequest && !requesterScopedOptions.some((request) => request.id === selectedRequest.id)
+        ? [selectedRequest, ...requesterScopedOptions]
+        : requesterScopedOptions
+    if (!query) return optionsWithSelection
 
-    return requestOptions.filter((request) => {
+    return optionsWithSelection.filter((request) => {
       const haystack = [
         request.title ?? "",
         request.customer ?? "",
@@ -145,7 +189,7 @@ export function ActivityFormFields({
         .toLowerCase()
       return haystack.includes(query)
     })
-  }, [requestOptions, requestQuery])
+  }, [requestOptions, requestQuery, normalizedRequester, linkedRequestId])
   const opportunity = typeof opportunityValue === "string" ? opportunityValue : defaultValues?.opportunity ?? ""
   const customerCode = typeof customerCodeValue === "string" ? customerCodeValue.trim() : ""
   const resolvedDate = values?.date ?? date
@@ -218,6 +262,62 @@ export function ActivityFormFields({
   }
 
   useEffect(() => {
+    const nextRows = splitDelimitedValues(resolvedAttendees)
+    if (nextRows.length === 0) {
+      return
+    }
+
+    const hasOnlyEmptyRows = attendeeRows.length === 0 || attendeeRows.every((item) => !item.trim())
+    if (!hasOnlyEmptyRows) {
+      return
+    }
+
+    setAttendeeRows(nextRows)
+  }, [resolvedAttendees])
+
+  useEffect(() => {
+    if (typeof values?.activityMode === "string" && values.activityMode && values.activityMode !== activityMode) {
+      setActivityMode(values.activityMode)
+    }
+  }, [activityMode, values?.activityMode])
+
+  useEffect(() => {
+    if (typeof values?.activityContent === "string" && values.activityContent && values.activityContent !== activityContent) {
+      setActivityContent(values.activityContent)
+    }
+  }, [activityContent, values?.activityContent])
+
+  useEffect(() => {
+    if (typeof values?.location === "string" && values.location && values.location !== location) {
+      setLocation(values.location)
+    }
+  }, [location, values?.location])
+
+  useEffect(() => {
+    if (typeof values?.date === "string" && values.date && values.date !== date) {
+      setDate(values.date)
+    }
+  }, [date, values?.date])
+
+  useEffect(() => {
+    if (typeof values?.content === "string" && values.content && values.content !== content) {
+      setContent(values.content)
+    }
+  }, [content, values?.content])
+
+  useEffect(() => {
+    if (typeof values?.issues === "string" && values.issues && values.issues !== issues) {
+      setIssues(values.issues)
+    }
+  }, [issues, values?.issues])
+
+  useEffect(() => {
+    if (typeof values?.nextAction === "string" && values.nextAction && values.nextAction !== nextAction) {
+      setNextAction(values.nextAction)
+    }
+  }, [nextAction, values?.nextAction])
+
+  useEffect(() => {
     if (typeof requesterValue !== "string" || !onRequesterChange) return
     if (!requester) return
     if (resolvedRequester !== requester) {
@@ -252,7 +352,7 @@ export function ActivityFormFields({
         <div className="space-y-2">
           <Label>요청자</Label>
           {typeof requesterValue === "string" && onRequesterChange ? (
-            readOnly ? (
+            readOnly || requesterLocked ? (
               <Input value={requesterDisplay} readOnly className={detailFieldClassName} />
             ) : (
               <UserIdPicker
@@ -274,59 +374,63 @@ export function ActivityFormFields({
         <div className="space-y-2">
           <Label>요청 제목</Label>
           {typeof requestValue === "string" && onRequestChange && requestOptions ? (
-            <Popover open={requestOpen && !readOnly} onOpenChange={setRequestOpen}>
-              <PopoverAnchor asChild>
-                <Input
-                  value={requestTitle}
-                  readOnly
-                  disabled={readOnly}
-                  placeholder="요청 제목을 선택하세요"
-                  className={cn(detailFieldClassName, "cursor-pointer")}
-                  onClick={() => {
-                    if (readOnly) return
-                    setRequestQuery("")
-                    setRequestOpen(true)
-                  }}
-                />
-              </PopoverAnchor>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(event) => event.preventDefault()}>
-                <Command shouldFilter={false}>
-                  <CommandInput
-                    value={requestQuery}
-                    onValueChange={setRequestQuery}
-                    placeholder="요청 제목으로 검색하세요"
+            readOnly || requestLocked ? (
+              <Input value={resolvedRequestTitle} readOnly placeholder="요청 제목을 선택하세요" className={detailFieldClassName} />
+            ) : (
+              <Popover open={requestOpen && !readOnly} onOpenChange={setRequestOpen}>
+                <PopoverAnchor asChild>
+                  <Input
+                    value={resolvedRequestTitle}
+                    readOnly
+                    disabled={readOnly}
+                    placeholder="요청 제목을 선택하세요"
+                    className={cn(detailFieldClassName, "cursor-pointer")}
+                    onClick={() => {
+                      if (readOnly) return
+                      setRequestQuery("")
+                      setRequestOpen(true)
+                    }}
                   />
-                  <CommandList>
-                    <CommandEmpty>등록된 요청이 없습니다.</CommandEmpty>
-                    <CommandGroup>
-                      {visibleRequestOptions.map((request) => (
-                        <CommandItem
-                          key={request.id}
-                          value={`${request.title ?? ""} ${request.customer ?? ""} ${request.opportunity ?? ""} ${request.id}`}
-                          onMouseDown={(event) => event.preventDefault()}
-                          onSelect={() => {
-                            onRequestChange(request.id)
-                            setRequestOpen(false)
-                            setRequestQuery("")
-                          }}
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate">{request.title ?? request.id}</p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {request.customer ? request.customer : "-"}
-                              {request.opportunity ? ` / ${request.opportunity}` : ""}
-                            </p>
-                          </div>
-                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{request.id}</span>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                </PopoverAnchor>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(event) => event.preventDefault()}>
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      value={requestQuery}
+                      onValueChange={setRequestQuery}
+                      placeholder="요청 제목으로 검색하세요"
+                    />
+                    <CommandList>
+                      <CommandEmpty>등록된 요청이 없습니다.</CommandEmpty>
+                      <CommandGroup>
+                        {visibleRequestOptions.map((request) => (
+                          <CommandItem
+                            key={request.id}
+                            value={`${request.title ?? ""} ${request.customer ?? ""} ${request.opportunity ?? ""} ${request.id}`}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onSelect={() => {
+                              onRequestChange(request.id)
+                              setRequestOpen(false)
+                              setRequestQuery("")
+                            }}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate">{request.title ?? request.id}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {request.customer ? request.customer : "-"}
+                                {request.opportunity ? ` / ${request.opportunity}` : ""}
+                              </p>
+                            </div>
+                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">{request.id}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )
           ) : (
-            <Input value={requestTitle} readOnly placeholder="요청 제목을 선택하세요" className={detailFieldClassName} />
+            <Input value={resolvedRequestTitle} readOnly placeholder="요청 제목을 선택하세요" className={detailFieldClassName} />
           )}
           {!linkedRequestId && (
             <p className="text-sm text-muted-foreground">
@@ -359,6 +463,7 @@ export function ActivityFormFields({
               target="opportunities"
               onValueChange={(value) => {
                 if (readOnly) return
+                if (opportunitySelectionOnly) return
                 onOpportunityChange?.(value)
               }}
               onSelect={(suggestion) => {
@@ -370,9 +475,10 @@ export function ActivityFormFields({
                 onOpportunitySuggestionSelect?.(null)
               }}
               disabled={readOnly || !customerValue}
-              allowCustomValue
+              allowCustomValue={!opportunitySelectionOnly}
               placeholder={customerValue ? "사업기회를 입력하세요" : "고객사를 먼저 선택하세요"}
               emptyMessage="등록된 사업기회가 없습니다."
+              localCandidates={opportunityCandidates}
               filterSuggestion={(suggestion) =>
                 !customerValue ||
                 [suggestion.metadata.customerCode, suggestion.metadata.customerId]

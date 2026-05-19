@@ -46,7 +46,7 @@ export default function MaintenancePage() {
       try {
         const response = await getFreeMaintenanceList();
         if ((response.success === true || (response as any).result === "SUCCESS") && response.data) {
-          const mappedData = response.data.map((item, index) => {
+          const mappedData = response.data.map((item) => {
             const today = new Date();
             const endDate = item.endDate ? new Date(item.endDate) : null;
             let status = "진행중";
@@ -55,7 +55,7 @@ export default function MaintenancePage() {
               else if (endDate.getTime() - today.getTime() < 30 * 24 * 60 * 60 * 1000) status = "종료예정";
             }
             return {
-              id: `api-free-${index}`, // 백엔드에서 id를 제공하지 않으므로 임시 id 생성
+              id: item.id.toString(),
               customer: item.customerName || "-",
               opportunity: item.projectName || "-",
               product: item.productFamilyName || "-",
@@ -73,7 +73,7 @@ export default function MaintenancePage() {
 
         const paidResponse = await getPaidMaintenanceList();
         if ((paidResponse.success === true || (paidResponse as any).result === "SUCCESS") && paidResponse.data) {
-          const mappedPaidData = paidResponse.data.map((item, index) => {
+          const mappedPaidData = paidResponse.data.map((item) => {
             const today = new Date();
             const endDate = item.endDate ? new Date(item.endDate) : null;
             let status = "진행중";
@@ -82,7 +82,7 @@ export default function MaintenancePage() {
               else if (endDate.getTime() - today.getTime() < 30 * 24 * 60 * 60 * 1000) status = "종료예정";
             }
             return {
-              id: `api-paid-${index}`, // 백엔드에서 id를 제공하지 않으므로 임시 id 생성
+              id: item.id.toString(),
               customer: item.customerName || "-",
               opportunity: item.projectName || "-",
               product: item.productFamilyName || "-",
@@ -350,8 +350,6 @@ export default function MaintenancePage() {
                           <TableHead className="w-[100px]">구분</TableHead>
                           <TableHead>고객사</TableHead>
                           <TableHead>요청/활동구분</TableHead>
-                          <TableHead>개시일시</TableHead>
-                          <TableHead>완료일시</TableHead>
                           <TableHead>요청/등록자</TableHead>
                           <TableHead>영업대표</TableHead>
                           <TableHead>고객지원 담당자</TableHead>
@@ -359,7 +357,7 @@ export default function MaintenancePage() {
                       </TableHeader>
                       <TableBody>
                         {filteredSupportHistories.map((item) => (
-                          <TableRow key={item.id} className="hover:bg-muted/50 cursor-pointer">
+                          <TableRow key={`${item.recordType}-${item.id}`} className="hover:bg-muted/50 cursor-pointer" onClick={() => router.push(`/maintenance/${item.recordType === "request" ? "support-requests" : "support-activities"}/${item.id}`)}>
                             <TableCell>
                               <Badge
                                 variant={item.recordType === "request" ? "default" : "outline"}
@@ -378,8 +376,6 @@ export default function MaintenancePage() {
                                 </Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-sm">{item.startDate}</TableCell>
-                            <TableCell className="text-sm">{item.endDate}</TableCell>
                             <TableCell>{item.recordType === "request" ? item.requester : item.registrant}</TableCell>
                             <TableCell>{item.salesRep}</TableCell>
                             <TableCell>{item.supportRep}</TableCell>

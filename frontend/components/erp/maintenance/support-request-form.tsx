@@ -1,59 +1,85 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocomplete";
+import { UserIdPicker } from "@/components/erp/user-id-picker";
+import { loadBackendUsers, type BackendUserSummary } from "@/lib/finding-backend";
+import { createCustomerSupportRequest } from "@/lib/api/maintenance";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface SupportRequestFormProps {
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-const customerDataMap: Record<string, { salesRep: string; supportRep: string }> = {
-  "농협은행": { salesRep: "김영업", supportRep: "김유지" },
-  "신한은행": { salesRep: "이대리", supportRep: "정관리" },
-  "삼성SDS": { salesRep: "김영업", supportRep: "김유지" },
-  "우리은행": { salesRep: "박과장", supportRep: "이보수" },
-  "LG전자": { salesRep: "박과장", supportRep: "이보수" },
-};
-
 export function SupportRequestForm({ onSuccess, onCancel }: SupportRequestFormProps) {
-  const { register, handleSubmit, setValue, watch, control } = useForm({
+  const router = useRouter();
+  const { register, handleSubmit, setValue, control, formState: { isSubmitting } } = useForm({
     defaultValues: {
-      customer: "",
-      startDate: "",
-      endDate: "",
-      content: "",
-      requester: "",
-      registrant: "현재사용자",
-      salesRep: "",
-      supportRep: "",
-      notes: "",
-      file: null,
+      customerCompanyCode: null as number | null,
+      customerCompanyName: "",
+      requestStartDate: "",
+      requestEndDate: "",
+      requestContent: "",
+      requesterId: "",
+      registrantId: "",
+      salesRepId: "",
+      supportManagerId: "",
+      remarks: "",
     },
   });
 
-  const selectedCustomer = watch("customer");
+  const [users, setUsers] = useState<BackendUserSummary[]>([]);
 
   useEffect(() => {
-    if (selectedCustomer && customerDataMap[selectedCustomer]) {
-      setValue("salesRep", customerDataMap[selectedCustomer].salesRep);
-      setValue("supportRep", customerDataMap[selectedCustomer].supportRep);
-    } else {
-      setValue("salesRep", "");
-      setValue("supportRep", "");
-    }
-  }, [selectedCustomer, setValue]);
+    loadBackendUsers().then(setUsers).catch(console.error);
+  }, []);
 
-  const onSubmit = (data: any) => {
-    console.log("제출된 데이터:", data);
-    alert("고객지원 요청이 등록되었습니다.");
-    onSuccess();
+  const onSubmit = async (data: any) => {
+    if (!data.customerCompanyCode) {
+      toast.error("고객사를 선택해주세요.");
+      return;
+    }
+    if (!data.requesterId || !data.registrantId || !data.salesRepId || !data.supportManagerId) {
+      toast.error("모든 담당자 및 요청자를 선택해주세요.");
+      return;
+    }
+
+    try {
+      const res = await createCustomerSupportRequest({
+        customerCompanyCode: data.customerCompanyCode,
+        requestStartDate: data.requestStartDate,
+        requestEndDate: data.requestEndDate,
+        requestContent: data.requestContent,
+        requesterId: data.requesterId,
+        registrantId: data.registrantId,
+        salesRepId: data.salesRepId,
+        supportManagerId: data.supportManagerId,
+        remarks: data.remarks,
+        attachedFileIds: [],
+      });
+
+      if (res.success || (res as any).result === "SUCCESS") {
+        toast.success("고객지원 요청이 등록되었습니다.");
+        onSuccess();
+        const createdId = res.data ?? (res as any).id ?? (res as any).body?.data;
+        if (createdId) {
+          router.push(`/maintenance/support-requests/${createdId}`);
+        }
+      } else {
+        toast.error(res.message || "등록 실패했습니다.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("등록하는 도중 에러가 발생했습니다.");
+    }
   };
 
   return (
@@ -66,99 +92,137 @@ export function SupportRequestForm({ onSuccess, onCancel }: SupportRequestFormPr
           <div className="grid grid-cols-2 gap-6">
             {/* 고객사 */}
             <div className="space-y-2">
-              <Label htmlFor="customer">고객사</Label>
+              <Label htmlFor="customerCompanyCode">고객사</Label>
               <Controller
-                name="customer"
+                name="customerCompanyCode"
                 control={control}
                 rules={{ required: true }}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger id="customer">
-                      <SelectValue placeholder="고객사 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.keys(customerDataMap).map((cust) => (
-                        <SelectItem key={cust} value={cust}>
-                          {cust}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="customerCompanyName"
+                    control={control}
+                    render={({ field: nameField }) => (
+                      <CustomerAutocomplete
+                        value={nameField.value}
+                        onSelect={(customer) => {
+                          if (customer?.backendId) {
+                            field.onChange(customer.backendId);
+                            nameField.onChange(customer.name);
+                          } else {
+                            field.onChange(null);
+                            nameField.onChange("");
+                          }
+                        }}
+                        onValueChange={nameField.onChange}
+                        placeholder="고객사 검색 및 선택"
+                      />
+                    )}
+                  />
                 )}
-              />
-            </div>
-
-            {/* 요청자 */}
-            <div className="space-y-2">
-              <Label htmlFor="requester">요청자</Label>
-              <Input
-                id="requester"
-                {...register("requester", { required: true })}
-                placeholder="요청자 이름 입력 (예: 테크센터 담당자)"
               />
             </div>
 
             {/* 개시일 */}
             <div className="space-y-2">
-              <Label htmlFor="startDate">요청 개시일</Label>
+              <Label htmlFor="requestStartDate">요청 개시일</Label>
               <Input
-                id="startDate"
+                id="requestStartDate"
                 type="date"
-                {...register("startDate", { required: true })}
+                {...register("requestStartDate", { required: true })}
               />
             </div>
 
             {/* 완료일 */}
             <div className="space-y-2">
-              <Label htmlFor="endDate">요청 완료일</Label>
+              <Label htmlFor="requestEndDate">요청 완료일</Label>
               <Input
-                id="endDate"
+                id="requestEndDate"
                 type="date"
-                {...register("endDate", { required: true })}
+                {...register("requestEndDate", { required: true })}
+              />
+            </div>
+
+            <div className="hidden md:block"></div>
+
+            {/* 요청자 */}
+            <div className="space-y-2">
+              <Label htmlFor="requesterId">요청자 (고객사 담당자 등)</Label>
+              <Controller
+                name="requesterId"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <UserIdPicker
+                    value={field.value}
+                    users={users}
+                    onValueChange={field.onChange}
+                    placeholder="요청자 검색"
+                  />
+                )}
               />
             </div>
 
             {/* 등록자 */}
             <div className="space-y-2">
-              <Label htmlFor="registrant">등록자</Label>
-              <Input
-                id="registrant"
-                {...register("registrant", { required: true })}
-                placeholder="등록자 입력"
+              <Label htmlFor="registrantId">등록자 (내부 직원)</Label>
+              <Controller
+                name="registrantId"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <UserIdPicker
+                    value={field.value}
+                    users={users}
+                    onValueChange={field.onChange}
+                    placeholder="등록자 검색"
+                  />
+                )}
               />
             </div>
 
-            {/* 영업대표 (자동입력) */}
+            {/* 영업대표 */}
             <div className="space-y-2">
-              <Label htmlFor="salesRep">영업대표</Label>
-              <Input
-                id="salesRep"
-                {...register("salesRep")}
-                readOnly
-                className="bg-muted"
-                placeholder="고객사 선택 시 자동입력"
+              <Label htmlFor="salesRepId">영업대표</Label>
+              <Controller
+                name="salesRepId"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <UserIdPicker
+                    value={field.value}
+                    users={users}
+                    onValueChange={field.onChange}
+                    placeholder="영업대표 검색"
+                  />
+                )}
               />
             </div>
 
-            {/* 고객지원 담당자 (자동입력) */}
+            {/* 고객지원 담당자 */}
             <div className="space-y-2">
-              <Label htmlFor="supportRep">고객지원 담당자</Label>
-              <Input
-                id="supportRep"
-                {...register("supportRep")}
-                readOnly
-                className="bg-muted"
-                placeholder="고객사 선택 시 자동입력"
+              <Label htmlFor="supportManagerId">고객지원 담당자</Label>
+              <Controller
+                name="supportManagerId"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <UserIdPicker
+                    value={field.value}
+                    users={users}
+                    onValueChange={field.onChange}
+                    placeholder="고객지원 담당자 검색"
+                  />
+                )}
               />
             </div>
           </div>
 
           {/* 요청 내용 */}
           <div className="space-y-2">
-            <Label htmlFor="content">요청 내용</Label>
+            <Label htmlFor="requestContent">요청 내용</Label>
             <Textarea
-              id="content"
-              {...register("content", { required: true })}
+              id="requestContent"
+              {...register("requestContent", { required: true })}
               placeholder="지원 요청 상세 내용 입력"
               rows={4}
             />
@@ -166,34 +230,36 @@ export function SupportRequestForm({ onSuccess, onCancel }: SupportRequestFormPr
 
           {/* 특기사항 */}
           <div className="space-y-2">
-            <Label htmlFor="notes">특기사항</Label>
+            <Label htmlFor="remarks">특기사항</Label>
             <Textarea
-              id="notes"
-              {...register("notes")}
+              id="remarks"
+              {...register("remarks")}
               placeholder="특기사항 입력 (옵션)"
               rows={2}
             />
           </div>
 
-          {/* 첨부파일 */}
-          <div className="space-y-2">
+          {/* 첨부파일 (TODO) */}
+          <div className="space-y-2 opacity-50">
             <Label htmlFor="file">관련 첨부파일</Label>
             <Input
               id="file"
               type="file"
-              {...register("file")}
-              className="cursor-pointer"
+              disabled
+              className="cursor-not-allowed"
             />
             <p className="text-sm text-muted-foreground mt-1">
-              * 관련 문서 및 자료를 업로드해주십시오.
+              * 파일 업로드 기능은 준비 중입니다.
             </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
               취소
             </Button>
-            <Button type="submit">등록</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "등록 중..." : "등록"}
+            </Button>
           </div>
         </form>
       </CardContent>

@@ -61,6 +61,10 @@ public class ProductModuleInitializer implements CommandLineRunner {
                 String licenseUnit = blankToNull(cleanText(columns[4]));
                 Long unitPrice = parseLong(columns[5]);
 
+                if (unitPrice != null) {
+                    unitPrice *= 1000;
+                }
+
                 if (productName.isBlank()) {
                     continue;
                 }

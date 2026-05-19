@@ -8,6 +8,7 @@ export type ActivityRecord = {
   id: string
   date: string
   requestId?: string
+  salesActivityRequestId?: number
   projectOpportunityId?: number
   registrant?: string
   requester?: string
@@ -31,6 +32,7 @@ export type ActivityRecord = {
 
 export type QuotationRecord = {
   id: string
+  backendId?: number
   workflowId?: number
   requestId?: string
   refNumber?: string
@@ -112,6 +114,7 @@ export type QuotationRecord = {
     steps: {
       label: string
       assignee: string
+      assigneeId?: string
       status: "pending" | "approved" | "rejected"
       actedAt?: string
       actedBy?: string
@@ -154,6 +157,7 @@ export type StandardPriceRecord = {
 
 export type ActivityRequestRecord = {
   id: string
+  backendId?: number
   title?: string
   salesActivityId?: string
   requestUserId?: string
