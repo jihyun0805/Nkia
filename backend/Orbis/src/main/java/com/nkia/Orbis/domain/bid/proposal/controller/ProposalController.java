@@ -4,6 +4,7 @@ import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.bid.proposal.dto.request.ProposalCreateRequest;
 import com.nkia.Orbis.domain.bid.proposal.dto.request.ProposalUpdateRequest;
 import com.nkia.Orbis.domain.bid.proposal.dto.response.ProposalDetailResponse;
+import com.nkia.Orbis.domain.bid.proposal.dto.response.ProposalInfoResponse;
 import com.nkia.Orbis.domain.bid.proposal.dto.response.ProposalListResponse;
 import com.nkia.Orbis.domain.bid.proposal.service.ProposalService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -91,5 +93,14 @@ public class ProposalController {
     public ResponseEntity<ApiResponse<Void>> deleteProposal(@PathVariable("id") Long id) {
         proposalService.deleteProposal(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "제안서 기본 정보 조회", description = "영업활동 요청 ID를 기반으로 제안서 작성에 필요한 기본 정보를 조회합니다.")
+    @GetMapping("/pre-fill")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PROPOSAL', 'READ')")
+    public ResponseEntity<ApiResponse<ProposalInfoResponse>> getProposalInfo(
+            @RequestParam(name = "salesActivityRequestId") Long salesActivityRequestId) {
+        ProposalInfoResponse response = proposalService.getProposalInfo(salesActivityRequestId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

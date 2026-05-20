@@ -12,6 +12,7 @@ import com.nkia.Orbis.domain.bid.proposal.dto.request.ProposalCreateRequest;
 import com.nkia.Orbis.domain.bid.proposal.dto.request.ProposalUpdateRequest;
 import com.nkia.Orbis.domain.bid.proposal.dto.response.ProposalDetailResponse;
 import com.nkia.Orbis.domain.bid.proposal.dto.response.ProposalFileResponse;
+import com.nkia.Orbis.domain.bid.proposal.dto.response.ProposalInfoResponse;
 import com.nkia.Orbis.domain.bid.proposal.dto.response.ProposalListResponse;
 import com.nkia.Orbis.domain.bid.proposal.entity.Proposal;
 import com.nkia.Orbis.domain.bid.proposal.entity.ProposalStatus;
@@ -191,5 +192,14 @@ public class ProposalService {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    public ProposalInfoResponse getProposalInfo(Long salesActivityRequestId) {
+        // 일반 findById가 아닌, 연관 엔티티를 한 번에 조회하는 커스텀 메서드 사용 (N+1 문제 방지)
+        SalesActivityRequest salesActivityRequest = salesActivityRequestRepository.findProposalInfoById(
+                        salesActivityRequestId)
+                .orElseThrow(() -> new ApiException(ActivityErrorCode.SALES_ACTIVITY_REQUEST_NOT_FOUND));
+
+        return ProposalInfoResponse.of(salesActivityRequest);
     }
 }
