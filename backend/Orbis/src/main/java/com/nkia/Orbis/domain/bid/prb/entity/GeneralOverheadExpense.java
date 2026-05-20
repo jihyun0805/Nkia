@@ -40,4 +40,14 @@ public class GeneralOverheadExpense {
         this.unitPrice = unitPrice;
         this.amount = amount;
     }
+
+    public GeneralOverheadExpense copy() {
+        return new GeneralOverheadExpense(
+                this.majorCategory,
+                this.minorCategory,
+                this.detailsAndBasis,
+                this.unitPrice,
+                this.amount
+        );
+    }
 }

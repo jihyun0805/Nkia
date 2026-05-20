@@ -57,4 +57,14 @@ public class PurchaseHumanResource {
         }
         return this.baseAmount.multiply(this.inputManMonth).setScale(2, RoundingMode.HALF_UP);
     }
+
+    public PurchaseHumanResource copy() {
+        return new PurchaseHumanResource(
+                this.grade,
+                this.inputManMonth,
+                this.startDate,
+                this.endDate,
+                this.baseAmount
+        );
+    }
 }

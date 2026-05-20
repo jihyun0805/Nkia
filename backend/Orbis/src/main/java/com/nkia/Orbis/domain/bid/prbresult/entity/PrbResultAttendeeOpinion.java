@@ -29,4 +29,13 @@ public class PrbResultAttendeeOpinion {
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status", nullable = false, length = 20)
     private ApprovalStatus approvalStatus;
+
+    // History 저장을 위한 깊은 복사 메서드
+    public PrbResultAttendeeOpinion copy() {
+        return PrbResultAttendeeOpinion.builder()
+                .attendeeUserId(this.attendeeUserId)
+                .opinion(this.opinion)
+                .approvalStatus(this.approvalStatus)
+                .build();
+    }
 }
