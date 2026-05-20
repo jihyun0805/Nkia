@@ -28,7 +28,6 @@ import {
   approvePrbStep,
   getPrbById,
   getPrbRevisionHistory,
-  getRfpAnalyses,
   subscribePrbUpdates,
   type PrbApprovalStep,
   type PrbLineItem,
@@ -88,6 +87,7 @@ const bidTypeOptions = [
   "조달 입찰 / 조달 평가",
   "조달 위탁 / 자체 평가",
 ] as const
+const customerTypeOptions = ["공공", "민간", "해외"] as const
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -288,7 +288,6 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   const [productClasses, setProductClasses] = useState<string[]>([])
   const users = useBackendUsers()
   const selectedReviewerId = resolveUserId(form.reviewer, users)
-  const rfpAnalyses = useMemo(() => getRfpAnalyses(), [])
   const businessPeriodParts = useMemo(
     () => splitBusinessPeriod(form.formData.businessPeriod),
     [form.formData.businessPeriod],
@@ -305,6 +304,47 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     if (current) values.add(current)
     return Array.from(values)
   }, [form.formData.businessType, productClasses])
+
+  const handleCustomerSelection = (customerCode: string) => {
+    const customer = customers.find((item) => item.id === customerCode) ?? null
+    setForm((current) => ({
+      ...current,
+      customerCode: customer?.id ?? "",
+      customer: customer?.name ?? "",
+      opportunityCode: "",
+      opportunity: "",
+      rfpAnalysisId: "",
+      formData: {
+        ...current.formData,
+        customerType: customer?.category ?? "",
+        customerName: customer?.name ?? "",
+        businessType: "",
+        projectName: "",
+        businessOverview: "",
+      },
+    }))
+  }
+
+  const handleOpportunitySelection = (opportunityCode: string) => {
+    const opportunity = opportunities.find((item) => item.id === opportunityCode) ?? null
+    const relatedCustomer = opportunity ? customers.find((item) => item.id === opportunity.customerCode) ?? null : null
+    setForm((current) => ({
+      ...current,
+      customerCode: relatedCustomer?.id ?? current.customerCode,
+      customer: relatedCustomer?.name ?? current.customer,
+      opportunityCode: opportunity?.id ?? "",
+      opportunity: opportunity?.name ?? "",
+      rfpAnalysisId: "",
+      formData: {
+        ...current.formData,
+        customerType: relatedCustomer?.category ?? current.formData.customerType,
+        customerName: relatedCustomer?.name ?? current.formData.customerName,
+        businessType: opportunity?.product ?? "",
+        projectName: opportunity?.name ?? "",
+        businessOverview: opportunity?.issue ?? "",
+      },
+    }))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -469,12 +509,6 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChatbotPrefill])
 
-  const availableRfpAnalyses = rfpAnalyses.filter(
-    (item) =>
-      (!form.customerCode || item.customerCode === form.customerCode) &&
-      (!form.opportunityCode || item.opportunityCode === form.opportunityCode),
-  )
-
   const updateFormData = (key: string, value: string) => {
     setForm((current) => ({
       ...current,
@@ -495,46 +529,11 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const handleCustomerChange = (customerCode: string) => {
-    const customer = customers.find((item) => item.id === customerCode)
-    setForm((current) => ({
-      ...current,
-      customerCode,
-      customer: customer?.name ?? "",
-      opportunityCode: "",
-      opportunity: "",
-      rfpAnalysisId: "",
-      formData: {
-        ...current.formData,
-        customerName: customer?.name ?? "",
-      },
-    }))
+    handleCustomerSelection(customerCode)
   }
 
   const handleOpportunityChange = (opportunityCode: string) => {
-    const opportunity = opportunities.find((item) => item.id === opportunityCode)
-    setForm((current) => ({
-      ...current,
-      opportunityCode,
-      opportunity: opportunity?.name ?? "",
-      rfpAnalysisId: "",
-      formData: {
-        ...current.formData,
-        projectName: opportunity?.name ?? "",
-      },
-    }))
-  }
-
-  const handleRfpChange = (rfpAnalysisId: string) => {
-    const rfp = rfpAnalyses.find((item) => item.id === rfpAnalysisId)
-    setForm((current) => ({
-      ...current,
-      rfpAnalysisId,
-      proposalDeadline: rfp?.dueDate ?? current.proposalDeadline,
-      formData: {
-        ...current.formData,
-        proposalDeadlineDate: rfp?.dueDate ?? current.formData.proposalDeadlineDate,
-      },
-    }))
+    handleOpportunitySelection(opportunityCode)
   }
 
   const persist = async (nextStatus: PrbStatus) => {
@@ -556,7 +555,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       opportunityCode: form.opportunityCode,
       opportunity: form.opportunity || form.formData.projectName,
       rfpAnalysisId: form.rfpAnalysisId,
-      salesRepresentativeId: form.salesRepresentativeId || currentUser.id,
+      salesRepresentativeId: form.salesRepresentativeId,
       author: currentUser.name,
       reviewer: form.reviewer,
       nextApprover: nextStatus === "검토 중" ? "팀장" : form.nextApprover,
@@ -606,10 +605,9 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const handleComplete = async () => {
-    const requiredSelections: Array<{ key: keyof Pick<PrbFormState, "customerCode" | "opportunityCode" | "rfpAnalysisId">; label: string }> = [
+    const requiredSelections: Array<{ key: keyof Pick<PrbFormState, "customerCode" | "opportunityCode">; label: string }> = [
       { key: "customerCode", label: "고객사명(코드)" },
       { key: "opportunityCode", label: "사업기회(코드)" },
-      { key: "rfpAnalysisId", label: "RFP 분석 결과(코드)" },
     ]
 
     const missing = requiredSelections.find((item) => !form[item.key])
@@ -750,8 +748,11 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
                   <SelectValue placeholder="고객 구분 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="신규">신규</SelectItem>
-                  <SelectItem value="기존">기존</SelectItem>
+                  {customerTypeOptions.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </td>
