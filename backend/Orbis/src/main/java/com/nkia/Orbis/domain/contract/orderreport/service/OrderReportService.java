@@ -376,10 +376,6 @@ public class OrderReportService {
                         orderReport.getOrderReportCode()
                 );
 
-        if (histories.isEmpty()) {
-            throw new ApiException(ContractErrorCode.ORDER_REPORT_NOT_FOUND);
-        }
-
         return histories.stream()
                 .map(OrderReportHistoryListResponse::from)
                 .toList();

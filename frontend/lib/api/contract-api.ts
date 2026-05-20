@@ -148,7 +148,7 @@ export interface LicenseFromOrderReportResponse {
 
 export interface OrderReportListResponse {
   id: number;
-  status: ApprovalStatus;
+  status: string;
   orderReportCode: string;
   totalAmount: number;
   type: OrderReportType;
@@ -167,7 +167,7 @@ export interface OrderReportListResponse {
 export interface OrderReportResponse {
   id: number;
   workflowId: number;
-  status: ApprovalStatus;
+  status: string;
   vatType?: string;
   orderReportCode: string;
   totalAmount: number;
@@ -257,7 +257,7 @@ export interface OrderReportHistoryResponse {
   contractPeriodMonths: number;
   scopeOfWork: string;
   remarks: string;
-  projectOpportunity: any; // backend returns ProjectOpportunity entity
+  projectName: string;
   pmId: string;
   pmName: string;
   contractCounterpartCompanyId: number;
