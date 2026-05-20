@@ -2359,7 +2359,7 @@ def build_opportunity_status_response(
             f"• 고객사: {canonical.customerName or '미기재'}",
             f"• 사업 유형: {canonical.businessType or '미기재'}",
             f"• 예상 사업비: {format_number(canonical.expectedAmount)}",
-            f"• 주요 내용: {canonical.mainContent or '미기재'}",
+            f"• 주요 내용: {_clean_main_content(canonical.mainContent)}",
             f"• 이슈: {canonical.issueContent or '특이 이슈 없음'}",
             f"• 경쟁 상황: {canonical.competitorStatus or '미기재'}",
             "",
@@ -2373,7 +2373,9 @@ def build_opportunity_status_response(
             ("RFP", "rfp_analysis_code", "opportunity_name", ["customer_name"]),
             ("PRB", "prb_code", "opportunity_name", ["competitor_status"]),
             ("RFP_ANALYSIS", "rfp_analysis_code", "opportunity_name", ["customer_name"]),
-            ("WON", "opportunity_code", "opportunity_name", ["won_report_code", "contract_amount"]),
+            # WON evidence 는 OrderReport 존재 여부와 무관하게 사업기회 코드만으로 생성되어
+            # PROMISING 단계 사업기회에도 "수주" cite 가 붙는 할루시네이션을 일으켰음 (2026-05).
+            # 같은 정보는 아래 ORDER_REPORT mapping 이 won_report_code 가 있을 때만 정합하게 cite.
             ("ORDER_REPORT", "won_report_code", "opportunity_name", ["current_status"]),
             ("CONTRACT", "contract_code", "opportunity_name", ["current_status"]),
             ("PROJECT", "project_code", "opportunity_name", ["business_type"]),
@@ -2695,7 +2697,7 @@ def build_contract_snapshot_response(
         snapshot,
         [
             ("CONTRACT", "contract_code", "opportunity_name", ["contract_status", "contract_date", "contract_amount"]),
-            ("WON", "opportunity_code", "opportunity_name", ["won_report_code", "contract_amount"]),
+            # WON evidence 제거 — opportunity_code 만으로 무조건 cite 되어 할루시네이션 유발.
             ("ORDER_REPORT", "won_report_code", "opportunity_name", ["contract_amount"]),
             ("PROJECT_OPPORTUNITY", "opportunity_code", "opportunity_name", ["current_status"]),
         ],
@@ -2748,7 +2750,7 @@ def build_contract_maintenance_response(
     evidences = build_snapshot_evidences(
         snapshot,
         [
-            ("WON", "opportunity_code", "opportunity_name", ["won_report_code", "contract_amount", "payment_terms"]),
+            # WON evidence 제거 — opportunity_code 만으로 무조건 cite 되어 할루시네이션 유발.
             ("ORDER_REPORT", "won_report_code", "opportunity_name", ["contract_date", "contract_amount", "business_scope", "special_notes"]),
             ("CONTRACT", "contract_code", "opportunity_name", ["contract_status", "contract_start_date", "contract_end_date", "contract_memo"]),
             ("MAINTENANCE", "maintenance_code", "opportunity_name", ["maintenance_type", "maintenance_start_date", "maintenance_end_date", "maintenance_contract_amount"]),
@@ -3079,7 +3081,7 @@ def build_project_snapshot_response(
         [
             ("PROJECT", "project_code", "opportunity_name", ["project_status", "delivery_date"]),
             ("PROJECT_RESULT_REPORT", "project_report_code", "opportunity_name", ["result_status", "detail_content"]),
-            ("WON", "opportunity_code", "opportunity_name", ["won_report_code", "customer_name"]),
+            # WON evidence 제거 — opportunity_code 만으로 무조건 cite 되어 할루시네이션 유발.
             ("ORDER_REPORT", "won_report_code", "opportunity_name", ["customer_name"]),
         ],
         limit=limit,
@@ -4845,6 +4847,34 @@ def build_status_list_evidences(*, rows: list[dict[str, Any]]) -> list[AnswerEvi
             )
         )
     return evidences
+
+
+def _clean_main_content(raw: Any) -> str:
+    """사업기회 description(주요 내용) 정제.
+
+    사용자가 description 에 raw JSON 문자열을 직접 넣은 케이스 (예: 모듈 정보·결재
+    정보 JSON dump) 에 챗봇 답변이 그대로 출력되며 보기 흉해지는 문제 발생.
+    JSON-like 문자열을 감지하면 의미 있는 키 (summary / issue / description / 주요내용)
+    를 우선 추출, 없으면 안전한 placeholder 로 대체한다.
+    """
+    if raw in (None, ""):
+        return "미기재"
+    text = str(raw).strip()
+    if not text:
+        return "미기재"
+    if text.startswith("{") and text.rstrip().endswith("}"):
+        try:
+            import json
+            obj = json.loads(text)
+            if isinstance(obj, dict):
+                for key in ("summary", "description", "issue", "주요내용", "main_content", "content"):
+                    value = obj.get(key)
+                    if value and str(value).strip():
+                        return str(value).strip()
+                return "(구조화된 메타데이터 — 사업기회 화면에서 확인)"
+        except Exception:
+            pass
+    return text
 
 
 def format_number(value: Any, suffix: str = "원") -> str:
