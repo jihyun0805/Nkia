@@ -136,6 +136,9 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         content_fields=(
             # 실제 DB 컬럼 (entity RfpAnalyzeResult.java 검증):
             # S14P31S106-381: project_name 삭제, request_user_name 신규.
+            # opportunity_name/customer_name 은 build_current_rfp_documents 에서
+            # _fetch_opportunity_summary 로 enrichment 되어 row 에 주입된다.
+            "opportunity_name", "customer_name",
             "request_user_name",
             "project_description",   # TEXT — RFP 분석 본문
             "hardware_provider",
@@ -322,10 +325,20 @@ CURRENT_PUBLIC_CONFIGS: tuple[DocumentConfig, ...] = (
         table="project_result_report",
         source_type=SourceType.PROJECT_RESULT_REPORT,
         id_fields=("projectReportCode", "project_report_code", "id"),
-        title_fields=("projectReportCode", "project_report_code", "id"),
+        # 사업기회 정보는 3-hop join (project_result_report → project → order_report → project_opportunity)
+        # 으로 build_current_project_result_documents 가 row 에 enrichment.
+        title_fields=("display_title", "opportunity_name", "projectReportCode", "project_report_code", "id"),
+        content_fields=(
+            # project_result_report 테이블 자체 컬럼: id, project_id, result_report_file_id (본문 없음)
+            # enrichment 로 주입되는 사업기회/프로젝트 컨텍스트:
+            "opportunity_name", "opportunity_code", "customer_name",
+            "project_name", "project_code",
+            "order_report_code",
+        ),
         payload_aliases={
             "projectReportCode": ("id",),
             "projectId": ("project_id",),
+            "opportunityCode": ("opportunity_code",),
         },
     ),
     DocumentConfig(
@@ -724,7 +737,7 @@ def build_documents(
             elif config.table == "sales_activity":
                 documents.extend(build_current_activity_documents(conn=conn, row=row))
             elif config.table == "rfp_analyze_result":
-                documents.extend(build_current_rfp_documents(row))
+                documents.extend(build_current_rfp_documents(row, conn=conn))
             elif config.table in {"rfp_analyze_requirement", "rfp_requirement"}:
                 documents.extend(build_current_rfp_requirement_documents(conn=conn, row=row))
             elif config.table == "bid_result":
@@ -735,6 +748,8 @@ def build_documents(
                 documents.extend(build_current_contract_documents(row, conn=conn))
             elif config.table == "project":
                 documents.extend(build_current_project_documents(row, conn=conn))
+            elif config.table == "project_result_report":
+                documents.extend(build_current_project_result_documents(row, conn=conn))
             elif config.table == "maintenance":
                 documents.extend(build_current_maintenance_documents(row, conn=conn))
             elif config.table == "prb":
@@ -1124,17 +1139,40 @@ def build_current_activity_documents(
     return [document] if document is not None else []
 
 
-def build_current_rfp_documents(row: dict[str, Any]) -> list[dict[str, Any]]:
+def build_current_rfp_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """RFP 분석 결과 색인.
+
+    S14P31S106-381 (2026-05-19) 백엔드 변경 — RfpAnalyzeResult 가 projectName 필드를
+    제거하고 project_opportunity_id FK 만 보유. 따라서 사업기회명/고객사명을 chunk text 에
+    포함시키려면 색인 시점에 SQL join 으로 enrich 해야 한다. (BidResult 와 동일 패턴)
+    """
     config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "rfp_analyze_result")
+    enriched = dict(row)
+    if conn is not None:
+        summary = _fetch_opportunity_summary(conn, row.get("project_opportunity_id"))
+        if summary:
+            enriched["opportunity_code"] = summary.get("opportunity_code")
+            enriched["opportunity_name"] = summary.get("opportunity_name")
+            enriched["customer_name"] = summary.get("customer_name")
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="RFP 분석",
+        fallback_code=enriched.get("rfp_analysis_code") or enriched.get("rfp_code"),
+        raw_id=row.get("id"),
+    )
+    enriched["display_title"] = nice_title
     rfp_doc = build_document(
         config=config,
-        row=row,
+        row=enriched,
         override_source_type=SourceType.RFP,
         override_id_fields=("rfpCode", "rfp_code", "rfpAnalysisCode", "rfp_analysis_code", "id"),
-        # S14P31S106-381 (2026-05-19): project_name 컬럼 삭제 → opportunity_name 우선.
-        override_title_fields=("opportunity_name", "rfpCode", "rfp_analysis_code", "id"),
+        override_title_fields=("display_title", "opportunity_name", "rfpCode", "rfp_analysis_code", "id"),
     )
-    analysis_doc = build_document(config=config, row=row)
+    analysis_doc = build_document(config=config, row=enriched)
     return [doc for doc in (rfp_doc, analysis_doc) if doc is not None]
 
 
@@ -2094,6 +2132,69 @@ def build_current_project_documents(
         row=enriched,
         override_title_fields=("display_title", "code", "pjt_number", "id"),
     )
+    return [doc] if doc is not None else []
+
+
+def build_current_project_result_documents(
+    row: dict[str, Any],
+    conn: psycopg.Connection[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """사업결과보고 색인 (3-hop enrichment).
+
+    project_result_report 테이블은 본문 텍스트 컬럼이 없고 project_id FK 만 보유.
+    검색 가능하게 만들려면 사업기회/프로젝트/수주보고서 정보를 색인 시점에
+    SQL join 으로 row 에 enrichment 해야 한다.
+    """
+    config = next(cfg for cfg in CURRENT_PUBLIC_CONFIGS if cfg.table == "project_result_report")
+    enriched = dict(row)
+    if conn is not None:
+        project_id = row.get("project_id")
+        if project_id is not None:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SAVEPOINT enrich_proj_result")
+                    try:
+                        cur.execute(
+                            """
+                            SELECT
+                                p.code           AS project_code,
+                                p.name           AS project_name,
+                                orr.id           AS order_report_id,
+                                orr.code         AS order_report_code,
+                                o.opportunity_code,
+                                o.opportunity_name,
+                                c.name           AS customer_name
+                            FROM project p
+                            LEFT JOIN order_report orr ON orr.id = p.order_report_id
+                            LEFT JOIN project_opportunity o ON o.id = orr.project_opportunity_id
+                            LEFT JOIN company c ON c.id = o.customer_company_id
+                            WHERE p.id = %s
+                            """,
+                            (project_id,),
+                        )
+                        s = cur.fetchone()
+                        if s:
+                            enriched["project_code"] = s.get("project_code")
+                            enriched["project_name"] = s.get("project_name")
+                            enriched["order_report_id"] = s.get("order_report_id")
+                            enriched["order_report_code"] = s.get("order_report_code")
+                            enriched["opportunity_code"] = s.get("opportunity_code")
+                            enriched["opportunity_name"] = s.get("opportunity_name")
+                            enriched["customer_name"] = s.get("customer_name")
+                        cur.execute("RELEASE SAVEPOINT enrich_proj_result")
+                    except Exception:
+                        cur.execute("ROLLBACK TO SAVEPOINT enrich_proj_result")
+            except Exception:
+                pass
+    nice_title = _build_descriptive_title(
+        customer_name=enriched.get("customer_name"),
+        opportunity_name=enriched.get("opportunity_name"),
+        suffix="사업결과보고",
+        fallback_code=enriched.get("project_code") or enriched.get("opportunity_code"),
+        raw_id=row.get("id"),
+    )
+    enriched["display_title"] = nice_title
+    doc = build_document(config=config, row=enriched)
     return [doc] if doc is not None else []
 
 
