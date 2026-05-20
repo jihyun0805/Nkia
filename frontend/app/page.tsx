@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api/generated/auth/auth";
 import { customInstance } from "@/lib/api/customAxios";
-import { saveAuthSession, loadAuthSession, clearAuthSession, isTokenExpired, hasValidAccessToken, initTokenRefreshScheduler } from "@/lib/auth-session";
+import Image from "next/image";
+import { saveAuthSession, loadAuthSession, clearAuthSession, isTokenExpired, initTokenRefreshScheduler } from "@/lib/auth-session";
 import { getBackendApiBaseUrl } from "@/lib/api-base-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,8 +168,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md shadow-lg border-primary/10">
-        <CardHeader className="space-y-2 text-center pb-6">
-          <div className="flex justify-center mb-4">{/* TODO : 로고삽입 */}</div>
+        <CardHeader className="space-y-2 text-center">
+          <div className="flex justify-center">
+            <Image src="/orbis_logo.png" alt="Orbis Logo" width={64} height={64} />
+          </div>
           <CardTitle className="text-2xl font-bold">Orbis</CardTitle>
           <CardDescription>관리자에게 발급받은 계정으로 로그인해주세요.</CardDescription>
         </CardHeader>

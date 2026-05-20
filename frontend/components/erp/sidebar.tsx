@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Orbit, UserStar, LogOut } from "lucide-react";
+import Image from "next/image";
+import { UserStar, LogOut } from "lucide-react";
 import { logout } from "@/lib/api/generated/auth/auth";
 import { clearAuthSession, loadAuthSession, subscribeAuthSession, initTokenRefreshScheduler, type AuthSession } from "@/lib/auth-session";
 
@@ -104,12 +105,11 @@ export function Sidebar() {
     <div className="sticky top-0 z-40 border-b border-border bg-sidebar text-sidebar-foreground shadow-sm">
       <div className="grid grid-cols-[220px_1fr_220px] items-center gap-6 px-6 py-4">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded bg-primary">
-            <Orbit className="h-6 w-6 text-primary-foreground" />
+          <div className="flex h-10 w-10 items-center justify-center rounded bg-black">
+            <Image src="/orbis_logo.png" alt="Orbis Logo" width={30} height={30} />
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight">Orbis</h1>
-            <p className="text-xs text-sidebar-foreground/60">오르비스</p>
           </div>
         </Link>
 
