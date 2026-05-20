@@ -88,6 +88,7 @@ const bidTypeOptions = [
   "조달 입찰 / 조달 평가",
   "조달 위탁 / 자체 평가",
 ] as const
+const customerTypeOptions = ["공공", "민간", "해외"] as const
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -306,6 +307,47 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     return Array.from(values)
   }, [form.formData.businessType, productClasses])
 
+  const handleCustomerSelection = (customerCode: string) => {
+    const customer = customers.find((item) => item.id === customerCode) ?? null
+    setForm((current) => ({
+      ...current,
+      customerCode: customer?.id ?? "",
+      customer: customer?.name ?? "",
+      opportunityCode: "",
+      opportunity: "",
+      rfpAnalysisId: "",
+      formData: {
+        ...current.formData,
+        customerType: customer?.category ?? "",
+        customerName: customer?.name ?? "",
+        businessType: "",
+        projectName: "",
+        businessOverview: "",
+      },
+    }))
+  }
+
+  const handleOpportunitySelection = (opportunityCode: string) => {
+    const opportunity = opportunities.find((item) => item.id === opportunityCode) ?? null
+    const relatedCustomer = opportunity ? customers.find((item) => item.id === opportunity.customerCode) ?? null : null
+    setForm((current) => ({
+      ...current,
+      customerCode: relatedCustomer?.id ?? current.customerCode,
+      customer: relatedCustomer?.name ?? current.customer,
+      opportunityCode: opportunity?.id ?? "",
+      opportunity: opportunity?.name ?? "",
+      rfpAnalysisId: "",
+      formData: {
+        ...current.formData,
+        customerType: relatedCustomer?.category ?? current.formData.customerType,
+        customerName: relatedCustomer?.name ?? current.formData.customerName,
+        businessType: opportunity?.product ?? "",
+        projectName: opportunity?.name ?? "",
+        businessOverview: opportunity?.issue ?? "",
+      },
+    }))
+  }
+
   useEffect(() => {
     let cancelled = false
     void loadBackendFindingData()
@@ -475,6 +517,12 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       (!form.opportunityCode || item.opportunityCode === form.opportunityCode),
   )
 
+  useEffect(() => {
+    if (form.rfpAnalysisId) return
+    if (availableRfpAnalyses.length !== 1) return
+    handleRfpChange(availableRfpAnalyses[0].id)
+  }, [availableRfpAnalyses, form.rfpAnalysisId])
+
   const updateFormData = (key: string, value: string) => {
     setForm((current) => ({
       ...current,
@@ -495,33 +543,11 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const handleCustomerChange = (customerCode: string) => {
-    const customer = customers.find((item) => item.id === customerCode)
-    setForm((current) => ({
-      ...current,
-      customerCode,
-      customer: customer?.name ?? "",
-      opportunityCode: "",
-      opportunity: "",
-      rfpAnalysisId: "",
-      formData: {
-        ...current.formData,
-        customerName: customer?.name ?? "",
-      },
-    }))
+    handleCustomerSelection(customerCode)
   }
 
   const handleOpportunityChange = (opportunityCode: string) => {
-    const opportunity = opportunities.find((item) => item.id === opportunityCode)
-    setForm((current) => ({
-      ...current,
-      opportunityCode,
-      opportunity: opportunity?.name ?? "",
-      rfpAnalysisId: "",
-      formData: {
-        ...current.formData,
-        projectName: opportunity?.name ?? "",
-      },
-    }))
+    handleOpportunitySelection(opportunityCode)
   }
 
   const handleRfpChange = (rfpAnalysisId: string) => {
@@ -750,8 +776,11 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
                   <SelectValue placeholder="고객 구분 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="신규">신규</SelectItem>
-                  <SelectItem value="기존">기존</SelectItem>
+                  {customerTypeOptions.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </td>
@@ -828,6 +857,33 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
           <tr>
             <th className="bg-slate-50 px-3 py-2 whitespace-nowrap min-w-[96px]">사업 개요</th>
             <td colSpan={7} className="px-1 py-1"><FieldInput value={form.formData.businessOverview} onChange={(value) => updateFormData("businessOverview", value)} multiline /></td>
+          </tr>
+          <tr>
+            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap min-w-[96px]">RFP 분석 결과</th>
+            <td colSpan={7} className="px-1 py-1">
+              <Select
+                value={form.rfpAnalysisId}
+                onValueChange={handleRfpChange}
+                disabled={availableRfpAnalyses.length === 0}
+              >
+                <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
+                  <SelectValue
+                    placeholder={
+                      form.customerCode && form.opportunityCode
+                        ? "RFP 분석 결과 선택"
+                        : "고객사와 사업기회를 먼저 선택하세요"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableRfpAnalyses.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.id} | {item.customer} / {item.opportunity}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </td>
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2 whitespace-nowrap min-w-[96px]">영업대표</th>
