@@ -287,7 +287,10 @@ useEffect(() => {    if (category !== "activities") return
   const requestItem = isRequest && item ? (item as ActivityRequestRecord) : null
   const quotationItem = isQuotation && item ? (item as QuotationRecord) : null
   const isViewingQuotationHistoryDetail = Boolean(selectedQuotationHistoryDetail)
-  const requestMatchedCustomer = requestItem ? getCustomerByName(requestItem.customer) : null
+  const requestMatchedCustomer =
+    requestItem
+      ? (requestItem.customerCode ? getCustomerByCode(requestItem.customerCode) : null) ?? getCustomerByName(requestItem.customer)
+      : null
 
   const isDeletedQuotation = Boolean(quotationItem?.deletedAt)
 

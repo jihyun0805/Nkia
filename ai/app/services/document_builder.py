@@ -91,8 +91,11 @@ INDEXED_CONFIGS: tuple[DocumentConfig, ...] = (
         source_type=SourceType.RFP_ANALYSIS,
         id_fields=("rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
         # S14P31S106-381 (2026-05-19): project_name 컬럼 삭제 → opportunity_name 로 대체.
+        # opportunity_name/customer_name 은 NOTIFY trigger 가 ai_index_payload 를 만들 때
+        # JOIN 으로 row 에 넣어줘야 chunk 에 들어간다. (reindex 와 동일 enrichment 패턴)
         title_fields=("opportunity_name", "rfpAnalysisCode", "rfp_analysis_code", "rfpCode", "rfp_code", "id"),
         content_fields=(
+            "opportunity_name", "customer_name",
             "issuer", "project_scope", "project_period",
             "requirements", "risk_factors", "special_notes",
             "key_requirements", "analysis_summary",
@@ -191,10 +194,19 @@ INDEXED_CONFIGS: tuple[DocumentConfig, ...] = (
         table="project_result_report",
         source_type=SourceType.PROJECT_RESULT_REPORT,
         id_fields=("projectReportCode", "project_report_code", "id"),
-        title_fields=("projectReportCode", "project_report_code", "id"),
+        # 사업기회 정보는 3-hop join (project_result_report → project → order_report → project_opportunity)
+        # 으로 row 에 enrichment 되어야 chunk text 에 들어간다.
+        # NOTIFY trigger payload 가 enriched row 를 전달해야 효과 발생.
+        title_fields=("opportunity_name", "projectReportCode", "project_report_code", "id"),
+        content_fields=(
+            "opportunity_name", "opportunity_code", "customer_name",
+            "project_name", "project_code",
+            "order_report_code",
+        ),
         payload_aliases={
             "projectReportCode": ("id",),
             "projectId": ("project_id",),
+            "opportunityCode": ("opportunity_code",),
         },
     ),
     DocumentConfig(

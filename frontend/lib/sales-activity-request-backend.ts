@@ -174,19 +174,18 @@ function mergeRequest(
     local?.requester ??
     "-"
   const receiver =
-    backendRequest.targetUserName ??
-    local?.receiver ??
-    getTargetUserNameById(backendRequest.targetUserId) ??
+    backendRequest.targetUserName ?? 
+    local?.receiver ?? 
+    getTargetUserNameById(backendRequest.targetUserId) ?? 
     "-"
   const content = backendRequest.requestContent ?? local?.content ?? ""
   const title = backendRequest.title ?? local?.title ?? `${purposeLabel} 요청`
   const customerFromBackend = backendRequest.companyName?.trim() ?? ""
-  const customerFromCode =
-    local?.customerCode ? getCustomerByCode(local.customerCode)?.name ?? "" : ""
+  const customerCode = local?.customerCode ?? (backendRequest.companyId != null ? String(backendRequest.companyId) : "")
+  const customerFromCode = customerCode ? getCustomerByCode(customerCode)?.name ?? "" : ""
   const localCustomer = local?.customer?.trim() ?? ""
   const customer = customerFromBackend || customerFromCode || (localCustomer && localCustomer !== title.trim() ? localCustomer : "")
   const opportunity = local?.opportunity ?? (content.trim() ? content : "미확인")
-  const customerCode = local?.customerCode ?? (backendRequest.companyId != null ? String(backendRequest.companyId) : "")
 
   return {
     id: String(backendRequest.id ?? local?.id ?? `REQ-${Date.now()}`),
@@ -217,7 +216,11 @@ function mergeRequest(
 
 function saveMergedRequests(requests: ActivityRequestRecord[]) {
   if (!isBrowser()) return
-  window.localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(requests))
+
+  const next = JSON.stringify(requests)
+  if (window.localStorage.getItem(REQUESTS_STORAGE_KEY) === next) return
+
+  window.localStorage.setItem(REQUESTS_STORAGE_KEY, next)
   window.dispatchEvent(new Event(REQUEST_WORKFLOW_EVENT_NAME))
 }
 
@@ -324,8 +327,8 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
     requester: input.requester,
     receiver: input.receiver,
     type: input.type,
-    customerCode: input.customerCode,
-    customer: input.customer,
+    customerCode: saved.companyId != null ? String(saved.companyId) : input.customerCode,
+    customer: saved.companyName ?? getCustomerByCode(String(saved.companyId ?? input.customerCode))?.name ?? input.customer,
     opportunityCode: input.opportunityCode,
     opportunity: input.opportunity,
     content: input.content,
