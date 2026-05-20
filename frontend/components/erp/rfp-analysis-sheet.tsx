@@ -37,8 +37,8 @@ import {
   type CustomerRecord,
   type OpportunityRecord,
 } from "@/lib/finding-data"
-import { loadBackendProjectOpportunitiesByCustomer } from "@/lib/finding-backend"
-import { createBackendRfpAnalysis, deleteBackendRfpAnalysis, loadBackendRfpAnalyses, updateBackendRfpAnalysis } from "@/lib/rfp-analysis-backend"
+import { loadBackendProjectOpportunity, loadBackendProjectOpportunitiesByCustomer } from "@/lib/finding-backend"
+import { createBackendRfpAnalysis, deleteBackendRfpAnalysis, loadBackendRfpAnalysis, loadBackendRfpAnalyses, updateBackendRfpAnalysis } from "@/lib/rfp-analysis-backend"
 import { toast } from "@/hooks/use-toast"
 import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { loadBackendUsers, type BackendUserSummary } from "@/lib/workflow-backend"
@@ -128,6 +128,76 @@ function requirementRowsSignature(rows: RequirementRow[]) {
     .join("\u0002")
 }
 
+function parseOpportunityDescription(description?: string | null) {
+  const normalized = String(description ?? "").trim()
+  if (!normalized || normalized === "-") {
+    return {
+      moduleName: "",
+      issue: "",
+      decisionInfo: "",
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(normalized) as {
+      moduleName?: string
+      moduleNames?: string[]
+      issue?: string
+      decisionInfo?: string
+    }
+    if (parsed && typeof parsed === "object") {
+      const moduleName = String(parsed.moduleName ?? "").trim()
+      const moduleNames = Array.isArray(parsed.moduleNames)
+        ? parsed.moduleNames.filter((value): value is string => typeof value === "string" && value.trim() !== "")
+        : []
+      return {
+        moduleName: moduleName || moduleNames.join(", "),
+        issue: String(parsed.issue ?? "").trim(),
+        decisionInfo: String(parsed.decisionInfo ?? "").trim(),
+      }
+    }
+  } catch {
+    // Legacy opportunities may store description as plain text.
+  }
+
+  return {
+    moduleName: "",
+    issue: normalized,
+    decisionInfo: "",
+  }
+}
+
+function formatOpportunityAmount(value?: number | string | null) {
+  if (value == null || value === "") return ""
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value.toLocaleString("ko-KR") : ""
+  }
+
+  const normalized = value.trim()
+  const parsed = Number(normalized)
+  if (!Number.isNaN(parsed) && normalized.replace(/[,\s]/g, "") === String(parsed)) {
+    return parsed.toLocaleString("ko-KR")
+  }
+
+  return normalized
+}
+
+function collectNames<T extends { name?: string; productName?: string }>(
+  directNames?: string[],
+  nestedItems?: T[],
+  nestedKey: "name" | "productName" = "name",
+) {
+  if (Array.isArray(directNames) && directNames.length > 0) {
+    return directNames.filter((value): value is string => typeof value === "string" && value.trim() !== "")
+  }
+
+  if (!Array.isArray(nestedItems)) return []
+
+  return nestedItems
+    .map((item) => item[nestedKey])
+    .filter((value): value is string => typeof value === "string" && value.trim() !== "")
+}
+
 const requirementHeaderAliases: Record<keyof RequirementRow, string[]> = {
   category: ["구분", "카테고리"],
   requirementCode: ["요구사항고유번호", "요구사항 고유번호", "요구사항번호", "요구사항 번호"],
@@ -195,6 +265,8 @@ type SheetSource = Partial<Omit<RfpAnalysisRecord, "status">> &
 export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAnalysisSheetProps) {
   const router = useRouter()
   const [, setRefreshTick] = useState(0)
+  const isBackendDetailMode = Boolean(requestId && !requestId.startsWith("REQ-"))
+  const [backendDetailRecord, setBackendDetailRecord] = useState<RfpAnalysisRecord | null>(null)
   const activityRequestItem = requestId?.startsWith("REQ-")
     ? (getActivityRequests().find((item) => item.id === requestId) as ActivityRequestRecord | null)
     : null
@@ -202,8 +274,10 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     ? (getBidItem("rfp", requestId) as RfpAnalysisRecord | null)
     : null
   const linkedSavedAnalysis = activityRequestItem && requestId ? getRfpAnalysisByRequestId(requestId) : null
-  const requestItem: SheetSource | null = linkedSavedAnalysis ?? activityRequestItem ?? bidRequestItem
-  const persistedAnalysis = linkedSavedAnalysis ?? bidRequestItem
+  const requestItem: SheetSource | null = isBackendDetailMode
+    ? backendDetailRecord
+    : linkedSavedAnalysis ?? activityRequestItem ?? bidRequestItem
+  const persistedAnalysis = isBackendDetailMode ? backendDetailRecord : linkedSavedAnalysis ?? bidRequestItem
   const isStandalone = blankMode && !requestId
   const shouldStartBlank = blankMode && !persistedAnalysis
   const initialCustomer = requestItem?.customerCode ? getCustomerByCode(requestItem.customerCode) : null
@@ -216,7 +290,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   const linkedOpportunity = requestItem?.customer
     ? getOpportunitiesByCustomerName(requestItem.customer).find((item) => item.id === requestItem.opportunityCode) ?? null
     : null
-  const [businessType, setBusinessType] = useState(linkedOpportunity?.product ?? requestItem?.businessType ?? "EMS")
+  const [businessType, setBusinessType] = useState(linkedOpportunity?.product ?? requestItem?.businessType ?? (isBackendDetailMode ? "" : "EMS"))
   const [proposalType, setProposalType] = useState(
     linkedOpportunity
       ? (linkedOpportunity.partnerCode && linkedOpportunity.partnerCode !== "-" ? "SI 제안" : "자체 제안")
@@ -241,9 +315,13 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
       ? requestItem.requirements
       : shouldStartBlank
       ? [blankRequirementRow()]
-      : buildDefaultRequirementRows(),
+      : isBackendDetailMode
+        ? []
+        : buildDefaultRequirementRows(),
   )
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [backendDetailLoading, setBackendDetailLoading] = useState(false)
+  const [backendDetailError, setBackendDetailError] = useState("")
 
   // 챗봇 create_draft (rfp_analysis) prefill — requestItem (= 기존 데이터 로드) 가 없을 때만 적용
   const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -323,7 +401,24 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     const sync = () => setRefreshTick((value) => value + 1)
     sync()
 
-    void loadBackendRfpAnalyses().catch(() => undefined)
+    if (requestId && !requestId.startsWith("REQ-")) {
+      setBackendDetailRecord(null)
+      setBackendDetailLoading(true)
+      setBackendDetailError("")
+      void loadBackendRfpAnalysis(requestId)
+        .then((record) => {
+          setBackendDetailRecord(record)
+        })
+        .catch((error) => {
+          setBackendDetailRecord(null)
+          setBackendDetailError(error instanceof Error ? error.message : "RFP 분석 상세를 불러오지 못했습니다.")
+        })
+        .finally(() => {
+          setBackendDetailLoading(false)
+        })
+    } else {
+      void loadBackendRfpAnalyses().catch(() => undefined)
+    }
 
     const unsubscribe = subscribeRfpAnalysesUpdates(sync)
     return () => unsubscribe()
@@ -438,71 +533,68 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
         if (cancelled) return
         setCustomerOpportunityOptions(
           options
-            .map((item, index) => ({
-              id: String(item.opportunityCode ?? item.id ?? `OPP-${index + 1}`),
-              backendId: item.id,
-              customerCompanyId: item.customerCompanyId,
-              createdAt: "",
-              createUserName: item.createUserName ?? "",
-              customerCode: customer.id,
-              partnerCode:
-                Array.isArray(item.partnerCompanyIds) && item.partnerCompanyIds.length > 0
-                  ? item.partnerCompanyIds.map((partnerId) => String(partnerId)).join(", ")
-                  : "-",
-              name: item.opportunityName ?? "",
-              registrant: item.createUserName ?? "",
-              customer: item.customerCompanyName ?? customer.name ?? "",
-              partner:
-                Array.isArray(item.partnerCompanyNames) && item.partnerCompanyNames.length > 0
-                  ? item.partnerCompanyNames.join(", ")
-                  : "-",
-              partners: Array.isArray(item.partnerCompanyNames)
-                ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string")
-                : [],
-              category: "",
-              product: item.projectType ?? "",
-              module: Array.isArray(item.productModules) && item.productModules.length > 0
-                ? item.productModules
-                    .map((module) => module.productName ?? "")
-                    .filter((value): value is string => Boolean(value))
-                    .join(", ")
-                : "",
-              expectedAmount:
-                typeof item.expectedBudget === "number"
-                  ? String(item.expectedBudget)
-                  : String(item.expectedBudget ?? ""),
-              expectedDate: item.expectedBidDate ?? "",
-              issue: item.description ?? "",
-              competition: item.competitionStatus ?? "",
-              decisionInfo: item.salesRepresentativeName ?? item.createUserName ?? "",
-              partnerType: "",
-              partnerContact: "",
-              partnerPhone: "",
-              status: item.stage ?? "",
-              salesRepresentativeId: item.salesRepresentativeId ?? undefined,
-              salesRep: item.salesRepresentativeName ?? item.createUserName ?? "",
-              partnerCompanyIds: Array.isArray(item.partnerCompanyIds)
+            .map((item, index) => {
+              const parsedDescription = parseOpportunityDescription(item.description)
+              const partnerCompanyIds = Array.isArray(item.partnerCompanyIds) && item.partnerCompanyIds.length > 0
                 ? item.partnerCompanyIds.filter((value): value is number => typeof value === "number")
-                : [],
-              partnerCompanyNames: Array.isArray(item.partnerCompanyNames)
-                ? item.partnerCompanyNames.filter((value): value is string => typeof value === "string")
-                : [],
-              productModuleIds: Array.isArray(item.productModuleIds)
+                : Array.isArray(item.partnerCompanies)
+                  ? item.partnerCompanies
+                      .map((partner) => partner.id)
+                      .filter((value): value is number => typeof value === "number")
+                  : []
+              const partnerCompanyNames = collectNames(item.partnerCompanyNames, item.partnerCompanies, "name")
+              const productModuleIds = Array.isArray(item.productModuleIds) && item.productModuleIds.length > 0
                 ? item.productModuleIds.filter((value): value is number => typeof value === "number")
-                : [],
-              productModuleNames: Array.isArray(item.productModuleNames)
-                ? item.productModuleNames.filter((value): value is string => typeof value === "string")
-                : [],
-              rfpFileIds: Array.isArray(item.rfpFileIds)
-                ? item.rfpFileIds.filter((value): value is number => typeof value === "number")
-                : [],
-              rfpFileNames: Array.isArray(item.rfpFileNames)
-                ? item.rfpFileNames.filter((value): value is string => typeof value === "string")
-                : [],
-              rfpFileSizes: Array.isArray(item.rfpFileSizes)
-                ? item.rfpFileSizes.filter((value): value is number => typeof value === "number")
-                : [],
-            }))
+                : Array.isArray(item.productModules)
+                  ? item.productModules
+                      .map((module) => module.id)
+                      .filter((value): value is number => typeof value === "number")
+                  : []
+              const productModuleNames = collectNames(item.productModuleNames, item.productModules, "productName")
+              const moduleDisplay = productModuleNames.join(", ") || parsedDescription.moduleName
+
+              return {
+                id: String(item.opportunityCode ?? item.id ?? `OPP-${index + 1}`),
+                backendId: item.id,
+                customerCompanyId: item.customerCompanyId,
+                createdAt: "",
+                createUserName: item.createUserName ?? "",
+                customerCode: customer.id,
+                partnerCode: partnerCompanyIds.length > 0 ? partnerCompanyIds.map((partnerId) => String(partnerId)).join(", ") : "-",
+                name: item.opportunityName ?? "",
+                registrant: item.createUserName ?? "",
+                customer: item.customerCompanyName ?? customer.name ?? "",
+                partner: partnerCompanyNames.length > 0 ? partnerCompanyNames.join(", ") : "-",
+                partners: partnerCompanyNames,
+                category: "",
+                product: item.projectType ?? "",
+                module: moduleDisplay,
+                expectedAmount: formatOpportunityAmount(item.expectedBudget),
+                expectedDate: item.expectedBidDate ?? "",
+                issue: parsedDescription.issue,
+                competition: item.competitionStatus ?? "",
+                decisionInfo: parsedDescription.decisionInfo || item.salesRepresentativeName || item.createUserName || "",
+                partnerType: "",
+                partnerContact: "",
+                partnerPhone: "",
+                status: item.stage ?? "",
+                salesRepresentativeId: item.salesRepresentativeId ?? undefined,
+                salesRep: item.salesRepresentativeName ?? item.createUserName ?? "",
+                partnerCompanyIds,
+                partnerCompanyNames,
+                productModuleIds,
+                productModuleNames,
+                rfpFileIds: Array.isArray(item.rfpFileIds)
+                  ? item.rfpFileIds.filter((value): value is number => typeof value === "number")
+                  : [],
+                rfpFileNames: Array.isArray(item.rfpFileNames)
+                  ? item.rfpFileNames.filter((value): value is string => typeof value === "string")
+                  : [],
+                rfpFileSizes: Array.isArray(item.rfpFileSizes)
+                  ? item.rfpFileSizes.filter((value): value is number => typeof value === "number")
+                  : [],
+              }
+            })
             .filter((item) => item.id.trim() !== "" && item.name.trim() !== ""),
         )
       })
@@ -540,10 +632,47 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   const selectedAnalyst = backendUsers.find((user) => user.id === analystId) ?? null
 
   useEffect(() => {
-    if (!isStandalone || !selectedOpportunity) return
+    let cancelled = false
 
-    setBusinessType(selectedOpportunity.product)
-    setProposalType(selectedOpportunity.partnerCode && selectedOpportunity.partnerCode !== "-" ? "SI 제안" : "자체 제안")
+    if (!isStandalone) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (!selectedOpportunity) {
+      setBusinessType("")
+      setDeliveryModule("")
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (!selectedOpportunity.backendId) {
+      setBusinessType(selectedOpportunity.product)
+      setDeliveryModule(selectedOpportunity.module)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    void loadBackendProjectOpportunity(selectedOpportunity.backendId)
+      .then((detail) => {
+        if (cancelled) return
+        const productModuleNames = collectNames(detail.productModuleNames, detail.productModules, "productName")
+
+        setBusinessType(detail.projectType ?? "")
+        setDeliveryModule(productModuleNames.join(", "))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBusinessType(selectedOpportunity.product)
+        setDeliveryModule(selectedOpportunity.module)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [isStandalone, selectedOpportunity])
   const customerDisplay = isStandalone
     ? selectedCustomer ? `${selectedCustomer.name} (${selectedCustomer.id})` : selectedCustomerName
@@ -583,7 +712,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     const nextRecord = {
       id: bidRequestItem?.id ?? linkedSavedAnalysis?.id,
       requestId: linkedRequestId,
-      projectOpportunityId: requestItem?.projectOpportunityId,
+      projectOpportunityId: isStandalone ? selectedOpportunity?.backendId : requestItem?.projectOpportunityId,
       assigneeId: analystId,
       customer: customerName,
       customerCode,
@@ -625,6 +754,10 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
         title: status === "완료" ? "RFP 분석 완료" : "RFP 분석 저장",
         description: status === "완료" ? "RFP 분석 상태가 완료로 반영되었습니다." : "RFP 분석 상태가 분석중으로 저장되었습니다.",
       })
+
+      if (status === analysisStatusOptions[2]) {
+        router.push("/bid?tab=rfp")
+      }
 
       return saved
     } catch (error) {
@@ -670,6 +803,27 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     router.push("/bid")
   }
 
+  if (isBackendDetailMode && !backendDetailRecord && (backendDetailLoading || backendDetailError)) {
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b bg-white">
+          <CardTitle>{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          {backendDetailLoading ? (
+            <div className="border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              RFP 분석 상세를 불러오는 중입니다.
+            </div>
+          ) : (
+            <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {backendDetailError}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <>
     <Card className="overflow-hidden">
@@ -677,6 +831,16 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
+        {backendDetailLoading && (
+          <div className="border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            RFP 분석 상세를 불러오는 중입니다.
+          </div>
+        )}
+        {backendDetailError && (
+          <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {backendDetailError}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="min-w-[960px] w-full border-collapse">
             <tbody>
@@ -745,7 +909,7 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
               </tr>
               <tr>
                 <BasicInfoRow label="사업 구분">
-                  <ExcelInput value="" readOnly placeholder="" />
+                  <ExcelInput value={businessType} readOnly placeholder="" />
                 </BasicInfoRow>
                 <BasicInfoRow label="제안 형태">
                   <ExcelSelect value={proposalType} onChange={setProposalType} options={proposalTypes} />

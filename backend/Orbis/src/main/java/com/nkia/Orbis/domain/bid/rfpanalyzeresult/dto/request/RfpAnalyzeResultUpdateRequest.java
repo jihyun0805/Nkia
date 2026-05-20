@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record RfpAnalyzeResultUpdateRequest(
+        String projectName,
         // 제안 형태
         ProposalType proposalType,
         // HW 제공 주체
