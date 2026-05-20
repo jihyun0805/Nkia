@@ -4,12 +4,15 @@ import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultCreateRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultUpdateRequest;
+import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultHistoryListResponse;
+import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultHistoryResponse;
 import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultListResponse;
 import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultResponse;
 import com.nkia.Orbis.domain.bid.prbresult.service.PrbResultService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -92,6 +95,30 @@ public class PrbResultController {
     public ResponseEntity<ApiResponse<Void>> deletePrbResult(@PathVariable Long id) {
         prbResultService.deletePrbResult(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
+     * 6. PRB 결과 변경 이력 목록 조회 (GET)
+     */
+    @Operation(summary = "PRB 결과 변경 이력 목록 조회", description = "특정 PRB 결과보고서의 변경 이력을 최신 버전순으로 조회합니다.")
+    @GetMapping("/{id}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'READ')")
+    public ResponseEntity<ApiResponse<List<PrbResultHistoryListResponse>>> getPrbResultHistories(
+            @PathVariable Long id) {
+        List<PrbResultHistoryListResponse> response = prbResultService.getPrbResultHistories(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 7. PRB 결과 변경 이력 상세 조회 (GET)
+     */
+    @Operation(summary = "PRB 결과 변경 이력 상세 조회", description = "특정 버전의 과거 PRB 결과 스냅샷 및 회의 참석자 의견을 상세 조회합니다.")
+    @GetMapping("/histories/{historyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'READ')")
+    public ResponseEntity<ApiResponse<PrbResultHistoryResponse>> getPrbResultHistoryDetail(
+            @PathVariable Long historyId) {
+        PrbResultHistoryResponse response = prbResultService.getPrbResultHistoryDetail(historyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @Operation(summary = "PRB 결과보고서 결재 상신")
