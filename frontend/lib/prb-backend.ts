@@ -4,7 +4,7 @@ import { getBackendApiBaseUrl } from "@/lib/api-base-url"
 import { buildAuthHeaders } from "@/lib/auth-session"
 import { currentUser } from "@/lib/current-user"
 import { getCustomerByName, getOpportunitiesByCustomerName, normalizeCustomerKeyword } from "@/lib/finding-data"
-import { getPrbs, getRfpAnalyses, replacePrbs, type PrbLineItem, type PrbRecord } from "@/lib/bid-data"
+import { getPrbs, getRfpAnalyses, replacePrbs, type PrbLineItem, type PrbRecord, type PrbStatus } from "@/lib/bid-data"
 
 type ApiResponse<T> = {
   result?: string
@@ -101,6 +101,7 @@ type BackendPrbResponse = {
   prbCode?: string
   createdAt?: string
   prbDate?: string
+  status?: string
   maintenanceDescription?: string
   salesRepresentativeOpinion?: string
   totalCost?: number | string | null
@@ -163,6 +164,7 @@ type BackendPrbProfitLossRequest = {
 type BackendPrbCreateRequest = {
   projectOpportunityId: number
   salesRepresentativeId: string
+  reviewerId: string
   prbDate: string
   maintenanceDescription?: string
   salesRepresentativeOpinion?: string
@@ -286,11 +288,7 @@ async function fetchPrbList() {
 }
 
 async function resolveAssigneeIdFromInput(input: PrbRecord) {
-  if (input.salesRepresentativeId) {
-    return input.salesRepresentativeId
-  }
-
-  return fetchCurrentUserId()
+  return input.salesRepresentativeId?.trim() ?? ""
 }
 
 function mapBidTypeToDisplay(value?: string) {
@@ -472,10 +470,16 @@ function mapProfitLossPayload(input: PrbRecord) {
   }
 }
 
-function buildCreateRequest(input: PrbRecord, projectOpportunityId: number, salesRepresentativeId: string): BackendPrbCreateRequest {
+function buildCreateRequest(
+  input: PrbRecord,
+  projectOpportunityId: number,
+  salesRepresentativeId: string,
+  reviewerId: string,
+): BackendPrbCreateRequest {
   return {
     projectOpportunityId,
     salesRepresentativeId,
+    reviewerId,
     prbDate: mapFormDate(input.formData.prbDate) ?? mapFormDate(input.createdDate) ?? mapFormDate(new Date().toISOString()) ?? "",
     maintenanceDescription: input.formData.maintenance || input.formData.businessOverview || "",
     salesRepresentativeOpinion: input.formData.salesOpinion || "",
@@ -663,13 +667,13 @@ function mapBackendPrbRecord(
     opportunity: opportunityName,
     rfpAnalysisId: rfpAnalysisId || local?.rfpAnalysisId || "",
     author: item.salesRepresentativeName ?? local?.author ?? currentUser.name,
-    reviewer: item.salesRepresentativeDepartmentName ?? local?.reviewer ?? "본부장",
+    reviewer: local?.reviewer ?? "",
     nextApprover: local?.nextApprover ?? item.salesRepresentativeDepartmentName ?? "본부장",
     deployOwner: local?.deployOwner ?? "배포 권한 보유자",
     shareOwner: local?.shareOwner ?? "공유 권한 보유자",
     proposalDeadline: formatDate(projectInfo?.proposalDeadlineDatetime) || local?.proposalDeadline || "",
     createdDate: formatDate(item.createdAt) || local?.createdDate || formatDate(item.prbDate) || "",
-    status: item.status ?? local?.status ?? "작성 중",
+    status: (item.status ?? local?.status ?? "작성 중") as PrbStatus,
     notificationsSent: local?.notificationsSent ?? false,
     approvalSteps: local?.approvalSteps ?? [],
     revisionGroupId: local?.revisionGroupId ?? `PRB-GROUP-${String(item.prbId ?? Date.now())}`,
@@ -777,14 +781,13 @@ async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "upd
   }
 
   const salesRepresentativeId = await resolveAssigneeIdFromInput(input as PrbRecord)
-  if (!salesRepresentativeId) {
-    throw new Error("현재 사용자에 매핑되는 백엔드 사용자 ID를 찾지 못했습니다.")
-  }
+  const reviewerId = (input as PrbRecord).reviewer?.trim() ?? ""
 
   return {
     projectOpportunityId,
     salesRepresentativeId,
-    request: buildCreateRequest(input as PrbRecord, projectOpportunityId, salesRepresentativeId),
+    reviewerId,
+    request: buildCreateRequest(input as PrbRecord, projectOpportunityId, salesRepresentativeId, reviewerId),
   }
 }
 

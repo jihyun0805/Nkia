@@ -28,7 +28,6 @@ import {
   approvePrbStep,
   getPrbById,
   getPrbRevisionHistory,
-  getRfpAnalyses,
   subscribePrbUpdates,
   type PrbApprovalStep,
   type PrbLineItem,
@@ -289,7 +288,6 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   const [productClasses, setProductClasses] = useState<string[]>([])
   const users = useBackendUsers()
   const selectedReviewerId = resolveUserId(form.reviewer, users)
-  const rfpAnalyses = useMemo(() => getRfpAnalyses(), [])
   const businessPeriodParts = useMemo(
     () => splitBusinessPeriod(form.formData.businessPeriod),
     [form.formData.businessPeriod],
@@ -511,18 +509,6 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChatbotPrefill])
 
-  const availableRfpAnalyses = rfpAnalyses.filter(
-    (item) =>
-      (!form.customerCode || item.customerCode === form.customerCode) &&
-      (!form.opportunityCode || item.opportunityCode === form.opportunityCode),
-  )
-
-  useEffect(() => {
-    if (form.rfpAnalysisId) return
-    if (availableRfpAnalyses.length !== 1) return
-    handleRfpChange(availableRfpAnalyses[0].id)
-  }, [availableRfpAnalyses, form.rfpAnalysisId])
-
   const updateFormData = (key: string, value: string) => {
     setForm((current) => ({
       ...current,
@@ -550,19 +536,6 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     handleOpportunitySelection(opportunityCode)
   }
 
-  const handleRfpChange = (rfpAnalysisId: string) => {
-    const rfp = rfpAnalyses.find((item) => item.id === rfpAnalysisId)
-    setForm((current) => ({
-      ...current,
-      rfpAnalysisId,
-      proposalDeadline: rfp?.dueDate ?? current.proposalDeadline,
-      formData: {
-        ...current.formData,
-        proposalDeadlineDate: rfp?.dueDate ?? current.formData.proposalDeadlineDate,
-      },
-    }))
-  }
-
   const persist = async (nextStatus: PrbStatus) => {
     const firstApprovalPending = nextStatus === "검토 중"
     const businessPeriod = [form.formData.businessPeriodStart || businessPeriodStart, form.formData.businessPeriodEnd || businessPeriodEnd]
@@ -582,7 +555,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       opportunityCode: form.opportunityCode,
       opportunity: form.opportunity || form.formData.projectName,
       rfpAnalysisId: form.rfpAnalysisId,
-      salesRepresentativeId: form.salesRepresentativeId || currentUser.id,
+      salesRepresentativeId: form.salesRepresentativeId,
       author: currentUser.name,
       reviewer: form.reviewer,
       nextApprover: nextStatus === "검토 중" ? "팀장" : form.nextApprover,
@@ -632,10 +605,9 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const handleComplete = async () => {
-    const requiredSelections: Array<{ key: keyof Pick<PrbFormState, "customerCode" | "opportunityCode" | "rfpAnalysisId">; label: string }> = [
+    const requiredSelections: Array<{ key: keyof Pick<PrbFormState, "customerCode" | "opportunityCode">; label: string }> = [
       { key: "customerCode", label: "고객사명(코드)" },
       { key: "opportunityCode", label: "사업기회(코드)" },
-      { key: "rfpAnalysisId", label: "RFP 분석 결과(코드)" },
     ]
 
     const missing = requiredSelections.find((item) => !form[item.key])
@@ -857,33 +829,6 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
           <tr>
             <th className="bg-slate-50 px-3 py-2 whitespace-nowrap min-w-[96px]">사업 개요</th>
             <td colSpan={7} className="px-1 py-1"><FieldInput value={form.formData.businessOverview} onChange={(value) => updateFormData("businessOverview", value)} multiline /></td>
-          </tr>
-          <tr>
-            <th className="bg-slate-50 px-3 py-2 whitespace-nowrap min-w-[96px]">RFP 분석 결과</th>
-            <td colSpan={7} className="px-1 py-1">
-              <Select
-                value={form.rfpAnalysisId}
-                onValueChange={handleRfpChange}
-                disabled={availableRfpAnalyses.length === 0}
-              >
-                <SelectTrigger className="w-full min-w-0 border-0 shadow-none focus:ring-0">
-                  <SelectValue
-                    placeholder={
-                      form.customerCode && form.opportunityCode
-                        ? "RFP 분석 결과 선택"
-                        : "고객사와 사업기회를 먼저 선택하세요"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableRfpAnalyses.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.id} | {item.customer} / {item.opportunity}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </td>
           </tr>
           <tr>
             <th className="bg-slate-50 px-3 py-2 whitespace-nowrap min-w-[96px]">영업대표</th>
