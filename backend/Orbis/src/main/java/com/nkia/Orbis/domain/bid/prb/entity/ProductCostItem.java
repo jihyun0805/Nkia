@@ -60,4 +60,14 @@ public class ProductCostItem {
         // 제품 원가 = list price * 2%
         return this.listPrice.multiply(COST_RATE).setScale(2, RoundingMode.HALF_UP);
     }
+
+    public ProductCostItem copy() {
+        return new ProductCostItem(
+                this.productModuleId,
+                this.productClass,
+                this.productName,
+                this.quantity,
+                this.listPrice
+        );
+    }
 }

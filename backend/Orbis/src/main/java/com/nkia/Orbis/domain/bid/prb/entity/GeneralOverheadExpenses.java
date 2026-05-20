@@ -50,4 +50,15 @@ public class GeneralOverheadExpenses {
                 .filter(Objects::nonNull)               // Null 방지 (안전 연산)
                 .reduce(BigDecimal.ZERO, BigDecimal::add); // 0부터 시작해서 모두 더하기
     }
+
+    public GeneralOverheadExpenses copy() {
+        GeneralOverheadExpenses copy = new GeneralOverheadExpenses();
+
+        copy.items = this.items != null ?
+                this.items.stream().map(GeneralOverheadExpense::copy).toList() : new ArrayList<>();
+
+        copy.totalAmount = this.totalAmount;
+
+        return copy;
+    }
 }
