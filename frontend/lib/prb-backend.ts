@@ -141,6 +141,14 @@ type BackendPrbResponse = {
   }
 }
 
+export type BackendPrbHistoryListItem = {
+  historyId?: number
+  version?: number
+  prbCode?: string
+  prbDate?: string
+  createdAt?: string
+}
+
 type BackendPrbProjectInfoRequest = {
   projectStartDate?: string | null
   projectEndDate?: string | null
@@ -285,6 +293,26 @@ async function fetchPrbList() {
 
   const payload = await parseApiResponse<BackendPage<BackendPrbResponse>>(response, "PRB 목록을 불러오지 못했습니다.")
   return payload.content ?? []
+}
+
+async function fetchPrbHistoryList(prbId: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/prbs/${prbId}/histories`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendPrbHistoryListItem[]>(response, "PRB 변경 이력을 불러오지 못했습니다.")
+}
+
+async function fetchPrbHistoryDetail(historyId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/prbs/histories/${historyId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendPrbResponse & { historyId?: number; version?: number }>(response, "PRB 변경 이력 상세를 불러오지 못했습니다.")
 }
 
 async function resolveAssigneeIdFromInput(input: PrbRecord) {
@@ -771,6 +799,19 @@ export async function loadBackendPrbs() {
 
   replacePrbs(records)
   return records
+}
+
+export async function loadBackendPrbHistoryRecords(prbId: string) {
+  return fetchPrbHistoryList(prbId)
+}
+
+export async function loadBackendPrbHistoryRecord(historyId: number) {
+  const [opportunityLookup, detail] = await Promise.all([
+    loadOpportunityLookup(),
+    fetchPrbHistoryDetail(historyId),
+  ])
+  const rfpLookup = buildRfpLookup()
+  return mapBackendPrbRecord(detail, opportunityLookup, rfpLookup, undefined)
 }
 
 async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {

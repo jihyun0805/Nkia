@@ -18,6 +18,7 @@ import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultDetailResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultHistoryListResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultHistoryResponse;
+import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultInfoResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultListResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.vo.CompanyScoreDto;
 import com.nkia.Orbis.domain.bid.bidresult.dto.vo.WinLossAnalysisDto;
@@ -211,6 +212,25 @@ public class BidResultService {
         String creatorName = getCreatorName(history.getCreatedBy());
 
         return BidResultHistoryResponse.of(history, creatorName);
+    }
+
+    /**
+     * 8. 입찰 결과 등록 전 기본 정보 세팅 조회 (Read - Pre-fill) 클라이언트가 제안서 ID를 전달하면 연관된 사업기회, 고객사, PRB, 납품 모듈 정보를 묶어서 반환합니다.
+     */
+    public BidResultInfoResponse getBidResultInfo(Long proposalId) {
+        // 1. @EntityGraph가 적용된 커스텀 레포지토리 메서드를 호출하여 N+1 방어 (단일 쿼리 실행)
+        Proposal proposal = proposalRepository.findBidResultInfoById(proposalId)
+                .orElseThrow(() -> new ApiException(ProposalErrorCode.PROPOSAL_NOT_FOUND));
+
+        // 2. 제안서 작성자 이름 추출 (BaseEntity의 Auditing 필드인 createdBy 활용)
+        String proposalCreatorName = null; // 예외 상황을 대비한 기본값
+        if (proposal.getCreatedBy() != null && !proposal.getCreatedBy().isBlank()) {
+            // 기존에 작성된 안전한 파싱 메서드(getCreatorName) 재사용
+            proposalCreatorName = getCreatorName(proposal.getCreatedBy());
+        }
+
+        // 3. Entity -> DTO 변환 및 반환
+        return BidResultInfoResponse.of(proposal, proposalCreatorName);
     }
 
     // ==========================================

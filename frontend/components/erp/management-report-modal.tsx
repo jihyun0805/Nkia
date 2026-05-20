@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useManagementReportStore } from "@/lib/management-report-store"
 import ReactMarkdown from "react-markdown"
 import { BarChart3, Download, FileText, Loader2, PieChartIcon, Sparkles, Table2 } from "lucide-react"
 import {
@@ -47,7 +48,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  createManagementReport,
   type ManagementReportRequest,
   type ManagementReportResponse,
   type ReportChart,
@@ -217,109 +217,55 @@ function uniqueOptionValues(options: FilterOption[]) {
   return Array.from(new Set(options.flatMap(optionValues)))
 }
 
-function formatDateInputValue(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
-
-function getDefaultDateRange() {
-  const endDate = new Date()
-  const startDate = new Date(endDate)
-  startDate.setFullYear(startDate.getFullYear() - 1)
-
-  return {
-    startAt: formatDateInputValue(startDate),
-    endAt: formatDateInputValue(endDate),
-  }
-}
-
-function createDefaultRequest(): ManagementReportRequest {
-  const dateRange = getDefaultDateRange()
-  return {
-    query: "선택한 조건에 해당하는 사업기회 현황, 주요 리스크, 대응 방안, 경영진 의사결정 포인트를 요약해줘",
-    title: "사업기회 경영 리포트",
-    reportType: "management",
-    limit: 10,
-    startAt: dateRange.startAt,
-    endAt: dateRange.endAt,
-    customerGroup: "ALL",
-    businessTypes: [],
-    statuses: [],
-    visualization: {
-      includeMetrics: true,
-      includeCharts: true,
-      includeTables: true,
-      chartTypes: ["bar", "pie"],
-    },
-  }
-}
+// createDefaultRequest / getDefaultDateRange / formatDateInputValue 는
+// management-report-store.ts 로 이전됨 (모달 닫혀도 form 보존 위해).
 
 export function ManagementReportModal() {
+  // 모달 open/close 만 로컬 — report/form/error/isLoading 은 모달이 닫혀도 살아남게
+  // store (sessionStorage persist) 에 보존. 챗봇처럼 모달 닫고 다른 일 하다 돌아와도
+  // fetch 가 진행되고 결과가 store 에 들어와 있다.
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState<ManagementReportRequest>(() => createDefaultRequest())
-  const [report, setReport] = useState<ManagementReportResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  // PDF 저장 실패 같은 UI-local 에러는 store 의 fetch error 와 분리.
+  const [pdfError, setPdfError] = useState<string | null>(null)
+  const form = useManagementReportStore((s) => s.form)
+  const report = useManagementReportStore((s) => s.report)
+  const error = useManagementReportStore((s) => s.error)
+  const isLoading = useManagementReportStore((s) => s.isLoading)
+  const storeSetField = useManagementReportStore((s) => s.setField)
+  const storeToggleArrayValues = useManagementReportStore((s) => s.toggleArrayValues)
+  const storeSetArrayField = useManagementReportStore((s) => s.setArrayField)
+  const storeSubmit = useManagementReportStore((s) => s.submit)
+  const storeResetReport = useManagementReportStore((s) => s.resetReport)
 
   const metrics = useMemo(() => report?.metrics ?? [], [report])
 
   const setField = <K extends keyof ManagementReportRequest>(key: K, value: ManagementReportRequest[K]) => {
-    setForm((current) => ({ ...current, [key]: value }))
+    storeSetField(key, value)
   }
 
   const toggleOption = (field: "businessTypes" | "statuses", option: FilterOption) => {
-    const valuesToToggle = optionValues(option)
-    setForm((current) => {
-      const values = current[field] ?? []
-      const isSelected = valuesToToggle.every((value) => values.includes(value))
-      return {
-        ...current,
-        [field]: isSelected
-          ? values.filter((value) => !valuesToToggle.includes(value))
-          : Array.from(new Set([...values, ...valuesToToggle])),
-      }
-    })
+    storeToggleArrayValues(field, optionValues(option))
   }
 
   const toggleAllValues = (field: "businessTypes" | "statuses", values: string[]) => {
-    setForm((current) => {
-      const selected = current[field] ?? []
-      const isAllSelected = values.every((value) => selected.includes(value))
-      return {
-        ...current,
-        [field]: isAllSelected ? [] : values,
-      }
-    })
+    const selected = form[field] ?? []
+    const isAllSelected = values.every((value) => selected.includes(value))
+    storeSetArrayField(field, isAllSelected ? [] : values)
   }
 
-  const handleSubmit = async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const dateRange = getDefaultDateRange()
-      const payload: ManagementReportRequest = {
-        ...form,
-        customerGroup: form.customerGroup === "ALL" ? undefined : form.customerGroup,
-        startAt: form.startAt || dateRange.startAt,
-        endAt: form.endAt || dateRange.endAt,
-      }
-      setReport(await createManagementReport(payload))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "리포트 생성에 실패했습니다.")
-    } finally {
-      setIsLoading(false)
-    }
+  const handleSubmit = () => {
+    // store.submit 은 모달이 닫힌 사이에도 await 계속 진행 — 결과는 store 에 저장됨
+    void storeSubmit()
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
-    if (!nextOpen) {
-      setReport(null)
-      setError(null)
-      setIsLoading(false)
-    }
+    // 의도적으로 store reset 하지 않음 — 모달 닫아도 fetch 진행 + 결과 보존
+    // 사용자가 "새 리포트 작성" 으로 명시적으로 리셋할 때만 storeResetReport()
+  }
+
+  const handleResetReport = () => {
+    storeResetReport()
   }
 
   const handleSavePdf = () => {
@@ -327,9 +273,10 @@ export function ManagementReportModal() {
 
     const printWindow = window.open("", "_blank", "width=1200,height=900")
     if (!printWindow) {
-      setError("PDF 저장 창을 열 수 없습니다. 브라우저 팝업 차단 설정을 확인해 주세요.")
+      setPdfError("PDF 저장 창을 열 수 없습니다. 브라우저 팝업 차단 설정을 확인해 주세요.")
       return
     }
+    setPdfError(null)
 
     printWindow.document.write(buildReportPrintHtml(report, form))
     printWindow.document.close()
@@ -421,6 +368,7 @@ export function ManagementReportModal() {
                   리포트 생성
                 </Button>
                 {error && <p className="text-sm text-destructive">{error}</p>}
+                {pdfError && <p className="text-sm text-destructive">{pdfError}</p>}
               </CardContent>
             </Card>
 
