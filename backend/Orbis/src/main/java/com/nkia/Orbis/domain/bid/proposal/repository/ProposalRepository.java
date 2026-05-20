@@ -43,4 +43,14 @@ public interface ProposalRepository extends JpaRepository<Proposal, Long> {
      * [3] 중복 제안서 등록 방지 (Validation) 동일한 사업 기회(ProjectOpportunity)에 이미 작성 중이거나 완료된 제안서가 있는지 검증합니다.
      */
     boolean existsByProjectOpportunityId(Long projectOpportunityId);
+
+    @EntityGraph(attributePaths = {
+            "projectOpportunity",
+            "projectOpportunity.customerCompany",
+            "projectOpportunity.prb",
+            "projectOpportunity.productModules",
+            "projectOpportunity.productModules.productModule" // 납품 모듈의 이름(name)을 가져오기 위한 깊은 탐색
+    })
+    @Query("SELECT p FROM Proposal p WHERE p.id = :id")
+    Optional<Proposal> findBidResultInfoById(@Param("id") Long id);
 }

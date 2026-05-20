@@ -7,6 +7,7 @@ import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultDetailResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultHistoryListResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultHistoryResponse;
+import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultInfoResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultListResponse;
 import com.nkia.Orbis.domain.bid.bidresult.service.BidResultService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -148,6 +150,16 @@ public class BidResultController {
     public ResponseEntity<ApiResponse<BidResultHistoryResponse>> getBidResultHistoryDetail(
             @PathVariable Long historyId) {
         BidResultHistoryResponse response = bidResultService.getBidResultHistoryDetail(historyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "입찰 결과 기본 정보 조회", description = "제안서 ID를 기반으로 입찰 결과 폼 작성 시 필요한 기본 정보를 조회합니다.")
+    @GetMapping("/pre-fill")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BID_RESULT', 'READ')")
+    public ResponseEntity<ApiResponse<BidResultInfoResponse>> getBidResultInfo(
+            @RequestParam(name = "proposalId") Long proposalId) {
+
+        BidResultInfoResponse response = bidResultService.getBidResultInfo(proposalId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
