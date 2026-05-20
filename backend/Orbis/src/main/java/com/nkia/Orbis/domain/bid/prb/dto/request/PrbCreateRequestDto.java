@@ -35,7 +35,6 @@ public class PrbCreateRequestDto {
     @NotNull(message = "영업 대표 ID는 필수입니다.")
     private UUID salesRepresentativeId;
 
-    @NotNull(message = "검토자 ID는 필수입니다.")
     private UUID reviewerId;
 
     // 2. PRB 기본 정보
