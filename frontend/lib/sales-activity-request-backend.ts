@@ -217,7 +217,11 @@ function mergeRequest(
 
 function saveMergedRequests(requests: ActivityRequestRecord[]) {
   if (!isBrowser()) return
-  window.localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(requests))
+
+  const next = JSON.stringify(requests)
+  if (window.localStorage.getItem(REQUESTS_STORAGE_KEY) === next) return
+
+  window.localStorage.setItem(REQUESTS_STORAGE_KEY, next)
   window.dispatchEvent(new Event(REQUEST_WORKFLOW_EVENT_NAME))
 }
 
