@@ -15,21 +15,8 @@ export const metadata: Metadata = {
   description: 'B2B 소프트웨어 기업을 위한 영업관리시스템',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/orbis_logo.png',
+    apple: '/orbis_logo.png',
   },
 }
 

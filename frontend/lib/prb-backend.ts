@@ -669,7 +669,7 @@ function mapBackendPrbRecord(
     shareOwner: local?.shareOwner ?? "공유 권한 보유자",
     proposalDeadline: formatDate(projectInfo?.proposalDeadlineDatetime) || local?.proposalDeadline || "",
     createdDate: formatDate(item.createdAt) || local?.createdDate || formatDate(item.prbDate) || "",
-    status: local?.status ?? "작성 중",
+    status: item.status ?? local?.status ?? "작성 중",
     notificationsSent: local?.notificationsSent ?? false,
     approvalSteps: local?.approvalSteps ?? [],
     revisionGroupId: local?.revisionGroupId ?? `PRB-GROUP-${String(item.prbId ?? Date.now())}`,

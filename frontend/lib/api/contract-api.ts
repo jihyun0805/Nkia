@@ -339,6 +339,8 @@ export interface ContractListResponse {
 
 export interface ContractResponse {
   id: number;
+  workflowId: number | null;
+  status: ApprovalStatus;
   orderReportId: number;
   contractFileId: number;
   contractModuleItems: ContractModuleItemResponse[];
@@ -544,6 +546,14 @@ export const contractApi = {
     customInstance<ApiResponse<void>>({
       url: `/contract/summaries/${id}`,
       method: "DELETE",
+    }),
+
+  /** 계약 결재 상신 */
+  submitContract: (id: number, firstApproverId: string) =>
+    customInstance<ApiResponse<string>>({
+      url: `/contract/summaries/submit/${id}`,
+      method: "POST",
+      data: { firstApproverId } satisfies SubmitRequest,
     }),
 };
 

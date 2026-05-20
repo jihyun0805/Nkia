@@ -5,37 +5,48 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sidebar } from "@/components/erp/sidebar";
 import { Header } from "@/components/erp/header";
-import {
-  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, ArrowLeft, Edit, Trash2 } from "lucide-react";
-import {
-  getCustomerSupportRequestDetail,
-  type CustomerSupportRequestDetailResponse,
-  deleteCustomerSupportRequest,
-} from "@/lib/api/maintenance";
+import { getCustomerSupportRequestDetail, type CustomerSupportRequestDetailResponse, deleteCustomerSupportRequest } from "@/lib/api/maintenance";
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 import { toast } from "sonner";
+import { WorkflowApprovalPanel } from "@/components/erp/workflow-approval-panel";
 
 function statusLabel(status?: string) {
   switch (status) {
-    case "DRAFT": return "임시저장";
-    case "PENDING": return "결재대기";
-    case "APPROVED": return "승인";
-    case "REJECTED": return "반려";
-    default: return status ?? "-";
+    case "DRAFT":
+    case "결재 대기":
+      return "결재 대기";
+    case "PENDING":
+    case "결재중":
+      return "결재 진행중";
+    case "APPROVED":
+    case "승인 완료":
+      return "승인 완료";
+    case "REJECTED":
+    case "반려":
+      return "반려";
+    default:
+      return status ?? "-";
   }
 }
 
 function statusVariant(status?: string): "default" | "secondary" | "destructive" | "outline" {
   switch (status) {
-    case "APPROVED": return "default";
-    case "REJECTED": return "destructive";
-    case "PENDING": return "secondary";
-    default: return "outline";
+    case "APPROVED":
+    case "승인 완료":
+      return "default";
+    case "REJECTED":
+    case "반려":
+      return "destructive";
+    case "PENDING":
+    case "결재중":
+      return "secondary";
+    default:
+      return "outline";
   }
 }
 
@@ -109,116 +120,129 @@ export default function CustomerSupportRequestDetailPage() {
         <main className="flex-1 overflow-auto p-6">
           <div className="mx-auto max-w-5xl space-y-6">
             <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem><BreadcrumbLink asChild><Link href="/maintenance">유지보수</Link></BreadcrumbLink></BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem><BreadcrumbPage>고객지원 요청 상세</BreadcrumbPage></BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link href="/maintenance">유지보수</Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>고객지원 요청 상세</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
 
-          {loading && (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          )}
-
-          {error && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="flex items-center gap-3 py-8">
-                <AlertCircle className="h-6 w-6 text-red-500" />
-                <p className="text-red-700">{error}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {!loading && !error && item && (
-            isEditing ? (
-              <SupportRequestForm
-                initialData={item}
-                onSuccess={() => {
-                  setIsEditing(false);
-                  setReloadTrigger(prev => prev + 1);
-                }}
-                onCancel={() => setIsEditing(false)}
-              />
-            ) : (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">고객지원 요청 #{item.id}</h1>
-                <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+            {loading && (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
+            )}
 
-              <Card>
-                <CardHeader><CardTitle className="text-lg">기본 정보</CardTitle></CardHeader>
-                <CardContent>
-                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
-                    <div>
-                      <dt className="text-muted-foreground">고객사</dt>
-                      <dd className="font-medium mt-1">{item.customerName}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">요청 기간</dt>
-                      <dd className="font-medium mt-1">{item.requestStartDate} ~ {item.requestEndDate}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">요청자</dt>
-                      <dd className="font-medium mt-1">{item.requesterName}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">등록자</dt>
-                      <dd className="font-medium mt-1">{item.registrantName}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">영업대표</dt>
-                      <dd className="font-medium mt-1">{item.salesRepName}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">고객지원 담당자</dt>
-                      <dd className="font-medium mt-1">{item.supportManagerName}</dd>
-                    </div>
-                  </dl>
+            {error && (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="flex items-center gap-3 py-8">
+                  <AlertCircle className="h-6 w-6 text-red-500" />
+                  <p className="text-red-700">{error}</p>
                 </CardContent>
               </Card>
+            )}
 
-              <Card>
-                <CardHeader><CardTitle className="text-lg">요청 내용</CardTitle></CardHeader>
-                <CardContent>
-                  <p className="text-sm whitespace-pre-wrap">{item.requestContent || "-"}</p>
-                </CardContent>
-              </Card>
+            {!loading &&
+              !error &&
+              item &&
+              (isEditing ? (
+                <SupportRequestForm
+                  initialData={item}
+                  onSuccess={() => {
+                    setIsEditing(false);
+                    setReloadTrigger((prev) => prev + 1);
+                  }}
+                  onCancel={() => setIsEditing(false)}
+                />
+              ) : (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h1 className="text-2xl font-bold">고객지원 요청 #{item.id}</h1>
+                    <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+                  </div>
 
-              {item.remarks && (
-                <Card>
-                  <CardHeader><CardTitle className="text-lg">특기사항</CardTitle></CardHeader>
-                  <CardContent>
-                    <p className="text-sm whitespace-pre-wrap">{item.remarks}</p>
-                  </CardContent>
-                </Card>
-              )}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">기본 정보</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                        <div>
+                          <dt className="text-muted-foreground">고객사</dt>
+                          <dd className="font-medium mt-1">{item.customerName}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">요청 기간</dt>
+                          <dd className="font-medium mt-1">
+                            {item.requestStartDate} ~ {item.requestEndDate}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">요청자</dt>
+                          <dd className="font-medium mt-1">{item.requesterName}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">등록자</dt>
+                          <dd className="font-medium mt-1">{item.registrantName}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">영업대표</dt>
+                          <dd className="font-medium mt-1">{item.salesRepName}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">고객지원 담당자</dt>
+                          <dd className="font-medium mt-1">{item.supportManagerName}</dd>
+                        </div>
+                      </dl>
+                    </CardContent>
+                  </Card>
 
-              <div className="flex justify-between items-center mt-6">
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  삭제
-                </Button>
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => router.push("/maintenance")}>
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    목록으로
-                  </Button>
-                  <Button onClick={() => setIsEditing(true)}>
-                    <Edit className="w-4 h-4 mr-2" />
-                    수정
-                  </Button>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">요청 내용</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm whitespace-pre-wrap">{item.requestContent || "-"}</p>
+                    </CardContent>
+                  </Card>
+
+                  {item.remarks && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">특기사항</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm whitespace-pre-wrap">{item.remarks}</p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <WorkflowApprovalPanel workflowId={item.workflowId} status={item.status} targetId={item.id} domainType="CUSTOMER_SUPPORT" onRefresh={() => setReloadTrigger((prev) => prev + 1)} />
+
+                  <div className="flex justify-between items-center mt-6">
+                    <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      삭제
+                    </Button>
+                    <div className="flex gap-3">
+                      <Button variant="outline" onClick={() => router.push("/maintenance")}>
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        목록으로
+                      </Button>
+                      <Button onClick={() => setIsEditing(true)}>
+                        <Edit className="w-4 h-4 mr-2" />
+                        수정
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )
-        )}
+              ))}
           </div>
         </main>
       </div>

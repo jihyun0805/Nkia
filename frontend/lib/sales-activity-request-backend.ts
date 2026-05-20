@@ -37,6 +37,7 @@ type BackendRequestListItem = {
   activityPurpose?: SalesActivityRequestResponseActivityPurpose | string
   activityDateTime?: string
   requestContent?: string
+  status?: string
 }
 
 type RequestCreateInput = {
@@ -206,7 +207,7 @@ function mergeRequest(
     opportunity,
     content,
     dueDate: local?.dueDate ?? activityDate,
-    status: local?.status ?? "요청",
+    status: backendRequest.status ?? local?.status ?? "요청",
     approvedAt: local?.approvedAt,
     lastAction: local?.lastAction,
     lastActionAt: local?.lastActionAt,
