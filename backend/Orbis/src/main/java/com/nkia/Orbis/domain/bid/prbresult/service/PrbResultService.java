@@ -17,11 +17,16 @@ import com.nkia.Orbis.domain.bid.prb.repository.PrbRepository;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultAttendeeOpinionRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultCreateRequest;
 import com.nkia.Orbis.domain.bid.prbresult.dto.request.PrbResultUpdateRequest;
+import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultHistoryListResponse;
+import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultHistoryResponse;
 import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultListResponse;
 import com.nkia.Orbis.domain.bid.prbresult.dto.response.PrbResultResponse;
 import com.nkia.Orbis.domain.bid.prbresult.entity.PrbResult;
 import com.nkia.Orbis.domain.bid.prbresult.entity.PrbResultAttendeeOpinion;
+import com.nkia.Orbis.domain.bid.prbresult.entity.PrbResultHistory;
+import com.nkia.Orbis.domain.bid.prbresult.repository.PrbResultHistoryRepository;
 import com.nkia.Orbis.domain.bid.prbresult.repository.PrbResultRepository;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -38,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PrbResultService {
 
     private final PrbResultRepository prbResultRepository;
+    private final PrbResultHistoryRepository prbResultHistoryRepository;
     private final PrbRepository prbRepository;
     private final UserRepository userRepository;
     private final WorkflowRepository workflowRepository;
@@ -100,6 +106,9 @@ public class PrbResultService {
     public PrbResultResponse updatePrbResult(Long id, PrbResultUpdateRequest request) {
         PrbResult prbResult = findPrbResult(id);
 
+        // 데이터가 수정되어 지워지기 전, 온전한 과거 상태를 History 테이블에 스냅샷으로 백업
+        saveSnapshot(prbResult);
+
         // 더티 체킹 활용: 필드 업데이트 및 값 타입 컬렉션 갱신
         updatePrbResultInfos(request, prbResult);
 
@@ -124,12 +133,60 @@ public class PrbResultService {
     }
 
     /**
+     * PRB 결과 원본이 수정되기 전 상태를 카운팅 버저닝하여 History 엔티티로 보관합니다.
+     */
+    private void saveSnapshot(PrbResult prbResult) {
+        long historyCount = prbResultHistoryRepository.countByPrbResultId(prbResult.getId());
+        Integer nextVersion = (int) historyCount + 1;
+
+        PrbResultHistory history = PrbResultHistory.createSnapshot(prbResult, nextVersion);
+        prbResultHistoryRepository.save(history);
+    }
+
+    /**
      * 5. PRB 결과 삭제 (Soft Delete)
      */
     @Transactional
     public void deletePrbResult(Long id) {
         PrbResult prbResult = findPrbResult(id);
         prbResult.delete(); // BaseEntity에 정의된 soft delete 메서드 호출
+    }
+
+    /**
+     * 6. 특정 PRB 결과의 모든 이력 목록을 최신순(내림차순)으로 조회합니다.
+     */
+    public List<PrbResultHistoryListResponse> getPrbResultHistories(Long prbResultId) {
+        // 원본 존재 여부 체크
+        findPrbResult(prbResultId);
+
+        List<PrbResultHistory> histories = prbResultHistoryRepository.findByPrbResultIdOrderByVersionDesc(prbResultId);
+        return histories.stream()
+                .map(PrbResultHistoryListResponse::from)
+                .toList();
+    }
+
+    /**
+     * 7. 특정 과거 버전의 이력 상세 데이터를 유저 정보와 조합하여 단건 조회합니다. (N+1 방어 일괄 쿼리 적용)
+     */
+    public PrbResultHistoryResponse getPrbResultHistoryDetail(Long historyId) {
+        PrbResultHistory history = prbResultHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(PrbResultErrorCode.PRB_RESULT_NOT_FOUND)); // 필요시 에러코드 커스텀 추가
+
+        // 1. 작성자(수정자) 일괄 처리 조회
+        User creator = null;
+        if (history.getCreatedBy() != null && !history.getCreatedBy().isBlank()) {
+            creator = userRepository.findById(UUID.fromString(history.getCreatedBy())).orElse(null);
+        }
+
+        // 2. 참석자 의견 내부의 모든 User ID를 모아 대량 일괄 인메모리 매핑 (In-Clause 최적화)
+        Set<UUID> attendeeIds = history.getAttendeeOpinions().stream()
+                .map(PrbResultAttendeeOpinion::getAttendeeUserId)
+                .collect(Collectors.toSet());
+
+        Map<UUID, User> attendeeMap = userRepository.findAllById(attendeeIds).stream()
+                .collect(Collectors.toMap(User::getId, user -> user));
+
+        return PrbResultHistoryResponse.of(history, creator, attendeeMap);
     }
 
     // --- 내부 헬퍼 메서드 ---
@@ -195,4 +252,6 @@ public class PrbResultService {
                 .map(Workflow::getId)
                 .orElse(null);
     }
+
+
 }

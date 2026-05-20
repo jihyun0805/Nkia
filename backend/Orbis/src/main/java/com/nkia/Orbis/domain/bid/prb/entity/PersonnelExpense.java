@@ -55,4 +55,14 @@ public class PersonnelExpense {
         }
         return this.baseAmount.multiply(this.inputManMonth).setScale(2, RoundingMode.HALF_UP);
     }
+
+    public PersonnelExpense copy() {
+        return new PersonnelExpense(
+                this.grade,
+                this.inputManMonth,
+                this.startDate,
+                this.endDate,
+                this.baseAmount
+        );
+    }
 }
