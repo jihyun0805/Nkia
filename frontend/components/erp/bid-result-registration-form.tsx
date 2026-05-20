@@ -20,10 +20,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { getCustomers, getOpportunities, type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
-import { loadBackendBidResults, loadBackendBidResultDetailById, saveBackendBidResult } from "@/lib/bid-result-backend"
+import {
+  loadBackendBidResultHistoryRecord,
+  loadBackendBidResultHistoryRecords,
+  loadBackendBidResults,
+  loadBackendBidResultDetailById,
+  saveBackendBidResult,
+  type BackendBidResultHistoryListItem,
+} from "@/lib/bid-result-backend"
 import { loadBackendProposals } from "@/lib/proposal-backend"
 import { useBackendUsers } from "@/lib/use-backend-users"
 import { resolveUserId } from "@/lib/user-utils"
@@ -276,6 +284,10 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
   const [form, setForm] = useState<FormState>(emptyForm)
   const [validationMessage, setValidationMessage] = useState("")
   const [existingResult, setExistingResult] = useState<BidResultRecord | null>(null)
+  const [detailTab, setDetailTab] = useState("document")
+  const [historyRecords, setHistoryRecords] = useState<BackendBidResultHistoryListItem[]>([])
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null)
+  const [selectedHistoryDetail, setSelectedHistoryDetail] = useState<BidResultRecord | null>(null)
 
   // 챗봇 create_draft (bid_result) prefill
   const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -339,6 +351,83 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
       cancelled = true
     }
   }, [bidResultId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!bidResultId) {
+      setHistoryRecords([])
+      setSelectedHistoryId(null)
+      setSelectedHistoryDetail(null)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setHistoryRecords([])
+    setSelectedHistoryId(null)
+    setSelectedHistoryDetail(null)
+
+    void loadBackendBidResultHistoryRecords(bidResultId)
+      .then((records) => {
+        if (!cancelled) {
+          setHistoryRecords(
+            records
+              .filter((record): record is BackendBidResultHistoryListItem & { historyId: number; version: number } =>
+                typeof record.historyId === "number" && typeof record.version === "number",
+              )
+              .sort((a, b) => (b.version ?? 0) - (a.version ?? 0)),
+          )
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHistoryRecords([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [bidResultId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (selectedHistoryId == null) {
+      setSelectedHistoryDetail(null)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    void loadBackendBidResultHistoryRecord(selectedHistoryId)
+      .then((record) => {
+        if (!cancelled) {
+          setSelectedHistoryDetail(record)
+          setForm({
+            proposalId: record.proposalId,
+            customerCode: record.customerCode,
+            opportunityCode: record.opportunityCode,
+            bidDate: record.bidDate,
+            result: record.result,
+            amount: record.amount,
+            competitor: record.competitor,
+            reason: record.reason,
+            analysisSheet: cloneAnalysisSheet(record.analysisSheet),
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSelectedHistoryDetail(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedHistoryId])
 
   const mergedExistingResult = existingResult
 
@@ -601,6 +690,13 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
     }
   }
 
+  const historyRows = historyRecords.map((item) => ({
+    key: `backend:${item.historyId}`,
+    historyId: item.historyId,
+    versionLabel: `v${item.version ?? ""}`,
+    documentDate: (item.createdAt ?? "").slice(0, 10),
+    documentCode: item.bidResultId != null ? String(item.bidResultId) : String(item.historyId ?? ""),
+  }))
   const totalScore = getOverallTotal(form.analysisSheet.checklistSections)
 
   return (
@@ -610,6 +706,39 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
           <CardTitle>{bidResultId ? "입찰 결과 수정" : "입찰 결과 등록"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="document">입찰결과</TabsTrigger>
+              <TabsTrigger value="history">변경 이력</TabsTrigger>
+            </TabsList>
+            <TabsContent value="document" className="mt-0 space-y-6">
+              {selectedHistoryDetail && (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedHistoryId(null)
+                      setSelectedHistoryDetail(null)
+                      if (existingResult) {
+                        setForm({
+                          proposalId: existingResult.proposalId,
+                          customerCode: existingResult.customerCode,
+                          opportunityCode: existingResult.opportunityCode,
+                          bidDate: existingResult.bidDate,
+                          result: existingResult.result,
+                          amount: existingResult.amount,
+                          competitor: existingResult.competitor,
+                          reason: existingResult.reason,
+                          analysisSheet: cloneAnalysisSheet(existingResult.analysisSheet),
+                        })
+                      }
+                    }}
+                  >
+                    현재 버전 보기
+                  </Button>
+                </div>
+              )}
           <div className="overflow-x-auto">
             <table className="min-w-[1480px] table-fixed border-collapse text-sm">
               <colgroup>
@@ -995,12 +1124,62 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
             </table>
           </div>
 
+            </TabsContent>
+            <TabsContent value="history" className="mt-0">
+              <div className="rounded-lg border">
+                <table className="w-full table-fixed border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-100 text-center font-semibold">
+                      <th className="border-b border-r px-3 py-3">버전</th>
+                      <th className="border-b border-r px-3 py-3">등록일자</th>
+                      <th className="border-b border-r px-3 py-3">입찰결과 코드</th>
+                      <th className="border-b px-3 py-3">보기</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyRows.length > 0 ? (
+                      historyRows.map((entry) => (
+                        <tr key={entry.key}>
+                          <td className="border-r border-t px-3 py-3 text-center">{entry.versionLabel}</td>
+                          <td className="border-r border-t px-3 py-3 text-center">{entry.documentDate}</td>
+                          <td className="border-r border-t px-3 py-3 text-center">{entry.documentCode}</td>
+                          <td className="border-t px-3 py-3 text-center">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (typeof entry.historyId !== "number") return
+                                setSelectedHistoryId(entry.historyId)
+                                setDetailTab("document")
+                              }}
+                            >
+                              보기
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                          변경 이력이 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {!selectedHistoryDetail && (
           <div className="flex justify-end gap-2 border-t pt-6">
             <Button variant="outline" asChild>
               <Link href={bidResultId ? `/bid/result/${bidResultId}` : "/bid"}>취소</Link>
             </Button>
             <Button onClick={handleComplete}>완료</Button>
           </div>
+          )}
         </CardContent>
       </Card>
 

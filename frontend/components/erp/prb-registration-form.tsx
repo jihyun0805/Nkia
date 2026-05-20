@@ -37,7 +37,14 @@ import {
 import { currentUser } from "@/lib/current-user"
 import { loadBackendFindingData } from "@/lib/finding-backend"
 import { type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
-import { deleteBackendPrb, loadBackendPrbs, saveBackendPrb } from "@/lib/prb-backend"
+import {
+  deleteBackendPrb,
+  loadBackendPrbHistoryRecord,
+  loadBackendPrbHistoryRecords,
+  loadBackendPrbs,
+  saveBackendPrb,
+  type BackendPrbHistoryListItem,
+} from "@/lib/prb-backend"
 import { useBackendUsers } from "@/lib/use-backend-users"
 import type { BackendUserSummary } from "@/lib/workflow-backend"
 import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
@@ -282,6 +289,9 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   const [detailTab, setDetailTab] = useState("document")
   const [sourcePrb, setSourcePrb] = useState<PrbRecord | null>(null)
   const [revisionHistory, setRevisionHistory] = useState<PrbRecord[]>([])
+  const [backendHistoryRecords, setBackendHistoryRecords] = useState<BackendPrbHistoryListItem[]>([])
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null)
+  const [selectedHistoryDetail, setSelectedHistoryDetail] = useState<PrbRecord | null>(null)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([])
@@ -418,6 +428,78 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     void loadBackendPrbs().catch(() => undefined)
     return subscribePrbUpdates(sync)
   }, [cloneFromId, prbId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!prbId) {
+      setBackendHistoryRecords([])
+      setSelectedHistoryId(null)
+      setSelectedHistoryDetail(null)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setBackendHistoryRecords([])
+    setSelectedHistoryId(null)
+    setSelectedHistoryDetail(null)
+
+    void loadBackendPrbHistoryRecords(prbId)
+      .then((records) => {
+        if (!cancelled) {
+          setBackendHistoryRecords(
+            records
+              .filter((record): record is BackendPrbHistoryListItem & { historyId: number; version: number } =>
+                typeof record.historyId === "number" && typeof record.version === "number",
+              )
+              .sort((a, b) => (b.version ?? 0) - (a.version ?? 0)),
+          )
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBackendHistoryRecords([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [prbId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (selectedHistoryId == null) {
+      setSelectedHistoryDetail(null)
+      if (sourcePrb) {
+        setForm(cloneForm(sourcePrb))
+        setStatus(sourcePrb.status)
+      }
+      return () => {
+        cancelled = true
+      }
+    }
+
+    void loadBackendPrbHistoryRecord(selectedHistoryId)
+      .then((record) => {
+        if (!cancelled) {
+          setSelectedHistoryDetail(record)
+          setForm(cloneForm(record))
+          setStatus(record.status)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSelectedHistoryDetail(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedHistoryId, sourcePrb])
 
   useEffect(() => {
     if (!users.length) return
@@ -658,13 +740,12 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
         ? "진행중"
         : sourcePrb?.status ?? "작성 중"
   const canActOnApprovalStep = Boolean(pendingApprovalStep && prbId)
-  const prbHistoryRows = revisionHistory.map((item) => ({
-    id: item.id,
-    version: `PRB ${item.revisionNumber}차`,
-    changedAt: item.createdDate,
-    changedBy: item.author,
-    status: item.status,
-    summary: item.revisionNumber === 1 ? "PRB 최초 등록" : `PRB ${item.revisionNumber}차 수정본 등록`,
+  const prbHistoryRows = backendHistoryRecords.map((item) => ({
+    key: `backend:${item.historyId}`,
+    historyId: item.historyId,
+    versionLabel: `v${item.version ?? ""}`,
+    documentDate: (item.prbDate ?? item.createdAt ?? "").slice(0, 10),
+    documentCode: item.prbCode ?? String(item.historyId ?? ""),
   }))
 
   const handleApproveStep = () => {
@@ -1183,6 +1264,24 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
               </TabsList>
 
               <TabsContent value="document" className="mt-0 space-y-6">
+                {selectedHistoryDetail && (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedHistoryId(null)
+                        setSelectedHistoryDetail(null)
+                        if (sourcePrb) {
+                          setForm(cloneForm(sourcePrb))
+                          setStatus(sourcePrb.status)
+                        }
+                      }}
+                    >
+                      현재 버전 보기
+                    </Button>
+                  </div>
+                )}
                 {reportTable}
               </TabsContent>
 
@@ -1272,32 +1371,27 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
                       <thead>
                         <tr className="bg-slate-100 text-center font-semibold">
                           <th className="border-b border-r px-3 py-3">버전</th>
-                          <th className="border-b border-r px-3 py-3">변경일시</th>
-                          <th className="border-b border-r px-3 py-3">변경자</th>
-                          <th className="border-b border-r px-3 py-3">상태</th>
-                          <th className="border-b border-r px-3 py-3">내용</th>
+                          <th className="border-b border-r px-3 py-3">PRB 일자</th>
+                          <th className="border-b border-r px-3 py-3">PRB 코드</th>
                           <th className="border-b px-3 py-3">보기</th>
                         </tr>
                       </thead>
                       <tbody>
                         {prbHistoryRows.length > 0 ? (
-                          prbHistoryRows.map((entry, index) => (
-                            <tr key={`${entry.version}-${entry.changedAt}-${index}`}>
-                              <td className="border-r border-t px-3 py-3 text-center">{entry.version}</td>
-                              <td className="border-r border-t px-3 py-3 text-center">{entry.changedAt}</td>
-                              <td className="border-r border-t px-3 py-3 text-center">{entry.changedBy}</td>
-                              <td className="border-r border-t px-3 py-3 text-center">{entry.status}</td>
-                              <td className="border-r border-t px-3 py-3">{entry.summary}</td>
+                          prbHistoryRows.map((entry) => (
+                            <tr key={entry.key}>
+                              <td className="border-r border-t px-3 py-3 text-center">{entry.versionLabel}</td>
+                              <td className="border-r border-t px-3 py-3 text-center">{entry.documentDate}</td>
+                              <td className="border-r border-t px-3 py-3 text-center">{entry.documentCode}</td>
                               <td className="border-t px-3 py-3 text-center">
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
+                                    if (typeof entry.historyId !== "number") return
+                                    setSelectedHistoryId(entry.historyId)
                                     setDetailTab("document")
-                                    if (entry.id !== prbId) {
-                                      router.push(`/bid/prb/${entry.id}`)
-                                    }
                                   }}
                                 >
                                   보기
@@ -1307,7 +1401,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                            <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
                               아직 변경 이력이 없습니다.
                             </td>
                           </tr>
@@ -1322,7 +1416,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
             reportTable
           )}
 
-          {!documentOnly && !readOnly && (
+          {!documentOnly && !readOnly && !selectedHistoryDetail && (
             <div className="flex justify-end gap-2 border-t pt-6">
               <Button variant="outline" asChild>
                 <Link href={prbId ? `/bid/prb/${prbId}` : "/bid"}>취소</Link>
