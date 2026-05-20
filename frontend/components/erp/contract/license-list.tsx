@@ -38,7 +38,8 @@ export function LicenseList({ licenses, isLoading }: LicenseListProps) {
           acc[key] = { customerName: key, count: 0, activeCount: 0, latestStart: "" };
         }
         acc[key].count += 1;
-        if (license.licenseStatus === "ACTIVE") acc[key].activeCount += 1;
+        const status = license.licenseStatus as string;
+        if (status === "ACTIVE" || status === "활성" || status === "ISSUED" || status === "발급 완료") acc[key].activeCount += 1;
         if (!acc[key].latestStart || license.startDate > acc[key].latestStart) {
           acc[key].latestStart = license.startDate;
         }
@@ -79,11 +80,6 @@ export function LicenseList({ licenses, isLoading }: LicenseListProps) {
                   </div>
                   <div className="mt-5 text-sm text-muted-foreground space-y-1">
                     <p>등록된 라이선스 {group.count}건</p>
-                    {group.activeCount > 0 && (
-                      <Badge className={`${statusStyle.ACTIVE} text-xs`}>
-                        {statusLabel.ACTIVE} {group.activeCount}건
-                      </Badge>
-                    )}
                   </div>
                 </div>
               </button>
