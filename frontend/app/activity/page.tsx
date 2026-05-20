@@ -28,6 +28,23 @@ const REQUESTS_STORAGE_KEY = "orbis.activityRequests";
 const NOTIFICATIONS_STORAGE_KEY = "orbis.workflowNotifications";
 type ActivityTab = "activities" | "quotations" | "requests";
 
+function getQuotationStatusClass(status: string) {
+  switch (status) {
+    case "결재 대기":
+      return "bg-gray-100 text-gray-700 hover:bg-gray-100"
+    case "결재중":
+      return "bg-amber-100 text-amber-700 hover:bg-amber-100"
+    case "승인 완료":
+      return "bg-green-100 text-green-700 hover:bg-green-100"
+    case "반려":
+      return "bg-red-100 text-red-700 hover:bg-red-100"
+    case "취소":
+      return "bg-slate-100 text-slate-700 hover:bg-slate-100"
+    default:
+      return "bg-amber-100 text-amber-700 hover:bg-amber-100"
+  }
+}
+
 function isActivityTab(value: string | null): value is ActivityTab {
   return value === "activities" || value === "quotations" || value === "requests";
 }
@@ -425,16 +442,11 @@ export default function ActivityPage() {
                             {(() => {
                               const displayStatus = getQuotationDisplayStatus(quote);
                               const statusText = displayStatus || "-";
+                              const statusClass = getQuotationStatusClass(displayStatus ?? "");
                               return (
                                 <Badge
-                                  variant={displayStatus === "전달완료" ? "default" : displayStatus === "삭제" ? "destructive" : "outline"}
-                                  className={
-                                    displayStatus === "전달완료"
-                                      ? "bg-green-100 text-green-700 hover:bg-green-100"
-                                      : displayStatus === "삭제"
-                                          ? "bg-red-100 text-red-700 hover:bg-red-100"
-                                          : "bg-amber-100 text-amber-700 hover:bg-amber-100"
-                                  }
+                                  variant={displayStatus === "반려" || displayStatus === "취소" ? "destructive" : displayStatus === "승인 완료" ? "default" : "outline"}
+                                  className={statusClass}
                                 >
                                   {statusText}
                                 </Badge>
