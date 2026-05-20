@@ -98,4 +98,29 @@ public class PersonnelExpenses {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
+
+    public PersonnelExpenses copy() {
+        PersonnelExpenses copy = new PersonnelExpenses();
+
+        // 리스트가 null이 아니면 stream을 통해 내부 요소도 전부 copy() 호출
+        copy.residentExpenses = this.residentExpenses != null ?
+                this.residentExpenses.stream().map(PersonnelExpense::copy).toList() : new ArrayList<>();
+
+        copy.nonResidentExpenses = this.nonResidentExpenses != null ?
+                this.nonResidentExpenses.stream().map(PersonnelExpense::copy).toList() : new ArrayList<>();
+
+        // 나머지 단순 집계 필드 복사
+        copy.residentTotalManMonth = this.residentTotalManMonth;
+        copy.residentTotalAmount = this.residentTotalAmount;
+        copy.nonResidentTotalManMonth = this.nonResidentTotalManMonth;
+        copy.nonResidentTotalAmount = this.nonResidentTotalAmount;
+        copy.totalManMonth = this.totalManMonth;
+        copy.totalAmount = this.totalAmount;
+
+        return copy;
+    }
+
+    public static PersonnelExpenses createEmpty() {
+        return new PersonnelExpenses();
+    }
 }

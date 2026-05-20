@@ -31,4 +31,13 @@ public class PurchaseProduct {
         this.quantity = quantity;
         this.totalAmount = totalAmount;
     }
+
+    public PurchaseProduct copy() {
+        return new PurchaseProduct(
+                this.vendorName,
+                this.productName,
+                this.quantity,
+                this.totalAmount
+        );
+    }
 }

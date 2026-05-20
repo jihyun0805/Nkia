@@ -33,4 +33,13 @@ public class WinLossAnalysis {
 
     @Column(length = 1000)
     private String reason; // 평가 이유
+
+    public WinLossAnalysis copy() {
+        return WinLossAnalysis.builder()
+                .category(this.category)
+                .evaluationItem(this.evaluationItem)
+                .score(this.score)
+                .reason(this.reason)
+                .build();
+    }
 }

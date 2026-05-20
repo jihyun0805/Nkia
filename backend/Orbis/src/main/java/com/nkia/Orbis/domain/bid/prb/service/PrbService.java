@@ -14,11 +14,16 @@ import com.nkia.Orbis.domain.admin.workflow.repository.WorkflowRepository;
 import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.bid.prb.dto.request.PrbCreateRequestDto;
 import com.nkia.Orbis.domain.bid.prb.dto.request.PrbUpdateRequestDto;
+import com.nkia.Orbis.domain.bid.prb.dto.response.PrbHistoryListResponseDto;
+import com.nkia.Orbis.domain.bid.prb.dto.response.PrbHistoryResponseDto;
 import com.nkia.Orbis.domain.bid.prb.dto.response.PrbResponseDto;
 import com.nkia.Orbis.domain.bid.prb.entity.Prb;
+import com.nkia.Orbis.domain.bid.prb.entity.PrbHistory;
+import com.nkia.Orbis.domain.bid.prb.repository.PrbHistoryRepository;
 import com.nkia.Orbis.domain.bid.prb.repository.PrbRepository;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PrbService {
 
     private final PrbRepository prbRepository;
+    private final PrbHistoryRepository prbHistoryRepository;
     private final ProjectOpportunityRepository projectOpportunityRepository;
     private final UserRepository userRepository;
     private final WorkflowRepository workflowRepository;
@@ -71,6 +77,10 @@ public class PrbService {
     public void updatePrb(Long id, PrbUpdateRequestDto request) {
         // 1. 기존 PRB 엔티티 및 변경될 영업 대표 조회
         Prb prb = findPrb(id);
+
+        // 수정 전 현재 상태를 History 테이블에 스냅샷으로 저장
+        saveSnapshot(prb);
+
         User newSalesRepresentative = findUser(request.getSalesRepresentativeId());
         User newReviewer = findUser(request.getReviewerId());
         ProjectOpportunity newProjectOpportunity = findProjectOpportunity(request.getProjectOpportunityId());
@@ -82,6 +92,21 @@ public class PrbService {
         prb.calculateTotalCost(request.getIndirectExpenseRate());
 
         // 더티 체킹에 의해 메서드 종료 시점에 자동으로 UPDATE 쿼리가 날아갑니다.
+    }
+
+    /**
+     * PRB 원본이 수정되기 전, 현재 상태를 복사하여 History 엔티티로 영속화합니다.
+     */
+    private void saveSnapshot(Prb prb) {
+        // 1. 기존 이력 개수를 조회하여 다음 버전을 계산 (count + 1)
+        long historyCount = prbHistoryRepository.countByPrbCode(prb.getPrbCode());
+        Integer nextVersion = (int) historyCount + 1;
+
+        // 2. History 엔티티 생성
+        PrbHistory history = PrbHistory.createSnapshot(prb, nextVersion);
+
+        // 3. 영속화
+        prbHistoryRepository.save(history);
     }
 
     /**
@@ -115,6 +140,24 @@ public class PrbService {
                         prb,
                         getWorkflowId(prb.getId())
                 ));
+    }
+
+    public List<PrbHistoryListResponseDto> getPrbHistories(Long prbId) {
+        Prb prb = findPrb(prbId);
+        // 최신 버전이 위로 오도록 내림차순 조회
+        List<PrbHistory> histories = prbHistoryRepository.findByPrbCodeOrderByVersionDesc(prb.getPrbCode());
+        return histories.stream()
+                .map(PrbHistoryListResponseDto::from)
+                .toList();
+    }
+
+    /**
+     * PRB 변경 이력 상세 조회
+     */
+    public PrbHistoryResponseDto getPrbHistoryDetail(Long historyId) {
+        PrbHistory history = prbHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new ApiException(PrbErrorCode.PRB_HISTORY_NOT_FOUND)); // 에러코드 추가 필요
+        return PrbHistoryResponseDto.from(history);
     }
 
     // ==========================================

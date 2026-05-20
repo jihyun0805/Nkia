@@ -29,4 +29,8 @@ public class CompanyScore {
     public static CompanyScore of(String companyName, double technicalScore, double priceScore) {
         return new CompanyScore(companyName, technicalScore, priceScore);
     }
+
+    public CompanyScore copy() {
+        return new CompanyScore(this.companyName, this.technicalScore, this.priceScore);
+    }
 }

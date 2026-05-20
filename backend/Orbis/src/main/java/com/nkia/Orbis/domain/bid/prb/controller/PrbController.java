@@ -4,11 +4,14 @@ import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.bid.prb.dto.request.PrbCreateRequestDto;
 import com.nkia.Orbis.domain.bid.prb.dto.request.PrbUpdateRequestDto;
+import com.nkia.Orbis.domain.bid.prb.dto.response.PrbHistoryListResponseDto;
+import com.nkia.Orbis.domain.bid.prb.dto.response.PrbHistoryResponseDto;
 import com.nkia.Orbis.domain.bid.prb.dto.response.PrbResponseDto;
 import com.nkia.Orbis.domain.bid.prb.service.PrbService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -108,6 +111,22 @@ public class PrbController {
     public ResponseEntity<ApiResponse<Void>> deletePrb(@PathVariable Long id) {
         prbService.deletePrb(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "PRB 변경 이력 목록 조회")
+    @GetMapping("/{id}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB', 'READ')")
+    public ResponseEntity<ApiResponse<List<PrbHistoryListResponseDto>>> getPrbHistories(@PathVariable Long id) {
+        List<PrbHistoryListResponseDto> response = prbService.getPrbHistories(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "PRB 변경 이력 상세 조회")
+    @GetMapping("/histories/{historyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB', 'READ')")
+    public ResponseEntity<ApiResponse<PrbHistoryResponseDto>> getPrbHistoryDetail(@PathVariable Long historyId) {
+        PrbHistoryResponseDto response = prbService.getPrbHistoryDetail(historyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @Operation(summary = "PRB 보고서 결재 상신")
