@@ -61,4 +61,8 @@ public class GeneralOverheadExpenses {
 
         return copy;
     }
+
+    public static GeneralOverheadExpenses createEmpty() {
+        return new GeneralOverheadExpenses();
+    }
 }

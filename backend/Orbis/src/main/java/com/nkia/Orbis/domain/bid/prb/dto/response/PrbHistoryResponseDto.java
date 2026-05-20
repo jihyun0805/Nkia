@@ -10,7 +10,15 @@ import com.nkia.Orbis.domain.bid.prb.dto.vo.PrbProfitLossInfoDto;
 import com.nkia.Orbis.domain.bid.prb.dto.vo.PrbProjectInfoDto;
 import com.nkia.Orbis.domain.bid.prb.dto.vo.ProductCostDto;
 import com.nkia.Orbis.domain.bid.prb.dto.vo.PurchaseDto;
+import com.nkia.Orbis.domain.bid.prb.entity.GeneralOverheadExpenses;
+import com.nkia.Orbis.domain.bid.prb.entity.GeneralOverheadExpensesHistory;
+import com.nkia.Orbis.domain.bid.prb.entity.PersonnelExpenses;
+import com.nkia.Orbis.domain.bid.prb.entity.PersonnelExpensesHistory;
 import com.nkia.Orbis.domain.bid.prb.entity.PrbHistory;
+import com.nkia.Orbis.domain.bid.prb.entity.ProductCost;
+import com.nkia.Orbis.domain.bid.prb.entity.ProductCostHistory;
+import com.nkia.Orbis.domain.bid.prb.entity.Purchase;
+import com.nkia.Orbis.domain.bid.prb.entity.PurchaseHistory;
 import com.nkia.Orbis.domain.company.entity.CompanyCategory;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import java.math.BigDecimal;
@@ -132,13 +140,49 @@ public class PrbHistoryResponseDto {
     }
 
     private static void mapValueObjects(PrbHistoryResponseDtoBuilder builder, PrbHistory entity) {
-        // 기존 PrbDto의 VO 변환 메서드들을 그대로 재사용합니다.
         builder.projectInfo(PrbProjectInfoDto.from(entity.getProjectInfo()))
                 .profitLossInfo(PrbProfitLossInfoDto.from(entity.getProfitLossInfo()))
-                .personnelExpenses(PersonnelExpensesDto.from(entity.getPersonnelExpenses()))
-                .productCost(ProductCostDto.from(entity.getProductCost()))
-                .purchase(PurchaseDto.from(entity.getPurchase()))
-                .overheadExpenses(GeneralOverheadExpensesDto.from(entity.getGeneralOverheadExpenses()))
-                .indirectExpenses(IndirectExpensesDto.from(entity.getIndirectExpenses()));
+                .indirectExpenses(IndirectExpensesDto.from(entity.getIndirectExpenses()))
+                // 어댑터를 통해 History VO -> 원본 VO로 변환하여 기존 DTO mappers 100% 재사용
+                .personnelExpenses(PersonnelExpensesDto.from(restore(entity.getPersonnelExpenses())))
+                .productCost(ProductCostDto.from(restore(entity.getProductCost())))
+                .purchase(PurchaseDto.from(restore(entity.getPurchase())))
+                .overheadExpenses(GeneralOverheadExpensesDto.from(restore(entity.getGeneralOverheadExpenses())));
+    }
+
+    private static PersonnelExpenses restore(PersonnelExpensesHistory hist) {
+        if (hist == null) {
+            return null;
+        }
+        PersonnelExpenses vo = PersonnelExpenses.createEmpty();
+        vo.updateExpenses(hist.getResidentExpenses(), hist.getNonResidentExpenses());
+        return vo;
+    }
+
+    private static ProductCost restore(ProductCostHistory hist) {
+        if (hist == null) {
+            return null;
+        }
+        ProductCost vo = ProductCost.createEmpty();
+        vo.updateItems(hist.getItems());
+        return vo;
+    }
+
+    private static Purchase restore(PurchaseHistory hist) {
+        if (hist == null) {
+            return null;
+        }
+        Purchase vo = Purchase.createEmpty();
+        vo.updatePurchases(hist.getHumanResources(), hist.getProducts());
+        return vo;
+    }
+
+    private static GeneralOverheadExpenses restore(GeneralOverheadExpensesHistory hist) {
+        if (hist == null) {
+            return null;
+        }
+        GeneralOverheadExpenses vo = GeneralOverheadExpenses.createEmpty();
+        vo.updateExpenses(hist.getItems());
+        return vo;
     }
 }

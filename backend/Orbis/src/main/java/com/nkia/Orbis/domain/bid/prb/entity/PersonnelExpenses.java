@@ -119,4 +119,8 @@ public class PersonnelExpenses {
 
         return copy;
     }
+
+    public static PersonnelExpenses createEmpty() {
+        return new PersonnelExpenses();
+    }
 }

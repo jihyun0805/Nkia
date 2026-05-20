@@ -62,4 +62,8 @@ public class ProductCost {
 
         return copy;
     }
+
+    public static ProductCost createEmpty() {
+        return new ProductCost();
+    }
 }

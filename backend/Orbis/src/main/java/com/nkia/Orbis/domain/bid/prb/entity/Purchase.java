@@ -105,4 +105,8 @@ public class Purchase {
 
         return copy;
     }
+
+    public static Purchase createEmpty() {
+        return new Purchase();
+    }
 }

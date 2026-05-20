@@ -4,8 +4,6 @@ import com.nkia.Orbis.common.constant.ApprovalStatus;
 import com.nkia.Orbis.common.entity.BaseEntity;
 import com.nkia.Orbis.domain.admin.user.entity.User;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
-import jakarta.persistence.AssociationOverride;
-import jakarta.persistence.AssociationOverrides;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -16,7 +14,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToOne;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -81,30 +78,16 @@ public class PrbHistory extends BaseEntity {
     private PrbProfitLossInfo profitLossInfo;
 
     @Embedded
-    @AssociationOverrides({
-            @AssociationOverride(name = "residentExpenses", joinTable = @JoinTable(name = "prb_history_resident_expense", joinColumns = @JoinColumn(name = "prb_history_id"))),
-            @AssociationOverride(name = "nonResidentExpenses", joinTable = @JoinTable(name = "prb_history_non_resident_expense", joinColumns = @JoinColumn(name = "prb_history_id")))
-    })
-    private PersonnelExpenses personnelExpenses;
+    private PersonnelExpensesHistory personnelExpenses;
 
     @Embedded
-    @AssociationOverrides({
-            @AssociationOverride(name = "items", joinTable = @JoinTable(name = "prb_history_product_cost_item", joinColumns = @JoinColumn(name = "prb_history_id")))
-    })
-    private ProductCost productCost;
+    private ProductCostHistory productCost;
 
     @Embedded
-    @AssociationOverrides({
-            @AssociationOverride(name = "humanResources", joinTable = @JoinTable(name = "prb_history_purchase_human_resource", joinColumns = @JoinColumn(name = "prb_history_id"))),
-            @AssociationOverride(name = "products", joinTable = @JoinTable(name = "prb_history_purchase_product", joinColumns = @JoinColumn(name = "prb_history_id")))
-    })
-    private Purchase purchase;
+    private PurchaseHistory purchase;
 
     @Embedded
-    @AssociationOverrides({
-            @AssociationOverride(name = "items", joinTable = @JoinTable(name = "prb_history_general_overhead_expense", joinColumns = @JoinColumn(name = "prb_history_id")))
-    })
-    private GeneralOverheadExpenses generalOverheadExpenses;
+    private GeneralOverheadExpensesHistory generalOverheadExpenses;
 
     @Embedded
     private IndirectExpenses indirectExpenses;
@@ -128,11 +111,10 @@ public class PrbHistory extends BaseEntity {
                 // VO 복사 (null-safe 처리)
                 .projectInfo(prb.getProjectInfo() != null ? prb.getProjectInfo().copy() : null)
                 .profitLossInfo(prb.getProfitLossInfo() != null ? prb.getProfitLossInfo().copy() : null)
-                .personnelExpenses(prb.getPersonnelExpenses() != null ? prb.getPersonnelExpenses().copy() : null)
-                .productCost(prb.getProductCost() != null ? prb.getProductCost().copy() : null)
-                .purchase(prb.getPurchase() != null ? prb.getPurchase().copy() : null)
-                .generalOverheadExpenses(
-                        prb.getGeneralOverheadExpenses() != null ? prb.getGeneralOverheadExpenses().copy() : null)
+                .personnelExpenses(PersonnelExpensesHistory.from(prb.getPersonnelExpenses()))
+                .productCost(ProductCostHistory.from(prb.getProductCost()))
+                .purchase(PurchaseHistory.from(prb.getPurchase()))
+                .generalOverheadExpenses(GeneralOverheadExpensesHistory.from(prb.getGeneralOverheadExpenses()))
                 .indirectExpenses(prb.getIndirectExpenses() != null ? prb.getIndirectExpenses().copy() : null)
                 .build();
     }
