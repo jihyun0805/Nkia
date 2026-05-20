@@ -631,6 +631,18 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   const requesterDisplay = requestItem?.requester ?? currentUser.name
   const selectedAnalyst = backendUsers.find((user) => user.id === analystId) ?? null
 
+  const applyOpportunityDefaults = (opportunity: OpportunityRecord) => {
+    setBusinessType(opportunity.product ?? "")
+    setProposalType(opportunity.partnerCode && opportunity.partnerCode !== "-" ? "SI 제안" : "자체 제안")
+    setDeliveryModule(opportunity.module ?? "")
+    setAmountScale(opportunity.expectedAmount && opportunity.expectedAmount !== "-" ? opportunity.expectedAmount : "")
+    setProposalDeadline(opportunity.expectedDate && opportunity.expectedDate !== "-" ? opportunity.expectedDate.slice(0, 10) : "")
+    setMajorContent(opportunity.issue && opportunity.issue !== "-" ? opportunity.issue : "")
+    if (opportunity.salesRepresentativeId) {
+      setAnalystId(opportunity.salesRepresentativeId)
+    }
+  }
+
   useEffect(() => {
     let cancelled = false
 
@@ -642,15 +654,18 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
 
     if (!selectedOpportunity) {
       setBusinessType("")
+      setProposalType("SI 제안")
       setDeliveryModule("")
+      setAmountScale("")
+      setProposalDeadline("")
+      setMajorContent("")
       return () => {
         cancelled = true
       }
     }
 
     if (!selectedOpportunity.backendId) {
-      setBusinessType(selectedOpportunity.product)
-      setDeliveryModule(selectedOpportunity.module)
+      applyOpportunityDefaults(selectedOpportunity)
       return () => {
         cancelled = true
       }
@@ -659,15 +674,28 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
     void loadBackendProjectOpportunity(selectedOpportunity.backendId)
       .then((detail) => {
         if (cancelled) return
+        const parsedDescription = parseOpportunityDescription(detail.description)
         const productModuleNames = collectNames(detail.productModuleNames, detail.productModules, "productName")
+        const moduleDisplay = productModuleNames.join(", ") || parsedDescription.moduleName
 
         setBusinessType(detail.projectType ?? "")
-        setDeliveryModule(productModuleNames.join(", "))
+        setProposalType(
+          (Array.isArray(detail.partnerCompanyIds) && detail.partnerCompanyIds.length > 0) ||
+            (Array.isArray(detail.partnerCompanies) && detail.partnerCompanies.length > 0)
+            ? "SI 제안"
+            : "자체 제안",
+        )
+        setDeliveryModule(moduleDisplay)
+        setAmountScale(formatOpportunityAmount(detail.expectedBudget))
+        setProposalDeadline(detail.expectedBidDate?.slice(0, 10) ?? "")
+        setMajorContent(parsedDescription.issue)
+        if (detail.salesRepresentativeId) {
+          setAnalystId(detail.salesRepresentativeId)
+        }
       })
       .catch(() => {
         if (cancelled) return
-        setBusinessType(selectedOpportunity.product)
-        setDeliveryModule(selectedOpportunity.module)
+        applyOpportunityDefaults(selectedOpportunity)
       })
 
     return () => {
