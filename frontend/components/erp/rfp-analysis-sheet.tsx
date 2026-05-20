@@ -427,32 +427,10 @@ export function RfpAnalysisSheet({ requestId, title, blankMode = false }: RfpAna
   useEffect(() => {
     void loadBackendUsers()
       .then((users) => {
-        const merged = [
-          {
-            id: currentUser.id,
-            employeeNumber: currentUser.id,
-            position: currentUser.role,
-            name: currentUser.name,
-            departmentName: currentUser.department,
-            phone: "",
-            email: currentUser.email,
-          },
-          ...users.filter((user) => user.id !== currentUser.id),
-        ]
-        setBackendUsers(merged)
+        setBackendUsers(users)
       })
       .catch(() => {
-        setBackendUsers([
-          {
-            id: currentUser.id,
-            employeeNumber: currentUser.id,
-            position: currentUser.role,
-            name: currentUser.name,
-            departmentName: currentUser.department,
-            phone: "",
-            email: currentUser.email,
-          },
-        ])
+        setBackendUsers([])
       })
   }, [])
 

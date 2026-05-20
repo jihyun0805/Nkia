@@ -250,11 +250,7 @@ async function resolveAttendeeUserIds(attendees?: string) {
     email: user.email,
   }))
 
-  const allUsers: BackendUserSummary[] = [
-    ...backendUsers,
-    ...localUsers,
-    { id: currentUser.id, name: currentUser.name, email: currentUser.email },
-  ]
+  const allUsers: BackendUserSummary[] = [...backendUsers, ...localUsers]
 
   const resolved = tokens.map((token) => findUserByToken(allUsers, token)?.id?.trim() ?? "").filter((value): value is string => Boolean(value))
 
@@ -399,6 +395,7 @@ function mapBackendActivityRecord(
     date,
     requestId: activity.salesActivityRequestId != null ? String(activity.salesActivityRequestId) : undefined,
     salesActivityRequestId: activity.salesActivityRequestId,
+    salesActivityRequestTitle: activity.salesActivityRequestTitle ?? "",
     projectOpportunityId: opportunityId,
     registrant:
       registrantName ||

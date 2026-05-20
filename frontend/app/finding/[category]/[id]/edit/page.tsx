@@ -257,13 +257,7 @@ function buildOpportunityDescription(params: {
   issue: string
   decisionInfo: string
 }) {
-  const normalizedModuleNames = params.moduleNames.map((value) => value.trim()).filter(Boolean)
-  return JSON.stringify({
-    moduleName: normalizedModuleNames.join(", "),
-    moduleNames: normalizedModuleNames,
-    issue: params.issue.trim(),
-    decisionInfo: params.decisionInfo.trim(),
-  })
+  return params.issue.trim()
 }
 
 function getFindingCategoryLabel(category: FindingCategory) {

@@ -856,6 +856,7 @@ const handleSubmitQuotation = async () => {
                 ) : (
                   <ActivityFormFields
                     defaultValues={item as ActivityRecord}
+                    requestTitle={(item as ActivityRecord).salesActivityRequestTitle ?? ""}
                     readOnly
                   />
                 )}

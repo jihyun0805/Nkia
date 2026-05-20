@@ -282,10 +282,7 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
     [form.prbId, selectedPrb],
   )
   const attendeeUsers = useMemo(
-    () => {
-      const safeUsers = Array.isArray(backendUsers) ? backendUsers : []
-      return [currentUser, ...safeUsers.filter((user) => user.id !== currentUser.id)]
-    },
+    () => (Array.isArray(backendUsers) ? backendUsers : []),
     [backendUsers],
   )
 

@@ -97,14 +97,8 @@ export function ActivityFormFields({
   const [nextAction, setNextAction] = useState(defaultValues?.nextAction ?? "")
   const backendUsers = useBackendUsers()
   const activityFormUsers = Array.isArray(backendUsers) ? backendUsers : []
-  const requesterUsers = useMemo(
-    () => [currentUser, ...activityFormUsers.filter((user) => user.id !== currentUser.id)],
-    [activityFormUsers],
-  )
-  const attendeeUsers = useMemo(
-    () => [currentUser, ...activityFormUsers.filter((user) => user.id !== currentUser.id)],
-    [activityFormUsers],
-  )
+  const requesterUsers = useMemo(() => activityFormUsers, [activityFormUsers])
+  const attendeeUsers = useMemo(() => activityFormUsers, [activityFormUsers])
   const [attendeeRows, setAttendeeRows] = useState<string[]>([""])
   const requester = typeof requesterValue === "string" ? requesterValue : defaultValues?.requester ?? ""
   const resolvedRequester = resolveUserId(requester, requesterUsers)

@@ -546,6 +546,7 @@ export default function ActivityEditPage() {
                       activityContent: activityForm.activityContent || (item as ActivityRecord).activityContent,
                       opportunity: activityOpportunity,
                     }}
+                    requestTitle={(item as ActivityRecord).salesActivityRequestTitle ?? ""}
                     registrantValue={activityRegistrant}
                     onRegistrantChange={setActivityRegistrant}
                     customerValue={activityCustomer}
