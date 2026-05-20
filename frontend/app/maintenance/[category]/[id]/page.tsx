@@ -11,18 +11,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getMaintenanceCategoryLabel, type MaintenanceCategory } from "@/lib/maintenance-data";
-import { 
-  getMaintenanceDetail, 
-  deleteMaintenance, 
-  getMaintenanceHistories, 
-  getMaintenanceHistoryDetail, 
+import {
+  getMaintenanceDetail,
+  deleteMaintenance,
+  getMaintenanceHistories,
+  getMaintenanceHistoryDetail,
   type MaintenanceDetailResponse,
   type MaintenanceHistoryListResponse,
-  type MaintenanceHistoryDetailResponse
+  type MaintenanceHistoryDetailResponse,
 } from "@/lib/api/maintenance";
 import { getBackendApiBaseUrl } from "@/lib/api-base-url";
 import { Loader2, AlertCircle, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
+import { WorkflowApprovalPanel } from "@/components/erp/workflow-approval-panel";
 
 export default function MaintenanceDetailPage() {
   const params = useParams();
@@ -34,6 +35,7 @@ export default function MaintenanceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // History States
   const [histories, setHistories] = useState<MaintenanceHistoryListResponse[]>([]);
@@ -84,7 +86,7 @@ export default function MaintenanceDetailPage() {
     };
 
     fetchData();
-  }, [category, id]);
+  }, [category, id, refreshKey]);
 
   const handleDelete = async () => {
     if (!item) return;
@@ -229,7 +231,6 @@ export default function MaintenanceDetailPage() {
 
         <main className="flex-1 overflow-y-auto p-6">
           <div className="mx-auto max-w-5xl space-y-6">
-
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -252,7 +253,10 @@ export default function MaintenanceDetailPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-amber-800 dark:text-amber-300">이전 이력 스냅샷 조회 중</h3>
-                    <p className="text-xs text-amber-600 dark:text-amber-400">이 정보는 과거 수정 직전의 스냅샷 데이터입니다. (등록자: {historyData?.createdBy || "-"}, 저장일시: {historyData?.createdAt ? new Date(historyData.createdAt).toLocaleString() : "-"})</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      이 정보는 과거 수정 직전의 스냅샷 데이터입니다. (등록자: {historyData?.createdBy || "-"}, 저장일시:{" "}
+                      {historyData?.createdAt ? new Date(historyData.createdAt).toLocaleString() : "-"})
+                    </p>
                   </div>
                 </div>
                 <Button size="sm" onClick={handleBackToLive} className="bg-amber-600 hover:bg-amber-700 text-white border-none">
@@ -264,12 +268,9 @@ export default function MaintenanceDetailPage() {
             <Card>
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle>{isHistoryMode ? "유지보수 이력 상세" : "유지보수 상세"}</CardTitle>
-                <Badge variant={currentViewItem.type === "PAID" ? "default" : "outline"}>
-                  {currentViewItem.type === "PAID" ? "유상" : "무상"}
-                </Badge>
+                <Badge variant={currentViewItem.type === "PAID" ? "default" : "outline"}>{currentViewItem.type === "PAID" ? "유상" : "무상"}</Badge>
               </CardHeader>
               <CardContent className="space-y-6">
-
                 {historyLoading ? (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
                     <Loader2 className="w-8 h-8 animate-spin" />
@@ -328,9 +329,10 @@ export default function MaintenanceDetailPage() {
                     )}
                   </div>
                 </div>
-
               </CardContent>
             </Card>
+
+            {!isHistoryMode && <WorkflowApprovalPanel workflowId={item.workflowId} status={item.status} targetId={item.id} domainType="MAINTENANCE" onRefresh={() => setRefreshKey((k) => k + 1)} />}
 
             {/* 변경 이력 카드 */}
             {!isHistoryMode && (
@@ -370,17 +372,11 @@ export default function MaintenanceDetailPage() {
                         </TableHeader>
                         <TableBody>
                           {histories.map((h) => (
-                            <TableRow
-                              key={h.id}
-                              className="cursor-pointer hover:bg-muted/50 transition-colors text-left"
-                              onClick={() => handleSelectHistory(h.id)}
-                            >
+                            <TableRow key={h.id} className="cursor-pointer hover:bg-muted/50 transition-colors text-left" onClick={() => handleSelectHistory(h.id)}>
                               <TableCell className="font-medium">{h.customerName || "-"}</TableCell>
                               <TableCell className="max-w-[150px] truncate">{h.projectName || "-"}</TableCell>
                               <TableCell>{h.productFamilyName || "-"}</TableCell>
-                              <TableCell className="text-right font-medium">
-                                ₩{(h.contractAmount || 0).toLocaleString()}
-                              </TableCell>
+                              <TableCell className="text-right font-medium">₩{(h.contractAmount || 0).toLocaleString()}</TableCell>
                               <TableCell className="text-sm">{h.startDate || "-"}</TableCell>
                               <TableCell className="text-sm">{h.endDate || "-"}</TableCell>
                               {category === "paid" && (
@@ -401,7 +397,6 @@ export default function MaintenanceDetailPage() {
                 </CardContent>
               </Card>
             )}
-
           </div>
         </main>
       </div>
