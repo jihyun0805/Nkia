@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
 
@@ -114,6 +115,7 @@ export const useManagementReportStore = create<State & Actions>()(
         // 이미 진행 중이면 중복 호출 차단 — 모달 닫혔다 다시 열어도 in-flight 가 보임
         if (get().isLoading) return
         set({ isLoading: true, error: null, lastSubmittedAt: Date.now() })
+        const startedAt = Date.now()
         const dateRange = getDefaultDateRange()
         const current = get().form
         const payload: ManagementReportRequest = {
@@ -125,11 +127,18 @@ export const useManagementReportStore = create<State & Actions>()(
         try {
           const result = await createManagementReport(payload)
           set({ report: result, isLoading: false })
+          // 모달이 닫혀 있어도 보이도록 toast 알림.
+          // 빠르게 끝나면 (<3초) 사용자가 모달 보고 있을 가능성 높아 알림 생략, 그 외에만.
+          if (Date.now() - startedAt >= 3000) {
+            toast.success("경영 리포트가 생성되었습니다.", {
+              description: payload.title ?? "리포트를 확인해 주세요.",
+              duration: 8000,
+            })
+          }
         } catch (err) {
-          set({
-            error: err instanceof Error ? err.message : "리포트 생성에 실패했습니다.",
-            isLoading: false,
-          })
+          const message = err instanceof Error ? err.message : "리포트 생성에 실패했습니다."
+          set({ error: message, isLoading: false })
+          toast.error("경영 리포트 생성 실패", { description: message, duration: 8000 })
         }
       },
 
