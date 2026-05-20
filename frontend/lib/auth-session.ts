@@ -3,8 +3,8 @@
 export const AUTH_SESSION_STORAGE_KEY = "orbis-auth-session";
 const AUTH_SESSION_EVENT_NAME = "orbis-auth-session-change";
 
-// 토큰 만료 전 자동 갱신을 위한 여유 시간
-const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
+// 토큰 만료 전 자동 갱신을 위한 여유 시간 (5분)
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 export type AuthSession = {
   email: string;
@@ -252,7 +252,55 @@ function scheduleTokenRefresh(session: AuthSession) {
 
 export function initTokenRefreshScheduler() {
   const session = loadAuthSession();
-  if (session && !isTokenExpired(session.accessToken)) {
+  if (!session) return;
+
+  if (!isTokenExpired(session.accessToken)) {
+    // accessToken이 아직 유효하면 만료 전 선제적 갱신 스케줄 등록
     scheduleTokenRefresh(session);
+  } else if (!isTokenExpired(session.refreshToken)) {
+    // accessToken은 만료됐지만 refreshToken은 유효 → 즉시 갱신 시도
+    (async () => {
+      try {
+        const { getBackendApiBaseUrl } = await import("./api-base-url");
+        const baseUrl = getBackendApiBaseUrl();
+
+        const response = await fetch(`${baseUrl}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: session.refreshToken }),
+        });
+
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            clearAuthSession();
+            if (typeof window !== "undefined") window.location.href = "/";
+          }
+          return;
+        }
+
+        const result = await response.json();
+        const newAccessToken = result?.data?.accessToken;
+        const newRefreshToken = result?.data?.refreshToken;
+
+        if (!newAccessToken) return;
+
+        saveAuthSession({
+          ...session,
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken || session.refreshToken,
+          issuedAt: new Date().toISOString(),
+        });
+
+        console.log("[Auth] 페이지 로드 시 만료된 토큰 즉시 갱신 완료");
+      } catch {
+        // 네트워크 오류 등 → 다음 API 호출의 reactive refresh에 위임
+      }
+    })();
+  } else {
+    // refreshToken도 만료 → 세션 정리
+    clearAuthSession();
+    if (typeof window !== "undefined" && window.location.pathname !== "/") {
+      window.location.href = "/";
+    }
   }
 }
