@@ -86,7 +86,6 @@ type BackendRfpDetail = BackendRfpSummary & {
 }
 
 type BackendRfpUpsertRequest = {
-  projectName: string
   hardwareProvider?: string
   budgetAmount?: number | null
   expectedDuration?: string
@@ -415,7 +414,6 @@ async function buildPayload(input: Omit<RfpAnalysisRecord, "id"> & { id?: string
 
   const assigneeId = await resolveAssigneeId({ assigneeId: input.assigneeId })
   const payload: BackendRfpUpsertRequest = {
-    projectName: input.opportunity,
     hardwareProvider: input.hardwareOwner || "",
     budgetAmount: parseNumber(input.amountScale),
     expectedDuration: input.projectPeriod || "",
