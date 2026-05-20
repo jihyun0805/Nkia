@@ -11,6 +11,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { orderReportApi, contractApi, licenseApi, purchaseApi, type OrderReportResponse, type ContractResponse, type LicenseResponse, type PurchaseResponse } from "@/lib/api/contract-api";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { WorkflowApprovalPanel } from "@/components/erp/workflow-approval-panel";
 
 type Category = "orders" | "order" | "contracts" | "contract" | "purchases" | "purchase" | "licenses" | "license";
 
@@ -198,13 +199,24 @@ export default function ContractDetailPage() {
             {category === "orders" ? (
               <OrderReportDetail report={data as OrderReportResponse} onRefresh={() => setRefreshKey((k) => k + 1)} />
             ) : (
-              <DetailFormCard
-                title={`${label} 상세`}
-                fields={getFields()}
-                listHref="/contract"
-                editHref={category === "purchases" || category === "purchase" ? undefined : `/contract/${category}/${id}/edit`}
-                includeAttachment
-              />
+              <>
+                <DetailFormCard
+                  title={`${label} 상세`}
+                  fields={getFields()}
+                  listHref="/contract"
+                  editHref={category === "purchases" || category === "purchase" ? undefined : `/contract/${category}/${id}/edit`}
+                  includeAttachment
+                />
+                {(category === "contracts" || category === "contract" || category === "licenses" || category === "license") && (
+                  <WorkflowApprovalPanel
+                    workflowId={(data as any)?.workflowId}
+                    status={(data as any)?.status}
+                    targetId={numericId}
+                    domainType={category === "licenses" || category === "license" ? "LICENSE" : "CONTRACT"}
+                    onRefresh={() => setRefreshKey((k) => k + 1)}
+                  />
+                )}
+              </>
             )}
           </div>
         </main>

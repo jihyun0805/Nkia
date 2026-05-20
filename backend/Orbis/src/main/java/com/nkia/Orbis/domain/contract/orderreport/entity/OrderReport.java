@@ -280,6 +280,7 @@ public class OrderReport extends BaseEntity {
         maintenance.setOrderReport(this);
 
         calculateMaintenanceTotal();
+        calculateMaintenanceSummary();
     }
 
     public void addService(OrderReportServiceItem service) {
@@ -326,6 +327,21 @@ public class OrderReport extends BaseEntity {
         this.maintenanceTotal = maintenances.stream()
                 .mapToLong(maintenance -> maintenance.getTotalPrice() == null ? 0L : maintenance.getTotalPrice())
                 .sum();
+    }
+
+    public void calculateMaintenanceSummary() {
+        this.emsMaintenanceSummary = 0L;
+        this.itgMaintenanceSummary = 0L;
+
+        for (OrderReportMaintenance m : maintenances) {
+            String content = m.getContent() == null ? "" : m.getContent().toUpperCase();
+            long price = m.getTotalPrice() == null ? 0L : m.getTotalPrice();
+            if (content.contains("ITG") || content.contains("ITSM")) {
+                this.itgMaintenanceSummary += price;
+            } else {
+                this.emsMaintenanceSummary += price;
+            }
+        }
     }
 
     private void calculateOtherTotal() {
@@ -533,6 +549,7 @@ public class OrderReport extends BaseEntity {
         calculateLicenseTotal();
         calculateLicenseSummary();
         calculateMaintenanceTotal();
+        calculateMaintenanceSummary();
         calculateServiceTotal();
         calculateOtherTotal();
         calculatePurchaseTotal();
