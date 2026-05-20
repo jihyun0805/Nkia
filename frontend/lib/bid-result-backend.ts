@@ -89,6 +89,20 @@ type BackendBidResultDetailResponse = {
   analyses?: BackendWinLossAnalysis[]
 }
 
+export type BackendBidResultHistoryListItem = {
+  historyId?: number
+  bidResultId?: number
+  version?: number
+  bidOutcome?: string
+  createdAt?: string
+}
+
+type BackendBidResultHistoryResponse = BackendBidResultDetailResponse & {
+  historyId?: number
+  bidResultId?: number
+  version?: number
+}
+
 export type BidResultSaveInput = {
   id?: string
   proposalId?: string
@@ -221,6 +235,26 @@ async function fetchBidResultDetail(id: number) {
   })
 
   return parseApiResponse<BackendBidResultDetailResponse>(response, "입찰 결과 상세를 불러오지 못했습니다.")
+}
+
+async function fetchBidResultHistoryList(id: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/bid-results/${id}/histories`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendBidResultHistoryListItem[]>(response, "입찰결과 변경 이력을 불러오지 못했습니다.")
+}
+
+async function fetchBidResultHistoryDetail(historyId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/bid-results/histories/${historyId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendBidResultHistoryResponse>(response, "입찰결과 변경 이력 상세를 불러오지 못했습니다.")
 }
 
 async function fetchUsers() {
@@ -669,6 +703,24 @@ export async function loadBackendBidResultDetailById(id: string) {
   ])
 
   return mapBidResultDetail(detail, proposals, findingData)
+}
+
+export async function loadBackendBidResultHistoryRecords(bidResultId: string) {
+  return fetchBidResultHistoryList(bidResultId)
+}
+
+export async function loadBackendBidResultHistoryRecord(historyId: number) {
+  const [findingData, proposals, detail] = await Promise.all([
+    loadBackendFindingData(),
+    loadBackendProposals(),
+    fetchBidResultHistoryDetail(historyId),
+  ])
+
+  return mapBidResultDetail(
+    { ...detail, id: detail.bidResultId ?? detail.id } as BackendBidResultDetailResponse,
+    proposals,
+    findingData,
+  )
 }
 
 function toBidOutcome(value?: string) {

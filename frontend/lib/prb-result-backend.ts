@@ -48,6 +48,21 @@ type BackendPrbResultResponse = BackendPrbResultSummary & {
   attendeeOpinions?: BackendPrbResultAttendeeOpinion[]
 }
 
+export type BackendPrbResultHistoryListItem = {
+  historyId?: number
+  prbResultId?: number
+  version?: number
+  createdAt?: string
+}
+
+type BackendPrbResultHistoryResponse = BackendPrbResultResponse & {
+  historyId?: number
+  prbResultId?: number
+  version?: number
+  status?: string
+  createdByName?: string
+}
+
 type BackendPrbResultAttendeeOpinionRequest = {
   attendeeUserId: string
   opinion?: string | null
@@ -133,6 +148,26 @@ async function fetchPrbResultDetail(id: string) {
   })
 
   return parseApiResponse<BackendPrbResultResponse>(response, "PRB 결과 상세를 불러오지 못했습니다.")
+}
+
+async function fetchPrbResultHistoryList(id: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/prb-results/${id}/histories`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendPrbResultHistoryListItem[]>(response, "PRB 결과 변경 이력을 불러오지 못했습니다.")
+}
+
+async function fetchPrbResultHistoryDetail(historyId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/prb-results/histories/${historyId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendPrbResultHistoryResponse>(response, "PRB 결과 변경 이력 상세를 불러오지 못했습니다.")
 }
 
 function mapApprovalStatusToBackend(value?: string) {
@@ -327,6 +362,22 @@ async function loadResultSnapshot() {
 
 export async function loadBackendPrbResults() {
   return loadResultSnapshot()
+}
+
+export async function loadBackendPrbResultHistoryRecords(prbResultId: string) {
+  return fetchPrbResultHistoryList(prbResultId)
+}
+
+export async function loadBackendPrbResultHistoryRecord(historyId: number) {
+  await loadBackendPrbs()
+  const detail = await fetchPrbResultHistoryDetail(historyId)
+  const resultId = detail.prbResultId ?? detail.id
+  const summary: BackendPrbResultSummary = {
+    id: resultId,
+    createdByUserName: detail.createdByName,
+    createdAt: detail.createdAt,
+  }
+  return mapBackendPrbResult({ ...detail, id: resultId } as BackendPrbResultResponse, summary, null)
 }
 
 export async function saveBackendPrbResult(input: Omit<PrbResultRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
