@@ -257,7 +257,7 @@ export interface OrderReportHistoryResponse {
   contractPeriodMonths: number;
   scopeOfWork: string;
   remarks: string;
-  projectOpportunity: any; // backend returns ProjectOpportunity entity
+  projectName: string;
   pmId: string;
   pmName: string;
   contractCounterpartCompanyId: number;

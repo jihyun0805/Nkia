@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { type OrderReportResponse, type VisitCycle, orderReportApi } from "@/lib/api/contract-api";
+import { type OrderReportResponse, type OrderReportHistoryListResponse, type OrderReportHistoryResponse, type VisitCycle, orderReportApi } from "@/lib/api/contract-api";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { approveBackendWorkflow, rejectBackendWorkflow, loadBackendCurrentUserInfo, type BackendUserSummary } from "@/lib/workflow-backend";
 import { useBackendUsers } from "@/lib/use-backend-users";
 import { UserPicker } from "@/components/erp/user-picker";
@@ -123,6 +124,13 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
   const [isCurrentApprover, setIsCurrentApprover] = useState<boolean | null>(null);
   const [workflowLines, setWorkflowLines] = useState<WorkflowLineData[] | null>(null);
 
+  // 변경 이력
+  const [histories, setHistories] = useState<OrderReportHistoryListResponse[]>([]);
+  const [historiesLoading, setHistoriesLoading] = useState(false);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null);
+  const [historyDetail, setHistoryDetail] = useState<OrderReportHistoryResponse | null>(null);
+  const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
+
   // 워크플로우 정보 조회 (결재중 상태일 때만)
   useEffect(() => {
     if (!isInProgress || !r.workflowId) return;
@@ -181,6 +189,34 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
       }
     })();
   }, [r.workflowId, isInProgress]);
+
+  // 이력 목록 조회
+  useEffect(() => {
+    setHistoriesLoading(true);
+    orderReportApi
+      .getOrderReportHistories(r.id)
+      .then((res) => setHistories(res.data ?? []))
+      .catch((e) => console.error("이력 로드 실패", e))
+      .finally(() => setHistoriesLoading(false));
+  }, [r.id]);
+
+  // 이력 상세 조회
+  useEffect(() => {
+    if (selectedHistoryId == null) {
+      setHistoryDetail(null);
+      return;
+    }
+    setHistoryDetailLoading(true);
+    orderReportApi
+      .getOrderReportHistory(selectedHistoryId)
+      .then((res) => setHistoryDetail(res.data ?? null))
+      .catch((e) => {
+        console.error("이력 상세 로드 실패", e);
+        toast.error("이력 상세 정보를 불러오지 못했습니다.");
+        setSelectedHistoryId(null);
+      })
+      .finally(() => setHistoryDetailLoading(false));
+  }, [selectedHistoryId]);
 
   const handleSubmitReport = async () => {
     if (!firstApprover?.id) {
@@ -278,6 +314,318 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
       ))}
     </colgroup>
   );
+
+  // 이력 상세 뷰
+  if (selectedHistoryId !== null) {
+    if (historyDetailLoading || !historyDetail) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 gap-2 text-muted-foreground">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          <p>이력을 불러오는 중...</p>
+        </div>
+      );
+    }
+
+    const h = historyDetail;
+    const hLicenseDetails = h.licenses || [];
+    const hServiceDetails = h.services || [];
+    const hMaintenanceDetails = h.maintenances || [];
+    const hOtherSalesDetails = h.others || [];
+    const hPurchaseDetails = h.purchases || [];
+    const hMaintenanceOnlyItems = h.maintenanceOnlyItems || [];
+    const hProjectName = h.projectName ?? "-";
+    const hSavedAt = h.orderReportDate ? h.orderReportDate.replace("T", " ").slice(0, 16) : "-";
+
+    return (
+      <div className="space-y-6">
+        {/* 이력 뷰 헤더 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">수주보고서 (이력 조회)</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              {h.orderReportCode} · 버전 {h.version} · {hSavedAt}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="bg-blue-100 text-blue-700">이력 v{h.version}</Badge>
+            <Button variant="outline" onClick={() => setSelectedHistoryId(null)}>
+              현재로 돌아가기
+            </Button>
+          </div>
+        </div>
+
+        {/* 수주보고서 본문 (read-only) */}
+        <div className="bg-card rounded-lg border p-6 space-y-0">
+          {/* 기본 정보 */}
+          <table className="w-full border-collapse border border-black text-sm table-fixed bg-white">
+            <Col10 />
+            <tbody>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>사업명</th>
+                <td className={`${cellBase} text-center`} colSpan={9}>{hProjectName}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>총 계약금액</th>
+                <td className="bg-yellow-200 border-r border-black text-right px-2 py-1.5 text-sm font-bold text-blue-700" colSpan={9}>₩{fmt(h.totalAmount)}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>대금지급조건</th>
+                <td className={`${cellBase} text-center`} colSpan={9}>{h.paymentCondition || "-"}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* 매출분류 */}
+          <table className="w-full border-collapse border border-black text-sm text-center table-fixed -mt-[1px] bg-white">
+            <Col10 />
+            <tbody>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 font-semibold" rowSpan={2} colSpan={1}>매출분류</th>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>EMS</th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.emsSummary)}</td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>ITG</th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.itgSummary)}</td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>대시보드</th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.dashboardSummary)}</td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>AIOTION</th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.aiotionSummary)}</td>
+                <th className="bg-slate-100 font-bold text-red-600 text-[10px] leading-tight border-l border-black" colSpan={1}>검증<br />(0이정상)</th>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>EMS유지보수</th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.emsMaintenanceSummary)}</td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>ITG유지보수</th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.itgMaintenanceSummary)}</td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>ITO</th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.itoSummary)}</td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>기타</th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.otherSummary)}</td>
+                <td className="bg-red-50 text-center text-red-600 font-bold px-2 py-1.5 text-sm border-l border-black" colSpan={1}>
+                  {fmt(h.totalAmount - (h.emsSummary + h.itgSummary + h.dashboardSummary + h.aiotionSummary + h.emsMaintenanceSummary + h.itgMaintenanceSummary + h.itoSummary + h.otherSummary))}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* 계약 정보 */}
+          <table className="w-full border-collapse border border-black text-sm table-fixed -mt-[1px] bg-white">
+            <Col10 />
+            <tbody>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>유형</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>{typeMap[h.type] || h.type}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>채널유무</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>{h.channel ? "O" : "X"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>코드분류</th>
+                <td className={`${cellBase} text-center`} colSpan={3}>{codeMap[h.codeType] || h.codeType}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>수행PM</th>
+                <td className={`${cellBase} text-center`} colSpan={9}>{h.pmName || "-"}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>계약상대</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={4}>{h.contractCounterpartCompanyName || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>최종고객사</th>
+                <td className={`${cellBase} text-center`} colSpan={4}>{h.finalCustomerCompanyName || "-"}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>담당자</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={4}>{h.contractCounterpartManagerName || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>담당자</th>
+                <td className={`${cellBase} text-center`} colSpan={4}>{h.finalCustomerManagerName || "-"}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={2}>계약일자(발주일자)</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={3}>{h.contractDate || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1} rowSpan={2}>계약기간</th>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>시작일</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>{h.contractStartDate || "-"}</td>
+                <td className="bg-yellow-200 text-center font-bold text-blue-700 px-2 py-1.5 text-sm" colSpan={1} rowSpan={2}>{h.contractPeriodMonths}개월</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={2}>무상유지보수기간</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={3}>{h.freeMaintenancePeriodMonths ? `${h.freeMaintenancePeriodMonths}개월` : "해당없음"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>종료일</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>{h.contractEndDate || "-"}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* 사업범위 & 첨부서류 */}
+          <table className="w-full border-collapse border border-black text-sm table-fixed -mt-[1px] bg-white">
+            <Col10 />
+            <tbody>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>사업범위</th>
+                <td className="px-2 py-2 text-sm whitespace-pre-wrap leading-relaxed" colSpan={9}>{h.scopeOfWork || "-"}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-100 border-r border-black py-1.5 text-center font-semibold" colSpan={2} rowSpan={2}>첨부서류</th>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>견적서</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>{h.quotationProvided ? "O" : "X"}</td>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>계약서</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>{h.contractProvided ? "O" : "X"}</td>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>발주서</th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>{h.purchaseOrderProvided ? "O" : "X"}</td>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>PRB보고서</th>
+                <td className={`${cellBase} text-center`} colSpan={1}>{h.prbReportProvided ? "O" : "X"}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>기타서류</th>
+                <td className={cellBase} colSpan={7}>{h.additionalDocuments || "-"}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* 유지보수 수주보고 표 */}
+          {hMaintenanceOnlyItems.length > 0 && (
+            <div className="pt-6 pb-6">
+              <div className="text-sm font-bold text-purple-800 mb-1 mt-6">※ 유지보수 수주보고 시 작성</div>
+              <table className="w-full border-collapse border border-black text-sm text-center table-fixed bg-white">
+                <Col10 />
+                <thead>
+                  <tr className="bg-slate-100 border-b border-black">
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={2}>년도</th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={3}>사업금액</th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>라이선스</th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>3rd</th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>용역</th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>유지보수</th>
+                    <th className="py-1.5 font-semibold" colSpan={1}>요율</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hMaintenanceOnlyItems.map((item: any) => (
+                    <tr key={item.id} className="border-b border-black">
+                      <td className="border-r border-black px-2 py-1.5 text-center" colSpan={2}>{item.year ? `${item.year}년` : "-"}</td>
+                      <td className="border-r border-black px-2 py-1.5 text-right font-semibold text-slate-700 bg-slate-50" colSpan={3}>₩{fmt(item.amount)}</td>
+                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>₩{fmt(item.license)}</td>
+                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>₩{fmt(item.thirdParty)}</td>
+                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>₩{fmt(item.service)}</td>
+                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>₩{fmt(item.maintenance)}</td>
+                      <td className="px-2 py-1.5 text-center" colSpan={1}>{item.maintenanceRate ? `${item.maintenanceRate}%` : "-"}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-yellow-200 font-bold border-b border-black">
+                    <td className="border-r border-black py-2 text-center text-slate-700" colSpan={2}>합계</td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={3}>₩{fmt(h.itemTotalAmount)}</td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>₩{fmt(h.itemTotalLicense)}</td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>₩{fmt(h.itemTotalThirdParty)}</td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>₩{fmt(h.itemTotalService)}</td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>₩{fmt(h.itemTotalMaintenance)}</td>
+                    <td className="px-2 py-1.5 text-center text-blue-700" colSpan={1}>{h.itemTotalMaintenanceRate ? `${h.itemTotalMaintenanceRate.toFixed(2)}%` : "-"}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 매출 세부 내역 */}
+          <div className="space-y-8 mt-10">
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900 border-b-2 border-black pb-2 mb-4">매출</h2>
+              <DetailTable
+                title="▶ 라이선스"
+                headers={[
+                  { label: "제품분류", span: 1 },
+                  { label: "제품군", span: 1 },
+                  { label: "제품명", span: 3 },
+                  { label: "수량", span: 1 },
+                  { label: "단가", span: 2 },
+                  { label: "소계", span: 2 },
+                ]}
+                rows={hLicenseDetails.map((d: any) => [
+                  { value: d.productClass, span: 1, center: true },
+                  { value: d.productGroup, span: 1, center: true },
+                  { value: d.productName, span: 3 },
+                  { value: fmt(d.quantity), span: 1, center: true },
+                  { value: fmt(d.price), span: 2, right: true },
+                  { value: fmt(d.totalPrice), span: 2, right: true, highlight: true },
+                ])}
+                total={h.licenseTotal}
+              />
+              <DetailTable
+                title="▶ 용역"
+                headers={[
+                  { label: "내용", span: 5 },
+                  { label: "M/M", span: 1 },
+                  { label: "단가", span: 2 },
+                  { label: "소계", span: 2 },
+                ]}
+                rows={hServiceDetails.map((d: any) => [
+                  { value: d.content, span: 5 },
+                  { value: fmt(d.manMonth), span: 1, center: true },
+                  { value: fmt(d.price), span: 2, right: true },
+                  { value: fmt(d.totalPrice), span: 2, right: true, highlight: true },
+                ])}
+                total={h.serviceTotal}
+              />
+              <DetailTable
+                title="▶ 유지보수"
+                headers={[
+                  { label: "내용", span: 4 },
+                  { label: "방문주기", span: 1 },
+                  { label: "개월 수", span: 1 },
+                  { label: "유지보수 금액(월)", span: 2 },
+                  { label: "소계", span: 2 },
+                ]}
+                rows={hMaintenanceDetails.map((d: any) => [
+                  { value: d.content, span: 4 },
+                  { value: cycleMap[d.visitCycle as VisitCycle] || d.visitCycle, span: 1, center: true },
+                  { value: fmt(d.month), span: 1, center: true },
+                  { value: fmt(d.price), span: 2, right: true },
+                  { value: fmt(d.totalPrice), span: 2, right: true, highlight: true },
+                ])}
+                total={h.maintenanceTotal}
+              />
+              <DetailTable
+                title="▶ 기타 (3rd party H/W, S/W, Bypass 매출 등)"
+                headers={[
+                  { label: "내용", span: 5 },
+                  { label: "수량", span: 1 },
+                  { label: "단가", span: 2 },
+                  { label: "소계", span: 2 },
+                ]}
+                rows={hOtherSalesDetails.map((d: any) => [
+                  { value: d.content, span: 5 },
+                  { value: fmt(d.quantity), span: 1, center: true },
+                  { value: fmt(d.price), span: 2, right: true },
+                  { value: fmt(d.totalPrice), span: 2, right: true, highlight: true },
+                ])}
+                total={h.otherTotal}
+              />
+            </div>
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900 border-b-2 border-black pb-2 mb-4">매입</h2>
+              <DetailTable
+                title="▶ 매입 (VAT별도)"
+                headers={[
+                  { label: "내용", span: 5 },
+                  { label: "수량", span: 1 },
+                  { label: "단가", span: 2 },
+                  { label: "소계", span: 2 },
+                ]}
+                rows={hPurchaseDetails.map((d: any) => [
+                  { value: d.content, span: 5 },
+                  { value: fmt(d.quantity), span: 1, center: true },
+                  { value: fmt(d.price), span: 2, right: true },
+                  { value: fmt(d.totalPrice), span: 2, right: true, highlight: true },
+                ])}
+                total={h.purchaseTotal}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setSelectedHistoryId(null)}>
+            현재로 돌아가기
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -926,6 +1274,49 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
           </CardContent>
         </Card>
       )}
+
+      {/* 변경 이력 */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">변경 이력</CardTitle>
+            <Badge variant="secondary">{historiesLoading ? "..." : `${histories.length}건`}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {historiesLoading ? (
+            <div className="flex justify-center items-center py-8 gap-2 text-muted-foreground">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              불러오는 중...
+            </div>
+          ) : histories.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 변경 이력이 없습니다.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>버전</TableHead>
+                  <TableHead>수주보고코드</TableHead>
+                  <TableHead>저장일시</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {histories.map((history) => (
+                  <TableRow key={history.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedHistoryId(history.id)}>
+                    <TableCell>
+                      <Badge variant="outline">v{history.version}</Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{history.orderReportCode}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {history.orderReportDate ? history.orderReportDate.replace("T", " ").slice(0, 16) : "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
