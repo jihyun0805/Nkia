@@ -650,7 +650,7 @@ type MarkdownBlock =
   | { type: "paragraph"; text: string }
 
 function ManagementReportMarkdown({ content }: { content: string }) {
-  const lines = content.split(/\r?\n/)
+  const lines = unwrapMarkdownFence(content).split(/\r?\n/)
   const blocks: MarkdownBlock[] = []
   let index = 0
 
@@ -663,11 +663,16 @@ function ManagementReportMarkdown({ content }: { content: string }) {
 
     if (isMarkdownTableStart(lines, index)) {
       const tableLines = []
-      while (index < lines.length && lines[index].trim().startsWith("|")) {
+      while (index < lines.length && isMarkdownTableLine(lines[index])) {
         tableLines.push(lines[index].trim())
         index += 1
       }
       blocks.push({ type: "table", lines: tableLines })
+      continue
+    }
+
+    if (isMarkdownTableSeparator(line)) {
+      index += 1
       continue
     }
 
@@ -777,15 +782,28 @@ function ManagementReportMarkdown({ content }: { content: string }) {
 
 function isMarkdownTableStart(lines: string[], index: number) {
   return (
-    lines[index]?.trim().startsWith("|") &&
-    lines[index + 1]?.trim().startsWith("|") &&
-    /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(lines[index + 1].trim())
+    isMarkdownTableRow(lines[index]) &&
+    isMarkdownTableSeparator(lines[index + 1])
   )
+}
+
+function isMarkdownTableLine(line: string | undefined) {
+  return isMarkdownTableRow(line) || isMarkdownTableSeparator(line)
+}
+
+function isMarkdownTableRow(line: string | undefined) {
+  const trimmed = line?.trim() ?? ""
+  return trimmed.includes("|") && !isMarkdownTableSeparator(trimmed)
+}
+
+function isMarkdownTableSeparator(line: string | undefined) {
+  const trimmed = line?.trim() ?? ""
+  return /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(trimmed)
 }
 
 function parseMarkdownTable(lines: string[]) {
   return lines
-    .filter((line, index) => index !== 1)
+    .filter((line) => !isMarkdownTableSeparator(line))
     .map((line) =>
       line
         .replace(/^\|/, "")
@@ -818,7 +836,7 @@ function renderInlineMarkdownHtml(text: string) {
 }
 
 function renderMarkdownHtml(content: string) {
-  const lines = content.split(/\r?\n/)
+  const lines = unwrapMarkdownFence(content).split(/\r?\n/)
   const parts: string[] = []
   let index = 0
 
@@ -831,7 +849,7 @@ function renderMarkdownHtml(content: string) {
 
     if (isMarkdownTableStart(lines, index)) {
       const tableLines = []
-      while (index < lines.length && lines[index].trim().startsWith("|")) {
+      while (index < lines.length && isMarkdownTableLine(lines[index])) {
         tableLines.push(lines[index].trim())
         index += 1
       }
@@ -844,6 +862,11 @@ function renderMarkdownHtml(content: string) {
         .map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdownHtml(cell)}</td>`).join("")}</tr>`)
         .join("")
       parts.push(`<div class="md-table"><table>${head}<tbody>${bodyRows}</tbody></table></div>`)
+      continue
+    }
+
+    if (isMarkdownTableSeparator(line)) {
+      index += 1
       continue
     }
 
@@ -886,6 +909,12 @@ function renderMarkdownHtml(content: string) {
   }
 
   return parts.join("\n")
+}
+
+function unwrapMarkdownFence(content: string) {
+  const trimmed = content.trim()
+  const match = trimmed.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i)
+  return match ? match[1].trim() : content
 }
 
 function evidenceTitle(evidence: { sourceType: string; sourceId: string; title?: string | null; metadata?: Record<string, unknown> | null }) {
