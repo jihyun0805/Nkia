@@ -650,15 +650,19 @@ function ManagementReportMarkdown({ content }: { content: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h2 className="border-b pb-2 text-base font-semibold text-foreground">{children}</h2>,
-          h2: ({ children }) => <h2 className="border-b pb-2 text-base font-semibold text-foreground">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-sm font-semibold text-foreground">{children}</h3>,
-          p: ({ children }) => <p className="text-muted-foreground">{children}</p>,
-          ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 text-muted-foreground">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">{children}</ol>,
+          h1: ({ children }) => (
+            <h2 className="mb-3 mt-7 border-b pb-2 text-base font-semibold text-foreground first:mt-0">{children}</h2>
+          ),
+          h2: ({ children }) => (
+            <h2 className="mb-3 mt-7 border-b pb-2 text-base font-semibold text-foreground first:mt-0">{children}</h2>
+          ),
+          h3: ({ children }) => <h3 className="mb-2 mt-5 text-sm font-semibold text-foreground">{children}</h3>,
+          p: ({ children }) => <p className="mb-3 text-muted-foreground last:mb-0">{children}</p>,
+          ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-5 text-muted-foreground">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-4 list-decimal space-y-1 pl-5 text-muted-foreground">{children}</ol>,
           li: ({ children }) => <li>{children}</li>,
           table: ({ children }) => (
-            <div className="overflow-x-auto rounded-md border bg-background">
+            <div className="mb-4 mt-2 overflow-x-auto rounded-md border bg-background">
               <Table>{children}</Table>
             </div>
           ),
@@ -669,10 +673,42 @@ function ManagementReportMarkdown({ content }: { content: string }) {
           td: ({ children }) => <TableCell>{children}</TableCell>,
         }}
       >
-        {unwrapMarkdownFence(content)}
+        {normalizeReportMarkdown(content)}
       </ReactMarkdown>
     </div>
   )
+}
+
+function normalizeReportMarkdown(content: string) {
+  let normalized = unwrapMarkdownFence(content).replace(/\r\n?/g, "\n").trim()
+
+  const newlineCount = (normalized.match(/\n/g) ?? []).length
+  const escapedNewlineCount = (normalized.match(/\\n/g) ?? []).length
+  if (newlineCount <= 1 && escapedNewlineCount > 2) {
+    normalized = normalized.replace(/\\n/g, "\n").trim()
+  }
+
+  const lines = normalized.split("\n")
+  const converted = lines.map((line, index) => {
+    const trimmed = line.trim()
+    if (/^#{1,6}\s+/.test(trimmed) || isMarkdownTableLine(trimmed) || /^[-*]\s+/.test(trimmed)) {
+      return line
+    }
+
+    const numberedHeading = trimmed.match(/^(\d{1,2})\.\s+(.+)$/)
+    const nextTextLine = lines.slice(index + 1).find((nextLine) => nextLine.trim())
+    const isConsecutiveOrderedList = Boolean(nextTextLine?.trim().match(/^\d{1,2}\.\s+/))
+    const looksLikeReportSection = /(현황|분석|리스크|판단|권고|액션|포트폴리오|성과|요약|이슈|전망|계획|진단|종합|근거)/.test(
+      numberedHeading?.[2] ?? "",
+    )
+    if (numberedHeading && looksLikeReportSection && !isConsecutiveOrderedList) {
+      return `## ${numberedHeading[1]}. ${numberedHeading[2]}`
+    }
+
+    return line
+  })
+
+  return converted.join("\n")
 }
 
 function isMarkdownTableStart(lines: string[], index: number) {
@@ -721,7 +757,7 @@ function renderInlineMarkdownHtml(text: string) {
 }
 
 function renderMarkdownHtml(content: string) {
-  const lines = unwrapMarkdownFence(content).split(/\r?\n/)
+  const lines = normalizeReportMarkdown(content).split(/\r?\n/)
   const parts: string[] = []
   let index = 0
 
@@ -755,6 +791,12 @@ function renderMarkdownHtml(content: string) {
       continue
     }
 
+    if (line.startsWith("# ")) {
+      parts.push(`<h2>${renderInlineMarkdownHtml(line.replace(/^#\s+/, ""))}</h2>`)
+      index += 1
+      continue
+    }
+
     if (line.startsWith("## ")) {
       parts.push(`<h2>${renderInlineMarkdownHtml(line.replace(/^##\s+/, ""))}</h2>`)
       index += 1
@@ -782,8 +824,7 @@ function renderMarkdownHtml(content: string) {
     while (
       index < lines.length &&
       lines[index].trim() &&
-      !lines[index].trim().startsWith("## ") &&
-      !lines[index].trim().startsWith("### ") &&
+      !/^#{1,6}\s+/.test(lines[index].trim()) &&
       !/^[-*]\s+/.test(lines[index].trim()) &&
       !lines[index].trim().startsWith("|")
     ) {
@@ -797,9 +838,15 @@ function renderMarkdownHtml(content: string) {
 }
 
 function unwrapMarkdownFence(content: string) {
-  const trimmed = content.trim()
-  const match = trimmed.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i)
-  return match ? match[1].trim() : content
+  let trimmed = content.trim()
+  const fullFenceMatch = trimmed.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i)
+  if (fullFenceMatch) return fullFenceMatch[1].trim()
+
+  const firstFenceMatch = trimmed.match(/```(?:markdown|md)?\s*\n([\s\S]*?)\n```/i)
+  if (firstFenceMatch) return firstFenceMatch[1].trim()
+
+  trimmed = trimmed.replace(/^```(?:markdown|md)?\s*/i, "").replace(/\s*```$/i, "")
+  return trimmed
 }
 
 function evidenceTitle(evidence: { sourceType: string; sourceId: string; title?: string | null; metadata?: Record<string, unknown> | null }) {
