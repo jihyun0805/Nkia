@@ -589,7 +589,7 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
             <div className="space-y-1">
               <Label>첨부파일</Label>
-              <p className="text-sm text-muted-foreground">제안서와 함께 올릴 파일을 선택하세요.</p>
+              <p className="text-sm text-muted-foreground">제안서를 업로드해주세요.</p>
             </div>
             <Input
               type="file"

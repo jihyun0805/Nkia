@@ -3,7 +3,7 @@
 import { getBackendApiBaseUrl } from "@/lib/api-base-url"
 import { buildAuthHeaders } from "@/lib/auth-session"
 import { currentUser } from "@/lib/current-user"
-import { getCustomerByName, getOpportunitiesByCustomerName, normalizeCustomerKeyword } from "@/lib/finding-data"
+import { normalizeCustomerKeyword } from "@/lib/finding-data"
 import { getPrbs, getRfpAnalyses, replacePrbs, type PrbLineItem, type PrbRecord, type PrbStatus } from "@/lib/bid-data"
 
 type ApiResponse<T> = {
@@ -651,23 +651,17 @@ function mapBackendPrbRecord(
   item: BackendPrbResponse,
   opportunityLookup: Map<string, BackendProjectOpportunity>,
   rfpLookup: ReturnType<typeof buildRfpLookup>,
-  local?: PrbRecord | undefined,
 ): PrbRecord {
   const linkedOpportunity = item.projectOpportunityId != null ? opportunityLookup.get(String(item.projectOpportunityId)) : undefined
-  const customerName =
-    linkedOpportunity?.customerCompanyName ?? item.customerCompanyName ?? local?.customer ?? ""
-  const opportunityName =
-    linkedOpportunity?.opportunityName ?? item.opportunityName ?? local?.opportunity ?? ""
+  const customerName = linkedOpportunity?.customerCompanyName ?? item.customerCompanyName ?? ""
+  const opportunityName = linkedOpportunity?.opportunityName ?? item.opportunityName ?? ""
   const opportunityCode =
     linkedOpportunity?.opportunityCode ??
-    local?.opportunityCode ??
     (customerName && opportunityName
-      ? getOpportunitiesByCustomerName(customerName).find((opportunity) => normalizeCustomerKeyword(opportunity.name) === normalizeCustomerKeyword(opportunityName))?.id ?? ""
+      ? linkedOpportunity?.opportunityCode ?? ""
       : "")
-  const customerCode =
-    local?.customerCode ?? getCustomerByName(customerName)?.id ?? ""
+  const customerCode = linkedOpportunity?.id != null ? String(linkedOpportunity.id) : ""
   const rfpAnalysisId =
-    local?.rfpAnalysisId ??
     (linkedOpportunity?.id != null ? rfpLookup.byProjectOpportunityId.get(linkedOpportunity.id) : undefined) ??
     (opportunityCode ? rfpLookup.byOpportunityCode.get(normalizeLookupText(opportunityCode)) : undefined) ??
     (customerCode && opportunityCode
@@ -686,68 +680,68 @@ function mapBackendPrbRecord(
   ]
 
   return {
-    id: String(item.prbId ?? local?.id ?? `PRB-${Date.now()}`),
-    projectOpportunityId: item.projectOpportunityId ?? linkedOpportunity?.id ?? local?.projectOpportunityId,
-    salesRepresentativeId: item.salesRepresentativeId ?? local?.salesRepresentativeId,
+    id: String(item.prbId ?? `PRB-${Date.now()}`),
+    projectOpportunityId: item.projectOpportunityId ?? linkedOpportunity?.id,
+    salesRepresentativeId: item.salesRepresentativeId,
     customerCode,
     customer: customerName,
     opportunityCode,
     opportunity: opportunityName,
-    rfpAnalysisId: rfpAnalysisId || local?.rfpAnalysisId || "",
-    author: item.salesRepresentativeName ?? local?.author ?? currentUser.name,
-    reviewer: local?.reviewer ?? "",
-    nextApprover: local?.nextApprover ?? item.salesRepresentativeDepartmentName ?? "본부장",
-    deployOwner: local?.deployOwner ?? "배포 권한 보유자",
-    shareOwner: local?.shareOwner ?? "공유 권한 보유자",
-    proposalDeadline: formatDate(projectInfo?.proposalDeadlineDatetime) || local?.proposalDeadline || "",
-    createdDate: formatDate(item.createdAt) || local?.createdDate || formatDate(item.prbDate) || "",
-    status: (item.status ?? local?.status ?? "작성 중") as PrbStatus,
-    notificationsSent: local?.notificationsSent ?? false,
-    approvalSteps: local?.approvalSteps ?? [],
-    revisionGroupId: local?.revisionGroupId ?? `PRB-GROUP-${String(item.prbId ?? Date.now())}`,
-    revisionNumber: local?.revisionNumber ?? 1,
-    parentPrbId: local?.parentPrbId,
+    rfpAnalysisId: rfpAnalysisId || "",
+    author: item.salesRepresentativeName ?? currentUser.name,
+    reviewer: item.salesRepresentativeName ?? "",
+    nextApprover: item.salesRepresentativeDepartmentName ?? "본부장",
+    deployOwner: "배포 권한 보유자",
+    shareOwner: "공유 권한 보유자",
+    proposalDeadline: formatDate(projectInfo?.proposalDeadlineDatetime) || "",
+    createdDate: formatDate(item.createdAt) || formatDate(item.prbDate) || "",
+    status: (item.status ?? "작성 중") as PrbStatus,
+    notificationsSent: false,
+    approvalSteps: [],
+    revisionGroupId: `PRB-GROUP-${String(item.prbId ?? Date.now())}`,
+    revisionNumber: 1,
+    parentPrbId: undefined,
     formData: {
-      reportDate: formatDate(item.createdAt) || formatDate(item.prbDate) || local?.formData?.reportDate || "",
-      prbDate: formatDate(item.prbDate) || local?.formData?.prbDate || "",
-      controlNumber: item.prbCode ?? local?.formData?.controlNumber ?? "",
-      customerType: item.customerCompanyCategory ?? local?.formData?.customerType ?? "",
-      businessType: mapProjectTypeToBusinessType(item.projectType ?? linkedOpportunity?.projectType ?? local?.formData?.businessType),
+      reportDate: formatDate(item.createdAt) || formatDate(item.prbDate) || "",
+      prbDate: formatDate(item.prbDate) || "",
+      controlNumber: item.prbCode ?? "",
+      customerType: item.customerCompanyCategory ?? "",
+      businessType: mapProjectTypeToBusinessType(item.projectType ?? linkedOpportunity?.projectType ?? ""),
       customerName,
       projectName: opportunityName,
       businessPeriod:
         projectInfo?.projectStartDate || projectInfo?.projectEndDate
           ? `${formatDate(projectInfo.projectStartDate)} ~ ${formatDate(projectInfo.projectEndDate)}`
-          : local?.formData?.businessPeriod ?? "",
-      maintenance: item.maintenanceDescription ?? local?.formData?.maintenance ?? "",
-      businessOverview: item.projectDescription ?? local?.formData?.businessOverview ?? "",
-      salesLeader: item.salesRepresentativeName ?? local?.formData?.salesLeader ?? currentUser.name,
-      salesDepartment: item.salesRepresentativeDepartmentName ?? local?.formData?.salesDepartment ?? "",
-      ownerDepartment: local?.formData?.ownerDepartment ?? "",
-      bidType: mapBidTypeToDisplay(projectInfo?.bidType ?? local?.formData?.bidType ?? ""),
-      preliminaryNoticeDate: formatDate(projectInfo?.preSpecNoticeDate) || local?.formData?.preliminaryNoticeDate || "",
-      officialNoticeDate: formatDate(projectInfo?.officialNoticeDate) || local?.formData?.officialNoticeDate || "",
-      priceBidDate: formatDate(projectInfo?.priceBiddingDatetime) || local?.formData?.priceBidDate || "",
-      proposalDeadlineDate: formatDate(projectInfo?.proposalDeadlineDatetime) || local?.formData?.proposalDeadlineDate || "",
-      proposalPresentationDate: formatDate(projectInfo?.proposalPresentationDatetime) || local?.formData?.proposalPresentationDate || "",
+          : "",
+      maintenance: item.maintenanceDescription ?? "",
+      businessOverview: item.projectDescription ?? "",
+      salesLeader: item.salesRepresentativeName ?? currentUser.name,
+      salesDepartment: item.salesRepresentativeDepartmentName ?? "",
+      ownerDepartment: "",
+      bidType: mapBidTypeToDisplay(projectInfo?.bidType ?? ""),
+      preliminaryNoticeDate: formatDate(projectInfo?.preSpecNoticeDate) || "",
+      officialNoticeDate: formatDate(projectInfo?.officialNoticeDate) || "",
+      priceBidDate: formatDate(projectInfo?.priceBiddingDatetime) || "",
+      proposalDeadlineDate: formatDate(projectInfo?.proposalDeadlineDatetime) || "",
+      proposalPresentationDate: formatDate(projectInfo?.proposalPresentationDatetime) || "",
       evaluationRatio:
         [projectInfo?.technicalEvalRatio, projectInfo?.priceEvalRatio].some((value) => value != null)
           ? `${formatNumber(projectInfo?.technicalEvalRatio)} : ${formatNumber(projectInfo?.priceEvalRatio)}`
-          : local?.formData?.evaluationRatio ?? "",
-      totalBusinessAmount: formatNumber(profitLossInfo?.totalProjectAmount) || local?.formData?.totalBusinessAmount || "",
-      companyBusinessAmount: formatNumber(profitLossInfo?.ourCompanyAmount) || local?.formData?.companyBusinessAmount || "",
-      expectedOrderRate: formatNumber(profitLossInfo?.expectedWinRate) || local?.formData?.expectedOrderRate || "",
-      estimatedRevenue: formatNumber(profitLossInfo?.estimatedRevenue) || local?.formData?.estimatedRevenue || "",
-      estimatedOperatingProfit: formatNumber(profitLossInfo?.estimatedOperatingProfit) || local?.formData?.estimatedOperatingProfit || "",
-      estimatedProfitRate: formatNumber(profitLossInfo?.estimatedProfitMargin) || local?.formData?.estimatedProfitRate || "",
-      totalCost: formatNumber(item.totalCost) || local?.formData?.totalCost || "",
-      laborCost: formatNumber(item.personnelExpenses?.totalAmount) || local?.formData?.laborCost || "",
-      productCost: formatNumber(item.productCost?.totalProductCost) || local?.formData?.productCost || "",
-      purchaseCost: formatNumber(item.purchase?.totalPurchaseAmount) || local?.formData?.purchaseCost || "",
-      expenseCost: formatNumber(item.overheadExpenses?.totalAmount) || local?.formData?.expenseCost || "",
-      indirectCost: formatNumber(item.indirectExpenses?.amount) || local?.formData?.indirectCost || "",
-      indirectRate: formatNumber(item.indirectExpenses?.rate) || local?.formData?.indirectRate || "5",
-      salesOpinion: item.salesRepresentativeOpinion ?? local?.formData?.salesOpinion ?? "",
+          : "",
+      totalBusinessAmount: formatNumber(profitLossInfo?.totalProjectAmount) || "",
+      companyBusinessAmount: formatNumber(profitLossInfo?.ourCompanyAmount) || "",
+      expectedOrderRate: formatNumber(profitLossInfo?.expectedWinRate) || "",
+      estimatedRevenue: formatNumber(profitLossInfo?.estimatedRevenue) || "",
+      estimatedOperatingProfit: formatNumber(profitLossInfo?.estimatedOperatingProfit) || "",
+      estimatedProfitRate: formatNumber(profitLossInfo?.estimatedProfitMargin) || "",
+      totalCost: formatNumber(item.totalCost) || "",
+      laborCost: formatNumber(item.personnelExpenses?.totalAmount) || "",
+      productCost: formatNumber(item.productCost?.totalProductCost) || "",
+      purchaseCost: formatNumber(item.purchase?.totalPurchaseAmount) || "",
+      expenseCost: formatNumber(item.overheadExpenses?.totalAmount) || "",
+      indirectCost: formatNumber(item.indirectExpenses?.amount) || "",
+      indirectRate: formatNumber(item.indirectExpenses?.rate) || "5",
+      salesOpinion: item.salesRepresentativeOpinion ?? "",
     },
     salesItems: [],
     expenseItems: mapOverheadItems(item.overheadExpenses?.items),
@@ -756,17 +750,17 @@ function mapBackendPrbRecord(
     personnelItems: personnelRows,
     indirectItems: [],
     generalItems: [],
-    approvalLines: local?.approvalLines ?? [
+    approvalLines: [
       { role: "영업대표", name: item.salesRepresentativeName ?? currentUser.name },
       { role: "팀장", name: "팀장" },
       { role: "본부장", name: item.salesRepresentativeDepartmentName ?? "본부장" },
       { role: "배포", name: "권한 보유자" },
       { role: "공유", name: "권한 보유자" },
     ],
-    attendeeOpinions: local?.attendeeOpinions ?? ["", "", ""],
-    version: local?.version ?? "v1.0",
-    createdAt: item.createdAt ?? local?.createdAt ?? new Date().toISOString(),
-    updatedAt: local?.updatedAt ?? item.createdAt ?? new Date().toISOString(),
+    attendeeOpinions: ["", "", ""],
+    version: "v1.0",
+    createdAt: item.createdAt ?? new Date().toISOString(),
+    updatedAt: item.createdAt ?? new Date().toISOString(),
   }
 }
 
@@ -785,16 +779,10 @@ export async function loadBackendPrbs() {
     fetchPrbList(),
   ])
 
-  const localLookup = new Map(getPrbs().map((item) => [item.id, item]))
   const rfpLookup = buildRfpLookup()
 
   const records = prbs.map((item) =>
-    mapBackendPrbRecord(
-      item,
-      opportunityLookup,
-      rfpLookup,
-      localLookup.get(String(item.prbId ?? "")),
-    ),
+    mapBackendPrbRecord(item, opportunityLookup, rfpLookup),
   )
 
   replacePrbs(records)
@@ -811,7 +799,7 @@ export async function loadBackendPrbHistoryRecord(historyId: number) {
     fetchPrbHistoryDetail(historyId),
   ])
   const rfpLookup = buildRfpLookup()
-  return mapBackendPrbRecord(detail, opportunityLookup, rfpLookup, undefined)
+  return mapBackendPrbRecord(detail, opportunityLookup, rfpLookup)
 }
 
 async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
@@ -833,7 +821,6 @@ async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "upd
 }
 
 export async function saveBackendPrb(input: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
-  const local = input.id ? getPrbs().find((item) => item.id === input.id) ?? null : null
   const payload = await buildSaveRequest(input)
   const hasNumericId = Boolean(input.id && Number.isFinite(Number(input.id)))
   const response = await fetch(
@@ -852,16 +839,7 @@ export async function saveBackendPrb(input: Omit<PrbRecord, "id" | "createdAt" |
   const saved = await parseApiResponse<BackendPrbResponse>(response, "PRB 저장에 실패했습니다.")
   const opportunityLookup = await loadOpportunityLookup()
   const rfpLookup = buildRfpLookup()
-  const merged = mapBackendPrbRecord(saved, opportunityLookup, rfpLookup, {
-    ...(input as PrbRecord),
-    id: String(saved.prbId ?? input.id ?? `PRB-${Date.now()}`),
-    projectOpportunityId: payload.projectOpportunityId,
-    salesRepresentativeId: payload.salesRepresentativeId,
-    createdAt: local?.createdAt ?? new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  } as PrbRecord)
-  const next = [merged, ...getPrbs().filter((item) => item.id !== merged.id && item.id !== input.id)]
-  replacePrbs(next)
+  const merged = mapBackendPrbRecord(saved, opportunityLookup, rfpLookup)
   return merged
 }
 
@@ -873,6 +851,5 @@ export async function deleteBackendPrb(id: string) {
   })
 
   await parseApiResponse<Record<string, unknown>>(response, "PRB 삭제에 실패했습니다.")
-  replacePrbs(getPrbs().filter((item) => item.id !== id))
   return true
 }

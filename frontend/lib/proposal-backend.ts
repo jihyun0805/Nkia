@@ -457,6 +457,7 @@ export async function saveBackendProposal(input: ProposalSaveInput) {
 
   const uploadedFileIds = await uploadProposalFiles(input.files ?? [])
   const fileIds = Array.from(new Set([...(input.existingFileIds ?? []), ...uploadedFileIds]))
+  const shouldComplete = fileIds.length > 0
   const salesActivityRequestId = (() => {
     if (!input.requestId) return undefined
     const parsed = Number.parseInt(input.requestId, 10)
@@ -476,7 +477,7 @@ export async function saveBackendProposal(input: ProposalSaveInput) {
       body: JSON.stringify({
         projectOpportunityId,
         salesActivityRequestId,
-        status: "COMPLETED",
+        status: shouldComplete ? "COMPLETED" : undefined,
         fileIds: fileIds.length > 0 ? fileIds : undefined,
       }),
     })
@@ -499,24 +500,36 @@ export async function saveBackendProposal(input: ProposalSaveInput) {
     })
 
     proposalId = await parseApiResponse<number>(createResponse, "제안서를 등록하지 못했습니다.")
+    if (shouldComplete) {
+      try {
+        const updateResponse = await fetch(`${getBackendApiBaseUrl()}/proposals/${proposalId}`, {
+          method: "PUT",
+          headers: {
+            ...buildAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          cache: "no-store",
+          body: JSON.stringify({
+            projectOpportunityId,
+            salesActivityRequestId,
+            status: "COMPLETED",
+            fileIds: fileIds.length > 0 ? fileIds : undefined,
+          }),
+        })
 
-    const updateResponse = await fetch(`${getBackendApiBaseUrl()}/proposals/${proposalId}`, {
-      method: "PUT",
-      headers: {
-        ...buildAuthHeaders(),
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      cache: "no-store",
-      body: JSON.stringify({
-        projectOpportunityId,
-        salesActivityRequestId,
-        status: "COMPLETED",
-        fileIds: fileIds.length > 0 ? fileIds : undefined,
-      }),
-    })
-
-    await parseApiResponse<number>(updateResponse, "제안서를 저장하지 못했습니다.")
+        await parseApiResponse<number>(updateResponse, "제안서를 저장하지 못했습니다.")
+      } catch (error) {
+        try {
+          if (proposalId != null) {
+            await deleteBackendProposal(String(proposalId))
+          }
+        } catch {
+          // 생성 후 완료 처리 실패 시 정리는 시도만 하고, 원래 에러를 우선 반환한다.
+        }
+        throw error
+      }
+    }
   }
   await loadBackendProposals()
   return String(proposalId)

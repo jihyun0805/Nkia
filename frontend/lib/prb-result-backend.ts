@@ -3,7 +3,7 @@
 import { getBackendApiBaseUrl } from "@/lib/api-base-url"
 import { buildAuthHeaders } from "@/lib/auth-session"
 import { currentUser } from "@/lib/current-user"
-import { getPrbResults, getPrbs, replacePrbResults, type PrbRecord, type PrbResultRecord } from "@/lib/bid-data"
+import { getPrbs, type PrbRecord, type PrbResultRecord } from "@/lib/bid-data"
 import { loadBackendPrbs } from "@/lib/prb-backend"
 
 type ApiResponse<T> = {
@@ -233,13 +233,12 @@ function resolveAttendeeUserId(participant?: string | null, currentUserId?: stri
 function mapBackendPrbResult(
   item: BackendPrbResultResponse,
   summary: BackendPrbResultSummary,
-  local?: PrbResultRecord | null,
 ): PrbResultRecord {
   const prb = item.prbId != null ? getPrbs().find((record) => record.id === String(item.prbId)) ?? null : null
-  const fallbackCustomer = local?.customer ?? summary.customerCompanyName ?? ""
-  const fallbackOpportunity = local?.opportunity ?? summary.opportunityName ?? ""
-  const fallbackDeadline = local?.proposalDeadline ?? formatDate(summary.proposalDeadlineDatetime) ?? ""
-  const fallbackCreatedAt = local?.createdAt ?? summary.createdAt ?? new Date().toISOString()
+  const fallbackCustomer = summary.customerCompanyName ?? ""
+  const fallbackOpportunity = summary.opportunityName ?? ""
+  const fallbackDeadline = formatDate(summary.proposalDeadlineDatetime) ?? ""
+  const fallbackCreatedAt = summary.createdAt ?? new Date().toISOString()
   const attendeeOpinions = normalizeAttendeeOpinions(
     item.attendeeOpinions?.map((opinion) => ({
       participant: opinion.attendeeUserName ?? opinion.attendeeUserId ?? "",
@@ -250,22 +249,22 @@ function mapBackendPrbResult(
   )
 
   return {
-    id: String(item.id ?? local?.id ?? `PRBR-${Date.now()}`),
-    prbId: String(item.prbId ?? local?.prbId ?? ""),
-    customerCode: prb?.customerCode ?? local?.customerCode ?? "",
+    id: String(item.id ?? `PRBR-${Date.now()}`),
+    prbId: String(item.prbId ?? ""),
+    customerCode: prb?.customerCode ?? "",
     customer: fallbackCustomer,
-    opportunityCode: prb?.opportunityCode ?? local?.opportunityCode ?? "",
+    opportunityCode: prb?.opportunityCode ?? "",
     opportunity: fallbackOpportunity,
     proposalDeadline: fallbackDeadline,
-    createdDate: formatDate(item.createdAt) || local?.createdDate || formatDate(summary.createdAt) || "",
-    author: item.createdByUserName ?? summary.createdByUserName ?? local?.author ?? currentUser.name,
-    meetingDate: formatDate(item.meetingDateTime) || local?.meetingDate || "",
-    location: item.meetingLocation ?? local?.location ?? "",
-    riskFactors: item.riskFactors ?? local?.riskFactors ?? "",
+    createdDate: formatDate(item.createdAt) || formatDate(summary.createdAt) || "",
+    author: item.createdByUserName ?? summary.createdByUserName ?? currentUser.name,
+    meetingDate: formatDate(item.meetingDateTime) || "",
+    location: item.meetingLocation ?? "",
+    riskFactors: item.riskFactors ?? "",
     attendeeOpinions,
-    overallOpinion: item.comprehensiveOpinion ?? local?.overallOpinion ?? "",
+    overallOpinion: item.comprehensiveOpinion ?? "",
     createdAt: fallbackCreatedAt,
-    updatedAt: item.createdAt ?? local?.updatedAt ?? fallbackCreatedAt,
+    updatedAt: item.createdAt ?? fallbackCreatedAt,
   }
 }
 
@@ -326,9 +325,8 @@ async function buildPrbResultRequest(input: Omit<PrbResultRecord, "id" | "create
 
 async function loadResultSnapshot() {
   const prbResults = await fetchPrbResultList()
-  await loadBackendPrbs()
-  const prbLookup = new Map(getPrbs().map((item) => [item.id, item] as const))
-  const localLookup = new Map(getPrbResults().map((item) => [item.id, item] as const))
+  const prbs = await loadBackendPrbs()
+  const prbLookup = new Map(prbs.map((item) => [item.id, item] as const))
 
   const records = await Promise.all(
     prbResults.map(async (summary) => {
@@ -336,7 +334,7 @@ async function loadResultSnapshot() {
 
       try {
         const detail = await fetchPrbResultDetail(String(summary.id))
-        return mapBackendPrbResult(detail, summary, localLookup.get(String(summary.id)) ?? null)
+        return mapBackendPrbResult(detail, summary)
       } catch {
         return null
       }
@@ -356,7 +354,6 @@ async function loadResultSnapshot() {
     }
   })
 
-  replacePrbResults(merged)
   return merged
 }
 
@@ -377,12 +374,11 @@ export async function loadBackendPrbResultHistoryRecord(historyId: number) {
     createdByUserName: detail.createdByName,
     createdAt: detail.createdAt,
   }
-  return mapBackendPrbResult({ ...detail, id: resultId } as BackendPrbResultResponse, summary, null)
+  return mapBackendPrbResult({ ...detail, id: resultId } as BackendPrbResultResponse, summary)
 }
 
 export async function saveBackendPrbResult(input: Omit<PrbResultRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   await loadBackendPrbs()
-  const local = input.id ? getPrbResults().find((item) => item.id === input.id) ?? null : null
   const payload = await buildPrbResultRequest(input)
   const hasNumericId = Boolean(input.id && Number.isFinite(Number(input.id)))
   const response = await fetch(
@@ -401,19 +397,15 @@ export async function saveBackendPrbResult(input: Omit<PrbResultRecord, "id" | "
   const saved = await parseApiResponse<BackendPrbResultResponse>(response, "PRB 결과 저장에 실패했습니다.")
   const summary: BackendPrbResultSummary = {
     id: saved.id ?? Number(input.id ?? 0),
-    customerCompanyName: input.customer ?? local?.customer ?? "",
-    opportunityName: input.opportunity ?? local?.opportunity ?? "",
+    customerCompanyName: input.customer ?? "",
+    opportunityName: input.opportunity ?? "",
     proposalDeadlineDatetime: input.proposalDeadline
       ? `${input.proposalDeadline}T00:00:00`
-      : local?.proposalDeadline
-        ? `${local.proposalDeadline}T00:00:00`
-        : undefined,
+      : undefined,
     createdByUserName: saved.createdByUserName ?? currentUser.name,
-    createdAt: saved.createdAt ?? local?.createdAt ?? input.createdDate,
+    createdAt: saved.createdAt ?? input.createdDate,
   }
-  const merged = mapBackendPrbResult(saved, summary, local ?? undefined)
-  const next = [merged, ...getPrbResults().filter((item) => item.id !== merged.id && item.id !== input.id)]
-  replacePrbResults(next)
+  const merged = mapBackendPrbResult(saved, summary)
   return merged
 }
 
@@ -425,6 +417,5 @@ export async function deleteBackendPrbResult(id: string) {
   })
 
   await parseApiResponse<Record<string, unknown>>(response, "PRB 결과 삭제에 실패했습니다.")
-  replacePrbResults(getPrbResults().filter((item) => item.id !== id))
   return true
 }
