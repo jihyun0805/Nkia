@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPopover } from "@/components/erp/filter-popover"
 import { PageSearchForm } from "@/components/erp/page-search-form"
 import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } from "@/lib/filter-utils"
-import { bidStatuses, getBidCreateActionLabel, getPrbResults, getPrbs, getRfpAnalyses, subscribePrbResultUpdates, subscribePrbUpdates, subscribeRfpAnalysesUpdates, type ProposalRecord } from "@/lib/bid-data"
+import { bidStatuses, getBidCreateActionLabel, type PrbRecord, type PrbResultRecord, type ProposalRecord, type RfpAnalysisRecord } from "@/lib/bid-data"
 import { loadBackendBidResults } from "@/lib/bid-result-backend"
 import { loadBackendPrbs } from "@/lib/prb-backend"
 import { loadBackendPrbResults } from "@/lib/prb-result-backend"
@@ -88,9 +88,9 @@ function BidPageContent() {
   const [searchTerm, setSearchTerm] = useState("")
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "prb-result" | "proposal" | "result">("rfp")
-  const [rfpItems, setRfpItems] = useState<ReturnType<typeof getRfpAnalyses>>([])
-  const [prbItems, setPrbItems] = useState<ReturnType<typeof getPrbs>>([])
-  const [prbResultItems, setPrbResultItems] = useState<ReturnType<typeof getPrbResults>>([])
+  const [rfpItems, setRfpItems] = useState<RfpAnalysisRecord[]>([])
+  const [prbItems, setPrbItems] = useState<PrbRecord[]>([])
+  const [prbResultItems, setPrbResultItems] = useState<PrbResultRecord[]>([])
   const [proposalRequests, setProposalRequests] = useState<ActivityRequestRecord[]>([])
   const [proposals, setProposals] = useState<ProposalRecord[]>([])
   const [results, setResults] = useState<BidResultRecord[]>([])
@@ -142,32 +142,21 @@ function BidPageContent() {
   const buildBidHref = (pathname: string) => `${pathname}?tab=${activeTab}`
 
   useEffect(() => {
-    const sync = () => setRfpItems(getRfpAnalyses())
-    const unsubscribe = subscribeRfpAnalysesUpdates(sync)
-
     void loadBackendRfpAnalyses()
       .then((records) => setRfpItems(records))
       .catch(() => setRfpItems([]))
-
-    return () => unsubscribe()
   }, [])
 
   useEffect(() => {
-    const sync = () => setPrbItems(getPrbs())
-    sync()
     void loadBackendPrbs()
       .then((records) => setPrbItems(records))
-      .catch(() => setPrbItems(getPrbs()))
-    return subscribePrbUpdates(sync)
+      .catch(() => setPrbItems([]))
   }, [])
 
   useEffect(() => {
-    const sync = () => setPrbResultItems(getPrbResults())
-    sync()
     void loadBackendPrbResults()
       .then((records) => setPrbResultItems(records))
       .catch(() => setPrbResultItems([]))
-    return subscribePrbResultUpdates(sync)
   }, [])
 
   useEffect(() => {

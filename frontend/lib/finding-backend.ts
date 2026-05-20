@@ -87,10 +87,6 @@ export type ProjectOpportunitySummaryResponse = {
   }>;
 };
 
-type OpportunityDisplayOverride = {
-  competitionStatus?: string;
-};
-
 type CompanyDisplayOverride = {
   memo?: string;
 };
@@ -114,7 +110,6 @@ export type FindingBackendData = {
   partners: PartnerRecord[];
 };
 
-const opportunityDisplayOverrideStorageKey = "orbis.project-opportunity-display-overrides";
 const rfpAttachmentSummaryStorageKey = "orbis.project-opportunity-rfp-summaries";
 
 type RfpAttachmentSummaryRecord = {
@@ -146,43 +141,6 @@ function normalizeResponseMessage<T>(response: Response, fallbackMessage: string
       }
       return body.data;
     });
-}
-
-function loadOpportunityDisplayOverrides() {
-  if (!isBrowser()) return {} as Record<string, OpportunityDisplayOverride>;
-
-  const stored = window.localStorage.getItem(opportunityDisplayOverrideStorageKey);
-  if (!stored) return {} as Record<string, OpportunityDisplayOverride>;
-
-  try {
-    const parsed = JSON.parse(stored) as Record<string, OpportunityDisplayOverride>;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveOpportunityDisplayOverrides(overrides: Record<string, OpportunityDisplayOverride>) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(opportunityDisplayOverrideStorageKey, JSON.stringify(overrides));
-}
-
-function setOpportunityDisplayOverride(opportunityCode?: string, override?: OpportunityDisplayOverride) {
-  const normalizedCode = opportunityCode?.trim();
-  if (!normalizedCode) return;
-
-  const overrides = loadOpportunityDisplayOverrides();
-  overrides[normalizedCode] = {
-    ...overrides[normalizedCode],
-    ...override,
-  };
-  saveOpportunityDisplayOverrides(overrides);
-}
-
-function getOpportunityDisplayOverride(opportunityCode?: string) {
-  const normalizedCode = opportunityCode?.trim();
-  if (!normalizedCode) return null;
-  return loadOpportunityDisplayOverrides()[normalizedCode] ?? null;
 }
 
 function loadRfpAttachmentSummaryRecords() {
@@ -595,7 +553,6 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
   const customerLookup = new Map(customerCompanies.map((company) => [company.id ?? -1, company] as const));
   const opportunities: OpportunityRecord[] = projectOpportunities.map((item, index) => {
     const parsedDescription = parseOpportunityDescription(item.description);
-    const displayOverride = getOpportunityDisplayOverride(item.opportunityCode);
     const nestedPartnerCompanies = Array.isArray(item.partnerCompanies) ? item.partnerCompanies : [];
     const nestedProductModules = Array.isArray(item.productModules) ? item.productModules : [];
     const nestedRfpFiles = Array.isArray(item.rfpFiles) ? item.rfpFiles : [];
@@ -656,7 +613,7 @@ export async function loadBackendFindingData(): Promise<FindingBackendData> {
       expectedAmount: formatAmount(item.expectedBudget),
       expectedDate: item.expectedBidDate ?? "-",
       issue: parsedDescription.issue || "-",
-      competition: displayOverride?.competitionStatus?.trim() || item.competitionStatus || "-",
+      competition: item.competitionStatus || "-",
       decisionInfo: parsedDescription.decisionInfo || item.createUserName || "-",
       partnerType: "-",
       partnerContact: "-",
@@ -1000,9 +957,6 @@ export async function createBackendProjectOpportunity(input: {
   });
 
   const saved = await normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 등록하지 못했습니다.");
-  setOpportunityDisplayOverride(saved.opportunityCode, {
-    competitionStatus: input.competitionStatus,
-  });
   return saved;
 }
 
@@ -1047,9 +1001,6 @@ export async function updateBackendProjectOpportunity(
   });
 
   const saved = await normalizeResponseMessage<ProjectOpportunitySummaryResponse>(response, "사업기회를 수정하지 못했습니다.");
-  setOpportunityDisplayOverride(saved.opportunityCode, {
-    competitionStatus: input.competitionStatus,
-  });
   return saved;
 }
 

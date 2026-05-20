@@ -2,7 +2,6 @@
 
 import { getBackendApiBaseUrl } from "@/lib/api-base-url"
 import { buildAuthHeaders } from "@/lib/auth-session"
-import { getActivityRequests } from "@/lib/activity-request-workflow"
 import { type ActivityAttachment, type ActivityRequestRecord } from "@/lib/activity-data"
 import { getCustomerByCode } from "@/lib/finding-data"
 import { getPresalesUsers } from "@/lib/admin-data"
@@ -22,6 +21,7 @@ type BackendRequestResponse = SalesActivityRequestResponse & {
   requestUserId?: string
   requestUserName?: string
   targetUserName?: string
+  status?: string
 }
 
 type BackendRequestListItem = {
@@ -126,10 +126,6 @@ function normalizeLookupText(value: string) {
   return value.trim().toLowerCase()
 }
 
-function loadLocalRequestIndex() {
-  return new Map(getActivityRequests().map((item) => [item.id, item]))
-}
-
 async function getTargetUserIdByName(name: string) {
   const normalized = normalizeLookupText(name)
   if (!normalized) return null
@@ -163,69 +159,50 @@ function getTargetUserNameById(id?: string) {
   return getPresalesUsers().find((user) => user.id === id)?.name
 }
 
+function mapRequestStatus(salesActivityId?: number) {
+  return salesActivityId != null ? "접수완료" : "요청"
+}
+
 function mergeRequest(
   backendRequest: BackendRequestListItem | BackendRequestResponse,
-  local: ActivityRequestRecord | undefined,
 ): ActivityRequestRecord {
-  const activityDate = backendRequest.activityDateTime?.slice(0, 10) || local?.date || today()
-  const purposeLabel = activityPurposeLabel(String(backendRequest.activityPurpose ?? local?.type ?? "ETC"))
-  const requester =
-    backendRequest.requestUserName ??
-    local?.requester ??
-    "-"
-  const receiver =
-    backendRequest.targetUserName ?? 
-    local?.receiver ?? 
-    getTargetUserNameById(backendRequest.targetUserId) ?? 
-    "-"
-  const content = backendRequest.requestContent ?? local?.content ?? ""
-  const title = backendRequest.title ?? local?.title ?? `${purposeLabel} 요청`
+  const activityDate = backendRequest.activityDateTime?.slice(0, 10) || today()
+  const purposeLabel = activityPurposeLabel(String(backendRequest.activityPurpose ?? "ETC"))
+  const requester = backendRequest.requestUserName ?? "-"
+  const receiver = backendRequest.targetUserName ?? getTargetUserNameById(backendRequest.targetUserId) ?? "-"
+  const content = backendRequest.requestContent ?? ""
+  const title = backendRequest.title ?? `${purposeLabel} 요청`
   const customerFromBackend = backendRequest.companyName?.trim() ?? ""
-  const customerCode = local?.customerCode ?? (backendRequest.companyId != null ? String(backendRequest.companyId) : "")
+  const customerCode = backendRequest.companyId != null ? String(backendRequest.companyId) : ""
   const customerFromCode = customerCode ? getCustomerByCode(customerCode)?.name ?? "" : ""
-  const localCustomer = local?.customer?.trim() ?? ""
-  const customer = customerFromBackend || customerFromCode || (localCustomer && localCustomer !== title.trim() ? localCustomer : "")
-  const opportunity = local?.opportunity ?? (content.trim() ? content : "미확인")
+  const customer = customerFromBackend || customerFromCode
+  const opportunity = ""
 
   return {
-    id: String(backendRequest.id ?? local?.id ?? `REQ-${Date.now()}`),
-    backendId: typeof backendRequest.id === "number" ? backendRequest.id : local?.backendId,
+    id: String(backendRequest.id ?? `${Date.now()}`),
+    backendId: typeof backendRequest.id === "number" ? backendRequest.id : undefined,
     title,
-    salesActivityId: backendRequest.salesActivityId != null ? String(backendRequest.salesActivityId) : local?.salesActivityId,
-    requestUserId: backendRequest.requestUserId ?? local?.requestUserId,
-    requestUserName: backendRequest.requestUserName ?? local?.requestUserName,
-    targetUserId: backendRequest.targetUserId ?? local?.targetUserId,
-    targetUserName: backendRequest.targetUserName ?? local?.targetUserName,
-    date: local?.date ?? activityDate,
+    salesActivityId: backendRequest.salesActivityId != null ? String(backendRequest.salesActivityId) : undefined,
+    requestUserId: backendRequest.requestUserId ?? undefined,
+    requestUserName: backendRequest.requestUserName ?? undefined,
+    targetUserId: backendRequest.targetUserId ?? undefined,
+    targetUserName: backendRequest.targetUserName ?? undefined,
+    date: activityDate,
     requester,
     receiver,
-    type: local?.type ?? purposeLabel,
+    type: purposeLabel,
     customerCode,
     customer,
-    opportunityCode: local?.opportunityCode ?? "",
+    opportunityCode: "",
     opportunity,
     content,
-    dueDate: local?.dueDate ?? activityDate,
-    status: backendRequest.status ?? local?.status ?? "요청",
-    approvedAt: local?.approvedAt,
-    lastAction: local?.lastAction,
-    lastActionAt: local?.lastActionAt,
-    attachments: local?.attachments ?? [],
+    dueDate: activityDate,
+    status: mapRequestStatus(backendRequest.salesActivityId),
+    approvedAt: undefined,
+    lastAction: undefined,
+    lastActionAt: undefined,
+    attachments: [],
   }
-}
-
-function saveMergedRequests(requests: ActivityRequestRecord[]) {
-  if (!isBrowser()) return
-
-  const next = JSON.stringify(requests)
-  if (window.localStorage.getItem(REQUESTS_STORAGE_KEY) === next) return
-
-  window.localStorage.setItem(REQUESTS_STORAGE_KEY, next)
-  window.dispatchEvent(new Event(REQUEST_WORKFLOW_EVENT_NAME))
-}
-
-function upsertMergedRequest(request: ActivityRequestRecord, requests: ActivityRequestRecord[]) {
-  return [request, ...requests.filter((item) => item.id !== request.id)]
 }
 
 async function fetchRequestList() {
@@ -249,13 +226,11 @@ async function fetchRequestDetail(id: number) {
 }
 
 export async function loadBackendActivityRequest(id: number) {
-  const localIndex = loadLocalRequestIndex()
   const detail = await fetchRequestDetail(id)
-  return mergeRequest(detail, localIndex.get(String(id)))
+  return mergeRequest(detail)
 }
 
 export async function loadBackendActivityRequests() {
-  const localIndex = loadLocalRequestIndex()
   const backendRequests = await fetchRequestList()
 
   const details = await Promise.all(
@@ -271,18 +246,10 @@ export async function loadBackendActivityRequests() {
       }),
   )
 
-  const merged = details
-      .filter((item): item is BackendRequestResponse => Boolean(item && item.id != null))
-    .map((item) => mergeRequest(item, localIndex.get(String(item.id))))
+  return details
+    .filter((item): item is BackendRequestResponse => Boolean(item && item.id != null))
+    .map((item) => mergeRequest(item))
     .sort((a, b) => b.date.localeCompare(a.date))
-
-  const localOnly = Array.from(localIndex.values()).filter(
-    (item) => !merged.some((backendItem) => backendItem.id === item.id),
-  )
-
-  const combined = [...merged, ...localOnly].sort((a, b) => b.date.localeCompare(a.date))
-  saveMergedRequests(combined)
-  return combined
 }
 
 export async function createBackendActivityRequest(input: RequestCreateInput) {
@@ -313,9 +280,8 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
   })
 
   const saved = await parseApiResponse<BackendRequestResponse>(response, "활동 요청을 저장하지 못했습니다.")
-  const localIndex = loadLocalRequestIndex()
   const fallbackTitle = title
-  const merged: ActivityRequestRecord = {
+  return {
     id: String(saved.id ?? `${Date.now()}`),
     title: saved.title ?? fallbackTitle,
     salesActivityId: saved.salesActivityId != null ? String(saved.salesActivityId) : undefined,
@@ -323,27 +289,20 @@ export async function createBackendActivityRequest(input: RequestCreateInput) {
     requestUserName: saved.requestUserName ?? input.requester,
     targetUserId,
     targetUserName: saved.targetUserName ?? input.receiver,
-    date: input.date || saved.activityDateTime?.slice(0, 10) || today(),
-    requester: input.requester,
-    receiver: input.receiver,
-    type: input.type,
+    date: saved.activityDateTime?.slice(0, 10) || input.date || today(),
+    requester: saved.requestUserName ?? input.requester,
+    receiver: saved.targetUserName ?? input.receiver,
+    type: activityPurposeLabel(String(saved.activityPurpose ?? activityPurposeEnum(input.type))),
     customerCode: saved.companyId != null ? String(saved.companyId) : input.customerCode,
     customer: saved.companyName ?? getCustomerByCode(String(saved.companyId ?? input.customerCode))?.name ?? input.customer,
     opportunityCode: input.opportunityCode,
-    opportunity: input.opportunity,
-    content: input.content,
-    dueDate: input.dueDate || saved.activityDateTime?.slice(0, 10) || input.date,
-    status: "요청",
-    lastAction: "created",
-    lastActionAt: today(),
+    opportunity: "",
+    content: saved.requestContent ?? input.content,
+    dueDate: saved.activityDateTime?.slice(0, 10) || input.dueDate || input.date,
+    status: mapRequestStatus(saved.salesActivityId),
+    approvedAt: undefined,
+    lastAction: undefined,
+    lastActionAt: undefined,
     attachments: input.attachments ?? [],
   }
-
-  saveMergedRequests(
-    upsertMergedRequest(
-      merged,
-      Array.from(localIndex.values()).filter((item) => item.id !== merged.id),
-    ),
-  )
-  return merged
 }
