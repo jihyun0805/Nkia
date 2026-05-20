@@ -52,7 +52,6 @@ import {
   type QuotationRecord,
   getCategoryLabel,
 } from "@/lib/activity-data"
-import { approveActivityRequest, getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
 import { deleteBackendActivityRecord, loadBackendActivityRecord } from "@/lib/sales-activity-backend"
 import { loadBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
@@ -177,12 +176,6 @@ useEffect(() => {    if (category !== "activities") return
   useEffect(() => {
     let cancelled = false
 
-    const sync = () => {
-      if (!cancelled) {
-        setRequests(getActivityRequests())
-      }
-    }
-
     loadBackendActivityRequests()
       .then((items) => {
         if (!cancelled) {
@@ -191,16 +184,13 @@ useEffect(() => {    if (category !== "activities") return
         }
       })
       .catch(() => {
-        sync()
         if (!cancelled) {
+          setRequests([])
           setIsRequestsLoaded(true)
         }
       })
-
-    const unsubscribe = subscribeWorkflowUpdates(sync)
     return () => {
       cancelled = true
-      unsubscribe()
     }
   }, [])
 
@@ -465,18 +455,6 @@ const handleSubmitQuotation = async () => {
     item && category === "activities"
       ? `/activity/customers/${(item as { customerCode?: string }).customerCode ?? ""}`
       : "/activity"
-
-  const handleApprove = () => {
-    const approved = approveActivityRequest(id)
-    if (!approved) return
-
-    const approvedRequest = approved as ActivityRequestRecord
-
-    toast({
-      title: "접수 완료",
-      description: `${approvedRequest.requester} 요청자에게 승인 알림을 전송했습니다.`,
-    })
-  }
 
   const handleDeleteQuotation = () => {
     scrollToTop()
@@ -825,16 +803,6 @@ const handleSubmitQuotation = async () => {
                         <Label>고객사</Label>
                         <Input value={requestMatchedCustomer?.name ?? requestItem.customer} readOnly disabled className={detailFieldClassName} />
                       </div>
-                      <div className="space-y-2">
-                        <Label>사업기회</Label>
-                        <Input
-                          value={requestItem.opportunity || "미확인"}
-                          readOnly
-                          disabled={!requestMatchedCustomer}
-                          className={detailFieldClassName}
-                          placeholder="고객사를 먼저 선택하세요"
-                        />
-                      </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
@@ -878,11 +846,6 @@ const handleSubmitQuotation = async () => {
                   {requestItem && requestItem.type === "RFP 분석" && requestItem.receiver === currentUser.name && (
                     <Button asChild className="bg-red-600 hover:bg-red-700">
                       <Link href={`/bid/new/rfp?requestId=${id}`}>RFP 분석 실행</Link>
-                    </Button>
-                  )}
-                  {requestItem && requestItem.status !== "접수완료" && requestItem.receiver === currentUser.name && (
-                    <Button onClick={handleApprove} className="bg-green-600 hover:bg-green-700">
-                      승인(접수)
                     </Button>
                   )}
                   {isQuotation && quotationDetailTab === "document" && !isViewingQuotationHistoryDetail && !isDeletedQuotation && (

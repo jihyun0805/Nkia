@@ -42,7 +42,6 @@ import {
   getCategoryLabel,
 } from "@/lib/activity-data"
 import { toast } from "@/hooks/use-toast"
-import { getActivityRequests, subscribeWorkflowUpdates, updateActivityRequest } from "@/lib/activity-request-workflow"
 import { currentUser } from "@/lib/current-user"
 import { type CustomerRecord, type OpportunityRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
@@ -138,6 +137,11 @@ export default function ActivityEditPage() {
   }, [category, id])
 
   useEffect(() => {
+    if (category !== "requests") return
+    router.replace(`/activity/requests/${id}`)
+  }, [category, id, router])
+
+  useEffect(() => {
     let cancelled = false
 
     loadBackendActivityRecords()
@@ -160,12 +164,6 @@ export default function ActivityEditPage() {
   useEffect(() => {
     let cancelled = false
 
-    const sync = () => {
-      if (!cancelled) {
-        setRequests(getActivityRequests())
-      }
-    }
-
     loadBackendActivityRequests()
       .then((items) => {
         if (!cancelled) {
@@ -173,13 +171,12 @@ export default function ActivityEditPage() {
         }
       })
       .catch(() => {
-        sync()
+        if (!cancelled) {
+          setRequests([])
+        }
       })
-
-    const unsubscribe = subscribeWorkflowUpdates(sync)
     return () => {
       cancelled = true
-      unsubscribe()
     }
   }, [])
 
@@ -208,6 +205,10 @@ export default function ActivityEditPage() {
     if (category === "quotations") return quotations.find((entry) => entry.id === id) ?? null
     return requests.find((entry) => entry.id === id) ?? null
   }, [activityDetail, activityRecords, category, id, quotations, requests])
+
+  if (category === "requests") {
+    return null
+  }
 
   useEffect(() => {
     if (category !== "activities" || !item) return
@@ -267,7 +268,7 @@ export default function ActivityEditPage() {
   }, [category, item])
 
   useEffect(() => {
-    if (category !== "requests" || !item) return
+    if (!item) return
 
     const request = item as ActivityRequestRecord
     const normalizedCustomer =
@@ -293,10 +294,9 @@ export default function ActivityEditPage() {
   }
 
   const categoryLabel = getCategoryLabel(category)
-  const requestItem = category === "requests" ? (item as ActivityRequestRecord) : null
-  const canEditRequest = !requestItem || requestItem.requester === currentUser.name
-  const matchedCustomer = category === "requests" ? getCustomerByName(requestForm.customer) : null
-  const opportunityOptions = category === "requests" ? getOpportunitiesByCustomerName(requestForm.customer) : []
+  const requestItem = null
+  const matchedCustomer = null
+  const opportunityOptions: OpportunityRecord[] = []
   const activityOpportunityOptions = getOpportunitiesByCustomerName(activityCustomer)
   const activityRequestBackendId = (item as ActivityRecord | null)?.salesActivityRequestId
   const receiverUser = findUserByToken(backendUsers, requestForm.receiver)
@@ -463,21 +463,11 @@ export default function ActivityEditPage() {
       return
     }
 
-    if (!canEditRequest) return
-
-    const updated = updateActivityRequest(id, {
-      ...requestForm,
-    })
-    if (!updated) return
-
-    const updatedRequest = updated as ActivityRequestRecord
-
-    scrollToTop()
     toast({
-      title: "활동 요청 수정 완료",
-      description: `${updatedRequest.receiver} 담당자에게 수정 알림을 전송했습니다.`,
+      title: "활동 요청 수정 불가",
+      description: "활동 요청은 백엔드 수정 API가 없어 화면에서 수정할 수 없습니다.",
+      variant: "destructive",
     })
-    router.push(`/activity/${category}/${id}`)
   }
 
   const handleDeleteQuotation = () => {
@@ -532,9 +522,9 @@ export default function ActivityEditPage() {
                 <CardTitle>{categoryLabel} 수정</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {!canEditRequest && category === "requests" ? (
+                {false ? (
                   <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    본인이 요청한 활동 요청만 수정할 수 있습니다.
+                    활동 요청은 현재 백엔드 수정 API가 없어 화면에서 수정할 수 없습니다.
                   </div>
                 ) : category === "activities" ? (
                   <ActivityFormFields
@@ -564,7 +554,7 @@ export default function ActivityEditPage() {
                     values={activityForm}
                     onValuesChange={setActivityForm}
                   />
-                ) : category === "requests" ? (
+                ) : false ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {[
                       { label: "요청일", key: "date", type: "date" },
@@ -622,41 +612,41 @@ export default function ActivityEditPage() {
                         ) : field.key === "customer" ? (
                           <CustomerAutocomplete
                             value={requestForm.customer}
-                            onSelect={(customer) => {
-                              setRequestForm((prev) => ({
-                                ...prev,
-                                customer: customer?.name ?? "",
-                                customerCode: customer?.id ?? "",
-                                opportunity: customer ? "미확인" : "",
-                                opportunityCode: "",
-                              }))
-                            }}
-                          />
-                        ) : field.key === "opportunity" ? (
-                          <Select
-                            value={requestForm.opportunity}
-                            onValueChange={(value) => {
-                              const opportunity = opportunityOptions.find((entry) => entry.name === value)
-                              setRequestForm((prev) => ({
-                                ...prev,
-                                opportunity: value,
-                                opportunityCode: opportunity?.id ?? "",
-                              }))
-                            }}
-                            disabled={!matchedCustomer}
-                          >
+                          onSelect={(customer) => {
+                            setRequestForm((prev) => ({
+                              ...prev,
+                              customer: customer?.name ?? "",
+                              customerCode: customer?.id ?? "",
+                              opportunity: customer ? "미확인" : "",
+                              opportunityCode: "",
+                            }))
+                          }}
+                        />
+                      ) : field.key === "opportunity" ? (
+                        <Select
+                          value={requestForm.opportunity}
+                          onValueChange={(value) => {
+                            const opportunity = opportunityOptions.find((entry) => entry.name === value)
+                            setRequestForm((prev) => ({
+                              ...prev,
+                              opportunity: value,
+                              opportunityCode: opportunity?.id ?? "",
+                            }))
+                          }}
+                          disabled={!matchedCustomer}
+                        >
                             <SelectTrigger>
                               <SelectValue placeholder={matchedCustomer ? "사업기회를 선택하세요" : "고객사를 먼저 입력하세요"} />
                             </SelectTrigger>
                             <SelectContent>
-                              {opportunityOptions.map((option) => (
-                                <SelectItem key={option.id} value={option.name}>
-                                  {option.name}
-                                </SelectItem>
-                              ))}
+                            {opportunityOptions.map((option) => (
+                              <SelectItem key={option.id} value={option.name}>
+                                {option.name}
+                              </SelectItem>
+                            ))}
                               <SelectItem value="미확인">미확인</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          </SelectContent>
+                        </Select>
                         ) : (
                           <Input
                             type={field.type === "date" ? "date" : "text"}
@@ -685,7 +675,7 @@ export default function ActivityEditPage() {
                       삭제
                     </Button>
                   )}
-                  {canEditRequest && (
+                  {(category === "activities" || category === "quotations") && (
                     <Button onClick={handleSubmit} className="bg-primary hover:bg-primary/90">
                       수정
                     </Button>
