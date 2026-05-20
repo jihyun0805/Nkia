@@ -5,11 +5,14 @@ import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultCreateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultDetailResponse;
+import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultHistoryListResponse;
+import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultHistoryResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultListResponse;
 import com.nkia.Orbis.domain.bid.bidresult.service.BidResultService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -122,5 +125,29 @@ public class BidResultController {
         );
 
         return ResponseEntity.ok(ApiResponse.success("입찰 결과 결재 상신 완료"));
+    }
+
+    /**
+     * 6. 입찰 결과 변경 이력 목록 조회 (GET)
+     */
+    @Operation(summary = "입찰 결과 변경 이력 목록 조회", description = "특정 입찰 결과의 변경 이력을 최신 버전순으로 조회합니다.")
+    @GetMapping("/{id}/histories")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BID_RESULT', 'READ')")
+    public ResponseEntity<ApiResponse<List<BidResultHistoryListResponse>>> getBidResultHistories(
+            @PathVariable Long id) {
+        List<BidResultHistoryListResponse> response = bidResultService.getBidResultHistories(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 7. 입찰 결과 변경 이력 상세 조회 (GET)
+     */
+    @Operation(summary = "입찰 결과 변경 이력 상세 조회", description = "특정 버전의 과거 입찰 결과 스냅샷 및 경쟁사 점수/분석 내역을 상세 조회합니다.")
+    @GetMapping("/histories/{historyId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BID_RESULT', 'READ')")
+    public ResponseEntity<ApiResponse<BidResultHistoryResponse>> getBidResultHistoryDetail(
+            @PathVariable Long historyId) {
+        BidResultHistoryResponse response = bidResultService.getBidResultHistoryDetail(historyId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

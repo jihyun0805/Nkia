@@ -16,15 +16,20 @@ import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultCreateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultDetailResponse;
+import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultHistoryListResponse;
+import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultHistoryResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultListResponse;
 import com.nkia.Orbis.domain.bid.bidresult.dto.vo.CompanyScoreDto;
 import com.nkia.Orbis.domain.bid.bidresult.dto.vo.WinLossAnalysisDto;
 import com.nkia.Orbis.domain.bid.bidresult.entity.BidResult;
+import com.nkia.Orbis.domain.bid.bidresult.entity.BidResultHistory;
+import com.nkia.Orbis.domain.bid.bidresult.repository.BidResultHistoryRepository;
 import com.nkia.Orbis.domain.bid.bidresult.repository.BidResultRepository;
 import com.nkia.Orbis.domain.bid.proposal.entity.Proposal;
 import com.nkia.Orbis.domain.bid.proposal.repository.ProposalRepository;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import com.nkia.Orbis.domain.projectopportunity.projectopportunity.repository.ProjectOpportunityRepository;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -38,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BidResultService {
 
     private final BidResultRepository bidResultRepository;
+    private final BidResultHistoryRepository bidResultHistoryRepository;
     private final ProjectOpportunityRepository projectOpportunityRepository;
     private final ProposalRepository proposalRepository;
     private final UserRepository userRepository;
@@ -75,6 +81,8 @@ public class BidResultService {
         // 1. 기존 입찰 결과 엔티티 조회
         BidResult bidResult = findBidResult(id);
 
+        saveSnapshot(bidResult);
+
         // 2. 변경될 연관 엔티티들 조회
         ProjectOpportunity opportunity = findOpportunity(request, bidResult);
         User salesRepresentative = findUser(request.getSalesRepresentativeId());
@@ -96,6 +104,14 @@ public class BidResultService {
             checkOneBidResult(opportunity);
         }
         return opportunity;
+    }
+
+    private void saveSnapshot(BidResult bidResult) {
+        long historyCount = bidResultHistoryRepository.countByBidResultId(bidResult.getId());
+        Integer nextVersion = (int) historyCount + 1;
+
+        BidResultHistory history = BidResultHistory.createSnapshot(bidResult, nextVersion);
+        bidResultHistoryRepository.save(history);
     }
 
     private void updateBidResultInfo(BidResultUpdateRequest request, BidResult bidResult) {
@@ -172,6 +188,29 @@ public class BidResultService {
      */
     public Page<BidResultListResponse> getBidResultList(Pageable pageable) {
         return bidResultRepository.findAll(pageable).map(BidResultListResponse::from);
+    }
+
+    /**
+     * 6. 입찰 결과 변경 이력 목록 조회 (최신순)
+     */
+    public List<BidResultHistoryListResponse> getBidResultHistories(Long bidResultId) {
+        findBidResult(bidResultId); // 원본 존재 검증
+        List<BidResultHistory> histories = bidResultHistoryRepository.findByBidResultIdOrderByVersionDesc(bidResultId);
+        return histories.stream()
+                .map(BidResultHistoryListResponse::from)
+                .toList();
+    }
+
+    /**
+     * 7. 특정 과거 버전의 입찰 결과 스냅샷 상세 단건 조회
+     */
+    public BidResultHistoryResponse getBidResultHistoryDetail(Long historyId) {
+        BidResultHistory history = bidResultHistoryRepository.findWithDetailsById(historyId)
+                .orElseThrow(() -> new ApiException(BidResultErrorCode.BID_RESULT_NOT_FOUND));
+
+        String creatorName = getCreatorName(history.getCreatedBy());
+
+        return BidResultHistoryResponse.of(history, creatorName);
     }
 
     // ==========================================
