@@ -18,6 +18,7 @@ export function OrderBasicSection() {
   const serviceData = useWatch({ control, name: "serviceDetails" }) || [];
   const maintenanceData = useWatch({ control, name: "maintenanceDetails" }) || [];
   const otherSalesData = useWatch({ control, name: "otherSalesDetails" }) || [];
+  const purchaseData = useWatch({ control, name: "purchaseDetails" }) || [];
 
   const licenseDiscount = useWatch({ control, name: "licenseDiscount" });
   const serviceDiscount = useWatch({ control, name: "serviceDiscount" });
@@ -47,8 +48,10 @@ export function OrderBasicSection() {
     const serviceTotal = getSum(serviceData) + parseNum(serviceDiscount);
     const maintenanceTotal = getSum(maintenanceData) + parseNum(maintenanceDiscount);
     const otherSalesTotal = getSum(otherSalesData);
+    const purchaseTotal = getSum(purchaseData);
 
-    const grandTotal = licenseTotal + serviceTotal + maintenanceTotal + otherSalesTotal;
+    // 매입(purchase)을 포함한 총 계약금액
+    const grandTotal = licenseTotal + serviceTotal + maintenanceTotal + otherSalesTotal + purchaseTotal;
 
     // 무한 렌더링 방지 (값이 다를 때만 업데이트)
     if (parseNum(totalAmount) !== grandTotal) {
@@ -56,6 +59,7 @@ export function OrderBasicSection() {
     }
 
     // 매출분류 자동 매핑 및 업데이트
+    // 매출분류는 매입(purchase)을 제외한 순수 매출 항목만 포함
     let ems = 0;
     let itg = 0;
     let dashboard = 0;
@@ -77,10 +81,11 @@ export function OrderBasicSection() {
       else others += sub;
     });
 
-    // 라이선스 할인 + 용역 총합 + 기타 매출 총합을 기타 매출분류로 합산
-    others += parseNum(licenseDiscount) + serviceTotal + otherSalesTotal;
+    // 용역 총합 + 기타 매출 총합을 기타 매출분류로 합산 (할인은 제외)
+    const rawServiceTotal = getSum(serviceData);
+    others += rawServiceTotal + otherSalesTotal;
 
-    // 유지보수 분류 자동 계산
+    // 유지보수 분류 자동 계산 (할인 제외, 저장값과 일치)
     let emsMaint = 0;
     let itgMaint = 0;
     maintenanceData.forEach((item: any) => {
@@ -92,7 +97,6 @@ export function OrderBasicSection() {
         emsMaint += sub;
       }
     });
-    emsMaint += parseNum(maintenanceDiscount);
 
     // 각 매출분류 값이 0일 경우 빈 문자열로 표시
     const fmtVal = (val: number) => (val === 0 ? "" : val.toLocaleString());
@@ -114,17 +118,22 @@ export function OrderBasicSection() {
     if (currentIto !== ito) setValue("salesClassification.ito", fmtVal(ito));
     if (currentAiotion !== aiotion) setValue("salesClassification.aiotion", fmtVal(aiotion));
     if (currentOthers !== others) setValue("salesClassification.others", fmtVal(others));
-  }, [licenseData, serviceData, maintenanceData, otherSalesData, licenseDiscount, serviceDiscount, maintenanceDiscount, totalAmount, setValue, salesClassificationValues]);
+  }, [licenseData, serviceData, maintenanceData, otherSalesData, purchaseData, licenseDiscount, serviceDiscount, maintenanceDiscount, totalAmount, setValue, salesClassificationValues]);
 
   // 값이 변경될 때마다 검증(Verification) 값 자동계산
+  // 매출분류 합계 = 총 계약금액 - 매입합계 이어야 0 (매입은 매출분류에 포함되지 않음)
   useEffect(() => {
+    const getSum = (arr: any[]) => arr.reduce((acc, curr) => acc + parseNum(curr.subtotal), 0);
+    const purchaseTotal = getSum(purchaseData);
+
     const salesSum = salesClassificationValues.reduce((acc, curr) => acc + parseNum(curr), 0);
     const total = parseNum(totalAmount);
 
-    const verification = salesSum - total;
+    // 매입을 제외한 나머지가 매출분류 합계와 일치해야 0
+    const verification = salesSum - (total - purchaseTotal);
 
     setValue("salesClassification.verification", verification.toLocaleString());
-  }, [salesClassificationValues, totalAmount, setValue]);
+  }, [salesClassificationValues, totalAmount, purchaseData, setValue]);
 
   return (
     <div className="w-full">

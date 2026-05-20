@@ -188,6 +188,8 @@ export interface MaintenanceCreateRequest {
 
 export interface MaintenanceDetailResponse {
   id: number;
+  workflowId: number | null;
+  status: string;
   projectName: string;
   customerName: string;
   type: "FREE" | "PAID";
@@ -235,6 +237,14 @@ export const updateMaintenance = async (id: number, data: Partial<MaintenanceCre
 
 export const deleteMaintenance = async (id: number): Promise<ApiResponse<void>> => {
   return await customInstance({ url: `/maintenances/${id}`, method: "delete" });
+};
+
+export const submitMaintenance = async (id: number, firstApproverId: string): Promise<ApiResponse<string>> => {
+  return await customInstance({
+    url: `/maintenances/submit/${id}`,
+    method: "post",
+    data: { firstApproverId },
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -290,6 +300,14 @@ export interface CustomerSupportRequestDetailResponse {
 
 export const getCustomerSupportRequestDetail = async (id: number): Promise<ApiResponse<CustomerSupportRequestDetailResponse>> => {
   return await customInstance({ url: `/maintenances/customer-supports/requests/${id}`, method: "get" });
+};
+
+export const submitCustomerSupportRequest = async (id: number, firstApproverId: string): Promise<ApiResponse<string>> => {
+  return await customInstance({
+    url: `/maintenances/customer-supports/requests/submit/${id}`,
+    method: "post",
+    data: { firstApproverId },
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -452,4 +470,3 @@ export const getMaintenanceHistories = async (id: number): Promise<ApiResponse<M
 export const getMaintenanceHistoryDetail = async (historyId: number): Promise<ApiResponse<MaintenanceHistoryDetailResponse>> => {
   return await customInstance({ url: `/maintenances/histories/${historyId}`, method: "get" });
 };
-

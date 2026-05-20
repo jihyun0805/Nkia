@@ -336,6 +336,23 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
     const hProjectName = h.projectName ?? "-";
     const hSavedAt = h.orderReportDate ? h.orderReportDate.replace("T", " ").slice(0, 16) : "-";
 
+    const hKnownClasses = new Set(["EMS", "ITSM", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITAM"]);
+    const hComputedEmsMaintenanceSummary = hMaintenanceDetails.reduce((sum: number, m: any) => {
+      const content = (m.content || "").toUpperCase();
+      return content.includes("ITG") || content.includes("ITSM") ? sum : sum + (m.totalPrice || 0);
+    }, 0);
+    const hComputedItgMaintenanceSummary = hMaintenanceDetails.reduce((sum: number, m: any) => {
+      const content = (m.content || "").toUpperCase();
+      return content.includes("ITG") || content.includes("ITSM") ? sum + (m.totalPrice || 0) : sum;
+    }, 0);
+    const hComputedOtherSummary =
+      hLicenseDetails.reduce((sum: number, l: any) => {
+        const cat = (l.productClass || "").toUpperCase();
+        return cat && !hKnownClasses.has(cat) ? sum + (l.totalPrice || 0) : sum;
+      }, 0) +
+      (h.serviceTotal || 0) +
+      (h.otherTotal || 0);
+
     return (
       <div className="space-y-6">
         {/* 이력 뷰 헤더 */}
@@ -347,7 +364,9 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="secondary" className="bg-blue-100 text-blue-700">이력 v{h.version}</Badge>
+            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+              이력 v{h.version}
+            </Badge>
             <Button variant="outline" onClick={() => setSelectedHistoryId(null)}>
               현재로 돌아가기
             </Button>
@@ -361,16 +380,28 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
             <Col10 />
             <tbody>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>사업명</th>
-                <td className={`${cellBase} text-center`} colSpan={9}>{hProjectName}</td>
+                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>
+                  사업명
+                </th>
+                <td className={`${cellBase} text-center`} colSpan={9}>
+                  {hProjectName}
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>총 계약금액</th>
-                <td className="bg-yellow-200 border-r border-black text-right px-2 py-1.5 text-sm font-bold text-blue-700" colSpan={9}>₩{fmt(h.totalAmount)}</td>
+                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>
+                  총 계약금액
+                </th>
+                <td className="bg-yellow-200 border-r border-black text-right px-2 py-1.5 text-sm font-bold text-blue-700" colSpan={9}>
+                  ₩{fmt(h.totalAmount)}
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>대금지급조건</th>
-                <td className={`${cellBase} text-center`} colSpan={9}>{h.paymentCondition || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 font-semibold" colSpan={1}>
+                  대금지급조건
+                </th>
+                <td className={`${cellBase} text-center`} colSpan={9}>
+                  {h.paymentCondition || "-"}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -380,28 +411,70 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
             <Col10 />
             <tbody>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 font-semibold" rowSpan={2} colSpan={1}>매출분류</th>
-                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>EMS</th>
-                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.emsSummary)}</td>
-                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>ITG</th>
-                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.itgSummary)}</td>
-                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>대시보드</th>
-                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.dashboardSummary)}</td>
-                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>AIOTION</th>
-                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.aiotionSummary)}</td>
-                <th className="bg-slate-100 font-bold text-red-600 text-[10px] leading-tight border-l border-black" colSpan={1}>검증<br />(0이정상)</th>
+                <th className="bg-slate-100 border-r border-black py-2 font-semibold" rowSpan={2} colSpan={1}>
+                  매출분류
+                </th>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
+                  EMS
+                </th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
+                  {fmt(h.emsSummary)}
+                </td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
+                  ITG
+                </th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
+                  {fmt(h.itgSummary)}
+                </td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
+                  대시보드
+                </th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
+                  {fmt(h.dashboardSummary)}
+                </td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
+                  AIOTION
+                </th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
+                  {fmt(h.aiotionSummary)}
+                </td>
+                <th className="bg-slate-100 font-bold text-red-600 text-[10px] leading-tight border-l border-black" colSpan={1}>
+                  검증
+                  <br />
+                  (0이정상)
+                </th>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>EMS유지보수</th>
-                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.emsMaintenanceSummary)}</td>
-                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>ITG유지보수</th>
-                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.itgMaintenanceSummary)}</td>
-                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>ITO</th>
-                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.itoSummary)}</td>
-                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>기타</th>
-                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>{fmt(h.otherSummary)}</td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
+                  EMS유지보수
+                </th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
+                  {fmt(hComputedEmsMaintenanceSummary)}
+                </td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
+                  ITG유지보수
+                </th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
+                  {fmt(hComputedItgMaintenanceSummary)}
+                </td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
+                  ITO
+                </th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
+                  {fmt(h.itoSummary)}
+                </td>
+                <th className="bg-slate-50 border-r border-black font-medium" colSpan={1}>
+                  기타
+                </th>
+                <td className="border-r border-black text-right px-2 py-1.5 text-sm" colSpan={1}>
+                  {fmt(hComputedOtherSummary)}
+                </td>
                 <td className="bg-red-50 text-center text-red-600 font-bold px-2 py-1.5 text-sm border-l border-black" colSpan={1}>
-                  {fmt(h.totalAmount - (h.emsSummary + h.itgSummary + h.dashboardSummary + h.aiotionSummary + h.emsMaintenanceSummary + h.itgMaintenanceSummary + h.itoSummary + h.otherSummary))}
+                  {fmt(
+                    h.totalAmount -
+                      (h.purchaseTotal || 0) -
+                      (h.emsSummary + h.itgSummary + h.dashboardSummary + h.aiotionSummary + hComputedEmsMaintenanceSummary + hComputedItgMaintenanceSummary + h.itoSummary + hComputedOtherSummary),
+                  )}
                 </td>
               </tr>
             </tbody>
@@ -412,42 +485,94 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
             <Col10 />
             <tbody>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>유형</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>{typeMap[h.type] || h.type}</td>
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>채널유무</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>{h.channel ? "O" : "X"}</td>
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>코드분류</th>
-                <td className={`${cellBase} text-center`} colSpan={3}>{codeMap[h.codeType] || h.codeType}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  유형
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>
+                  {typeMap[h.type] || h.type}
+                </td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  채널유무
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>
+                  {h.channel ? "O" : "X"}
+                </td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  코드분류
+                </th>
+                <td className={`${cellBase} text-center`} colSpan={3}>
+                  {codeMap[h.codeType] || h.codeType}
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>수행PM</th>
-                <td className={`${cellBase} text-center`} colSpan={9}>{h.pmName || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  수행PM
+                </th>
+                <td className={`${cellBase} text-center`} colSpan={9}>
+                  {h.pmName || "-"}
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>계약상대</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={4}>{h.contractCounterpartCompanyName || "-"}</td>
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>최종고객사</th>
-                <td className={`${cellBase} text-center`} colSpan={4}>{h.finalCustomerCompanyName || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  계약상대
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={4}>
+                  {h.contractCounterpartCompanyName || "-"}
+                </td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  최종고객사
+                </th>
+                <td className={`${cellBase} text-center`} colSpan={4}>
+                  {h.finalCustomerCompanyName || "-"}
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>담당자</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={4}>{h.contractCounterpartManagerName || "-"}</td>
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>담당자</th>
-                <td className={`${cellBase} text-center`} colSpan={4}>{h.finalCustomerManagerName || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  담당자
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={4}>
+                  {h.contractCounterpartManagerName || "-"}
+                </td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  담당자
+                </th>
+                <td className={`${cellBase} text-center`} colSpan={4}>
+                  {h.finalCustomerManagerName || "-"}
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={2}>계약일자(발주일자)</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={3}>{h.contractDate || "-"}</td>
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1} rowSpan={2}>계약기간</th>
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>시작일</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>{h.contractStartDate || "-"}</td>
-                <td className="bg-yellow-200 text-center font-bold text-blue-700 px-2 py-1.5 text-sm" colSpan={1} rowSpan={2}>{h.contractPeriodMonths}개월</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={2}>
+                  계약일자(발주일자)
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={3}>
+                  {h.contractDate || "-"}
+                </td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1} rowSpan={2}>
+                  계약기간
+                </th>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  시작일
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>
+                  {h.contractStartDate || "-"}
+                </td>
+                <td className="bg-yellow-200 text-center font-bold text-blue-700 px-2 py-1.5 text-sm" colSpan={1} rowSpan={2}>
+                  {h.contractPeriodMonths}개월
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={2}>무상유지보수기간</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={3}>{h.freeMaintenancePeriodMonths ? `${h.freeMaintenancePeriodMonths}개월` : "해당없음"}</td>
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>종료일</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>{h.contractEndDate || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={2}>
+                  무상유지보수기간
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={3}>
+                  {h.freeMaintenancePeriodMonths ? `${h.freeMaintenancePeriodMonths}개월` : "해당없음"}
+                </td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  종료일
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={2}>
+                  {h.contractEndDate || "-"}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -457,23 +582,49 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
             <Col10 />
             <tbody>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>사업범위</th>
-                <td className="px-2 py-2 text-sm whitespace-pre-wrap leading-relaxed" colSpan={9}>{h.scopeOfWork || "-"}</td>
+                <th className="bg-slate-100 border-r border-black py-2 text-center font-semibold" colSpan={1}>
+                  사업범위
+                </th>
+                <td className="px-2 py-2 text-sm whitespace-pre-wrap leading-relaxed" colSpan={9}>
+                  {h.scopeOfWork || "-"}
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-100 border-r border-black py-1.5 text-center font-semibold" colSpan={2} rowSpan={2}>첨부서류</th>
-                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>견적서</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>{h.quotationProvided ? "O" : "X"}</td>
-                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>계약서</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>{h.contractProvided ? "O" : "X"}</td>
-                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>발주서</th>
-                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>{h.purchaseOrderProvided ? "O" : "X"}</td>
-                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>PRB보고서</th>
-                <td className={`${cellBase} text-center`} colSpan={1}>{h.prbReportProvided ? "O" : "X"}</td>
+                <th className="bg-slate-100 border-r border-black py-1.5 text-center font-semibold" colSpan={2} rowSpan={2}>
+                  첨부서류
+                </th>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>
+                  견적서
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>
+                  {h.quotationProvided ? "O" : "X"}
+                </td>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>
+                  계약서
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>
+                  {h.contractProvided ? "O" : "X"}
+                </td>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>
+                  발주서
+                </th>
+                <td className={`${cellBase} text-center border-r border-black`} colSpan={1}>
+                  {h.purchaseOrderProvided ? "O" : "X"}
+                </td>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>
+                  PRB보고서
+                </th>
+                <td className={`${cellBase} text-center`} colSpan={1}>
+                  {h.prbReportProvided ? "O" : "X"}
+                </td>
               </tr>
               <tr className="border-b border-black">
-                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>기타서류</th>
-                <td className={cellBase} colSpan={7}>{h.additionalDocuments || "-"}</td>
+                <th className="bg-slate-50 border-r border-black py-1.5 text-center font-medium" colSpan={1}>
+                  기타서류
+                </th>
+                <td className={cellBase} colSpan={7}>
+                  {h.additionalDocuments || "-"}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -486,35 +637,77 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
                 <Col10 />
                 <thead>
                   <tr className="bg-slate-100 border-b border-black">
-                    <th className="border-r border-black py-1.5 font-semibold" colSpan={2}>년도</th>
-                    <th className="border-r border-black py-1.5 font-semibold" colSpan={3}>사업금액</th>
-                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>라이선스</th>
-                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>3rd</th>
-                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>용역</th>
-                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>유지보수</th>
-                    <th className="py-1.5 font-semibold" colSpan={1}>요율</th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={2}>
+                      년도
+                    </th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={3}>
+                      사업금액
+                    </th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>
+                      라이선스
+                    </th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>
+                      3rd
+                    </th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>
+                      용역
+                    </th>
+                    <th className="border-r border-black py-1.5 font-semibold" colSpan={1}>
+                      유지보수
+                    </th>
+                    <th className="py-1.5 font-semibold" colSpan={1}>
+                      요율
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {hMaintenanceOnlyItems.map((item: any) => (
                     <tr key={item.id} className="border-b border-black">
-                      <td className="border-r border-black px-2 py-1.5 text-center" colSpan={2}>{item.year ? `${item.year}년` : "-"}</td>
-                      <td className="border-r border-black px-2 py-1.5 text-right font-semibold text-slate-700 bg-slate-50" colSpan={3}>₩{fmt(item.amount)}</td>
-                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>₩{fmt(item.license)}</td>
-                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>₩{fmt(item.thirdParty)}</td>
-                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>₩{fmt(item.service)}</td>
-                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>₩{fmt(item.maintenance)}</td>
-                      <td className="px-2 py-1.5 text-center" colSpan={1}>{item.maintenanceRate ? `${item.maintenanceRate}%` : "-"}</td>
+                      <td className="border-r border-black px-2 py-1.5 text-center" colSpan={2}>
+                        {item.year ? `${item.year}년` : "-"}
+                      </td>
+                      <td className="border-r border-black px-2 py-1.5 text-right font-semibold text-slate-700 bg-slate-50" colSpan={3}>
+                        ₩{fmt(item.amount)}
+                      </td>
+                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>
+                        ₩{fmt(item.license)}
+                      </td>
+                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>
+                        ₩{fmt(item.thirdParty)}
+                      </td>
+                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>
+                        ₩{fmt(item.service)}
+                      </td>
+                      <td className="border-r border-black px-2 py-1.5 text-right" colSpan={1}>
+                        ₩{fmt(item.maintenance)}
+                      </td>
+                      <td className="px-2 py-1.5 text-center" colSpan={1}>
+                        {item.maintenanceRate ? `${item.maintenanceRate}%` : "-"}
+                      </td>
                     </tr>
                   ))}
                   <tr className="bg-yellow-200 font-bold border-b border-black">
-                    <td className="border-r border-black py-2 text-center text-slate-700" colSpan={2}>합계</td>
-                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={3}>₩{fmt(h.itemTotalAmount)}</td>
-                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>₩{fmt(h.itemTotalLicense)}</td>
-                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>₩{fmt(h.itemTotalThirdParty)}</td>
-                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>₩{fmt(h.itemTotalService)}</td>
-                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>₩{fmt(h.itemTotalMaintenance)}</td>
-                    <td className="px-2 py-1.5 text-center text-blue-700" colSpan={1}>{h.itemTotalMaintenanceRate ? `${h.itemTotalMaintenanceRate.toFixed(2)}%` : "-"}</td>
+                    <td className="border-r border-black py-2 text-center text-slate-700" colSpan={2}>
+                      합계
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={3}>
+                      ₩{fmt(h.itemTotalAmount)}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>
+                      ₩{fmt(h.itemTotalLicense)}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>
+                      ₩{fmt(h.itemTotalThirdParty)}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>
+                      ₩{fmt(h.itemTotalService)}
+                    </td>
+                    <td className="border-r border-black px-2 py-1.5 text-right text-blue-700" colSpan={1}>
+                      ₩{fmt(h.itemTotalMaintenance)}
+                    </td>
+                    <td className="px-2 py-1.5 text-center text-blue-700" colSpan={1}>
+                      {h.itemTotalMaintenanceRate ? `${h.itemTotalMaintenanceRate.toFixed(2)}%` : "-"}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -750,6 +943,7 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
               <td className="bg-red-50 text-center text-red-600 font-bold px-2 py-1.5 text-sm border-l border-black" colSpan={1}>
                 {fmt(
                   r.totalAmount -
+                    (r.purchaseTotal || 0) -
                     (r.emsSummary + r.itgSummary + r.dashboardSummary + r.aiotionSummary + computedEmsMaintenanceSummary + computedItgMaintenanceSummary + r.itoSummary + computedOtherSummary),
                 )}
               </td>
@@ -1307,9 +1501,7 @@ export function OrderReportDetail({ report: r, onRefresh }: OrderReportDetailPro
                       <Badge variant="outline">v{history.version}</Badge>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{history.orderReportCode}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {history.orderReportDate ? history.orderReportDate.replace("T", " ").slice(0, 16) : "-"}
-                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{history.orderReportDate ? history.orderReportDate.replace("T", " ").slice(0, 16) : "-"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
