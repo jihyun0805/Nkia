@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import ReactMarkdown from "react-markdown"
+import { BarChart3, Download, FileText, Loader2, PieChartIcon, Sparkles, Table2 } from "lucide-react"
 import {
   Bar,
   BarChart,
@@ -13,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { BarChart3, Download, FileText, Loader2, PieChartIcon, Sparkles, Table2 } from "lucide-react"
+import remarkGfm from "remark-gfm"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -642,150 +644,61 @@ function EmptyState({ label }: { label: string }) {
   )
 }
 
-type MarkdownBlock =
-  | { type: "h2"; text: string }
-  | { type: "h3"; text: string }
-  | { type: "list"; items: string[] }
-  | { type: "table"; lines: string[] }
-  | { type: "paragraph"; text: string }
-
 function ManagementReportMarkdown({ content }: { content: string }) {
-  const lines = content.split(/\r?\n/)
-  const blocks: MarkdownBlock[] = []
-  let index = 0
-
-  while (index < lines.length) {
-    const line = lines[index].trim()
-    if (!line) {
-      index += 1
-      continue
-    }
-
-    if (isMarkdownTableStart(lines, index)) {
-      const tableLines = []
-      while (index < lines.length && lines[index].trim().startsWith("|")) {
-        tableLines.push(lines[index].trim())
-        index += 1
-      }
-      blocks.push({ type: "table", lines: tableLines })
-      continue
-    }
-
-    if (line.startsWith("## ")) {
-      blocks.push({ type: "h2", text: line.replace(/^##\s+/, "") })
-      index += 1
-      continue
-    }
-
-    if (line.startsWith("### ")) {
-      blocks.push({ type: "h3", text: line.replace(/^###\s+/, "") })
-      index += 1
-      continue
-    }
-
-    if (/^[-*]\s+/.test(line)) {
-      const items = []
-      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^[-*]\s+/, ""))
-        index += 1
-      }
-      blocks.push({ type: "list", items })
-      continue
-    }
-
-    const paragraphs = [line]
-    index += 1
-    while (
-      index < lines.length &&
-      lines[index].trim() &&
-      !lines[index].trim().startsWith("## ") &&
-      !lines[index].trim().startsWith("### ") &&
-      !/^[-*]\s+/.test(lines[index].trim()) &&
-      !lines[index].trim().startsWith("|")
-    ) {
-      paragraphs.push(lines[index].trim())
-      index += 1
-    }
-    blocks.push({ type: "paragraph", text: paragraphs.join(" ") })
-  }
-
   return (
     <div className="rounded-md border bg-muted/30 p-4 text-sm leading-6">
-      <div className="space-y-4">
-        {blocks.map((block, blockIndex) => {
-          if (block.type === "h2") {
-            return (
-              <h2 key={blockIndex} className="border-b pb-2 text-base font-semibold text-foreground">
-                {renderInlineMarkdown(block.text)}
-              </h2>
-            )
-          }
-          if (block.type === "h3") {
-            return (
-              <h3 key={blockIndex} className="text-sm font-semibold text-foreground">
-                {renderInlineMarkdown(block.text)}
-              </h3>
-            )
-          }
-          if (block.type === "list") {
-            return (
-              <ul key={blockIndex} className="list-disc space-y-1 pl-5 text-muted-foreground">
-                {block.items.map((item, itemIndex) => (
-                  <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
-                ))}
-              </ul>
-            )
-          }
-          if (block.type === "table") {
-            const rows = parseMarkdownTable(block.lines)
-            const [header, ...body] = rows
-            return (
-              <div key={blockIndex} className="overflow-x-auto rounded-md border bg-background">
-                <Table>
-                  {header && (
-                    <TableHeader>
-                      <TableRow>
-                        {header.map((cell, cellIndex) => (
-                          <TableHead key={cellIndex}>{renderInlineMarkdown(cell)}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                  )}
-                  <TableBody>
-                    {body.map((row, rowIndex) => (
-                      <TableRow key={rowIndex}>
-                        {row.map((cell, cellIndex) => (
-                          <TableCell key={cellIndex}>{renderInlineMarkdown(cell)}</TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )
-          }
-          return (
-            <p key={blockIndex} className="text-muted-foreground">
-              {renderInlineMarkdown(block.text)}
-            </p>
-          )
-        })}
-      </div>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => <h2 className="border-b pb-2 text-base font-semibold text-foreground">{children}</h2>,
+          h2: ({ children }) => <h2 className="border-b pb-2 text-base font-semibold text-foreground">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-sm font-semibold text-foreground">{children}</h3>,
+          p: ({ children }) => <p className="text-muted-foreground">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 text-muted-foreground">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">{children}</ol>,
+          li: ({ children }) => <li>{children}</li>,
+          table: ({ children }) => (
+            <div className="overflow-x-auto rounded-md border bg-background">
+              <Table>{children}</Table>
+            </div>
+          ),
+          thead: ({ children }) => <TableHeader>{children}</TableHeader>,
+          tbody: ({ children }) => <TableBody>{children}</TableBody>,
+          tr: ({ children }) => <TableRow>{children}</TableRow>,
+          th: ({ children }) => <TableHead>{children}</TableHead>,
+          td: ({ children }) => <TableCell>{children}</TableCell>,
+        }}
+      >
+        {unwrapMarkdownFence(content)}
+      </ReactMarkdown>
     </div>
   )
 }
 
 function isMarkdownTableStart(lines: string[], index: number) {
   return (
-    lines[index]?.trim().startsWith("|") &&
-    lines[index + 1]?.trim().startsWith("|") &&
-    /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(lines[index + 1].trim())
+    isMarkdownTableRow(lines[index]) &&
+    isMarkdownTableSeparator(lines[index + 1])
   )
+}
+
+function isMarkdownTableLine(line: string | undefined) {
+  return isMarkdownTableRow(line) || isMarkdownTableSeparator(line)
+}
+
+function isMarkdownTableRow(line: string | undefined) {
+  const trimmed = line?.trim() ?? ""
+  return trimmed.includes("|") && !isMarkdownTableSeparator(trimmed)
+}
+
+function isMarkdownTableSeparator(line: string | undefined) {
+  const trimmed = line?.trim() ?? ""
+  return /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(trimmed)
 }
 
 function parseMarkdownTable(lines: string[]) {
   return lines
-    .filter((line, index) => index !== 1)
+    .filter((line) => !isMarkdownTableSeparator(line))
     .map((line) =>
       line
         .replace(/^\|/, "")
@@ -793,16 +706,6 @@ function parseMarkdownTable(lines: string[]) {
         .split("|")
         .map((cell) => cell.trim()),
     )
-}
-
-function renderInlineMarkdown(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g)
-  return parts.map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={index}>{part.slice(2, -2)}</strong>
-    }
-    return part
-  })
 }
 
 function renderInlineMarkdownHtml(text: string) {
@@ -818,7 +721,7 @@ function renderInlineMarkdownHtml(text: string) {
 }
 
 function renderMarkdownHtml(content: string) {
-  const lines = content.split(/\r?\n/)
+  const lines = unwrapMarkdownFence(content).split(/\r?\n/)
   const parts: string[] = []
   let index = 0
 
@@ -831,7 +734,7 @@ function renderMarkdownHtml(content: string) {
 
     if (isMarkdownTableStart(lines, index)) {
       const tableLines = []
-      while (index < lines.length && lines[index].trim().startsWith("|")) {
+      while (index < lines.length && isMarkdownTableLine(lines[index])) {
         tableLines.push(lines[index].trim())
         index += 1
       }
@@ -844,6 +747,11 @@ function renderMarkdownHtml(content: string) {
         .map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdownHtml(cell)}</td>`).join("")}</tr>`)
         .join("")
       parts.push(`<div class="md-table"><table>${head}<tbody>${bodyRows}</tbody></table></div>`)
+      continue
+    }
+
+    if (isMarkdownTableSeparator(line)) {
+      index += 1
       continue
     }
 
@@ -886,6 +794,12 @@ function renderMarkdownHtml(content: string) {
   }
 
   return parts.join("\n")
+}
+
+function unwrapMarkdownFence(content: string) {
+  const trimmed = content.trim()
+  const match = trimmed.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i)
+  return match ? match[1].trim() : content
 }
 
 function evidenceTitle(evidence: { sourceType: string; sourceId: string; title?: string | null; metadata?: Record<string, unknown> | null }) {
