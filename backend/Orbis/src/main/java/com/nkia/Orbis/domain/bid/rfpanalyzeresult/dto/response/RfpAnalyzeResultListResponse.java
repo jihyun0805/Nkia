@@ -17,9 +17,8 @@ public record RfpAnalyzeResultListResponse(
 ) {
     public static RfpAnalyzeResultListResponse from(RfpAnalyzeResult entity, User creator) {
         return new RfpAnalyzeResultListResponse(entity.getId(),
-                entity.getProjectOpportunity().getOpportunityName(),
-
                 entity.getProjectOpportunity().getCustomerCompany().getName(),
+                entity.getProjectOpportunity().getOpportunityName(),
 
                 // Null Safe 매핑: 요청자가 없을 경우 "알 수 없음"
                 creator != null ? creator.getName() : "알 수 없음",

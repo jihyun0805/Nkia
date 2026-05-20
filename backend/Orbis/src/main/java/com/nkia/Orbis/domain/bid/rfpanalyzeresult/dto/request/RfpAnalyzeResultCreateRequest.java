@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record RfpAnalyzeResultCreateRequest(
+        String projectName,
         // 제안 형태
         ProposalType proposalType,
         // HW 제공 주체
@@ -34,7 +35,12 @@ public record RfpAnalyzeResultCreateRequest(
 
         List<RfpRequirementRequest> requirements) {
     public RfpAnalyzeResult toEntity(String requestUserName, User assignee, ProjectOpportunity projectOpportunity) {
+        String resolvedProjectName = this.projectName() != null && !this.projectName().isBlank()
+                ? this.projectName()
+                : projectOpportunity.getOpportunityName();
+
         return RfpAnalyzeResult.builder()
+                .projectName(resolvedProjectName)
                 .proposalType(this.proposalType())
                 .hardwareProvider(this.hardwareProvider())
                 .budgetAmount(this.budgetAmount())
