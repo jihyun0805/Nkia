@@ -316,8 +316,10 @@ export default function DashboardPage() {
       const rfpMetrics = rfpResult.status === "fulfilled" ? rfpResult.value : { total: 0, inProgress: 0 };
       const contracts = contractResult.status === "fulfilled" ? (contractResult.value.data ?? []) : [];
       const projects = projectResult.status === "fulfilled" ? (projectResult.value.data ?? []) : [];
-      const freeMaintenances = freeMaintenanceResult.status === "fulfilled" && freeMaintenanceResult.value.success ? (freeMaintenanceResult.value.data ?? []) : [];
-      const paidMaintenances = paidMaintenanceResult.status === "fulfilled" && paidMaintenanceResult.value.success ? (paidMaintenanceResult.value.data ?? []) : [];
+      // backend ApiResponse 는 `result: "SUCCESS"` 만 있고 `success` 필드는 없다.
+      // 다른 도메인 (contract/project 등) 처럼 .data 만 추출하면 충분.
+      const freeMaintenances = freeMaintenanceResult.status === "fulfilled" ? (freeMaintenanceResult.value.data ?? []) : [];
+      const paidMaintenances = paidMaintenanceResult.status === "fulfilled" ? (paidMaintenanceResult.value.data ?? []) : [];
 
       const allMaintenances = [...freeMaintenances, ...paidMaintenances];
       const monthlyContractAmount = contracts.filter((item) => isCurrentMonth(item.contractDate)).reduce((sum, item) => sum + (item.contractAmount || 0), 0);
