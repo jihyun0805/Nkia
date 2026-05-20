@@ -40,9 +40,6 @@ public class RfpAnalyzeResult extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "project_name", nullable = false)
-    private String projectName;
-
     // 제안 형태
     @Enumerated(EnumType.STRING)
     @Column(name = "proposal_type", length = 20)
@@ -96,11 +93,10 @@ public class RfpAnalyzeResult extends BaseEntity {
     private List<RfpRequirement> requirements = new ArrayList<>();
 
     @Builder
-    public RfpAnalyzeResult(String projectName, String hardwareProvider, BigDecimal budgetAmount, String expectedDuration,
+    public RfpAnalyzeResult(String hardwareProvider, BigDecimal budgetAmount, String expectedDuration,
                             String projectLocation, LocalDateTime proposalDeadline, String projectDescription,
                             String requestUserName, RfpStatus status, ProposalType proposalType, User assignee,
                             ProjectOpportunity projectOpportunity) {
-        this.projectName = projectName;
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
         this.expectedDuration = expectedDuration;
@@ -127,11 +123,10 @@ public class RfpAnalyzeResult extends BaseEntity {
     }
 
     // 기존 데이터 수정 메서드 (더티 체킹용)
-    public void update(String projectName, String hardwareProvider, BigDecimal budgetAmount,
+    public void update(String hardwareProvider, BigDecimal budgetAmount,
                        String expectedDuration, String projectLocation, LocalDateTime proposalDeadline,
                        String projectDescription, ProposalType proposalType, User assignee,
                        ProjectOpportunity projectOpportunity) {
-        this.projectName = projectName;
         this.hardwareProvider = hardwareProvider;
         this.budgetAmount = budgetAmount;
         this.expectedDuration = expectedDuration;
