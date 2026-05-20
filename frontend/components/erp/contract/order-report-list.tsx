@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { type OrderReportListResponse, type ApprovalStatus } from "@/lib/api/contract-api";
+import { type OrderReportListResponse } from "@/lib/api/contract-api";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface OrderReportListProps {
@@ -12,18 +12,21 @@ interface OrderReportListProps {
   isLoading?: boolean;
 }
 
-const statusLabel: Record<ApprovalStatus, string> = {
-  PENDING: "대기중",
-  IN_PROGRESS: "결재중",
-  APPROVED: "승인완료",
-  REJECTED: "반려",
+// 백엔드가 ApprovalStatus.getDescription() 한글 문자열로 반환
+const statusLabel: Record<string, string> = {
+  "결재 대기": "대기중",
+  "결재중": "결재중",
+  "승인 완료": "승인완료",
+  "반려": "반려",
+  "취소": "취소",
 };
 
-const statusStyle: Record<ApprovalStatus, string> = {
-  PENDING: "bg-gray-100 text-gray-700 hover:bg-gray-100",
-  IN_PROGRESS: "bg-amber-100 text-amber-700 hover:bg-amber-100",
-  APPROVED: "bg-green-100 text-green-700 hover:bg-green-100",
-  REJECTED: "bg-red-100 text-red-700 hover:bg-red-100",
+const statusStyle: Record<string, string> = {
+  "결재 대기": "bg-gray-100 text-gray-700 hover:bg-gray-100",
+  "결재중": "bg-amber-100 text-amber-700 hover:bg-amber-100",
+  "승인 완료": "bg-green-100 text-green-700 hover:bg-green-100",
+  "반려": "bg-red-100 text-red-700 hover:bg-red-100",
+  "취소": "bg-gray-100 text-gray-500 hover:bg-gray-100",
 };
 
 export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
@@ -52,7 +55,6 @@ export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
               <TableRow>
                 <TableHead>수주코드</TableHead>
                 <TableHead>사업명</TableHead>
-                <TableHead>최종고객사</TableHead>
                 <TableHead>PM</TableHead>
                 <TableHead className="text-right">수주금액</TableHead>
                 <TableHead>계약일</TableHead>
@@ -63,8 +65,7 @@ export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
               {reports.map((order) => (
                 <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/orders/${order.id}`)}>
                   <TableCell className="font-mono text-xs">{order.orderReportCode}</TableCell>
-                  <TableCell className="max-w-[180px] truncate font-medium">{order.projectName}</TableCell>
-                  <TableCell>{order.finalCustomerCompanyName ?? "-"}</TableCell>
+                  <TableCell className="max-w-[250px] truncate font-medium">{order.projectName}</TableCell>
                   <TableCell>{order.pmName ?? "-"}</TableCell>
                   <TableCell className="text-right font-medium">₩{(order.totalAmount ?? 0).toLocaleString()}</TableCell>
                   <TableCell>{order.contractDate ?? "-"}</TableCell>

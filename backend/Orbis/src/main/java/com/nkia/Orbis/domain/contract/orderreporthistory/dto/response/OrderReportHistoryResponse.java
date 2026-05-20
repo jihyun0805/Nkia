@@ -1,7 +1,6 @@
 package com.nkia.Orbis.domain.contract.orderreporthistory.dto.response;
 
 import com.nkia.Orbis.domain.contract.orderreporthistory.entity.OrderReportHistory;
-import com.nkia.Orbis.domain.projectopportunity.projectopportunity.entity.ProjectOpportunity;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -56,8 +55,6 @@ public class OrderReportHistoryResponse {
     private String scopeOfWork;
 
     private String remarks;
-
-    private ProjectOpportunity projectOpportunity;
 
     private String projectName;
 
@@ -171,7 +168,6 @@ public class OrderReportHistoryResponse {
                 .scopeOfWork(orderReport.getScopeOfWork())
                 .remarks(orderReport.getRemarks())
 
-                .projectOpportunity(orderReport.getProjectOpportunity())
                 .projectName(orderReport.getProjectOpportunity().getOpportunityName())
 
                 .pmId(orderReport.getPm() != null ? orderReport.getPm().getId() : null)
