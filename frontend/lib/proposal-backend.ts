@@ -60,6 +60,18 @@ type BackendProposalDetailItem = {
   files?: BackendProposalFile[]
 }
 
+type BackendProposalPrefillItem = {
+  customerCompanyCode?: string
+  customerCompanyName?: string
+  projectOpportunityCode?: string
+  projectOpportunityName?: string
+  projectType?: string
+  proposalType?: string
+  proposalDeadLine?: string
+  requestDate?: string
+  requestUserName?: string
+}
+
 export type ProposalBackendDetail = {
   id: string
   requestId: string
@@ -78,6 +90,18 @@ export type ProposalBackendDetail = {
   status: "작성 중" | "완료"
   fileIds: number[]
   files: { fileId: number; name: string; size: number; url: string }[]
+}
+
+export type ProposalBackendPrefill = {
+  customerCode: string
+  customerName: string
+  opportunityCode: string
+  opportunityName: string
+  productGroup: ProposalProductGroup | ""
+  proposalType: ProposalType
+  requestDate: string
+  proposalDeadline: string
+  salesRep: string
 }
 
 export type ProposalSaveInput = {
@@ -129,6 +153,17 @@ function toDateString(value?: string) {
 function mapProposalTypeToFrontend(value?: string): ProposalType {
   if (value === "SI") return "SI 제안"
   return "자체 제안"
+}
+
+function mapProjectTypeToFrontend(value?: string): ProposalProductGroup | "" {
+  const normalized = value?.trim().toUpperCase()
+  if (normalized === "EMS" || normalized === "ITSM" || normalized === "WSS") {
+    return normalized as ProposalProductGroup
+  }
+  if (normalized === "AUTOMATION") {
+    return "Automation"
+  }
+  return ""
 }
 
 function mapStatusToFrontend(value?: string): "작성 중" | "완료" {
@@ -219,6 +254,19 @@ async function fetchProjectOpportunities() {
   })
 
   return parseApiResponse<ApiPage<BackendProjectOpportunity>>(response, "사업기회 목록을 불러오지 못했습니다.")
+}
+
+async function fetchProposalPrefill(salesActivityRequestId: number) {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/proposals/pre-fill?salesActivityRequestId=${salesActivityRequestId}`,
+    {
+      headers: buildAuthHeaders(),
+      credentials: "include",
+      cache: "no-store",
+    },
+  )
+
+  return parseApiResponse<BackendProposalPrefillItem>(response, "제안서 기본 정보를 불러오지 못했습니다.")
 }
 
 async function uploadProposalFile(file: File) {
@@ -370,6 +418,30 @@ export async function loadBackendProposalDetailById(proposalId: string) {
   return mapProposalDetail(payload, findingData)
 }
 
+export async function loadBackendProposalPrefill(salesActivityRequestId: string | number) {
+  const numericId =
+    typeof salesActivityRequestId === "number"
+      ? salesActivityRequestId
+      : Number.parseInt(String(salesActivityRequestId), 10)
+
+  if (Number.isNaN(numericId)) {
+    throw new Error("활동 요청 ID가 올바르지 않습니다.")
+  }
+
+  const payload = await fetchProposalPrefill(numericId)
+  return {
+    customerCode: payload.customerCompanyCode ?? "",
+    customerName: payload.customerCompanyName ?? "",
+    opportunityCode: payload.projectOpportunityCode ?? "",
+    opportunityName: payload.projectOpportunityName ?? "",
+    productGroup: mapProjectTypeToFrontend(payload.projectType),
+    proposalType: mapProposalTypeToFrontend(payload.proposalType),
+    requestDate: toDateString(payload.requestDate),
+    proposalDeadline: toDateString(payload.proposalDeadLine),
+    salesRep: payload.requestUserName ?? "",
+  } satisfies ProposalBackendPrefill
+}
+
 export async function saveBackendProposal(input: ProposalSaveInput) {
   const projectOpportunityId = await resolveProjectOpportunityId({
     projectOpportunityId: input.projectOpportunityId,
@@ -385,6 +457,7 @@ export async function saveBackendProposal(input: ProposalSaveInput) {
 
   const uploadedFileIds = await uploadProposalFiles(input.files ?? [])
   const fileIds = Array.from(new Set([...(input.existingFileIds ?? []), ...uploadedFileIds]))
+  const shouldComplete = fileIds.length > 0
   const salesActivityRequestId = (() => {
     if (!input.requestId) return undefined
     const parsed = Number.parseInt(input.requestId, 10)
@@ -404,7 +477,7 @@ export async function saveBackendProposal(input: ProposalSaveInput) {
       body: JSON.stringify({
         projectOpportunityId,
         salesActivityRequestId,
-        status: "COMPLETED",
+        status: shouldComplete ? "COMPLETED" : undefined,
         fileIds: fileIds.length > 0 ? fileIds : undefined,
       }),
     })
@@ -427,24 +500,36 @@ export async function saveBackendProposal(input: ProposalSaveInput) {
     })
 
     proposalId = await parseApiResponse<number>(createResponse, "제안서를 등록하지 못했습니다.")
+    if (shouldComplete) {
+      try {
+        const updateResponse = await fetch(`${getBackendApiBaseUrl()}/proposals/${proposalId}`, {
+          method: "PUT",
+          headers: {
+            ...buildAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          cache: "no-store",
+          body: JSON.stringify({
+            projectOpportunityId,
+            salesActivityRequestId,
+            status: "COMPLETED",
+            fileIds: fileIds.length > 0 ? fileIds : undefined,
+          }),
+        })
 
-    const updateResponse = await fetch(`${getBackendApiBaseUrl()}/proposals/${proposalId}`, {
-      method: "PUT",
-      headers: {
-        ...buildAuthHeaders(),
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      cache: "no-store",
-      body: JSON.stringify({
-        projectOpportunityId,
-        salesActivityRequestId,
-        status: "COMPLETED",
-        fileIds: fileIds.length > 0 ? fileIds : undefined,
-      }),
-    })
-
-    await parseApiResponse<number>(updateResponse, "제안서를 저장하지 못했습니다.")
+        await parseApiResponse<number>(updateResponse, "제안서를 저장하지 못했습니다.")
+      } catch (error) {
+        try {
+          if (proposalId != null) {
+            await deleteBackendProposal(String(proposalId))
+          }
+        } catch {
+          // 생성 후 완료 처리 실패 시 정리는 시도만 하고, 원래 에러를 우선 반환한다.
+        }
+        throw error
+      }
+    }
   }
   await loadBackendProposals()
   return String(proposalId)

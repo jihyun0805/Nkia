@@ -24,7 +24,14 @@ import { type ActivityRequestRecord } from "@/lib/activity-data"
 import { type ProposalProductGroup, type ProposalRecord, type ProposalType } from "@/lib/bid-data"
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { loadBackendFindingData, type FindingBackendData } from "@/lib/finding-backend"
-import { loadBackendProposalDetailById, loadBackendProposals, saveBackendProposal, type ProposalBackendDetail } from "@/lib/proposal-backend"
+import {
+  loadBackendProposalDetailById,
+  loadBackendProposalPrefill,
+  loadBackendProposals,
+  saveBackendProposal,
+  type ProposalBackendDetail,
+  type ProposalBackendPrefill,
+} from "@/lib/proposal-backend"
 import { currentUser } from "@/lib/current-user"
 import { useBackendUsers } from "@/lib/use-backend-users"
 import { resolveUserId } from "@/lib/user-utils"
@@ -99,6 +106,7 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
   const selectedSalesRepId = resolveUserId(form.salesRep, users)
   const proposalDetailAppliedRef = useRef(false)
   const initialRequestAppliedRef = useRef(false)
+  const requestPrefillSequenceRef = useRef(0)
 
   // 챗봇 create_draft 액션 prefill
   const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -249,9 +257,7 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
   }, [initialRequestId])
 
   function resolveCustomerFromRequest(request: ActivityRequestRecord) {
-    const byCode = request.customerCode
-      ? findingData.customers.find((item) => item.id === request.customerCode)
-      : null
+    const byCode = request.customerCode ? findingData.customers.find((item) => item.id === request.customerCode) : null
     if (byCode) return byCode
 
     const byName = request.customer
@@ -284,6 +290,79 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     if (byName) return byName
 
     return null
+  }
+
+  function applyRequestFallback(request: ActivityRequestRecord) {
+    const matchedCustomer = resolveCustomerFromRequest(request)
+    const matchedOpportunity = resolveOpportunityFromRequest(request, matchedCustomer?.id)
+    const resolvedCustomerCode = matchedCustomer?.id ?? matchedOpportunity?.customerCode ?? request.customerCode ?? ""
+    const resolvedCustomerName = matchedCustomer?.name ?? request.customer ?? ""
+    const resolvedOpportunityCode = matchedOpportunity?.id ?? request.opportunityCode ?? ""
+    const resolvedOpportunityName = matchedOpportunity?.name ?? request.opportunity ?? ""
+
+    setForm((current) => ({
+      ...current,
+      requestId: request.id,
+      customerCode: resolvedCustomerCode || current.customerCode,
+      customerName: resolvedCustomerName || current.customerName,
+      opportunityCode: resolvedOpportunityCode || current.opportunityCode,
+      opportunityName: resolvedOpportunityName || current.opportunityName,
+      proposalType: toProposalType(request.type),
+      productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
+      requestDate: request.date,
+      proposalDeadline: request.dueDate,
+      salesRep: matchedOpportunity?.salesRep ?? current.salesRep,
+      contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
+    }))
+  }
+
+  function applyRequestPrefill(prefill: ProposalBackendPrefill, request?: ActivityRequestRecord) {
+    const matchedCustomer =
+      findingData.customers.find((item) => item.id === prefill.customerCode) ??
+      findingData.customers.find((item) => normalizeLookupText(item.name) === normalizeLookupText(prefill.customerName))
+    const matchedOpportunity =
+      findingData.opportunities.find((item) => item.id === prefill.opportunityCode) ??
+      findingData.opportunities.find((item) => normalizeLookupText(item.name) === normalizeLookupText(prefill.opportunityName))
+
+    setForm((current) => ({
+      ...current,
+      requestId: request?.id ?? current.requestId,
+      customerCode: prefill.customerCode || matchedCustomer?.id || current.customerCode,
+      customerName: prefill.customerName || matchedCustomer?.name || current.customerName,
+      opportunityCode: prefill.opportunityCode || matchedOpportunity?.id || current.opportunityCode,
+      opportunityName: prefill.opportunityName || matchedOpportunity?.name || current.opportunityName,
+      proposalType: prefill.proposalType || current.proposalType,
+      productGroup:
+        prefill.productGroup ||
+        (matchedOpportunity?.product as ProposalProductGroup | undefined) ||
+        current.productGroup,
+      requestDate: prefill.requestDate || request?.date || current.requestDate,
+      proposalDeadline: prefill.proposalDeadline || request?.dueDate || current.proposalDeadline,
+      salesRep: prefill.salesRep || current.salesRep,
+      contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
+    }))
+  }
+
+  async function hydrateRequestSelection(requestId: string) {
+    const matchedRequest = availableRequests.find((item) => item.id === requestId)
+    if (!matchedRequest) {
+      setForm((current) => ({ ...current, requestId }))
+      return
+    }
+
+    const requestIdToken = ++requestPrefillSequenceRef.current
+    const numericRequestId = Number.parseInt(requestId, 10)
+    const backendPrefill =
+      Number.isNaN(numericRequestId) ? null : await loadBackendProposalPrefill(numericRequestId).catch(() => null)
+
+    if (requestIdToken !== requestPrefillSequenceRef.current) return
+
+    if (backendPrefill) {
+      applyRequestPrefill(backendPrefill, matchedRequest)
+      return
+    }
+
+    applyRequestFallback(matchedRequest)
   }
 
   const completedRequestIds = new Set(
@@ -339,42 +418,12 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
     const matchedRequest = requests.find((item) => item.id === initialRequestId)
     if (matchedRequest) {
       initialRequestAppliedRef.current = true
-      applyRequest(matchedRequest)
+      void hydrateRequestSelection(matchedRequest.id)
     }
   }, [initialRequestId, proposalDetail, requests, findingData.customers, findingData.opportunities])
 
-  function applyRequest(request: ActivityRequestRecord) {
-    const matchedCustomer = resolveCustomerFromRequest(request)
-    const matchedOpportunity = resolveOpportunityFromRequest(request, matchedCustomer?.id)
-    const resolvedCustomerCode = matchedCustomer?.id ?? matchedOpportunity?.customerCode ?? request.customerCode ?? ""
-    const resolvedCustomerName = matchedCustomer?.name ?? request.customer ?? ""
-    const resolvedOpportunityCode = matchedOpportunity?.id ?? request.opportunityCode ?? ""
-    const resolvedOpportunityName = matchedOpportunity?.name ?? request.opportunity ?? ""
-
-    setForm((current) => ({
-      ...current,
-      requestId: request.id,
-      customerCode: resolvedCustomerCode || current.customerCode,
-      customerName: resolvedCustomerName || current.customerName,
-      opportunityCode: resolvedOpportunityCode || current.opportunityCode,
-      opportunityName: resolvedOpportunityName || current.opportunityName,
-      proposalType: toProposalType(request.type),
-      productGroup: (matchedOpportunity?.product as ProposalProductGroup | undefined) ?? current.productGroup,
-      requestDate: request.date,
-      proposalDeadline: request.dueDate,
-      salesRep: matchedOpportunity?.salesRep ?? current.salesRep,
-      contactName: matchedCustomer?.contactName ?? matchedCustomer?.contact ?? current.contactName,
-    }))
-  }
-
   const handleRequestChange = (requestId: string) => {
-    const matchedRequest = availableRequests.find((item) => item.id === requestId)
-    if (!matchedRequest) {
-      setForm((current) => ({ ...current, requestId }))
-      return
-    }
-
-    applyRequest(matchedRequest)
+    void hydrateRequestSelection(requestId)
   }
 
   const handleComplete = () => {
@@ -540,7 +589,7 @@ export function ProposalRegistrationForm({ initialRequestId, proposalId }: Propo
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
             <div className="space-y-1">
               <Label>첨부파일</Label>
-              <p className="text-sm text-muted-foreground">제안서와 함께 올릴 파일을 선택하세요.</p>
+              <p className="text-sm text-muted-foreground">제안서를 업로드해주세요.</p>
             </div>
             <Input
               type="file"

@@ -27,9 +27,9 @@ import { CustomerAutocomplete } from "@/components/erp/entity-customer-autocompl
 import { QuotationSheet, createEmptyQuotationForm, normalizeQuotationForm, type QuotationFormState } from "@/components/erp/quotation-sheet"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { activityRequestTypeOptions, type ActivityCategory, type ActivityRequestRecord, getCategoryLabel } from "@/lib/activity-data"
-import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow"
 import {
   type CustomerRecord,
+  type OpportunityRecord,
   getCustomerByCode,
   getCustomerByName,
   hasRegisteredCustomer,
@@ -40,7 +40,7 @@ import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { X } from "lucide-react"
 import { currentUser } from "@/lib/current-user"
 import { createBackendActivityRecord } from "@/lib/sales-activity-backend"
-import { createBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
+import { createBackendActivityRequest, loadBackendActivityRequest, loadBackendActivityRequests } from "@/lib/sales-activity-request-backend"
 import { type EntitySuggestion } from "@/lib/entity-suggestions-api"
 import { createBackendQuotationRecord, getQuotationCreateBlockReason } from "@/lib/sales-quotation-backend"
 import { findUserByToken, formatUserDisplayName } from "@/lib/user-utils"
@@ -126,12 +126,9 @@ function ActivityCategoryNewPageContent() {
     category === "activities"
       ? findCustomerByNameOrCode(findingData.customers, activityCustomer, activityCustomerCode)
       : null
-  const requestOpportunitySelectOptions = requestOpportunityOptions.filter(
-    (item): item is ProjectOpportunitySummaryResponse & { id: number } => typeof item.id === "number",
-  )
-  const linkedRequestBackendId =
-    linkedRequest?.backendId ??
-    (linkedRequestId && /^\d+$/.test(linkedRequestId) ? Number(linkedRequestId) : undefined)
+    const linkedRequestBackendId =
+      linkedRequest?.backendId ??
+      (linkedRequestId && /^\d+$/.test(linkedRequestId) ? Number(linkedRequestId) : undefined)
   const resolveSelectedActivityOpportunity = (value: string, code?: string) => {
     const normalizedValue = value.trim().toLowerCase()
     const normalizedCode = code?.trim().toLowerCase()
@@ -199,8 +196,8 @@ function ActivityCategoryNewPageContent() {
         ...prev,
         customerCode: slot.customer_code || prev.customerCode,
         customer: slot.customer_name || prev.customer,
-        opportunityCode: slot.opportunity_code || prev.opportunityCode,
-        opportunity: slot.opportunity_name || prev.opportunity,
+        opportunityCode: "",
+        opportunity: "",
         title: slot.title || slot.request_title || prev.title,
         requester: slot.requested_by || prev.requester,
         content: slot.summary || prev.content,
@@ -246,7 +243,7 @@ function ActivityCategoryNewPageContent() {
 
     let cancelled = false
 
-    const sync = (requests = getActivityRequests()) => {
+    const sync = (requests: ActivityRequestRecord[]) => {
       if (cancelled) return
       if (!linkedRequestId) return
 
@@ -274,12 +271,9 @@ function ActivityCategoryNewPageContent() {
 
     loadBackendActivityRequests()
       .then((requests) => sync(requests))
-      .catch(() => sync())
-
-    const unsubscribe = subscribeWorkflowUpdates(() => sync())
+      .catch(() => sync([]))
     return () => {
       cancelled = true
-      unsubscribe()
     }
   }, [category, linkedRequestId])
 
@@ -361,7 +355,7 @@ function ActivityCategoryNewPageContent() {
 
     let cancelled = false
 
-    const sync = (requests = getActivityRequests()) => {
+    const sync = (requests: ActivityRequestRecord[]) => {
       if (cancelled) return
 
       if (!selectedActivityRequestId) {
@@ -402,18 +396,14 @@ function ActivityCategoryNewPageContent() {
         }
         sync(requests)
       })
-      .catch(() => sync())
-
-    const unsubscribe = subscribeWorkflowUpdates(() => {
-      const requests = getActivityRequests()
-      if (!cancelled) {
-        setActivityRequests(requests)
-      }
-      sync(requests)
-    })
+      .catch(() => {
+        if (!cancelled) {
+          setActivityRequests([])
+        }
+        sync([])
+      })
     return () => {
       cancelled = true
-      unsubscribe()
     }
   }, [category, selectedActivityRequestId])
 
@@ -424,8 +414,8 @@ function ActivityCategoryNewPageContent() {
     setActivityRequester(linkedRequest.requester ?? "")
     setActivityCustomer(linkedRequest.customer ?? "")
     setActivityCustomerCode(linkedRequest.customerCode ?? "")
-    setActivityOpportunity(linkedRequest.opportunity ?? "")
-    setActivityOpportunityCode(linkedRequest.opportunityCode ?? "")
+    setActivityOpportunity("")
+    setActivityOpportunityCode("")
     setActivityForm((prev) => ({
       ...prev,
       date: linkedRequest.dueDate || linkedRequest.date || prev.date,
@@ -441,7 +431,7 @@ function ActivityCategoryNewPageContent() {
   const isProposalRequest =
     category === "quotations" &&
     !!linkedRequestId &&
-    ["제안서 작성", "SI 제안서 작성"].includes(linkedRequest?.type ?? getActivityRequests().find((item) => item.id === linkedRequestId)?.type ?? "")
+    ["제안서 작성", "SI 제안서 작성"].includes(linkedRequest?.type ?? "")
   const registrationTitle = category === "activities" ? "활동" : category === "quotations" && isProposalRequest ? "제안서" : title
 
   const targetCustomer =
@@ -759,7 +749,7 @@ function ActivityCategoryNewPageContent() {
                     onCustomerValueChange={handleActivityCustomerValueChange}
                     onUnregisteredCustomerAttempt={() => setIsCustomerAlertOpen(true)}
                     opportunityValue={activityOpportunity}
-                    opportunityOptions={activityOpportunityOptions}
+                    opportunityOptions={activityOpportunityOptions as unknown as OpportunityRecord[]}
                     onOpportunityChange={handleActivityOpportunityChange}
                     onOpportunitySuggestionSelect={handleActivityOpportunitySuggestionSelect}
                     opportunitySelectionOnly
@@ -827,37 +817,7 @@ function ActivityCategoryNewPageContent() {
                           onSelect={handleRequestCustomerSelection}
                           placeholder="고객사를 입력하세요"
                           onUnregisteredAttempt={() => setIsCustomerAlertOpen(true)}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>사업기회</Label>
-                        <Select
-                          value={form.opportunityCode || "미확인"}
-                          onValueChange={selectedRequestCustomer ? handleRequestOpportunityChange : undefined}
-                          disabled={!selectedRequestCustomer || isRequestOpportunityLoading}
-                        >
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={
-                                !selectedRequestCustomer
-                                  ? "고객사를 먼저 입력하세요"
-                                  : isRequestOpportunityLoading
-                                    ? "사업기회를 불러오는 중입니다"
-                                    : "사업기회를 선택하세요"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {requestOpportunitySelectOptions.map((item) => (
-                              <SelectItem key={item.id} value={String(item.id)}>
-                                {item.opportunityName ?? item.opportunityCode ?? item.id}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="미확인">미확인</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">

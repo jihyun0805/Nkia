@@ -17,7 +17,6 @@ import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } 
 import { loadBackendActivityRecords } from "@/lib/sales-activity-backend";
 import { type ActivityRecord, activityRequestStatusOptions, activityRequestTypeOptions, activityStatuses } from "@/lib/activity-data";
 import { useEffect, useMemo, useState } from "react";
-import { getActivityRequests, subscribeWorkflowUpdates } from "@/lib/activity-request-workflow";
 import { loadBackendActivityRequests } from "@/lib/sales-activity-request-backend";
 import { getQuotationDisplayStatus } from "@/lib/quotation-workflow";
 import { loadBackendQuotationRecords } from "@/lib/sales-quotation-backend";
@@ -67,7 +66,7 @@ export default function ActivityPage() {
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<ActivityTab>(getInitialActivityTab);
   const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([]);
-  const [activityRequests, setActivityRequests] = useState<ReturnType<typeof getActivityRequests>>([]);
+  const [activityRequests, setActivityRequests] = useState<Awaited<ReturnType<typeof loadBackendActivityRequests>>>([]);
   const [quotationRecords, setQuotationRecords] = useState<Awaited<ReturnType<typeof loadBackendQuotationRecords>>>(
     [],
   );
@@ -114,12 +113,6 @@ export default function ActivityPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const sync = () => {
-      if (!cancelled) {
-        setActivityRequests(getActivityRequests());
-      }
-    };
-
     loadBackendActivityRequests()
       .then((requests) => {
         if (!cancelled) {
@@ -127,13 +120,12 @@ export default function ActivityPage() {
         }
       })
       .catch(() => {
-        sync();
+        if (!cancelled) {
+          setActivityRequests([]);
+        }
       });
-
-    const unsubscribe = subscribeWorkflowUpdates(sync);
     return () => {
       cancelled = true;
-      unsubscribe();
     };
   }, []);
 
