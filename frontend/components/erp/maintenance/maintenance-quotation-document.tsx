@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useForm, useFieldArray, useWatch, Controller } from "react-hook-form";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
@@ -76,7 +76,7 @@ const SERVICE_TEMPLATE = [
   { category: "추가 서비스", item: "재구축", defaultContent: "", editable: true },
   { category: "추가 서비스", item: "기능개선", defaultContent: "", editable: true },
   { category: "추가 서비스", item: "기타 지원 서비스", defaultContent: "- 설정 변경 및 추가 설정 작업, Agent 재설치 및 이관 설치, 등의 운영 업무\n- 정기 PM 작업", editable: false },
-  { category: "교육서비스", item: "사용자, 운영자 교육", defaultContent: "연 1회 지원 (요청 시)", editable: false },
+  { category: "교육 서비스", item: "사용자, 운영자 교육", defaultContent: "연 1회 지원 (요청 시)", editable: false },
 ] as const;
 
 // 구분 컬럼 rowspan 맵 (렌더링할 인덱스 → rowspan 수)
@@ -97,7 +97,14 @@ interface FormValues {
   packageCosts: Array<{ packageName: string; amount: string }>;
   serviceProductId: string;
   serviceInfos: Array<{ productId: string; category: string; item: string; content: string }>;
-  amountReasons: Array<{ productId: string; quantity: string; amount: string; months: string; remarks: string }>;
+  amountReasons: Array<{
+    productGroup?: string;
+    productId: string;
+    quantity: string;
+    amount: string;
+    months: string;
+    remarks: string;
+  }>;
 }
 
 interface MaintenanceQuotationDocumentProps {
@@ -108,15 +115,23 @@ interface MaintenanceQuotationDocumentProps {
 }
 
 // 공통 CSS
-const TH = "border border-gray-400 bg-gray-100 px-2 py-1.5 text-center text-[12px] font-semibold whitespace-nowrap";
-const TD = "border border-gray-400 px-2 py-1.5 text-[12px]";
-const INLINE = "bg-transparent border-0 border-b border-blue-500 text-blue-700 underline text-[13px] focus:outline-none w-full";
-const PLAIN = "bg-transparent border-0 border-b border-gray-400 text-[13px] focus:outline-none w-full";
+const TH = "border border-gray-400 bg-gray-100 px-2 py-2.5 text-center text-[15px] font-semibold whitespace-nowrap";
+const TD = "border border-gray-400 px-2 py-2.5 text-[15px]";
+const INLINE = "bg-transparent border-0 border-b border-blue-500 text-blue-700 underline text-[16px] focus:outline-none w-full";
+const PLAIN = "bg-transparent border-0 border-b border-gray-400 text-[16px] focus:outline-none w-full";
 
 export default function MaintenanceQuotationDocument({ mode, onSubmit, initialData, isSubmitting = false }: MaintenanceQuotationDocumentProps) {
+  const blockNumberSpin = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+    }
+  };
+
   const [projects, setProjects] = useState<ProjectListResponse[]>([]);
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [products, setProducts] = useState<ProductModuleResponse[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
   const isReadOnly = mode === "view";
   const today = new Date().toISOString().split("T")[0];
 
@@ -125,6 +140,7 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: {
@@ -146,7 +162,13 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
     },
   });
   const v = watch();
+  const watchAmountReasons = useWatch({ control, name: "amountReasons" });
+  const watchStartDate = watch("startDate");
+  const watchEndDate = watch("endDate");
+  const watchProjectId = watch("projectId");
+  const watchSalesRepId = watch("coverInfo.salesRepresentativeId");
 
+  const watchPackageCosts = watch("packageCosts");
   const { fields: pkgF, append: pkgAdd, remove: pkgDel } = useFieldArray({ control, name: "packageCosts" });
   const { fields: svcF } = useFieldArray({ control, name: "serviceInfos" });
   const { fields: amtF, append: amtAdd, remove: amtDel } = useFieldArray({ control, name: "amountReasons" });
@@ -161,10 +183,74 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
       .catch(() => {});
   }, []);
 
-  const selProject = useMemo(() => projects.find((p) => String(p.id) === v.projectId), [projects, v.projectId]);
-  const selSalesRep = useMemo(() => users.find((u) => u.id === v.coverInfo?.salesRepresentativeId), [users, v.coverInfo?.salesRepresentativeId]);
-  const months = useMemo(() => monthDiff(v.startDate, v.endDate), [v.startDate, v.endDate]);
-  const amtTotal = useMemo(() => (v.amountReasons ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0), [v.amountReasons]);
+  const selProject = useMemo(() => projects.find((p) => String(p.id) === watchProjectId), [projects, watchProjectId]);
+  const selSalesRep = useMemo(() => users.find((u) => u.id === watchSalesRepId), [users, watchSalesRepId]);
+  const months = useMemo(() => monthDiff(watchStartDate, watchEndDate), [watchStartDate, watchEndDate]);
+  const amtTotal = useMemo(() => (watchAmountReasons ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0), [watchAmountReasons]);
+
+  const calculatedMonthly = useMemo(() => {
+    if (amtTotal > 0 && months > 0) {
+      return Math.floor(amtTotal / months / 1000) * 1000;
+    }
+    return 0;
+  }, [amtTotal, months]);
+
+  // 견적 금액 합계 = 월 공급가 × 개월수
+  const totalQuotation = useMemo(() => calculatedMonthly * months, [calculatedMonthly, months]);
+
+  // amountReasons productGroup별 자동 집계 (요약 테이블 행)
+  const summaryPackageCosts = useMemo(() => {
+    const map = new Map<string, number>();
+    (watchAmountReasons ?? []).forEach((r) => {
+      const group = r.productGroup || "미지정";
+      const amt = Number(r.amount) || 0;
+      if (amt > 0) map.set(group, (map.get(group) || 0) + amt);
+    });
+    return Array.from(map.entries()).map(([packageName, amount]) => ({ packageName, amount }));
+  }, [watchAmountReasons]);
+
+  // 고유한 productGroup(구분) 목록 추출
+  const productGroups = useMemo(() => {
+    const groups = products.map((p) => p.productGroup).filter(Boolean);
+    return Array.from(new Set(groups));
+  }, [products]);
+
+  // 개월수 자동 동기화
+  useEffect(() => {
+    if (months > 0 && watchAmountReasons && watchAmountReasons.length > 0) {
+      watchAmountReasons.forEach((_, idx) => {
+        setValue(`amountReasons.${idx}.months`, String(months));
+      });
+    }
+  }, [months, watchAmountReasons?.length, setValue]);
+
+  // 로드 타임에 기존 productId로부터 productGroup 식별하여 채워주는
+  useEffect(() => {
+    if (products.length > 0 && v.amountReasons && v.amountReasons.length > 0) {
+      v.amountReasons.forEach((item, idx) => {
+        if (item.productId && item.productId !== "__none__" && !item.productGroup) {
+          const p = products.find((prod) => String(prod.id) === String(item.productId));
+          if (p?.productGroup) {
+            setValue(`amountReasons.${idx}.productGroup`, p.productGroup);
+          }
+        }
+      });
+    }
+  }, [products, v.amountReasons, setValue]);
+
+  // 금액산출근거표 최소 1줄 자동 작성 상태 보장
+  useEffect(() => {
+    if (!isReadOnly && amtF.length === 0) {
+      amtAdd({ productGroup: "", productId: "", quantity: "", amount: "", months: String(months || 12), remarks: "" });
+    }
+  }, [amtF.length, isReadOnly, months, amtAdd]);
+
+  // 금액 요약 테이블 최소 1줄 자동 작성 상태 보장
+  useEffect(() => {
+    if (!isReadOnly && pkgF.length === 0) {
+      pkgAdd({ packageName: "", amount: "" });
+    }
+  }, [pkgF.length, isReadOnly, pkgAdd]);
 
   const onFormSubmit = (vals: FormValues) => {
     if (!onSubmit) return;
@@ -172,11 +258,11 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
       projectId: Number(vals.projectId),
       quotationDate: vals.quotationDate,
       paymentTerms: vals.paymentTerms,
-      totalAmount: Number(vals.totalAmount),
+      totalAmount: amtTotal,
       startDate: vals.startDate,
       endDate: vals.endDate,
-      monthlySupplyPrice: Number(vals.monthlySupplyPrice),
-      totalQuotationAmount: Number(vals.totalQuotationAmount),
+      monthlySupplyPrice: calculatedMonthly,
+      totalQuotationAmount: amtTotal,
       specialNotes: vals.specialNotes || undefined,
     };
     const ci = vals.coverInfo;
@@ -187,7 +273,7 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
         productFamily: ci.productFamily as "EMS" | "ITSM" | "AUTOMATION" | "WSS",
       };
     }
-    if (vals.packageCosts.length) req.packageCosts = vals.packageCosts.map((p) => ({ packageName: p.packageName, amount: Number(p.amount) }));
+    if (summaryPackageCosts.length) req.packageCosts = summaryPackageCosts.map((p) => ({ packageName: p.packageName, amount: p.amount }));
     const filledServiceInfos = vals.serviceInfos.filter((s) => s.content.trim());
     if (filledServiceInfos.length)
       req.serviceInfos = filledServiceInfos.map((s) => ({
@@ -229,7 +315,7 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
           ) : (
             <Select onValueChange={f.onChange} value={f.value}>
               <SelectTrigger
-                className={`h-6 text-[13px] border-0 border-b ${blue ? "border-blue-500 text-blue-700 underline" : "border-gray-400"} rounded-none bg-transparent shadow-none focus:ring-0 px-0`}
+                className={`h-8 text-[16px] border-0 border-b ${blue ? "border-blue-500 text-blue-700 underline" : "border-gray-400"} rounded-none bg-transparent shadow-none focus:ring-0 px-0`}
               >
                 <SelectValue placeholder={placeholder} />
               </SelectTrigger>
@@ -255,7 +341,7 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
           {/* ─── 사업 선택 ─── */}
           {!isReadOnly && (
             <div className="px-10 pt-6 pb-5 border-b border-gray-200">
-              <p className="text-[13px] font-semibold text-gray-700 mb-2">
+              <p className="text-[16px] font-semibold text-gray-700 mb-2">
                 사업 선택 <span className="text-red-500">*</span>
               </p>
               <Controller
@@ -264,7 +350,7 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
                 rules={{ required: "사업을 선택해주세요" }}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="h-9 text-[13px] border border-gray-300 rounded-md bg-white max-w-[480px]">
+                    <SelectTrigger className="h-10 text-[16px] border border-gray-300 rounded-md bg-white max-w-[480px]">
                       <SelectValue placeholder="사업을 선택하세요" />
                     </SelectTrigger>
                     <SelectContent>
@@ -278,9 +364,9 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
                   </Select>
                 )}
               />
-              {errors.projectId && <p className="text-[11px] text-red-500 mt-1">{errors.projectId.message}</p>}
+              {errors.projectId && <p className="text-[13.5px] text-red-500 mt-1">{errors.projectId.message}</p>}
               {selProject && (
-                <div className="mt-2 flex gap-6 text-[12px] text-gray-500">
+                <div className="mt-2 flex gap-6 text-[14.5px] text-gray-500">
                   <span>
                     고객사 : <strong className="text-gray-800">{selProject.customerName}</strong>
                   </span>
@@ -294,24 +380,24 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
 
           {/* ─── 최상단 바 ─── */}
           <div className="px-10 pt-5 pb-2">
-            <span className="text-[11px] text-gray-600">(주) 엔키아&nbsp;&nbsp;www.nkia.co.kr</span>
+            <span className="text-[13.5px] text-gray-600">(주) 엔키아 www.nkia.co.kr</span>
           </div>
 
           {/* ─── 제목 ─── */}
           <div className="text-center mt-2 mb-3">
             <h1 className="text-[38px] font-bold tracking-[0.55em] inline-block">見 積 書</h1>
-            <p className="text-[11px] text-gray-600 mt-0.5">Ref No : 자동생성</p>
+            <p className="text-[13.5px] text-gray-600 mt-0.5">Ref No : 자동생성</p>
           </div>
 
           <div className="flex gap-0 px-10 pb-5">
-            <div className="flex-1 pr-6 space-y-2 text-[13px]">
+            <div className="flex-1 pr-6 space-y-2 text-[16px]">
               {/* 수신처 — 사업 선택 시 자동 입력 */}
               <div className="flex items-baseline gap-1">
-                <span className="text-blue-700 underline font-semibold text-[15px]">{selProject?.customerName || (isReadOnly ? "○○사" : "고객사")}</span>
-                <span className="text-[14px] font-semibold ml-0.5">귀중</span>
+                <span className="text-blue-700 underline font-semibold text-[19px]">{selProject?.customerName || (isReadOnly ? "○○사" : "고객사")}</span>
+                <span className="text-[18px] font-semibold ml-0.5">귀중</span>
               </div>
 
-              <p className="text-[12px] text-gray-600">아래와 같이 견적합니다. (견적일로부터 3개월간 유효)</p>
+              <p className="text-[15px] text-gray-600">아래와 같이 견적합니다. (견적일로부터 3개월간 유효)</p>
 
               <div className="h-2" />
 
@@ -329,39 +415,30 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
               <div className="flex items-baseline gap-2">
                 <span className="whitespace-nowrap">대금결제조건 :</span>
                 {isReadOnly ? <span>{v.paymentTerms}</span> : <input className={PLAIN + " max-w-[200px]"} placeholder="예) 현금" {...register("paymentTerms", { required: true })} />}
-                {errors.paymentTerms && <span className="text-[10px] text-red-500 ml-1">필수</span>}
+                {errors.paymentTerms && <span className="text-[13px] text-red-500 ml-1">필수</span>}
               </div>
 
               <div className="h-1" />
 
               {/* 사업명 — 선택된 프로젝트에서 자동 입력 */}
-              <p>
+              <p className="text-[18px] font-semibold">
                 사업명:&nbsp;<span>{selProject?.projectName || (isReadOnly ? "─" : "─")}</span>
               </p>
 
-              <div className="h-1" />
+              <div className="h-1 font-semibold" />
 
               {/* 합계금액 */}
               <div>
-                <span className="font-semibold">"합계금액"</span>&nbsp;:&nbsp;
-                {isReadOnly ? (
-                  <span className="text-blue-700 underline">일금&nbsp;{numberToKorean(Number(v.totalQuotationAmount))}원정 (부가세별도)</span>
-                ) : (
-                  <span className="inline-flex items-baseline gap-1">
-                    일금&nbsp;
-                    <input type="number" min="0" className={INLINE + " max-w-[180px] inline"} placeholder="금액 입력" {...register("totalQuotationAmount", { required: true, min: 0 })} />
-                    &nbsp;원정 (부가세별도)
-                  </span>
-                )}
+                <span className="font-semibold text-[20px]">"합계금액"</span>&nbsp;:&nbsp;
+                <span className="text-blue-700 underline font-semibold text-[20px]">{totalQuotation > 0 ? totalQuotation.toLocaleString("ko-KR") : "0"}&nbsp;원 (부가세별도)</span>
               </div>
-              {Number(v.totalQuotationAmount) > 0 && <p className="text-[11px] text-blue-600 pl-16">({numberToKorean(Number(v.totalQuotationAmount))}원)</p>}
 
               <div className="h-1" />
             </div>
 
             {/* 발신 회사 정보 박스 */}
-            <div className="border border-gray-500 text-[12px] leading-6 px-4 py-3 min-w-[240px] max-w-[260px]">
-              <p className="font-bold text-[13px] text-center mb-1">(주) 엔키아</p>
+            <div className="border border-gray-500 text-[14.5px] leading-[1.8] px-5 py-5 min-w-[310px] max-w-[340px]">
+              <p className="font-bold text-[20px] text-left mb-1.5">(주) 엔키아</p>
               <p>경기도 성남시 분당구 대왕판교로 660</p>
               <p>유스페이스1 B동 10층</p>
               <p>대표이사 : 이 일 섭</p>
@@ -375,117 +452,75 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
 
           {/* ─── 금액 요약 테이블 ─── */}
           <div className="px-10 pb-4">
-            {/* 기간 헤더 */}
-            <div className="flex justify-between items-center mb-1 text-[12px]">
-              <span>
-                유지보수 기간 :&nbsp;
+            {/* 기간 헤더 (행 추가 버튼 제거 및 단위 표시만 남김) */}
+            <div className="flex justify-between items-center mb-1 text-[15px]">
+              <span className="inline-flex items-center flex-wrap gap-x-2">
+                <span className="font-semibold text-gray-800">유지보수 기간 :</span>
                 {isReadOnly ? (
-                  <span>
-                    {koreanDate(v.startDate)} ~ {koreanDate(v.endDate)}
-                    {months > 0 ? ` (${months}개월)` : ""}
+                  <span className="inline-flex items-center">
+                    {koreanDate(watchStartDate)} ~ {koreanDate(watchEndDate)}
+                    {months > 0 && <span className="text-blue-600 font-semibold ml-2 whitespace-nowrap">({months}개월)</span>}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-2">
                     <input type="date" className={PLAIN + " w-[140px] inline"} {...register("startDate", { required: true })} />
                     <span>~</span>
                     <input type="date" className={PLAIN + " w-[140px] inline"} {...register("endDate", { required: true })} />
-                    {months > 0 && <span className="text-gray-500">({months}개월)</span>}
+                    {months > 0 && <span className="text-blue-600 font-semibold ml-1 whitespace-nowrap">({months}개월)</span>}
                   </span>
                 )}
               </span>
-              <span className="text-[11px] text-gray-500">(단위 : 원, VAT 별도)</span>
+              <div className="flex items-center gap-4">
+                <span className="text-[13.5px] text-gray-500">(단위 : 원, VAT 별도)</span>
+              </div>
             </div>
 
-            <table className="w-full border-collapse text-[13px] table-fixed">
+            <table className="w-full border-collapse text-[16px] table-fixed">
               <colgroup>
                 <col style={{ width: "75%" }} />
-                <col />
-                {!isReadOnly && <col style={{ width: "30px" }} />}
+                <col style={{ width: "25%" }} />
               </colgroup>
               <thead>
                 <tr>
                   <th className={TH + " text-left pl-3"}>구 분</th>
                   <th className={TH + " text-right pr-3"}>합 계</th>
-                  {!isReadOnly && <th className="border-0 print:hidden" />}
                 </tr>
               </thead>
               <tbody>
-                {/* packageCosts 행 */}
-                {pkgF.map((f, idx) => (
-                  <tr key={f.id}>
-                    <td className={TD + " pl-3"}>
-                      {isReadOnly ? (
-                        <span>{v.packageCosts?.[idx]?.packageName}</span>
-                      ) : (
-                        <input className={PLAIN} placeholder="패키지 구분명" {...register(`packageCosts.${idx}.packageName`, { required: true })} />
-                      )}
+                {/* amountReasons productGroup별 자동 집계 행 */}
+                {summaryPackageCosts.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className={TD + " text-center text-gray-400 text-[14px] py-3"}>
+                      금액산출근거표에 금액을 입력하면 자동으로 표시됩니다.
                     </td>
-                    <td className={TD + " text-right pr-3"}>
-                      {isReadOnly ? (
-                        <span>{won(v.packageCosts?.[idx]?.amount ?? "0")}</span>
-                      ) : (
-                        <input type="number" min="0" className={PLAIN + " text-right"} placeholder="0" {...register(`packageCosts.${idx}.amount`, { required: true, min: 0 })} />
-                      )}
-                    </td>
-                    {!isReadOnly && (
-                      <td className="border-0 text-center print:hidden">
-                        <button type="button" onClick={() => pkgDel(idx)} className="text-red-400 hover:text-red-600 p-0.5">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                  </tr>
+                ) : (
+                  summaryPackageCosts.map((item, idx) => (
+                    <tr key={idx} className="border-b border-gray-400">
+                      <td className={TD + " pl-3"}>
+                        <span>{item.packageName}</span>
                       </td>
-                    )}
-                  </tr>
-                ))}
-                {/* 추가 버튼 행 */}
-                {!isReadOnly && (
-                  <tr className="print:hidden">
-                    <td colSpan={3} className="border border-gray-400 bg-gray-50 text-center py-1">
-                      <button type="button" onClick={() => pkgAdd({ packageName: "", amount: "0" })} className="text-[11px] text-blue-600 hover:text-blue-800 flex items-center gap-1 mx-auto">
-                        <Plus className="w-3 h-3" /> 구분 행 추가
-                      </button>
-                    </td>
-                  </tr>
+                      <td className={TD + " text-right pr-3"}>
+                        <span>{won(item.amount)}</span>
+                      </td>
+                    </tr>
+                  ))
                 )}
-                {/* 빈 구분 행 */}
-                <tr>
-                  <td className={TD + " bg-white py-2"} colSpan={isReadOnly ? 2 : 3}>
-                    &nbsp;
-                  </td>
-                </tr>
-
-                {/* 총 금액 (totalAmount) */}
-                <tr>
-                  <td className={TD + " bg-gray-50 font-semibold pl-3"}>총 금액 (합산 금액)</td>
-                  <td className={TD + " text-right font-semibold pr-3 bg-gray-50"}>
-                    {isReadOnly ? (
-                      <span>{won(v.totalAmount)}</span>
-                    ) : (
-                      <input type="number" min="0" className={PLAIN + " text-right font-semibold"} placeholder="0" {...register("totalAmount", { required: true, min: 0 })} />
-                    )}
-                  </td>
-                  {!isReadOnly && <td className="border-0 print:hidden" />}
-                </tr>
 
                 {/* 월 공급가 */}
                 <tr>
                   <td className={TD + " bg-gray-100 font-bold pl-3"}>월 공급가 (천원 미만 절사)</td>
                   <td className={TD + " text-right font-bold pr-3 bg-gray-100"}>
-                    {isReadOnly ? (
-                      <span>{won(v.monthlySupplyPrice)}</span>
-                    ) : (
-                      <input type="number" min="0" className={PLAIN + " text-right font-bold"} placeholder="0" {...register("monthlySupplyPrice", { required: true, min: 0 })} />
-                    )}
+                    <span>{won(calculatedMonthly)}</span>
                   </td>
-                  {!isReadOnly && <td className="border-0 print:hidden" />}
                 </tr>
 
-                {/* 견적 금액 합계 */}
+                {/* 견적 금액 합계 = 월 공급가 × 개월수 */}
                 <tr>
                   <td className={TD + " bg-gray-100 font-bold pl-3"}>견적 금액 합계{months > 0 ? ` (${months}개월)` : ""}</td>
                   <td className={TD + " text-right font-bold pr-3 bg-gray-100"}>
-                    {isReadOnly ? <span>{won(v.totalQuotationAmount)}</span> : <span className="text-right font-bold block">{won(v.totalQuotationAmount)}</span>}
+                    <span className="text-right font-bold block">{won(totalQuotation)}</span>
                   </td>
-                  {!isReadOnly && <td className="border-0 print:hidden" />}
                 </tr>
               </tbody>
             </table>
@@ -493,23 +528,23 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
 
           {/* ─── [특기사항] ─── */}
           <div className="px-10 pb-5">
-            <p className="font-bold text-[13px] mb-1">[특기사항]</p>
+            <p className="font-bold text-[16px] mb-1">[특기사항]</p>
             {isReadOnly ? (
-              <p className="text-[13px] whitespace-pre-line pl-2 min-h-[60px]">{v.specialNotes || "─"}</p>
+              <p className="text-[16px] whitespace-pre-line pl-2 min-h-[60px]">{v.specialNotes || "─"}</p>
             ) : (
-              <Textarea rows={4} className="text-[13px] border border-gray-400 rounded-none shadow-none focus-visible:ring-0 resize-none" {...register("specialNotes")} />
+              <Textarea rows={4} className="text-[16px] border border-gray-400 rounded-none shadow-none focus-visible:ring-0 resize-none" {...register("specialNotes")} />
             )}
           </div>
 
           {/* ─── 유지보수 서비스내용 ─── */}
           <div className="px-10 pb-8">
-            <p className="font-bold text-[13px] mb-2">유지보수 서비스내용</p>
-            <table className="w-full border-collapse text-[12px] table-fixed">
+            <p className="font-bold text-[16px] mb-2">유지보수 서비스내용</p>
+            <table className="w-full border-collapse text-[15px] table-fixed">
               <colgroup>
-                <col style={{ width: "15%" }} />
+                <col style={{ width: "22%" }} />
                 <col style={{ width: "13%" }} />
                 <col style={{ width: "15%" }} />
-                <col />
+                <col style={{ width: "50%" }} />
               </colgroup>
               <thead>
                 <tr>
@@ -527,7 +562,7 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
                     <tr key={f.id}>
                       {/* 제품명: 첫 행에만 rowspan=10 */}
                       {idx === 0 && (
-                        <td className={TD + " align-middle text-center"} rowSpan={SERVICE_TEMPLATE.length}>
+                        <td className={TD + " align-middle text-center relative"} rowSpan={SERVICE_TEMPLATE.length}>
                           {isReadOnly ? (
                             <span>{products.find((p) => String(p.id) === v.serviceProductId)?.productName ?? "─"}</span>
                           ) : (
@@ -535,19 +570,52 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
                               name="serviceProductId"
                               control={control}
                               render={({ field: ff }) => (
-                                <Select onValueChange={ff.onChange} value={ff.value}>
-                                  <SelectTrigger className="h-6 text-[12px] border-0 border-b border-gray-400 rounded-none bg-transparent shadow-none focus:ring-0 px-0 w-full">
-                                    <SelectValue placeholder="제품 선택" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">─</SelectItem>
-                                    {products.map((p) => (
-                                      <SelectItem key={p.id} value={String(p.id)}>
-                                        {p.productName}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <div className="relative w-full">
+                                  <input
+                                    type="text"
+                                    className="h-8 text-[15px] border-0 border-b border-gray-400 bg-transparent text-center focus:outline-none focus:border-blue-500 w-full placeholder:text-gray-400"
+                                    placeholder="제품명 검색..."
+                                    value={isProductDropdownOpen ? productSearch : (products.find((p) => String(p.id) === ff.value)?.productName ?? "")}
+                                    onFocus={() => {
+                                      setProductSearch("");
+                                      setIsProductDropdownOpen(true);
+                                    }}
+                                    onChange={(e) => setProductSearch(e.target.value)}
+                                  />
+                                  {isProductDropdownOpen && (
+                                    <>
+                                      <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsProductDropdownOpen(false)} />
+                                      <div className="absolute left-0 mt-1 w-64 max-h-60 overflow-y-auto bg-white border border-gray-300 rounded shadow-lg z-50 text-left">
+                                        <div
+                                          className="px-2 py-1.5 hover:bg-gray-100 cursor-pointer text-gray-500 text-[13px] border-b"
+                                          onClick={() => {
+                                            ff.onChange("__none__");
+                                            setIsProductDropdownOpen(false);
+                                          }}
+                                        >
+                                          선택 안함 (─)
+                                        </div>
+                                        {products
+                                          .filter((p) => p.productName.toLowerCase().includes(productSearch.toLowerCase()))
+                                          .map((p) => (
+                                            <div
+                                              key={p.id}
+                                              className="px-2 py-1.5 hover:bg-blue-50 hover:text-blue-700 cursor-pointer text-[15px]"
+                                              onClick={() => {
+                                                ff.onChange(String(p.id));
+                                                setIsProductDropdownOpen(false);
+                                              }}
+                                            >
+                                              {p.productName}
+                                            </div>
+                                          ))}
+                                        {products.filter((p) => p.productName.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
+                                          <div className="px-2 py-3 text-center text-gray-400 text-[13px]">검색 결과가 없습니다.</div>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
                               )}
                             />
                           )}
@@ -567,7 +635,7 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
                         ) : (
                           <Textarea
                             rows={3}
-                            className="text-[12px] text-blue-700 border-0 shadow-none focus-visible:ring-0 resize-none p-0 min-h-[48px] placeholder:text-blue-300"
+                            className="text-[15px] text-blue-700 border-0 shadow-none focus-visible:ring-0 resize-none p-0 min-h-[48px] placeholder:text-blue-300"
                             placeholder="내용을 입력하세요"
                             {...register(`serviceInfos.${idx}.content`)}
                           />
@@ -584,35 +652,34 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
         <div className="bg-white shadow-md rounded-xl border-0 mt-6 print:mt-0">
           {/* 제목 */}
           <div className="text-center pt-8 pb-5">
-            <h2 className="text-[22px] font-bold tracking-[0.4em]">금액산출근거표</h2>
+            <h2 className="text-[26px] font-bold tracking-[0.4em]">금액산출근거표</h2>
           </div>
 
           <div className="px-10 pb-10">
             <div className="flex justify-between items-center mb-1">
-              <span className="text-[13px] font-semibold">1) Solution Package 유지보수</span>
+              <span className="text-[16.5px] font-semibold">1) Solution Package 유지보수</span>
               <div className="flex items-center gap-4">
-                <span className="text-[11px] text-gray-500">(단위 : 원, VAT별도)</span>
+                <span className="text-[13.5px] text-gray-500">(단위 : 원, VAT별도)</span>
                 {!isReadOnly && (
                   <button
                     type="button"
-                    onClick={() => amtAdd({ productId: "", quantity: "1", amount: "0", months: "12", remarks: "" })}
-                    className="text-[11px] text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
+                    onClick={() => amtAdd({ productGroup: "", productId: "", quantity: "", amount: "", months: String(months || 12), remarks: "" })}
+                    className="text-[13.5px] text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
                   >
                     <Plus className="w-3 h-3" /> 행 추가
                   </button>
                 )}
               </div>
             </div>
-            <table className="w-full border-collapse text-[12px] table-fixed">
+            <table className="w-full border-collapse text-[15px] table-fixed bg-white">
               <colgroup>
-                <col style={{ width: "5%" }} />
-                <col style={{ width: "11%" }} />
-                <col />
-                <col style={{ width: "7%" }} />
-                <col style={{ width: "16%" }} />
+                <col style={{ width: "6%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "35%" }} />
                 <col style={{ width: "8%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "9%" }} />
                 <col style={{ width: "12%" }} />
-                {!isReadOnly && <col style={{ width: "30px" }} />}
               </colgroup>
               <thead>
                 <tr>
@@ -623,42 +690,45 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
                   <th className={TH}>유지보수 금액</th>
                   <th className={TH}>개월수</th>
                   <th className={TH}>비고</th>
-                  {!isReadOnly && <th className="border-0 w-7 print:hidden" />}
                 </tr>
               </thead>
               <tbody>
                 {amtF.length === 0 ? (
                   <tr>
-                    <td colSpan={isReadOnly ? 7 : 8} className={TD + " text-center text-gray-400 py-4"}>
+                    <td colSpan={7} className={TD + " text-center text-gray-400 py-4"}>
                       금액 산출 근거가 없습니다.
                     </td>
                   </tr>
                 ) : (
                   amtF.map((f, idx) => {
-                    const prod = products.find((p) => String(p.id) === v.amountReasons?.[idx]?.productId);
-                    const amt = Number(v.amountReasons?.[idx]?.amount ?? 0);
+                    const prod = products.find((p) => String(p.id) === watchAmountReasons?.[idx]?.productId);
+                    const amt = Number(watchAmountReasons?.[idx]?.amount ?? 0);
                     return (
-                      <tr key={f.id}>
+                      <tr key={f.id} className="relative group border-b border-gray-400">
                         <td className={TD + " text-center"}>{idx + 1}</td>
-                        <td className={TD + " text-center text-gray-600"}>{prod?.productGroup ?? "─"}</td>
-                        {/* 납품 모델 */}
+                        {/* 구분 */}
                         <td className={TD}>
                           {isReadOnly ? (
-                            <span>{prod?.productName ?? "─"}</span>
+                            <div className="text-center">{watchAmountReasons?.[idx]?.productGroup ?? "─"}</div>
                           ) : (
                             <Controller
-                              name={`amountReasons.${idx}.productId`}
+                              name={`amountReasons.${idx}.productGroup`}
                               control={control}
                               render={({ field: ff }) => (
-                                <Select onValueChange={ff.onChange} value={ff.value}>
-                                  <SelectTrigger className="h-6 text-[12px] border-0 border-b border-gray-400 rounded-none bg-transparent shadow-none focus:ring-0 px-0 w-full">
-                                    <SelectValue placeholder="제품 선택" />
+                                <Select
+                                  onValueChange={(val) => {
+                                    ff.onChange(val);
+                                    setValue(`amountReasons.${idx}.productId`, ""); // 구분 변경 시 납품 모델 초기화
+                                  }}
+                                  value={ff.value || ""}
+                                >
+                                  <SelectTrigger className="h-8 text-[15px] border-0 border-b border-gray-400 rounded-none bg-transparent shadow-none focus:ring-0 px-0 w-full">
+                                    <SelectValue placeholder="구분 선택" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="__none__">─</SelectItem>
-                                    {products.map((p) => (
-                                      <SelectItem key={p.id} value={String(p.id)}>
-                                        {p.productName}
+                                    {productGroups.map((g) => (
+                                      <SelectItem key={g} value={g}>
+                                        {g}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -667,12 +737,52 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
                             />
                           )}
                         </td>
+                        {/* 납품 모델 */}
+                        <td className={TD}>
+                          {isReadOnly ? (
+                            <span>{prod?.productName ?? "─"}</span>
+                          ) : (
+                            <Controller
+                              name={`amountReasons.${idx}.productId`}
+                              control={control}
+                              render={({ field: ff }) => {
+                                const selectedGroup = watchAmountReasons?.[idx]?.productGroup;
+                                const filteredProducts = products.filter((p) => p.productGroup === selectedGroup);
+                                return (
+                                  <Select onValueChange={ff.onChange} value={ff.value || ""}>
+                                    <SelectTrigger
+                                      className="h-8 text-[15px] border-0 border-b border-gray-400 rounded-none bg-transparent shadow-none focus:ring-0 px-0 w-full"
+                                      disabled={!selectedGroup}
+                                    >
+                                      <SelectValue placeholder={selectedGroup ? "모델 선택" : "구분 선택 필요"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">─</SelectItem>
+                                      {filteredProducts.map((p) => (
+                                        <SelectItem key={p.id} value={String(p.id)}>
+                                          {p.productName}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                );
+                              }}
+                            />
+                          )}
+                        </td>
                         {/* 수량 */}
                         <td className={TD + " text-center"}>
                           {isReadOnly ? (
-                            <span>{v.amountReasons?.[idx]?.quantity}</span>
+                            <span>{watchAmountReasons?.[idx]?.quantity}</span>
                           ) : (
-                            <input type="number" min="1" className={PLAIN + " text-center"} {...register(`amountReasons.${idx}.quantity`, { required: true, min: 1 })} />
+                            <input
+                              type="number"
+                              className={PLAIN + " text-center"}
+                              placeholder="수량"
+                              onKeyDown={blockNumberSpin}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              {...register(`amountReasons.${idx}.quantity`, { required: true })}
+                            />
                           )}
                         </td>
                         {/* 유지보수 금액 */}
@@ -680,28 +790,46 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
                           {isReadOnly ? (
                             <span className="font-semibold">{amt > 0 ? won(amt) : "─"}</span>
                           ) : (
-                            <input type="number" min="0" className={PLAIN + " text-right"} placeholder="0" {...register(`amountReasons.${idx}.amount`, { required: true, min: 0 })} />
+                            <input
+                              type="number"
+                              className={PLAIN + " text-right"}
+                              placeholder="금액"
+                              onKeyDown={blockNumberSpin}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              {...register(`amountReasons.${idx}.amount`, { required: true })}
+                            />
                           )}
                         </td>
                         {/* 개월수 */}
                         <td className={TD + " text-center"}>
-                          {isReadOnly ? (
-                            <span>{v.amountReasons?.[idx]?.months}개월</span>
-                          ) : (
-                            <span className="flex items-center gap-0.5">
-                              <input type="number" min="1" className={PLAIN + " text-center w-10"} {...register(`amountReasons.${idx}.months`, { required: true, min: 1 })} />
-                              <span className="text-gray-500 text-[11px]">개월</span>
-                            </span>
-                          )}
+                          <span>{months > 0 ? months : 0}개월</span>
                         </td>
                         {/* 비고 */}
                         <td className={TD}>
-                          {isReadOnly ? <span>{v.amountReasons?.[idx]?.remarks || "─"}</span> : <input className={PLAIN} placeholder="비고" {...register(`amountReasons.${idx}.remarks`)} />}
+                          {isReadOnly ? <span>{watchAmountReasons?.[idx]?.remarks || "─"}</span> : <input className={PLAIN} placeholder="비고" {...register(`amountReasons.${idx}.remarks`)} />}
                         </td>
+
+                        {/* 삭제 버튼 - 수주보고서 양식처럼 absolute & group-hover 배치 */}
                         {!isReadOnly && (
-                          <td className="border-0 text-center print:hidden">
-                            <button type="button" onClick={() => amtDel(idx)} className="text-red-400 hover:text-red-600">
-                              <Trash2 className="w-3.5 h-3.5" />
+                          <td className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (amtF.length > 1) {
+                                  amtDel(idx);
+                                } else {
+                                  // 1줄만 남았을 경우 빈 값으로 초기화하여 항상 작성 가능한 상태 유지
+                                  setValue(`amountReasons.${idx}.productGroup`, "");
+                                  setValue(`amountReasons.${idx}.productId`, "");
+                                  setValue(`amountReasons.${idx}.quantity`, "");
+                                  setValue(`amountReasons.${idx}.amount`, "");
+                                  setValue(`amountReasons.${idx}.remarks`, "");
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50"
+                              title="행 삭제"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
                         )}
@@ -713,12 +841,11 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
               {amtF.length > 0 && (
                 <tfoot>
                   <tr>
-                    <td colSpan={4} className="border border-gray-400 bg-gray-50 px-3 py-2 text-center text-[12px] font-bold">
+                    <td colSpan={4} className="border border-gray-400 bg-gray-50 px-3 py-2 text-center text-[15px] font-bold">
                       1. Solution Package 유지보수 비용 합계
                     </td>
-                    <td className="border border-gray-400 px-3 py-2 text-right text-[13px] font-bold">{won(amtTotal)}</td>
+                    <td className="border border-gray-400 px-3 py-2 text-right text-[16px] font-bold">{won(amtTotal)}</td>
                     <td colSpan={2} className="border border-gray-400" />
-                    {!isReadOnly && <td className="border-0 print:hidden" />}
                   </tr>
                 </tfoot>
               )}
@@ -730,7 +857,7 @@ export default function MaintenanceQuotationDocument({ mode, onSubmit, initialDa
         {/* ── 저장 버튼 ── */}
         {!isReadOnly && (
           <div className="flex justify-end px-10 py-4 print:hidden">
-            <button type="submit" disabled={isSubmitting} className="bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-[13px] font-semibold px-10 py-2 rounded-sm">
+            <button type="submit" disabled={isSubmitting} className="bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-[16px] font-semibold px-10 py-2 rounded-sm">
               {isSubmitting ? "저장 중..." : "견적서 저장"}
             </button>
           </div>
