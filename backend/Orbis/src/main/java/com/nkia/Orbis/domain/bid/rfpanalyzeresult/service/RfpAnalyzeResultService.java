@@ -93,7 +93,11 @@ public class RfpAnalyzeResultService {
 
     private void updateRfpAnalyzeResultInfo(RfpAnalyzeResultUpdateRequest request, RfpAnalyzeResult rfpAnalyzeResult,
                                             User assignee, ProjectOpportunity projectOpportunity) {
-        rfpAnalyzeResult.update(request.hardwareProvider(), request.budgetAmount(), request.expectedDuration(),
+        String projectName = request.projectName() != null && !request.projectName().isBlank()
+                ? request.projectName()
+                : projectOpportunity.getOpportunityName();
+
+        rfpAnalyzeResult.update(projectName, request.hardwareProvider(), request.budgetAmount(), request.expectedDuration(),
                 request.projectLocation(), request.proposalDeadline(), request.projectDescription(),
                 request.proposalType(), assignee, projectOpportunity);
     }

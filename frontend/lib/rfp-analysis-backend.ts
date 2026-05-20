@@ -29,7 +29,7 @@ type BackendProjectOpportunity = {
   opportunityName?: string
   customerCompanyName?: string
   projectType?: string
-  productModules?: { productModule?: { productName?: string } }[]
+  productModules?: { productName?: string; productModule?: { productName?: string } }[]
 }
 
 type BackendRfpRequirement = {
@@ -46,6 +46,7 @@ type BackendRfpRequirement = {
 type BackendRfpSummary = {
   id?: number
   projectName?: string
+  projectOpportunityName?: string
   requesterName?: string
   assigneeName?: string
   assigneeId?: string
@@ -131,6 +132,13 @@ function normalizeLookupText(value?: string | number | null) {
     .trim()
     .toLowerCase()
     .replace(/[\s\-_.()/]/g, "")
+}
+
+function isUuid(value?: string | null) {
+  return Boolean(
+    value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
+  )
 }
 
 async function parseApiResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -281,7 +289,7 @@ function mapBackendRfpRecord(
   const linkedOpportunity =
     summary.projectOpportunityId != null ? opportunityLookup?.get(String(summary.projectOpportunityId)) : undefined
   const projectName =
-    linkedOpportunity?.opportunityName ?? summary.projectName ?? local?.opportunity ?? ""
+    linkedOpportunity?.opportunityName ?? summary.projectOpportunityName ?? summary.projectName ?? local?.opportunity ?? ""
   const customerName =
     linkedOpportunity?.customerCompanyName ?? summary.customerCompanyName ?? local?.customer ?? ""
   const opportunityCode =
@@ -294,11 +302,13 @@ function mapBackendRfpRecord(
   const assigneeId = summary.assigneeId ?? local?.assigneeId
 
   const productModules =
-    linkedOpportunity?.productModules && linkedOpportunity.productModules.length > 0
-      ? linkedOpportunity.productModules.map((module) => module.productModule?.productName ?? "").filter(Boolean)
-      : "productModules" in summary && Array.isArray(summary.productModules)
+    "productModules" in summary && Array.isArray(summary.productModules) && summary.productModules.length > 0
       ? summary.productModules
-      : []
+      : linkedOpportunity?.productModules && linkedOpportunity.productModules.length > 0
+        ? linkedOpportunity.productModules
+            .map((module) => module.productName ?? module.productModule?.productName ?? "")
+            .filter(Boolean)
+        : []
 
   return {
     id: String(summary.id ?? local?.id ?? `RFP-${Date.now()}`),
@@ -333,20 +343,24 @@ function mapBackendRfpRecord(
 }
 
 async function resolveAssigneeId(input?: { assigneeId?: string }) {
-  if (input?.assigneeId) {
+  if (isUuid(input?.assigneeId)) {
     return input.assigneeId
   }
 
   try {
     const myInfo = await fetchMyInfo()
-    if (myInfo.userId) {
+    if (isUuid(myInfo.userId)) {
       return myInfo.userId
     }
   } catch {
     // `/user/me` 실패 시 프론트 세션의 기본 사용자로 우회한다.
   }
 
-  return currentUser.id
+  if (isUuid(currentUser.id)) {
+    return currentUser.id
+  }
+
+  throw new Error("담당자를 선택해 주세요.")
 }
 
 async function resolveProjectOpportunityId(input: {
@@ -445,6 +459,26 @@ export async function loadBackendRfpAnalyses() {
   const records = await loadBackendRecordMap()
   saveSnapshot(records)
   return records
+}
+
+export async function loadBackendRfpAnalysis(id: string | number) {
+  const numericId = Number(id)
+  if (!Number.isFinite(numericId)) {
+    throw new Error("RFP 분석 ID가 올바르지 않습니다.")
+  }
+
+  const [detail, opportunities] = await Promise.all([
+    fetchRfpDetail(numericId),
+    fetchProjectOpportunities(),
+  ])
+  const mapped = mapBackendRfpRecord(
+    detail,
+    buildLocalLookup().get(String(detail.id ?? id)),
+    buildOpportunityLookup(opportunities),
+  )
+
+  saveSnapshot([mapped, ...getRfpAnalyses().filter((item) => item.id !== mapped.id)])
+  return mapped
 }
 
 export async function createBackendRfpAnalysis(input: Omit<RfpAnalysisRecord, "id"> & { id?: string }) {
