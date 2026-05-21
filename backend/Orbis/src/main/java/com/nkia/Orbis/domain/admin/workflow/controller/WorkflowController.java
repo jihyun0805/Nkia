@@ -104,4 +104,17 @@ public class WorkflowController {
                 )
         );
     }
+
+    @Operation(summary = "결재 상세 조회")
+    @GetMapping("/{workflowId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'WORKFLOW', 'READ')")
+    public ResponseEntity<ApiResponse<WorkflowResponse>> getworkflow(
+            @PathVariable("workflowId") Long workflowId
+    ) {
+        Workflow workflow = workflowService.getWorkflow(workflowId);
+
+        WorkflowResponse response = workflowService.toWorkflowResponse(workflow);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }
