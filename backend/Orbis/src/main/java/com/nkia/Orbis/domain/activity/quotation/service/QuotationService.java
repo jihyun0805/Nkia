@@ -140,6 +140,8 @@ public class QuotationService {
     public void delete(Long quotationId) {
         Quotation quotation = quotationRepository.findById(quotationId)
                 .orElseThrow(() -> new ApiException(ActivityErrorCode.QUOTATION_NOT_FOUND));
+        
+        saveSnapshot(quotation);
 
         quotation.delete();
     }

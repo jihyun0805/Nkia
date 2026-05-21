@@ -23,7 +23,7 @@ public interface PrbRepository extends JpaRepository<Prb, Long> {
             // --- N+1 방어용 추가 ---
             "projectOpportunity.rfpAnalyzeResult",
             "projectOpportunity.bidResult",
-            "projectOpportunity.orderReport"
+            "projectOpportunity.orderReports"
     })
     Optional<Prb> findWithDetailsById(Long id);
 
@@ -37,7 +37,7 @@ public interface PrbRepository extends JpaRepository<Prb, Long> {
             // --- N+1 방어용 추가 ---
             "projectOpportunity.rfpAnalyzeResult",
             "projectOpportunity.bidResult",
-            "projectOpportunity.orderReport"
+            "projectOpportunity.orderReports"
     })
     @Override
     Page<Prb> findAll(Pageable pageable);

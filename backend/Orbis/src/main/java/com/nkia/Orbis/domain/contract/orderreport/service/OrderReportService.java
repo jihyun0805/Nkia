@@ -85,10 +85,6 @@ public class OrderReportService {
 
         ProjectOpportunity projectOpportunity = projectOpportunityRepository.findById(request.getProjectOpportunityId())
                 .orElseThrow(() -> new ApiException(ProjectOpportunityErrorCode.PROJECT_OPPORTUNITY_NOT_FOUND));
-        if (projectOpportunity.getOrderReport() != null) {
-            // 예외 코드는 ContractErrorCode.ORDER_REPORT_ALREADY_EXISTS 등으로 추가 필요
-            throw new ApiException(ContractErrorCode.ORDER_REPORT_ALREADY_EXISTS);
-        }
 
         User pm = userRepository.findById(request.getPmId())
                 .orElseThrow(() -> new ApiException(UserErrorCode.USER_NOT_FOUND));
@@ -137,7 +133,7 @@ public class OrderReportService {
                 request.getVatType()
         );
 
-        projectOpportunity.assignOrderReport(orderReport);
+        projectOpportunity.addOrderReport(orderReport);
 
         addItems(orderReport, request);
 
