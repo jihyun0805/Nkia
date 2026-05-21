@@ -88,8 +88,8 @@ public class OrderReport extends BaseEntity {
 
     private String remarks;                         // 특이사항
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_opportunity_id", unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_opportunity_id")
     private ProjectOpportunity projectOpportunity;
 
     @ManyToOne(fetch = FetchType.LAZY)

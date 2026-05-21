@@ -111,8 +111,8 @@ public class ProjectOpportunity extends BaseEntity {
     @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private BidResult bidResult; // 입찰 결과
 
-    @OneToOne(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private OrderReport orderReport; // 수주 보고서
+    @OneToMany(mappedBy = "projectOpportunity", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<OrderReport> orderReports = new ArrayList<>(); // 수주 보고서
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UploadFile> rfpFiles = new ArrayList<>();
@@ -198,11 +198,15 @@ public class ProjectOpportunity extends BaseEntity {
         }
     }
 
-    public void assignOrderReport(OrderReport orderReport) {
-        this.orderReport = orderReport;
+    public void addOrderReport(OrderReport orderReport) {
 
-        // 무한 루프 방지 및 자식 엔티티의 참조 동기화
-        if (orderReport != null && orderReport.getProjectOpportunity() != this) {
+        if (this.orderReports == null) {
+            this.orderReports = new ArrayList<>();
+        }
+
+        this.orderReports.add(orderReport);
+
+        if (orderReport.getProjectOpportunity() != this) {
             orderReport.assignProjectOpportunity(this);
         }
     }

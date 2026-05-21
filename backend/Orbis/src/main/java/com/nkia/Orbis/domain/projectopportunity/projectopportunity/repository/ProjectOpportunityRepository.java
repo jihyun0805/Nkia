@@ -14,7 +14,7 @@ public interface ProjectOpportunityRepository extends JpaRepository<ProjectOppor
      * OuterJoin으로 한 번에 가져옵니다.
      */
     @EntityGraph(attributePaths = {"customerCompany", "salesRepresentative", "rfpAnalyzeResult", "prb", "bidResult",
-            "orderReport"})
+            "orderReports"})
     Page<ProjectOpportunity> findAll(Pageable pageable);
 
     /**
@@ -22,7 +22,7 @@ public interface ProjectOpportunityRepository extends JpaRepository<ProjectOppor
      */
     @Override
     @EntityGraph(attributePaths = {"customerCompany", "salesRepresentative", "rfpAnalyzeResult", "prb", "bidResult",
-            "orderReport"})
+            "orderReports"})
     Optional<ProjectOpportunity> findById(Long id);
 
     /**
@@ -37,6 +37,6 @@ public interface ProjectOpportunityRepository extends JpaRepository<ProjectOppor
     Page<ProjectOpportunity> findByOpportunityNameContainingIgnoreCase(String keyword, Pageable pageable);
 
     @EntityGraph(attributePaths = {"customerCompany", "salesRepresentative", "rfpAnalyzeResult", "prb", "bidResult",
-            "orderReport"})
+            "orderReports"})
     Page<ProjectOpportunity> findAllByCustomerCompanyId(Long customerCompanyId, Pageable pageable);
 }
