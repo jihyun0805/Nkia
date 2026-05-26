@@ -1,3 +1,5 @@
+# 인수인계 메모: 임베딩 계층입니다. 원문을 검색 가능한 청크로 나누고, 문서/질문 prefix를 붙여 같은 벡터 공간에 올립니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 from dataclasses import dataclass
 
 from sentence_transformers import SentenceTransformer
@@ -29,12 +31,14 @@ class EmbeddingConfig:
 
 
 class EmbeddingModel:
-    def __init__(self, config: EmbeddingConfig):
+    def __init__(self, config: EmbeddingConfig) -> None:
         self.config = config
+        # SentenceTransformer는 모델 로딩 비용이 크므로 FastAPI lifespan에서 한 번만 생성한다.
         self.model = SentenceTransformer(config.model_name, device=config.device)
         self.model.max_seq_length = config.max_length
 
     def encode_passages(self, texts: list[str]) -> list[list[float]]:
+        # 문서와 질문에 서로 다른 prefix를 붙여 검색 모델이 역할을 구분하도록 맞춘다.
         return self._encode([self._with_prefix(self.config.document_prefix, text) for text in texts])
 
     def encode_query(self, text: str) -> list[float]:
@@ -50,6 +54,7 @@ class EmbeddingModel:
         )
         vectors = embeddings.tolist()
         for vector in vectors:
+            # DB pgvector 컬럼 차원과 모델 출력 차원이 다르면 색인/검색이 모두 실패하므로 즉시 감지한다.
             if len(vector) != self.config.dimension:
                 raise ValueError(
                     f"Embedding dimension mismatch: expected {self.config.dimension}, got {len(vector)}"

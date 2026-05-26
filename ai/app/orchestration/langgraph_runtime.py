@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -96,6 +98,8 @@ def create_orbis_agent_graph(
     checkpointer: object | None,
 ) -> object:
     builder = StateGraph(OrbisAgentState)
+    # 노드는 "질문 이해 → 정형/검색 실행 → 답변 생성 → 액션 부착" 순서로 한 번씩 통과한다.
+    # 새 분기를 추가할 때는 node 등록, edge 연결, state payload 직렬화 계약을 함께 맞춰야 한다.
     builder.add_node("prepare_context", _prepare_context_node)
     builder.add_node("ambiguous_guard", _build_ambiguous_guard_node(embedder=embedder, callbacks=callbacks))
     builder.add_node("preflight", _preflight_node)
@@ -111,6 +115,7 @@ def create_orbis_agent_graph(
     builder.add_node("draft_compose", _build_draft_compose_node(embedder=embedder))
     builder.add_node("finalize", _finalize_node)
 
+    # preflight에서 의도와 라우트를 먼저 정하고, 각 전문 노드가 처리 못 하면 다음 후보로 넘긴다.
     builder.add_edge(START, "prepare_context")
     builder.add_edge("prepare_context", "ambiguous_guard")
     builder.add_conditional_edges("ambiguous_guard", _route_on_response, {"done": "draft_compose", "continue": "preflight"})
@@ -177,7 +182,11 @@ def _prepare_context_node(state: OrbisAgentState) -> dict[str, Any]:
     return {"conversation_history": _serialize_history(_trim_history(merged))}
 
 
-def _build_ambiguous_guard_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCallbacks):
+def _build_ambiguous_guard_node(
+    *,
+    embedder: EmbeddingModel,
+    callbacks: OrbisGraphCallbacks,
+) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         history = deserialize_history(state.get("conversation_history"))
         response = callbacks.build_ambiguous_reference_response(
@@ -228,7 +237,11 @@ def _clarification_node(state: OrbisAgentState) -> dict[str, Any]:
     return {"response": response.model_dump(mode="json")}
 
 
-def _build_graph_structured_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCallbacks):
+def _build_graph_structured_node(
+    *,
+    embedder: EmbeddingModel,
+    callbacks: OrbisGraphCallbacks,
+) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         graph_state = _load_graph_state(state)
         effective_query = graph_state.rewrittenQuery or state["query"]
@@ -251,7 +264,11 @@ def _build_graph_structured_node(*, embedder: EmbeddingModel, callbacks: OrbisGr
     return node
 
 
-def _build_structured_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCallbacks):
+def _build_structured_node(
+    *,
+    embedder: EmbeddingModel,
+    callbacks: OrbisGraphCallbacks,
+) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         graph_state = _load_graph_state(state)
         effective_query = graph_state.rewrittenQuery or state["query"]
@@ -286,7 +303,11 @@ def _build_structured_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCal
     return node
 
 
-def _build_discovery_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCallbacks):
+def _build_discovery_node(
+    *,
+    embedder: EmbeddingModel,
+    callbacks: OrbisGraphCallbacks,
+) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         graph_state = _load_graph_state(state)
         effective_query = graph_state.rewrittenQuery or state["query"]
@@ -309,7 +330,11 @@ def _build_discovery_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCall
     return node
 
 
-def _build_planner_fallback_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCallbacks):
+def _build_planner_fallback_node(
+    *,
+    embedder: EmbeddingModel,
+    callbacks: OrbisGraphCallbacks,
+) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         graph_state = _load_graph_state(state)
         effective_query = graph_state.rewrittenQuery or state["query"]
@@ -379,7 +404,11 @@ def _build_planner_fallback_node(*, embedder: EmbeddingModel, callbacks: OrbisGr
     return node
 
 
-def _build_retrieval_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCallbacks):
+def _build_retrieval_node(
+    *,
+    embedder: EmbeddingModel,
+    callbacks: OrbisGraphCallbacks,
+) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         graph_state = _load_graph_state(state)
         effective_query = graph_state.rewrittenQuery or state["query"]
@@ -400,6 +429,7 @@ def _build_retrieval_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCall
             query=graph_state.semanticQuery or effective_query,
             history=history,
         )
+        # 1차 검색은 벡터 검색, 키워드 검색, 정확 코드/엔티티 스코프를 합쳐 후보 근거를 만든다.
         search_response = search_knowledge(
             query=search_query,
             limit=effective_limit,
@@ -422,6 +452,7 @@ def _build_retrieval_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCall
             explicit_end_at=state.get("end_at"),
         )
         if corrective_decision.should_retry and retrieval_plan is not None:
+            # 근거가 너무 좁거나 기간/문서유형 필터가 과한 경우 한 번만 보정 검색을 수행한다.
             graph_state.correctiveAction = corrective_decision.action
             retry_plan = retrieval_plan.__class__(
                 route=retrieval_plan.route,
@@ -486,6 +517,7 @@ def _build_retrieval_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCall
             search_response=search_response,
             normalization=normalization,
         ):
+            # 낮은 신뢰도 답변은 그럴듯하게 꾸미지 않고, 부족한 근거를 사용자에게 그대로 보여준다.
             low_confidence_evidences = callbacks.build_answer_evidences(search_response.results)
             response = AnswerResponse(
                 query=state["query"],
@@ -517,7 +549,7 @@ def _build_retrieval_node(*, embedder: EmbeddingModel, callbacks: OrbisGraphCall
     return node
 
 
-def _build_answer_node(*, callbacks: OrbisGraphCallbacks):
+def _build_answer_node(*, callbacks: OrbisGraphCallbacks) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         graph_state = _load_graph_state(state)
         search_response = SearchResponse.model_validate(state["search_response"])
@@ -532,6 +564,7 @@ def _build_answer_node(*, callbacks: OrbisGraphCallbacks):
             answer_status = "good_answer"
             degraded_reason = None
         elif settings.gms_key:
+            # LLM은 검색된 근거와 이전 대화 맥락만 받아 답한다. DB를 직접 조회하지 않는다.
             client = GmsChatClient(
                 GmsChatConfig(
                     api_key=settings.gms_key,
@@ -592,7 +625,7 @@ def _build_answer_node(*, callbacks: OrbisGraphCallbacks):
     return node
 
 
-def _build_draft_compose_node(*, embedder: EmbeddingModel):
+def _build_draft_compose_node(*, embedder: EmbeddingModel) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         # NOTE: ai_enable_draft_actions 가 False 여도 edit_field action 은 시도.
         # (edit_field 는 페이지 navigate + prefill 만 하므로 안전)
@@ -678,7 +711,10 @@ def _finalize_node(state: OrbisAgentState) -> dict[str, Any]:
     }
 
 
-def _build_recommendation_node(*, embedder: EmbeddingModel | None = None):
+def _build_recommendation_node(
+    *,
+    embedder: EmbeddingModel | None = None,
+) -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         graph_state = _load_graph_state(state)
         entity_scope = graph_state.entityScope
@@ -758,7 +794,7 @@ def _build_similar_cases_section(
         return ""
 
 
-def _build_comparison_node():
+def _build_comparison_node() -> Callable[[OrbisAgentState], dict[str, Any]]:
     def node(state: OrbisAgentState) -> dict[str, Any]:
         graph_state = _load_graph_state(state)
         pairs = graph_state.comparisonPairs

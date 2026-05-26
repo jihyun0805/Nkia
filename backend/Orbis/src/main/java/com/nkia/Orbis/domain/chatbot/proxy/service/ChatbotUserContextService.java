@@ -1,3 +1,5 @@
+// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
+// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.service;
 
 import com.nkia.Orbis.common.util.SecurityUtil;
@@ -83,6 +85,8 @@ public class ChatbotUserContextService {
         User user = userRepository.findByIdWithRolesAndPermissions(currentUserId)
                 .orElseThrow(() -> new IllegalStateException("Authenticated chatbot user not found."));
 
+        // 사용자 권한을 AI 검색 필터용 sourceType/sourceId 화이트리스트로 변환한다.
+        // AI 서버는 이 컨텍스트만 보고 검색 결과를 필터링하므로, 권한 정책 변경 시 이 메서드를 먼저 확인한다.
         Set<PermissionDomain> readableDomains = collectReadableDomains(user);
         Set<String> readableSourceTypes = collectReadableSourceTypes(readableDomains);
         Map<String, List<String>> domainActions = collectDomainActions(user);
@@ -107,11 +111,13 @@ public class ChatbotUserContextService {
 
         AccessScope accessScope = resolveAccessScope(user);
         if (accessScope == AccessScope.UNRESTRICTED) {
+            // null은 "모든 sourceId 허용" 의미다. 빈 리스트는 "볼 수 있는 문서 없음"이므로 구분해야 한다.
             builder.accessibleSourceIds(null);
             return builder.build();
         }
 
         List<UUID> scopedUserIds = resolveScopedUserIds(user, accessScope);
+        // sourceId는 "TYPE:id/code" 문자열로 만들어 AI metadata/source_id와 같은 기준으로 매칭한다.
         Set<String> accessibleSourceIds = collectAccessibleSourceIds(
                 readableDomains,
                 scopedUserIds
@@ -179,6 +185,8 @@ public class ChatbotUserContextService {
             Set<PermissionDomain> readableDomains,
             List<UUID> scopedUserIds
     ) {
+        // 영업기회 → 수주보고 → 프로젝트 → 유지보수처럼 연결된 엔티티를 단계적으로 확장한다.
+        // 중간 키를 누락하면 챗봇 근거가 특정 탭에서만 비는 현상이 생긴다.
         Set<String> opportunityKeys = fetchProjectOpportunityKeys(scopedUserIds);
         Set<String> orderReportKeys = fetchOrderReportKeys(scopedUserIds, opportunityKeys);
         Set<String> projectKeys = fetchProjectKeys(scopedUserIds, orderReportKeys);

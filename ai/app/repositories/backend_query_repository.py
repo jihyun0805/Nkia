@@ -1,3 +1,5 @@
+# 인수인계 메모: DB 접근 계층입니다. pgvector 검색, 색인 테이블 갱신, 백엔드 조회를 SQL 단위로 캡슐화합니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 import logging
 import re
 from functools import lru_cache

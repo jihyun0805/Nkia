@@ -1,3 +1,5 @@
+// 인수인계 메모: 프론트 챗봇 API 클라이언트입니다. 백엔드 프록시/세션/첨부 API 호출과 타입 계약을 모아둡니다.
+// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 "use client"
 
 import { getBackendApiBaseUrl } from "@/lib/api-base-url"
@@ -173,6 +175,7 @@ async function extractErrorMessage(response: Response) {
 }
 
 async function parseApiResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  // 백엔드 공통 응답 포맷({ result, data, message })을 프론트 도메인 타입으로 풀어준다.
   if (!response.ok) {
     if (response.status === 401) {
       throw new Error("로그인 후 이용할 수 있습니다.")
@@ -209,6 +212,7 @@ async function parseApiSuccess(response: Response, fallbackMessage: string): Pro
 }
 
 export async function postChatbotAnswer(body: ChatbotAnswerRequest) {
+  // 답변 생성은 백엔드 프록시를 통해 호출한다. 프론트에서 AI 서버를 직접 호출하지 않는다.
   const response = await fetch(`${getBackendApiBaseUrl()}/chatbot/answer`, {
     method: "POST",
     headers: buildAuthHeaders({
@@ -313,6 +317,7 @@ export async function addChatbotSessionMessages(
     actions?: string | null
   },
 ) {
+  // 답변 저장은 AI 호출 성공 이후 별도 API로 수행한다. 실패해도 화면 답변은 유지된다.
   const response = await fetch(`${getBackendApiBaseUrl()}/chatbot/sessions/${sessionId}/messages`, {
     method: "POST",
     headers: buildAuthHeaders({

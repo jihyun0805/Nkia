@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 import hashlib
 from datetime import datetime, timezone
 from typing import Any
@@ -179,6 +181,7 @@ def index_document(*, document: IndexDocumentRequest, embedder: EmbeddingModel) 
             existing = fetch_source_for_update(conn, source_type=source_type, source_id=source_id)
             stale_status = detect_duplicate_or_stale_event(existing=existing, event_id=document.event_id, occurred_at=event_time)
             if stale_status is not None:
+                # 동일 이벤트 재수신이나 과거 이벤트 역전은 기존 색인을 덮어쓰지 않는다.
                 return IndexDocumentResult(
                     sourceType=source_type,
                     sourceId=source_id,
@@ -188,6 +191,7 @@ def index_document(*, document: IndexDocumentRequest, embedder: EmbeddingModel) 
                 )
 
             if document.operation == "DELETE" or document.deleted:
+                # 삭제는 청크를 물리 삭제하지 않고 source를 deleted 처리해 검색 결과에서 제외한다.
                 mark_source_deleted(
                     conn,
                     source_type=source_type,
@@ -214,6 +218,7 @@ def index_document(*, document: IndexDocumentRequest, embedder: EmbeddingModel) 
                 payload=document.payload,
             )
             if not document_text:
+                # 텍스트가 없는 엔티티는 벡터화할 수 없으므로 source/chunk 생성을 건너뛴다.
                 return IndexDocumentResult(
                     sourceType=source_type,
                     sourceId=source_id,
@@ -224,6 +229,7 @@ def index_document(*, document: IndexDocumentRequest, embedder: EmbeddingModel) 
 
             source_text_hash = sha256_text(document_text)
             if existing and not existing.get("is_deleted") and existing.get("source_text_hash") == source_text_hash:
+                # 본문이 같으면 메타데이터만 갱신하고 임베딩 재생성 비용을 피한다.
                 upsert_source(
                     conn,
                     source_type=source_type,
@@ -266,6 +272,7 @@ def index_document(*, document: IndexDocumentRequest, embedder: EmbeddingModel) 
                 chunk_metadata=metadata,
                 content_hashes=[sha256_text(chunk) for chunk in chunks],
             )
+            # source 단위로 청크를 통째로 교체해 이전 버전 청크가 검색에 섞이지 않게 한다.
             return IndexDocumentResult(
                 sourceType=source_type,
                 sourceId=source_id,

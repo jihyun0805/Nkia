@@ -1,3 +1,5 @@
+// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
+// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.service;
 
 import com.nkia.Orbis.common.exception.errorcode.CommonErrorCode;
@@ -41,6 +43,7 @@ public class ChatbotProxyService {
 
     public ChatbotAnswerResponse answer(ChatbotAnswerRequest request) {
         try {
+            // 프론트가 넘긴 threadId/attachmentSessionId는 사용자별 prefix를 붙여 AI 쪽에서 세션이 섞이지 않게 한다.
             String userScopeKey = chatbotUserContextService.getCurrentUserScopeKey();
             ChatbotAiUserContext userContext = chatbotUserContextService.buildCurrentUserContext();
             ChatbotAiAnswerRequest upstreamRequest = ChatbotAiAnswerRequest.from(
@@ -60,6 +63,7 @@ public class ChatbotProxyService {
                             : userContext.getAccessibleSourceIds().stream().limit(10).toList()
             );
 
+            // 실제 답변 생성은 AI 서버가 담당하고, 백엔드는 인증/권한/세션 스코프를 붙이는 프록시 역할만 한다.
             ChatbotAnswerResponse response = chatbotAiRestClient.post()
                     .uri("/answer")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -72,6 +76,7 @@ public class ChatbotProxyService {
                         "AI 응답 본문이 비어 있습니다."
                 );
             }
+            // AI 내부에는 scoped threadId를 쓰지만, 프론트에는 원래 세션 id를 돌려준다.
             response.setThreadId(request.getThreadId());
             return response;
         } catch (RestClientResponseException e) {
@@ -101,6 +106,7 @@ public class ChatbotProxyService {
             byte[] fileBytes = file.getBytes();
             String scopedSessionId = qualifyScopedId(chatbotUserContextService.getCurrentUserScopeKey(), sessionId);
 
+            // MultipartFile은 이미 stream이 닫힐 수 있으므로 byte[]로 고정한 뒤 AI 서버에 전달한다.
             ByteArrayResource fileResource = new ByteArrayResource(fileBytes) {
                 @Override
                 public String getFilename() {
@@ -133,6 +139,7 @@ public class ChatbotProxyService {
                 chatbotUserContextService.getCurrentUserScopeKey(),
                 request.getSessionId()
         );
+        // 첨부파일 삭제는 AI 색인 API에 DELETE 이벤트를 보내 임시 세션 근거에서 제외시키는 방식이다.
         Map<String, Object> payload = Map.of(
                 "attachments", List.of(
                         Map.of(
@@ -176,6 +183,7 @@ public class ChatbotProxyService {
         if (!StringUtils.hasText(rawId)) {
             return null;
         }
+        // AI/Redis/pgvector 계층에는 같은 UUID라도 사용자별 namespace를 붙여 충돌을 막는다.
         return "USER:" + userScopeKey + ":" + rawId.trim();
     }
 }
