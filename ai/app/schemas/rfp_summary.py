@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class RfpSummaryResponse(BaseModel):
+    # 추출된 원문과 AI 요약을 함께 반환해, 사용자가 요약 근거 텍스트도 확인할 수 있게 한다.
     fileName: str
     extension: str
     fileType: str

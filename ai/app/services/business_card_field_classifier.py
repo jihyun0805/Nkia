@@ -26,6 +26,7 @@ DEFAULT_LORA_HEAD_PATH = "classifier_head.pt"
 
 @dataclass(frozen=True)
 class FieldPrediction:
+    # 한 OCR 라인이 어떤 명함 필드로 분류됐는지와 모델 신뢰도를 함께 보관한다.
     field_name: str
     text: str
     confidence: float
@@ -38,6 +39,7 @@ class BertBusinessCardFieldClassifier:
         artifact_dir: Path,
         metadata_path: Path,
     ) -> None:
+        # 학습 산출물의 메타데이터를 기준으로 토크나이저, 라벨, 모델 구조를 복원한다.
         metadata = _read_metadata(metadata_path)
         self.model_name = str(metadata.get("model_name", "bert-base-multilingual-cased"))
         self.model_type = str(metadata.get("model_type", BERT_MODEL_TYPE))
@@ -58,6 +60,7 @@ class BertBusinessCardFieldClassifier:
             cache_dir=self.cache_dir,
             adapter_path=_adapter_path(artifact_dir, metadata) if self.model_type == BERT_LORA_MODEL_TYPE else None,
         ).to(self.device)
+        # 일반 fine-tuning 모델과 LoRA adapter 모델의 저장 형식이 달라 로딩 경로를 분리한다.
         if self.model_type == BERT_LORA_MODEL_TYPE:
             head_state = torch.load(_head_path(artifact_dir, metadata), map_location=self.device)
             self.model.load_head_state_dict(head_state)
@@ -67,6 +70,7 @@ class BertBusinessCardFieldClassifier:
         self.model.eval()
 
     def predict(self, lines: list[str]) -> list[FieldPrediction]:
+        # OCR 라인 배열을 한 줄씩 분류해 필드 후보 목록으로 반환한다.
         if not lines:
             return []
 
@@ -89,6 +93,7 @@ class BertBusinessCardFieldClassifier:
                     line_index / max(total_lines - 1, 1),
                     min(total_lines, 32) / 32,
                 ).unsqueeze(0).to(self.device)
+                # 텍스트 임베딩과 줄 위치/문자 패턴 feature를 함께 사용해 명함 필드를 판별한다.
                 probabilities = torch.softmax(self.model(input_ids, attention_mask, features), dim=1)[0]
                 confidence, label_index = torch.max(probabilities, dim=0)
                 field_name = self.idx_to_label[int(label_index.item())]
@@ -106,12 +111,14 @@ class BertBusinessCardFieldClassifier:
 
 
 def predict_business_card_fields(lines: list[str]) -> dict[str, str]:
+    # 분류 모델이 없으면 OCR 규칙 기반 후처리만 동작하도록 빈 결과를 반환한다.
     classifier = get_business_card_field_classifier()
     if classifier is None:
         return {}
 
     confidence_threshold = float(getattr(classifier, "confidence_threshold", MODEL_CONFIDENCE_THRESHOLD))
     best_by_field: dict[str, FieldPrediction] = {}
+    # 같은 필드 후보가 여러 개 나오면 신뢰도가 가장 높은 라인만 최종 선택한다.
     for prediction in classifier.predict(lines):
         if prediction.confidence < confidence_threshold:
             continue
@@ -124,6 +131,7 @@ def predict_business_card_fields(lines: list[str]) -> dict[str, str]:
 
 @lru_cache(maxsize=1)
 def get_business_card_field_classifier() -> BertBusinessCardFieldClassifier | None:
+    # 모델 로딩 비용이 크므로 프로세스당 한 번만 초기화한다.
     artifact_dir = _default_artifact_dir()
     metadata_path = artifact_dir / "field_classifier_metadata.json"
     if not metadata_path.is_file():
@@ -132,6 +140,7 @@ def get_business_card_field_classifier() -> BertBusinessCardFieldClassifier | No
     try:
         metadata = _read_metadata(metadata_path)
         model_type = metadata.get("model_type")
+        # 산출물 일부가 없으면 예외를 던지지 않고 분류기 미사용 상태로 내려간다.
         if model_type == BERT_MODEL_TYPE and not (artifact_dir / "field_classifier.pt").is_file():
             return None
         if model_type == BERT_LORA_MODEL_TYPE and (
@@ -150,6 +159,7 @@ def get_business_card_field_classifier() -> BertBusinessCardFieldClassifier | No
 
 
 def _default_artifact_dir() -> Path:
+    # 운영 환경에서는 환경변수로 모델 산출물 위치를 바꿀 수 있다.
     configured_path = os.getenv("AI_BUSINESS_CARD_MODEL_DIR")
     if configured_path:
         return Path(configured_path)
@@ -158,6 +168,7 @@ def _default_artifact_dir() -> Path:
 
 
 def _default_hf_cache_dir() -> Path:
+    # Hugging Face 모델 캐시는 로컬 학습/운영 환경에 맞게 분리 가능하다.
     configured_path = os.getenv("AI_HF_CACHE_DIR")
     if configured_path:
         return Path(configured_path)
@@ -203,6 +214,7 @@ class BertAttentionPooling(nn.Module):
         self.attention = nn.Linear(hidden_size, 1)
 
     def forward(self, hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        # padding 토큰은 attention 대상에서 제외하고 실제 토큰 표현만 가중 평균한다.
         scores = self.attention(hidden_states).squeeze(-1)
         scores = scores.masked_fill(attention_mask == 0, -1e9)
         weights = torch.softmax(scores, dim=1)
@@ -224,6 +236,7 @@ class BertLineFieldClassifier(nn.Module):
         if adapter_path is not None:
             from peft import PeftModel
 
+            # LoRA adapter가 있으면 base BERT 위에 adapter weight를 얹어 사용한다.
             self.bert = PeftModel.from_pretrained(self.bert, str(adapter_path))
         self.pool = BertAttentionPooling(hidden_size)
         self.classifier = nn.Sequential(
@@ -248,6 +261,7 @@ class BertLineFieldClassifier(nn.Module):
 
 
 def extract_bert_features(text: str, position: float, total_lines: float) -> torch.Tensor:
+    # 짧은 명함 라인 분류에 도움이 되는 위치와 문자 패턴 feature를 만든다.
     length = len(text)
     digit_ratio = sum(char.isdigit() for char in text) / max(length, 1)
     upper_ratio = sum(char.isupper() for char in text) / max(length, 1)
