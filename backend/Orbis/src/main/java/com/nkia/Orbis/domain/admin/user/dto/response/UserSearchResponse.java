@@ -20,9 +20,9 @@ public class UserSearchResponse {
     public static UserSearchResponse from(User user) {
         return UserSearchResponse.builder()
                 .id(user.getId())
-                .position(user.getPosition().getDescription())
+                .position(user.getPosition() != null ? user.getPosition().getDescription() : "")
                 .name(user.getName())
-                .departmentName(user.getDepartment().getTeam())
+                .departmentName(user.getDepartment() != null ? user.getDepartment().getTeam() : "")
                 .build();
     }
 }

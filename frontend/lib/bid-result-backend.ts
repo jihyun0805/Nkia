@@ -91,6 +91,17 @@ type BackendBidResultDetailResponse = {
   analyses?: BackendWinLossAnalysis[]
 }
 
+type BackendBidResultPrefillResponse = {
+  customerCompanyCode?: string | null
+  customerCompanyName?: string | null
+  projectOpportunityCode?: string | null
+  projectOpportunityName?: string | null
+  productModulesName?: string[] | null
+  proposalDeadLine?: string | null
+  proposalPresentationDate?: string | null
+  proposalCreateUserName?: string | null
+}
+
 export type BackendBidResultHistoryListItem = {
   historyId?: number
   bidResultId?: number
@@ -125,6 +136,7 @@ export type BidResultSaveInput = {
   analysisSheet: BidResultAnalysisSheet
 }
 
+// 입찰 결과는 최종 수주/실주 판단과 분석 근거를 저장하는 문서다.
 const BID_RESULT_LIST_SIZE = 2000
 
 const analysisSectionTemplate: BidResultChecklistSection[] = [
@@ -203,6 +215,13 @@ function parseApiResponse<T>(response: Response, fallbackMessage: string): Promi
   })
 }
 
+async function parseApiVoidResponse(response: Response, fallbackMessage: string): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
+  if (!response.ok || payload?.result !== "SUCCESS") {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+}
+
 async function fetchCurrentUserId() {
   try {
     const response = await fetch(`${getBackendApiBaseUrl()}/user/me`, {
@@ -218,6 +237,7 @@ async function fetchCurrentUserId() {
   }
 }
 
+// 입찰 결과 현황 탭의 원천 데이터
 async function fetchBidResultList() {
   const response = await fetch(`${getBackendApiBaseUrl()}/bid-results?size=${BID_RESULT_LIST_SIZE}`, {
     headers: buildAuthHeaders(),
@@ -229,6 +249,7 @@ async function fetchBidResultList() {
   return payload.content ?? []
 }
 
+// 입찰 결과 상세/수정 화면의 단건 조회 API
 async function fetchBidResultDetail(id: number) {
   const response = await fetch(`${getBackendApiBaseUrl()}/bid-results/${id}`, {
     headers: buildAuthHeaders(),
@@ -257,6 +278,16 @@ async function fetchBidResultHistoryDetail(historyId: number) {
   })
 
   return parseApiResponse<BackendBidResultHistoryResponse>(response, "입찰결과 변경 이력 상세를 불러오지 못했습니다.")
+}
+
+async function fetchBidResultPrefill(proposalId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/bid-results/pre-fill?proposalId=${proposalId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendBidResultPrefillResponse>(response, "입찰 결과 기본 정보를 불러오지 못했습니다.")
 }
 
 async function fetchUsers() {
@@ -727,6 +758,16 @@ export async function loadBackendBidResultHistoryRecord(historyId: number) {
   )
 }
 
+// 제안서 코드 하나로 고객사/사업기회/제안형태를 자동으로 채우는 prefill API
+export async function loadBackendBidResultPrefillByProposalId(proposalId: string) {
+  const numericId = Number.parseInt(proposalId, 10)
+  if (Number.isNaN(numericId)) {
+    throw new Error("제안서 ID가 올바르지 않습니다.")
+  }
+
+  return fetchBidResultPrefill(numericId)
+}
+
 function toBidOutcome(value?: string) {
   if (value === "수주") return "WIN"
   return "LOSS"
@@ -927,7 +968,7 @@ export async function deleteBackendBidResult(id: string) {
       cache: "no-store",
     })
 
-    await parseApiResponse<null>(response, "입찰 결과를 삭제하지 못했습니다.")
+    await parseApiVoidResponse(response, "입찰 결과를 삭제하지 못했습니다.")
   }
 
   return true

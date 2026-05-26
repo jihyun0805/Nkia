@@ -30,7 +30,9 @@ public class WorkflowLineResponse {
                 .stepOrder(workflowLine.getStepOrder())
                 .stepName(workflowLine.getWorkflowStep().getStepName())
                 .approverName(workflowLine.getApprover().getName())
-                .approverPosition(workflowLine.getApprover().getPosition().getDescription())
+                .approverPosition(workflowLine.getApprover().getPosition() != null
+                        ? workflowLine.getApprover().getPosition().getDescription()
+                        : "")
                 .status(workflowLine.getStatus().getDescription())
                 .comment(workflowLine.getComment())
                 .actedAt(workflowLine.getActedAt())

@@ -46,6 +46,11 @@ import { createBackendQuotationRecord, getQuotationCreateBlockReason } from "@/l
 import { findUserByToken, formatUserDisplayName } from "@/lib/user-utils"
 import { useBackendUsers } from "@/lib/use-backend-users"
 
+// 활동 신규 등록 라우트 구분값.
+// - activities: 영업활동 등록
+// - quotations: 견적 등록
+// - requests: 활동 요청 등록
+// category 파라미터가 이 값 중 하나여야 각 등록 폼을 렌더링할 수 있다.
 const categories: ActivityCategory[] = ["activities", "quotations", "requests"]
 
 const emptyFindingData: FindingBackendData = { opportunities: [], customers: [], partners: [] }

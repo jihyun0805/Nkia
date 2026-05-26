@@ -76,6 +76,13 @@ type PrbResultOverviewRow = {
 }
 
 const BID_ACTIVE_TAB_STORAGE_KEY = "orbis.bid.active-tab"
+// 입찰 메인에서 사용하는 하위 탭 구분값.
+// - rfp: RFP 분석
+// - prb: PRB 보고서
+// - prb-result: PRB 결과 보고서
+// - proposal: 제안서
+// - result: 입찰 결과
+// 이 배열은 입찰 메인 화면의 탭 버튼과 신규/상세 라우팅을 같은 기준으로 맞추기 위한 목록이다.
 
 function isBackendRequestId(value: string) {
   return /^\d+$/.test(value)
@@ -87,6 +94,7 @@ function BidPageContent() {
   const [filters, setFilters] = useState<FilterValues>(defaultFilterValues)
   const [searchTerm, setSearchTerm] = useState("")
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
+  // 각 값은 입찰 화면의 하위 탭 route key
   const [activeTab, setActiveTab] = useState<"rfp" | "prb" | "prb-result" | "proposal" | "result">("rfp")
   const [rfpItems, setRfpItems] = useState<RfpAnalysisRecord[]>([])
   const [prbItems, setPrbItems] = useState<PrbRecord[]>([])

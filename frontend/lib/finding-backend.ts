@@ -110,6 +110,7 @@ export type FindingBackendData = {
   partners: PartnerRecord[];
 };
 
+// 발굴(RFP) 상세에서 첨부파일 요약을 다시 보여주기 위한 브라우저 캐시 키
 const rfpAttachmentSummaryStorageKey = "orbis.project-opportunity-rfp-summaries";
 
 type RfpAttachmentSummaryRecord = {
@@ -214,6 +215,7 @@ export function saveRfpAttachmentSummariesForOpportunity(
   saveRfpAttachmentSummaryRecords([...retained, ...summarized]);
 }
 
+// 발굴 API 응답은 코드/이름/백엔드 id가 섞여 오므로 비교 전에 같은 형태로 정규화한다.
 function normalizeLookupText(value?: string | number | null) {
   return String(value ?? "")
     .trim()

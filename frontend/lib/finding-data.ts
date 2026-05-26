@@ -3,6 +3,8 @@ import { fuzzyMatch } from "@/lib/fuzzy-match";
 
 export type FindingCategory = "opportunities" | "customers" | "partners";
 export type CustomerAttachment = StoredFileAttachment;
+// 발굴 화면에서 공통으로 쓰는 고객사/협력사/사업기회 데이터 모델.
+// 각 타입은 상세 페이지, 목록, 검색, 등록/수정 폼에서 같은 레코드를 재사용한다.
 export type CustomerRecord = {
   id: string;
   backendId?: number;
@@ -118,6 +120,7 @@ export type FindingFormSection = {
   fields: FindingFormField[];
 };
 
+// 등록/수정 화면에서 서버 대신 로컬 스토리지에 저장할 때 쓰는 입력 전용 타입.
 type CustomerRegistrationInput = {
   name: string;
   category: string;
@@ -174,9 +177,13 @@ const opportunityStorageKey = "orbis.opportunities";
 const deletedOpportunityIdsStorageKey = "orbis.deleted-opportunity-ids";
 const partnerStorageKey = "orbis.partners";
 const deletedPartnerIdsStorageKey = "orbis.deleted-partner-ids";
+// 발굴 화면에서 고객군과 사업구분 select 옵션을 만드는 정적 코드값.
+// DASHBOARD 같은 값은 단순 문자열이 아니라 사업군 코드로 취급된다.
 const customerGroupOptions = ["공공", "민간", "해외"];
 const businessTypeOptions = ["EMS", "DASHBOARD", "DATACENTER", "RCA", "DCA", "ITSM", "ITAM", "SUPPORTING_TOOLS", "CLOUD", "BSM", "E2E", "ETC"];
 
+// 발굴 등록 폼의 섹션/필드 정의.
+// 이 정의를 기준으로 신규/수정/상세 화면의 입력 항목과 라벨이 맞춰진다.
 export const findingFormSections: FindingFormSection[] = [
   {
     title: "등록정보",
@@ -207,6 +214,7 @@ export const partners: PartnerRecord[] = [];
 
 export const findingStatuses: string[] = ["진행중", "발굴", "유망"];
 
+// 협력사 여러 개를 문자열 배열로 받을 때 중복/공백을 제거해 화면과 저장 형식을 통일한다.
 function normalizePartnerNames(partners: string[] = []) {
   return Array.from(new Set(partners.map((partner) => partner.trim()).filter(Boolean)));
 }
@@ -226,12 +234,15 @@ function buildOpportunityPartnerData(partners: string[]) {
   };
 }
 
+// 발굴 상세 화면에서 고객사/협력사/사업기회 중 무엇을 보여줄지 찾는 공통 조회 함수.
 export function getFindingItem(category: FindingCategory, id: string) {
   if (category === "opportunities") return getOpportunities().find((item) => item.id === id) ?? null;
   if (category === "customers") return getCustomers().find((item) => item.id === id) ?? null;
   return getPartners().find((item) => item.id === id) ?? null;
 }
 
+// 상세 카드/테이블에 표시할 “항목명 / 값” 쌍을 구성한다.
+// 카테고리별로 보여줄 정보가 달라서 여기서 한 번에 표준화한다.
 export function getFindingFields(category: FindingCategory, item: any) {
   if (category === "opportunities") {
     return [
@@ -292,6 +303,7 @@ export function getFindingFields(category: FindingCategory, item: any) {
   ];
 }
 
+// 폼 필드명으로 저장된 실제 값을 다시 꺼내서 상세/편집 화면에 채워 넣는 헬퍼.
 export function getFindingFormFieldValue(category: FindingCategory, item: any, label: string) {
   if (category === "opportunities") {
     const values: Record<string, string> = {
@@ -326,12 +338,15 @@ export function getFindingFormFieldValue(category: FindingCategory, item: any, l
   return values[label] ?? "";
 }
 
+// 화면 상단 탭/버튼에서 쓰는 한글 표시명으로 변환한다.
 export function getFindingCategoryLabel(category: FindingCategory) {
   if (category === "opportunities") return "사업기회";
   if (category === "customers") return "고객사";
   return "협력사";
 }
 
+// 고객사 등록 여부를 이름 기준으로 판별한다.
+// 신규 입력 시 중복 등록을 막거나 자동완성 후보를 추릴 때 사용한다.
 export function hasRegisteredCustomer(customerName: string) {
   const normalized = customerName.trim().toLowerCase();
   if (!normalized) return false;
@@ -339,6 +354,8 @@ export function hasRegisteredCustomer(customerName: string) {
   return getCustomers().some((item) => item.name.trim().toLowerCase() === normalized);
 }
 
+// 고객사명/별칭 기준으로 고객 레코드를 찾아온다.
+// 발굴 화면 자동채움과 상세 조회의 핵심 매칭 로직이다.
 export function getCustomerByName(customerName: string) {
   const normalized = normalizeCustomerKeyword(customerName);
   if (!normalized) return null;
@@ -351,6 +368,7 @@ export function getCustomerByName(customerName: string) {
   );
 }
 
+// 고객사 코드를 기준으로 정확히 한 건을 찾는다.
 export function getCustomerByCode(customerCode: string) {
   const normalized = customerCode.trim().toLowerCase();
   if (!normalized) return null;
@@ -358,6 +376,7 @@ export function getCustomerByCode(customerCode: string) {
   return getCustomers().find((item) => item.id.trim().toLowerCase() === normalized) ?? null;
 }
 
+// 특정 고객사에 연결된 사업기회만 필터링한다.
 export function getOpportunitiesByCustomerName(customerName: string) {
   const customer = getCustomerByName(customerName);
   if (!customer) return [];
@@ -365,6 +384,7 @@ export function getOpportunitiesByCustomerName(customerName: string) {
   return getOpportunities().filter((item) => item.customerCode === customer.id);
 }
 
+// 검색어 비교를 위해 공백/기호를 제거한 정규화 문자열을 만든다.
 export function normalizeCustomerKeyword(value: string) {
   return value
     .trim()
@@ -372,24 +392,29 @@ export function normalizeCustomerKeyword(value: string) {
     .replace(/[\s\-_.()/]/g, "");
 }
 
+// 발굴 목록의 고객사 자동완성 검색.
 export function searchCustomers(query: string) {
   if (!query || !query.trim()) return getCustomers();
   const hits = fuzzyMatch(query, getCustomers(), (c) => [c.name, c.id, ...(c.aliases ?? [])], 20);
   return hits.map((h) => h.item);
 }
 
+// 발굴 목록의 협력사 자동완성 검색.
 export function searchPartners(query: string) {
   if (!query || !query.trim()) return getPartners();
   const hits = fuzzyMatch(query, getPartners(), (p) => [p.name, p.id, p.contactName ?? "", p.email ?? ""], 20);
   return hits.map((h) => h.item);
 }
 
+// 발굴 목록의 사업기회 자동완성 검색.
 export function searchOpportunities(query: string) {
   if (!query || !query.trim()) return getOpportunities();
   const hits = fuzzyMatch(query, getOpportunities(), (o) => [o.name, o.id, o.customer, o.customerCode, o.product], 20);
   return hits.map((h) => h.item);
 }
 
+// 아래부터는 브라우저 localStorage와 기본 목 데이터를 섞어서 읽고 쓰는 계층이다.
+// 서버가 없거나 초기 데이터가 비어 있어도 화면이 동작하도록 하는 역할을 한다.
 function getStoredCustomers(): CustomerRecord[] {
   if (typeof window === "undefined") return [];
 
@@ -412,6 +437,8 @@ function getStoredCustomers(): CustomerRecord[] {
   }
 }
 
+// 저장된 사업기회 데이터를 읽는다.
+// 파트너 코드/배열을 정규화해서 상세 화면과 편집 화면에서 같은 형태로 다루게 한다.
 function getStoredOpportunities(): OpportunityRecord[] {
   if (typeof window === "undefined") return [];
 
@@ -451,6 +478,7 @@ function getStoredOpportunities(): OpportunityRecord[] {
   }
 }
 
+// 저장된 협력사 데이터를 읽는다.
 function getStoredPartners(): PartnerRecord[] {
   if (typeof window === "undefined") return [];
 
@@ -472,6 +500,7 @@ function getStoredPartners(): PartnerRecord[] {
   }
 }
 
+// 이미 삭제한 고객사 ID를 따로 보관해 재노출을 막는다.
 function getDeletedCustomerIds(): string[] {
   if (typeof window === "undefined") return [];
 
@@ -486,6 +515,7 @@ function getDeletedCustomerIds(): string[] {
   }
 }
 
+// 이미 삭제한 협력사 ID를 따로 보관해 재노출을 막는다.
 function getDeletedPartnerIds(): string[] {
   if (typeof window === "undefined") return [];
 
@@ -500,6 +530,7 @@ function getDeletedPartnerIds(): string[] {
   }
 }
 
+// 이미 삭제한 사업기회 ID를 따로 보관해 재노출을 막는다.
 function getDeletedOpportunityIds(): string[] {
   if (typeof window === "undefined") return [];
 
@@ -514,46 +545,55 @@ function getDeletedOpportunityIds(): string[] {
   }
 }
 
+// localStorage에 고객사 목록을 저장한다.
 function setStoredCustomers(value: CustomerRecord[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(customerStorageKey, JSON.stringify(value));
 }
 
+// 고객사 삭제 이력 ID 목록을 저장한다.
 function setDeletedCustomerIds(value: string[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(deletedCustomerIdsStorageKey, JSON.stringify(value));
 }
 
+// localStorage에 사업기회 목록을 저장한다.
 function setStoredOpportunities(value: OpportunityRecord[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(opportunityStorageKey, JSON.stringify(value));
 }
 
+// localStorage에 협력사 목록을 저장한다.
 function setStoredPartners(value: PartnerRecord[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(partnerStorageKey, JSON.stringify(value));
 }
 
+// 협력사 삭제 이력 ID 목록을 저장한다.
 function setDeletedPartnerIds(value: string[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(deletedPartnerIdsStorageKey, JSON.stringify(value));
 }
 
+// 사업기회 삭제 이력 ID 목록을 저장한다.
 function setDeletedOpportunityIds(value: string[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(deletedOpportunityIdsStorageKey, JSON.stringify(value));
 }
 
+// CUS-123 같은 고객사 코드를 숫자 순번으로 환산한다.
 function parseCustomerCode(customerId: string) {
   const match = customerId.match(/^CUS-(\d+)$/i);
   return match ? Number.parseInt(match[1], 10) : 0;
 }
 
+// OPP-2026-001 같은 사업기회 코드를 숫자 순번으로 환산한다.
 function parseOpportunityCode(opportunityId: string) {
   const match = opportunityId.match(/^OPP-(\d{4})-(\d+)$/i);
   return match ? Number.parseInt(match[2], 10) : 0;
 }
 
+// PTN-123 같은 협력사 코드를 숫자 순번으로 환산한다.
 function parsePartnerCode(partnerId: string) {
   const match = partnerId.match(/^PTN-(\d+)$/i);
   return match ? Number.parseInt(match[1], 10) : 0;
