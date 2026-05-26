@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 질문을 LangGraph 내부 GraphState로 초기 변환하는 preflight 빌더입니다.
+# 핵심 흐름: 정규화, 의도, entity scope, 기간, 초안/수정 의도를 한 번에 모읍니다.
+# 같이 확인: 새 분기는 route_to_response_value와 runtime edge를 같이 추가하세요.
 import re
 import time
 from uuid import uuid4

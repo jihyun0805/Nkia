@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 내부 모델 계층입니다. 의도, 검색 계획, 정규화 결과, 사용자 컨텍스트 같은 중간 상태를 정의합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 검색 서비스 내부에서 쓰는 scope/후보 모델입니다.
+# 핵심 흐름: 정확 코드, sourceId scope, 검색 후보 row를 dataclass로 표현해 search_repository와 search_service 사이를 연결합니다.
+# 같이 확인: 외부 API 응답 모델은 schemas/search.py이므로 내부 후보 필드와 프론트 evidence 필드를 혼동하지 마세요.
 from dataclasses import dataclass, field
 
 

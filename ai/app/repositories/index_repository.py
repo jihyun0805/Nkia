@@ -1,5 +1,6 @@
-# 인수인계 메모: DB 접근 계층입니다. pgvector 검색, 색인 테이블 갱신, 백엔드 조회를 SQL 단위로 캡슐화합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: AI 색인 테이블(ai_knowledge_sources, chunks)의 upsert/delete/스키마 검증 SQL을 모아둔 repository입니다.
+# 핵심 흐름: source는 문서 단위 상태, chunk는 검색 단위 벡터를 저장한다는 분리를 유지해야 합니다.
+# 같이 확인: 색인 테이블 컬럼 변경 시 migrations와 services/indexing_service.py를 같이 수정하세요.
 import json
 from datetime import datetime
 from typing import Any

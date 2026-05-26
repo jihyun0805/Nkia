@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 백엔드 테이블 row나 CRUD payload를 AI 색인 문서(title/content/metadata/sourceId)로 바꾸는 핵심 변환기입니다.
+# 핵심 흐름: 어떤 필드가 검색 본문에 들어가는지 여기서 결정되므로 챗봇이 특정 값을 못 찾으면 먼저 확인합니다.
+# 같이 확인: sourceType 추가 시 TABLE_TO_CONFIG, METADATA_ALIASES, reindex_orbis_data.py를 같이 맞춰야 합니다.
 """
 실 엔티티 테이블 row → IndexDocumentRequest payload 변환 모듈.
 

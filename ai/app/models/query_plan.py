@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 내부 모델 계층입니다. 의도, 검색 계획, 정규화 결과, 사용자 컨텍스트 같은 중간 상태를 정의합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 정형 query planner 결과 모델입니다.
+# 핵심 흐름: LLM이 반환한 JSON 계획을 검증하고 실행 가능한 값만 보존합니다.
+# 같이 확인: GMS prompt 변경 시 허용 enum과 기본값도 함께 맞추세요.
 from dataclasses import dataclass, field
 from typing import Literal
 

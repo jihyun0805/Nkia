@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 두 사업/문서의 비교 질문을 정형 데이터와 근거 요약으로 계산하는 executor입니다.
+# 핵심 흐름: LangGraph comparison 노드가 이 파일을 호출하고, 결과는 format_comparison_answer로 바로 사용자 답변이 됩니다.
+# 같이 확인: 비교 지표 추가 시 langgraph/comparison.py의 metric 추론과 함께 맞추세요.
 from __future__ import annotations
 
 from typing import Any

@@ -1,5 +1,6 @@
-# 인수인계 메모: AI 챗봇 공통 코드입니다. 다른 계층에서 재사용하는 설정, 보안, 어댑터, 도구 함수를 담습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 백엔드 AnswerRequest를 LangGraph state 입력으로 바꾸고, graph 출력 dict를 AnswerResponse로 복원하는 변환기입니다.
+# 핵심 흐름: thread_id, history, user_context 직렬화 계약이 여기서 정해지므로 프론트/백엔드 세션 저장과 직접 연결됩니다.
+# 같이 확인: 그래프 state 필드 추가 시 schemas/answer.py와 orchestration/langgraph_runtime.py를 같이 수정하세요.
 from __future__ import annotations
 
 from typing import Any

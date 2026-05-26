@@ -1,5 +1,6 @@
-# 인수인계 메모: 임베딩 계층입니다. 원문을 검색 가능한 청크로 나누고, 문서/질문 prefix를 붙여 같은 벡터 공간에 올립니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 파이썬 float 리스트를 pgvector SQL literal로 바꾸는 작은 변환 유틸입니다.
+# 핵심 흐름: 색인 저장과 검색 query embedding 모두 같은 포맷을 사용해야 SQL 캐스팅 오류가 나지 않습니다.
+# 같이 확인: pgvector 컬럼 타입이나 psycopg 어댑터를 바꾸면 indexing/search repository 호출부를 같이 확인하세요.
 from collections.abc import Iterable
 
 

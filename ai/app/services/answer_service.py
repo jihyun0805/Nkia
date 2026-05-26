@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: LangGraph가 호출하는 답변 관련 callback 묶음입니다. 신뢰도 가드, 근거 문맥, 빠른 추출 답변, evidence 변환을 제공합니다.
+# 핵심 흐름: LLM 호출 전후의 품질 방어선이 여기 있으므로 “답은 맞는데 표현/근거가 이상함” 이슈에서 먼저 확인합니다.
+# 같이 확인: 프롬프트는 llm/gms_client.py, 검색 결과 구조는 schemas/search.py와 연결됩니다.
 import re
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone

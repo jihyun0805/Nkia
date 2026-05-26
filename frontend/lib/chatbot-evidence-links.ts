@@ -1,5 +1,6 @@
-// 인수인계 메모: 근거 문서 이동 링크 매퍼입니다. AI evidence 메타데이터를 실제 ERP 화면 URL로 변환합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI evidence 메타데이터를 실제 ERP 상세/탭 URL로 바꾸는 매퍼입니다.
+// 핵심 흐름: ATTACHMENT 근거는 parent/root 문서로 재귀 매핑하고, 대부분의 업무 문서는 metadata의 숫자 PK를 우선 사용합니다.
+// 같이 확인: 새 sourceType을 색인하면 여기에 라우팅 규칙을 추가해야 근거 카드의 “화면 열기”가 생깁니다.
 "use client"
 
 import type { ChatbotEvidence } from "@/lib/chatbot-api"

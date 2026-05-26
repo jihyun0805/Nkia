@@ -1,5 +1,6 @@
-# 인수인계 메모: AI 챗봇 공통 코드입니다. 다른 계층에서 재사용하는 설정, 보안, 어댑터, 도구 함수를 담습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: psycopg connection pool 관리 파일입니다. AI 스키마 조회, 검색, 색인 서비스가 모두 같은 pool을 사용합니다.
+# 핵심 흐름: FastAPI lifespan에서 open_pool/close_pool을 호출하고, 서비스는 pool.connection()만 사용합니다.
+# 같이 확인: DB URL/스키마 변경 시 config.py와 repository SQL의 schema prefix를 같이 확인하세요.
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 

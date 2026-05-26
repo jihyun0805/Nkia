@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 로그인 사용자의 챗봇 검색 권한 컨텍스트를 만드는 서비스입니다.
+// 핵심 흐름: Role/Permission/부서/담당자 범위를 AI가 이해하는 accessibleSourceTypes/accessSourceIds로 변환합니다.
+// 같이 확인: 권한 정책 변경 시 AI user_context_access.py와 sourceId 포맷을 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.service;
 
 import com.nkia.Orbis.common.util.SecurityUtil;

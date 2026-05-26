@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: LangGraph 노드가 사용하는 순수 판단 로직을 재수출하는 패키지입니다.
+# 핵심 흐름: preflight, 정형 계획, 검색 계획, 보정 검색, 초안 액션 등 runtime 노드가 호출할 helper를 한곳에서 export합니다.
+# 같이 확인: 새 helper를 추가하면 orchestration/langgraph_runtime.py import와 __all__ 성격의 재수출 목록을 같이 정리하세요.
 from app.langgraph.comparison import ComparisonDeltaPlan, build_comparison_delta_plan
 from app.langgraph.corrective import CorrectiveRetrievalDecision, evaluate_corrective_retrieval
 from app.langgraph.discovery import (

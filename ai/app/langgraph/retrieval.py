@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: GraphState를 실제 검색 실행 계획으로 바꾸는 로직입니다.
+# 핵심 흐름: limit, sourceTypes, search_mode, reranker 사용 여부를 결정합니다.
+# 같이 확인: 검색 후보 부족 이슈는 search_service와 corrective.py를 같이 보세요.
 from dataclasses import dataclass
 
 from app.langgraph.search_mode import decide_search_mode

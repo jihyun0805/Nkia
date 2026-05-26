@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 UI 하위 컴포넌트입니다. 모달 본문을 입력창, 메시지, 근거, 액션, 사이드바로 나눠 관리합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI 답변의 근거 목록을 펼쳐 보여주는 컴포넌트입니다.
+// 핵심 흐름: 검색/정형/요약 근거 섹션을 렌더링하고 evidence navigation link가 있으면 실제 ERP 화면으로 이동시킵니다.
+// 같이 확인: sourceType 추가 시 chatbot-evidence-links.ts와 SOURCE_TYPE_LABELS를 같이 보강하세요.
 "use client"
 
 import { ExternalLink, FileText } from "lucide-react"

@@ -1,5 +1,6 @@
-# 인수인계 메모: DB 접근 계층입니다. pgvector 검색, 색인 테이블 갱신, 백엔드 조회를 SQL 단위로 캡슐화합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: pgvector 후보, 키워드 후보, 정확 코드/엔티티 스코프를 조회하는 검색 SQL repository입니다.
+# 핵심 흐름: search_service.py는 점수 병합을 담당하고, 실제 WHERE/JOIN/metadata 조건은 대부분 여기서 결정됩니다.
+# 같이 확인: 권한 필터나 sourceType 필터가 누락되면 챗봇 근거 노출 범위가 달라지므로 user_context_access.py와 함께 확인하세요.
 from typing import Any
 
 import psycopg

@@ -1,5 +1,6 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: POST /answer 엔드포인트입니다. 검색, 정형 조회, LLM 답변 생성을 LangGraph에 위임합니다.
+# 핵심 흐름: Request.app.state.orbis_answer_graph와 embedder를 꺼내 쓰며, userContext는 백엔드 권한 필터로 전달됩니다.
+# 같이 확인: 응답 필드 변경 시 backend chatbot proxy DTO와 frontend/lib/chatbot-api.ts를 같이 맞춰야 합니다.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request

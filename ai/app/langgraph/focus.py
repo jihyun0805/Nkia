@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 질문에서 리스크, 가격, 일정, 담당자 같은 관심 초점을 추출합니다.
+# 핵심 흐름: structured/discovery 답변이 어떤 포인트를 강조할지 결정하는 힌트입니다.
+# 같이 확인: 새 focus 키는 답변 formatter에서 사람이 읽는 라벨도 추가해야 합니다.
 from dataclasses import dataclass, field
 
 from app.langgraph.state import GraphState

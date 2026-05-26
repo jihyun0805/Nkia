@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI 검색 근거 한 건을 표현하는 DTO입니다.
+// 핵심 흐름: sourceType/sourceId/title/content/metadata와 vector/keyword/finalScore가 프론트 근거 카드와 화면 이동 링크의 입력입니다.
+// 같이 확인: metadata key 변경 시 frontend chatbot-evidence-links.ts 라우팅 규칙을 같이 보세요.
 package com.nkia.Orbis.domain.chatbot.proxy.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

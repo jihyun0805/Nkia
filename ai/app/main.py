@@ -1,5 +1,6 @@
-# 인수인계 메모: AI 챗봇 공통 코드입니다. 다른 계층에서 재사용하는 설정, 보안, 어댑터, 도구 함수를 담습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: FastAPI 앱 진입점입니다. lifespan에서 DB 풀, 색인 스키마 검증, 임베딩 모델, LangGraph, pg_notify 리스너를 한 번에 초기화합니다.
+# 핵심 흐름: 요청 처리 중에는 app.state.embedder와 app.state.orbis_answer_graph를 재사용하므로 여기 초기화 순서가 챗봇 전체 기동 순서입니다.
+# 같이 확인: 설정 변경 시 app/core/config.py, app/services/index_listener.py, app/orchestration/langgraph_runtime.py를 같이 확인하세요.
 import asyncio
 import logging
 from collections.abc import AsyncIterator

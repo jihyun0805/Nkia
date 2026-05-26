@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 UI 하위 컴포넌트입니다. 모달 본문을 입력창, 메시지, 근거, 액션, 사이드바로 나눠 관리합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 챗봇 세션 목록 사이드바입니다.
+// 핵심 흐름: 세션 선택, 새 대화, 제목 편집, 삭제 액션을 부모 모달 callback으로 전달합니다.
+// 같이 확인: 세션 정렬/제목 정책 변경 시 utils.ts와 backend ChatSessionService를 같이 확인하세요.
 "use client"
 
 import { History, Sparkles, Trash2 } from "lucide-react"

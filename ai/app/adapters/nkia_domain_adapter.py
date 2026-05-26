@@ -1,5 +1,6 @@
-# 인수인계 메모: AI 챗봇 공통 코드입니다. 다른 계층에서 재사용하는 설정, 보안, 어댑터, 도구 함수를 담습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 엔키아 ERP의 상태명, 문서 타입, 도메인 별칭을 AI 내부 표준 값으로 맞추는 어댑터입니다.
+# 핵심 흐름: 사용자 질문의 한국어 표현과 DB payload 키가 다를 때 이 매핑을 거쳐 검색/정형 조회 조건으로 들어갑니다.
+# 같이 확인: 새 도메인이나 상태값을 추가하면 models/constants.py와 document_builder.py의 sourceType 처리도 확인하세요.
 from __future__ import annotations
 
 from typing import Any

@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 UI 하위 컴포넌트입니다. 모달 본문을 입력창, 메시지, 근거, 액션, 사이드바로 나눠 관리합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI 답변에 포함된 create_draft/edit_field/navigate 액션 버튼을 렌더링합니다.
+// 핵심 흐름: 버튼 클릭 시 sessionStorage prefill payload를 저장하거나 라우터로 이동해 대상 ERP 폼을 열게 합니다.
+// 같이 확인: payload 구조 변경 시 use-chatbot-prefill.ts와 대상 폼의 sync 로직을 같이 확인하세요.
 "use client"
 
 import { Pencil, FileText, ArrowRight, ClipboardEdit } from "lucide-react"

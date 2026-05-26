@@ -1,5 +1,6 @@
-// 인수인계 메모: 프론트 챗봇 API 클라이언트입니다. 백엔드 프록시/세션/첨부 API 호출과 타입 계약을 모아둡니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 프론트 챗봇 전용 API 클라이언트입니다. 백엔드 프록시 답변, 세션 CRUD, 메시지 저장, 첨부 업로드/삭제를 호출합니다.
+// 핵심 흐름: 백엔드 공통 응답 포맷을 도메인 타입으로 풀고 401/403 메시지를 사용자용 문구로 바꿉니다.
+// 같이 확인: DTO 필드 변경 시 backend chatbot DTO와 ChatbotModal의 저장 payload를 같이 맞추세요.
 "use client"
 
 import { getBackendApiBaseUrl } from "@/lib/api-base-url"

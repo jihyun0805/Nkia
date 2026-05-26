@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 사용자 질문이 문서 초안 작성 요청인지 규칙 기반으로 감지합니다.
+# 핵심 흐름: “작성해줘/초안/만들어줘” 같은 trigger와 문서 타입 단서를 점수화합니다.
+# 같이 확인: 새 문서 타입 trigger는 draft_registry와 함께 추가하세요.
 from __future__ import annotations
 
 from app.langgraph.state import GraphDraftIntent

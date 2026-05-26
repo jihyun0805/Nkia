@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 두 대상 비교 질문에서 비교쌍, 기간, 지표를 추출하는 LangGraph 보조 로직입니다.
+# 핵심 흐름: comparison 노드가 실행될지 결정하는 preflight 힌트를 만듭니다.
+# 같이 확인: 실제 비교 계산은 services/comparison_executor.py가 담당합니다.
 import re
 from dataclasses import dataclass, field
 

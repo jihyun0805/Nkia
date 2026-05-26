@@ -1,5 +1,6 @@
-# 인수인계 메모: API 스키마 계층입니다. 외부 요청/응답 형태를 고정해 백엔드와 AI 서버 간 계약을 맞춥니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: rfp_summary API 스키마 파일입니다.
+# 핵심 흐름: 공개 모델: RfpSummaryResponse. 외부 호출 계약을 표현합니다.
+# 같이 확인: 필드 추가/삭제는 백엔드 Java DTO와 프론트 TypeScript 타입까지 영향이 있습니다.
 from pydantic import BaseModel, Field
 
 

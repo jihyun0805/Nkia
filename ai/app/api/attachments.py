@@ -1,5 +1,6 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 도메인 첨부파일을 AI 색인에 영구 반영하는 업로드/삭제 API입니다.
+# 핵심 흐름: 파일 본문 추출 후 parent/root 메타데이터를 붙여 ATTACHMENT 문서로 색인합니다.
+# 같이 확인: 추출 정책은 services/attachment_text_extractor.py, 색인 변환은 services/indexing_service.py와 연결됩니다.
 """일반 첨부파일 색인 endpoint.
 
 사업기회·RFP·제안서·견적 등 모든 도메인의 첨부파일을 영구 ATTACHMENT 로 색인.

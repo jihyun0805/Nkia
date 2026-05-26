@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 사업 발굴/진행 현황 질문용 실행 계획을 만드는 LangGraph 로직입니다.
+# 핵심 흐름: 일반 semantic search 전에 처리 가능한 discovery 요약 경로를 구성합니다.
+# 같이 확인: 응답 생성은 services/discovery_summary_service.py와 연결됩니다.
 from dataclasses import dataclass, field
 
 from app.embeddings.model import EmbeddingModel

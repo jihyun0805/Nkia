@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 근거를 검색/정형/요약 세 그룹으로 나눠 전달하는 DTO입니다.
+// 핵심 흐름: 프론트는 이 그룹명을 그대로 사용해 근거 탭 섹션을 만들고, 없으면 evidences 단일 목록으로 fallback합니다.
+// 같이 확인: AI evidence_service.py의 group_answer_evidences와 ChatEvidence 렌더링을 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

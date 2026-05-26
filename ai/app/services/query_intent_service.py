@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 자연어 질문에서 정형 조회 의도, 순위 기준, 상태/기간/고객 조건을 규칙 기반으로 추출합니다.
+# 핵심 흐름: LLM planner 없이도 자주 묻는 질문을 빠르게 DB 조회로 처리하기 위한 1차 해석기입니다.
+# 같이 확인: 새 질문 패턴은 query_normalization_service.py와 metric_registry.py 용어도 같이 확인하세요.
 import re
 
 from app.models.intent import StructuredQueryIntent

@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 내부 모델 계층입니다. 의도, 검색 계획, 정규화 결과, 사용자 컨텍스트 같은 중간 상태를 정의합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 문서 초안 액션에서 사용하는 도메인 모델입니다.
+# 핵심 흐름: LLM이 채운 slot payload와 프론트 prefill이 기대하는 구조를 연결합니다.
+# 같이 확인: 새 slot은 draft_registry와 프론트 폼 매핑을 같이 추가하세요.
 from __future__ import annotations
 
 from typing import Any, Literal

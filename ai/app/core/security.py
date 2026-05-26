@@ -1,5 +1,6 @@
-# 인수인계 메모: AI 챗봇 공통 코드입니다. 다른 계층에서 재사용하는 설정, 보안, 어댑터, 도구 함수를 담습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: AI 내부 API 접근 제어 헬퍼입니다. 백엔드에서 온 내부 토큰이나 권한 컨텍스트 검증을 담당합니다.
+# 핵심 흐름: 운영에서 AI API를 직접 노출하지 않기 위해 백엔드 프록시와 같은 인증 규칙을 맞춰야 합니다.
+# 같이 확인: 인증 정책 변경 시 backend ChatbotProxyController와 배포 env의 토큰 값을 같이 확인하세요.
 import hmac
 
 from fastapi import Header, HTTPException, status

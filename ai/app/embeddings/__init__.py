@@ -1,3 +1,4 @@
-# 인수인계 메모: 임베딩 계층입니다. 원문을 검색 가능한 청크로 나누고, 문서/질문 prefix를 붙여 같은 벡터 공간에 올립니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 임베딩/벡터 처리 패키지입니다.
+# 핵심 흐름: 색인 본문을 chunker.py로 나누고 model.py에서 SentenceTransformer 임베딩을 만든 뒤 vector.py 형식으로 DB에 넣습니다.
+# 같이 확인: 모델명이나 dimension 변경 시 pgvector 컬럼과 전체 reindex가 필요합니다.
 """Embedding utilities for AI knowledge indexing."""

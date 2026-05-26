@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 사업 발굴/진행/결과 관련 요약 답변을 만드는 정형 보조 서비스입니다.
+# 핵심 흐름: 기회, 활동, RFP, PRB, 프로젝트 결과를 묶어 “왜 중요한지”를 설명하는 응답을 만듭니다.
+# 같이 확인: DB 필드나 문서 타입 추가 시 structured_answer_service.py와 source metadata 규칙을 같이 확인하세요.
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta

@@ -1,5 +1,6 @@
-// 인수인계 메모: 채팅 세션/메시지 저장 계층입니다. 사용자별 대화 목록과 메시지 이력을 DB에 보존합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 챗봇 메시지 엔티티입니다.
+// 핵심 흐름: role/content 외에 assistant 답변의 route, answerStatus, evidences, typedEvidences, actions를 JSON 문자열로 저장합니다.
+// 같이 확인: 프론트 재렌더링 필드 변경 시 ChatMessageResponse와 chatbot-api.ts 타입을 같이 맞추세요.
 package com.nkia.Orbis.domain.chatbot.session.entity;
 
 import com.nkia.Orbis.common.entity.BaseEntity;

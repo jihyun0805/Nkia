@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 검색/정형/요약 근거를 프론트가 보여줄 typedEvidences 구조로 묶는 서비스입니다.
+# 핵심 흐름: 근거 탭의 “검색 근거/정형 근거/요약 근거” 분리는 여기 결과를 프론트가 그대로 렌더링합니다.
+# 같이 확인: 근거 타입 추가 시 schemas/answer.py와 frontend ChatEvidence 렌더링을 같이 확인하세요.
 from app.schemas.answer import AnswerEvidence, AnswerEvidenceGroups
 
 

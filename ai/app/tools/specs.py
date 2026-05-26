@@ -1,5 +1,6 @@
-# 인수인계 메모: AI 챗봇 공통 코드입니다. 다른 계층에서 재사용하는 설정, 보안, 어댑터, 도구 함수를 담습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: LLM/tool loop에 공개할 도구 이름, 설명, 입력 schema를 정의합니다.
+# 핵심 흐름: 모델은 여기 있는 spec만 보고 호출 계획을 세우므로 설명이 부정확하면 잘못된 tool을 고릅니다.
+# 같이 확인: 실행 구현은 tools/executor.py와 항상 쌍으로 맞춰야 합니다.
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any

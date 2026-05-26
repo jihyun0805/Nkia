@@ -1,5 +1,6 @@
-# 인수인계 메모: DB 접근 계층입니다. pgvector 검색, 색인 테이블 갱신, 백엔드 조회를 SQL 단위로 캡슐화합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: AI 서버가 백엔드 PostgreSQL 원본 테이블을 직접 읽을 때 쓰는 DB URL/조회 헬퍼입니다.
+# 핵심 흐름: 정형 답변이나 재색인에서 운영 DB public 스키마를 조회하는 경계라 커넥션 대상이 중요합니다.
+# 같이 확인: 배포 DB 터널이나 env가 바뀌면 이 파일의 URL 조립과 core/config.py 값을 같이 확인하세요.
 import logging
 import re
 from functools import lru_cache

@@ -1,5 +1,6 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 경영 리포트 생성 API입니다. 검색 근거를 모아 보고서형 답변을 만드는 서비스에 위임합니다.
+# 핵심 흐름: 일반 챗봇 답변보다 긴 요약/기간 분석이 필요할 때 별도 schema를 사용합니다.
+# 같이 확인: 리포트 출력 구조 변경 시 schemas/report.py와 services/management_report_service.py를 같이 확인하세요.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request

@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 UI 하위 컴포넌트입니다. 모달 본문을 입력창, 메시지, 근거, 액션, 사이드바로 나눠 관리합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 챗봇 입력창과 첨부파일 선택 UI입니다.
+// 핵심 흐름: Enter 전송, Shift+Enter 줄바꿈, 업로드 버튼, pending attachment 삭제 이벤트를 부모 모달로 올립니다.
+// 같이 확인: 입력 UX 변경 시 ChatbotModal의 sendMessage/isAnswering 상태와 함께 확인하세요.
 "use client"
 
 import { useRef } from "react"

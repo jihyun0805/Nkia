@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 챗봇 LangGraph 런타임입니다. 준비, 모호성 가드, preflight, 정형 조회, 검색, 답변, 액션 부착 노드를 연결합니다.
+# 핵심 흐름: 각 노드는 dict state만 주고받으므로 새 필드는 OrbisAgentState, adapter, AnswerResponse 스키마를 같이 맞춰야 합니다.
+# 같이 확인: 검색 품질 문제는 retrieval 노드와 services/search_service.py, 답변 문체 문제는 answer 노드와 llm/gms_client.py를 보세요.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass

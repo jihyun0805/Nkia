@@ -1,5 +1,6 @@
-# 인수인계 메모: 임베딩 계층입니다. 원문을 검색 가능한 청크로 나누고, 문서/질문 prefix를 붙여 같은 벡터 공간에 올립니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 색인 본문을 일정 길이와 overlap을 가진 청크로 나누는 유틸입니다.
+# 핵심 흐름: 청크 크기는 검색 recall과 근거 표시 길이에 직접 영향을 주며 settings.ai_chunk_size 값을 사용합니다.
+# 같이 확인: chunk 규칙 변경 후에는 기존 pgvector 데이터를 reindex해야 검색 품질이 일관됩니다.
 def split_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 120) -> list[str]:
     normalized = "\n".join(line.rstrip() for line in text.strip().splitlines() if line.strip())
     if not normalized:

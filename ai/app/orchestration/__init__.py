@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 챗봇 실행 흐름을 외부에 공개하는 orchestration 패키지입니다.
+# 핵심 흐름: main.py가 create_orbis_agent_graph를 여기서 import해 앱 기동 시 LangGraph를 컴파일합니다.
+# 같이 확인: 그래프 state 변환은 adapters/chat_graph_adapter.py, 세부 노드 로직은 langgraph 패키지와 연결됩니다.
 from app.orchestration.langgraph_runtime import (
     OrbisGraphCallbacks,
     create_orbis_agent_graph,

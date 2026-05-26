@@ -1,2 +1,3 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: FastAPI 라우터 패키지입니다.
+# 핵심 흐름: /answer, /search, /internal/index, /ocr 같은 HTTP 경계를 정의하고 실제 처리는 services로 위임합니다.
+# 같이 확인: 전체 router 조립은 router.py, 백엔드 호출 경로는 backend ChatbotProxyService와 맞춰야 합니다.

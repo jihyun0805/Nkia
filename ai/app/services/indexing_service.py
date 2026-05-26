@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: IndexDocumentRequest를 source/chunk/embedding으로 저장하거나 삭제 표시하는 색인 서비스입니다.
+# 핵심 흐름: 중복 eventId, 오래된 occurredAt, 동일 본문 hash를 걸러 불필요한 임베딩 재생성을 막습니다.
+# 같이 확인: 본문 생성은 document_builder.py, 실제 SQL은 repositories/index_repository.py가 담당합니다.
 import hashlib
 from datetime import datetime, timezone
 from typing import Any

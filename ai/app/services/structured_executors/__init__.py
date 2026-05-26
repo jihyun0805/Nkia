@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: structured_answer_service에서 분리한 정형 질의 executor 패키지입니다.
+# 핵심 흐름: 현재는 opportunity_risk.py의 사업기회 리스크 집중 질의 응답 함수를 재수출합니다.
+# 같이 확인: 정형 답변 파일이 더 커지면 도메인별 executor를 이 패키지로 옮기고 import 경로를 정리하세요.
 from app.services.structured_executors.opportunity_risk import answer_entity_risk_focus_query
 
 __all__ = ["answer_entity_risk_focus_query"]

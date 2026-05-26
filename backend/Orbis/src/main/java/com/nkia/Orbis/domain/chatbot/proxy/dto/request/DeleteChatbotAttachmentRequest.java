@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 챗봇 임시 첨부파일 삭제 요청 DTO입니다.
+// 핵심 흐름: sessionId와 fileId를 받아 AI ATTACHMENT 색인에 DELETE 이벤트를 보내는 데 사용합니다.
+// 같이 확인: 프론트 deleteChatbotAttachment와 AI indexing attachment delete payload를 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.dto.request;
 
 import jakarta.validation.constraints.NotBlank;

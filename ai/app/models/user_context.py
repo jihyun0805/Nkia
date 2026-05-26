@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 내부 모델 계층입니다. 의도, 검색 계획, 정규화 결과, 사용자 컨텍스트 같은 중간 상태를 정의합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 백엔드 권한 컨텍스트를 AI 내부에서 검증하기 위한 모델입니다.
+# 핵심 흐름: 사용자 role, 접근 가능한 sourceType/sourceId 목록을 검색 필터로 전달합니다.
+# 같이 확인: 백엔드 ChatbotAiUserContext DTO와 필드명을 맞춰야 합니다.
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field

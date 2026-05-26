@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 사업기회 추천/주의사항 답변을 생성하는 서비스입니다.
+# 핵심 흐름: 유사 수주 사례나 리스크 신호를 근거로 제안 방향을 만들고 LangGraph recommendation 노드가 호출합니다.
+# 같이 확인: 추천 로직 변경 시 similar_opportunity_service.py와 프론트 액션 안내 문구를 같이 확인하세요.
 from __future__ import annotations
 
 from typing import Any

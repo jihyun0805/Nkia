@@ -1,5 +1,6 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 업로드된 RFP 문서에서 짧은 AI 요약을 생성하는 API입니다.
+# 핵심 흐름: 첨부 색인과 별개로 즉석 파일 변환 후 LLM 요약을 수행합니다.
+# 같이 확인: RFP 파일 파싱은 rfp_document_text_converter.py, 요약 프롬프트는 rfp_summary_llm.py를 확인하세요.
 import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile

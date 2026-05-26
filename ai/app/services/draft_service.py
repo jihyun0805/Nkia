@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 챗봇이 생성하는 문서 초안 슬롯 정의와 LLM payload 정리를 담당합니다.
+# 핵심 흐름: 사용자가 “작성해줘”라고 했을 때 실제 저장은 하지 않고 프론트 폼 prefill 액션으로 넘기는 데이터를 만듭니다.
+# 같이 확인: 새 초안 문서 타입은 models/draft_registry.py와 프론트 prefill hook을 같이 확장하세요.
 from __future__ import annotations
 
 from typing import Any, Iterable

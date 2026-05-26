@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: opportunity_risk 챗봇 서비스 파일입니다.
+# 핵심 흐름: 공개 함수/모델: answer_entity_risk_focus_query(), summarize_text(), extract_project_risk_points(), extract_maintenance_risk_points(), build_entity_risk_evidences(), build_structured_snapshot_evidence().... API 또는 LangGraph 노드가 호출하는 업무 로직입니다.
+# 같이 확인: 입출력 구조 변경 시 schemas/models와 호출하는 API/runtime 파일을 같이 확인하세요.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone

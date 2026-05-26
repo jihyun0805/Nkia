@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI 검색 권한 필터에 쓰는 사용자 컨텍스트 DTO입니다.
+// 핵심 흐름: userId/roles/department와 accessibleSourceTypes/accessSourceIds/domainActions를 AI user_context_access.py가 그대로 소비합니다.
+// 같이 확인: null accessibleSourceIds는 전체 허용, 빈 리스트는 접근 가능한 문서 없음이라는 의미 차이를 유지해야 합니다.
 package com.nkia.Orbis.domain.chatbot.proxy.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonInclude;

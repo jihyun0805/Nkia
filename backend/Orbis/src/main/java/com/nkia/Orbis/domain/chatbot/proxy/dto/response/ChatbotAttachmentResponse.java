@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 임시 첨부파일 업로드/색인 결과 DTO입니다.
+// 핵심 흐름: AI가 반환한 fileId, sourceId, indexedStatus, preview를 프론트가 pending attachment 정리와 표시용으로 사용합니다.
+// 같이 확인: AI api/chat_attachments.py 응답 필드와 frontend UploadedChatbotAttachment 타입을 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

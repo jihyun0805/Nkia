@@ -1,5 +1,6 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 챗봇 대화 중 사용자가 올린 임시 첨부파일을 세션 단위로 색인하는 API입니다.
+# 핵심 흐름: 프론트가 질문 1회용 attachmentSessionId를 보내고, 답변 후 삭제 이벤트로 정리하는 흐름입니다.
+# 같이 확인: 세션 스코프 규칙은 backend ChatbotProxyService와 frontend ChatbotModal의 첨부 처리와 맞춰야 합니다.
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile

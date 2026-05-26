@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI /answer 응답을 백엔드가 프론트로 전달하는 DTO입니다.
+// 핵심 흐름: answer 본문, threadId, 신뢰도, 근거 목록, typedEvidences, draft/edit/navigate actions를 모두 담습니다.
+// 같이 확인: 필드 변경 시 AI AnswerResponse와 frontend ChatbotAnswerPayload를 같은 이름으로 맞춰야 합니다.
 package com.nkia.Orbis.domain.chatbot.proxy.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

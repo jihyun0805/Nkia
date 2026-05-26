@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 백엔드가 넘긴 사용자 권한 컨텍스트로 검색 row 접근 가능 여부를 판단합니다.
+# 핵심 흐름: accessibleSourceTypes와 accessibleSourceIds를 모두 확인해 챗봇 근거가 권한 밖으로 새지 않게 막습니다.
+# 같이 확인: 권한 정책 변경 시 backend ChatbotUserContextService와 sourceId 문자열 포맷을 반드시 맞추세요.
 from __future__ import annotations
 
 from typing import Any, Mapping

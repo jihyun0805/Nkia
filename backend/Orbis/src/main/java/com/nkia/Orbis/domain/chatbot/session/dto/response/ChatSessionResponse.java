@@ -1,5 +1,6 @@
-// 인수인계 메모: 채팅 세션/메시지 저장 계층입니다. 사용자별 대화 목록과 메시지 이력을 DB에 보존합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: ChatSession 엔티티를 세션 목록/생성 응답으로 내보내는 DTO입니다.
+// 핵심 흐름: id/title/createdAt/updatedAt만 포함하고 메시지 목록은 별도 messages API에서 조회합니다.
+// 같이 확인: 세션 목록 UI 변경 시 ChatSidebar와 getChatbotSessions 호출부를 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.session.dto.response;
 
 import com.nkia.Orbis.domain.chatbot.session.entity.ChatSession;

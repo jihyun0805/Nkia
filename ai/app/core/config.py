@@ -1,5 +1,6 @@
-# 인수인계 메모: AI 챗봇 공통 코드입니다. 다른 계층에서 재사용하는 설정, 보안, 어댑터, 도구 함수를 담습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 환경변수 기반 AI 서버 설정 모음입니다. DB, 임베딩 모델, GMS LLM, LangGraph checkpointer 값을 한곳에서 읽습니다.
+# 핵심 흐름: 설정 기본값이 운영 동작으로 바로 이어지므로 로컬 docker-compose와 배포 env 차이를 확인할 때 먼저 보는 파일입니다.
+# 같이 확인: 새 설정은 main.py 또는 해당 service에서 직접 os.getenv 하지 말고 여기 Settings에 추가하세요.
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

@@ -1,5 +1,6 @@
-// 인수인계 메모: 채팅 세션/메시지 저장 계층입니다. 사용자별 대화 목록과 메시지 이력을 DB에 보존합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 현재 요청의 챗봇 세션 ownerId를 결정하는 헬퍼입니다.
+// 핵심 흐름: 로그인 사용자 id를 우선 사용하고, 필요 시 익명 세션 기준을 만들어 세션을 분리합니다.
+// 같이 확인: 인증 방식 변경 시 SecurityUtil 사용부와 세션 repository 조회 조건을 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.session.service;
 
 import com.nkia.Orbis.common.exception.ApiException;

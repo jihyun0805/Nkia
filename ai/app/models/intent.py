@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 내부 모델 계층입니다. 의도, 검색 계획, 정규화 결과, 사용자 컨텍스트 같은 중간 상태를 정의합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 질문 의도 분류에 쓰는 내부 타입입니다.
+# 핵심 흐름: 정형 조회, 추천, 비교, 초안 작성 같은 큰 분기 기준을 표현합니다.
+# 같이 확인: LangGraph preflight와 query_intent_service가 같은 값을 사용해야 합니다.
 from dataclasses import dataclass, field
 from typing import Literal
 

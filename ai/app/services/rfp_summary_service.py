@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: RFP 파일 읽기, 텍스트 변환, LLM 요약 호출을 묶는 애플리케이션 서비스입니다.
+# 핵심 흐름: API 계층은 파일만 넘기고, 실제 변환 실패/요약 실패 처리는 이 파일에서 정리합니다.
+# 같이 확인: LLM 요약 품질은 rfp_summary_llm.py, 파일 파싱은 rfp_document_text_converter.py를 확인하세요.
 from __future__ import annotations
 
 from app.core.config import settings

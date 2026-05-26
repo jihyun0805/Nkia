@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 백엔드 챗봇 프록시 서비스입니다.
+// 핵심 흐름: 사용자 권한 컨텍스트와 scoped thread/attachment id를 붙여 AI 서버 /answer 및 첨부 색인 API를 호출합니다.
+// 같이 확인: AI 요청/응답 DTO 변경 시 proxy dto와 frontend ChatbotAnswerPayload를 같이 맞추세요.
 package com.nkia.Orbis.domain.chatbot.proxy.service;
 
 import com.nkia.Orbis.common.exception.errorcode.CommonErrorCode;

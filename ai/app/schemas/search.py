@@ -1,5 +1,6 @@
-# 인수인계 메모: API 스키마 계층입니다. 외부 요청/응답 형태를 고정해 백엔드와 AI 서버 간 계약을 맞춥니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: /search API와 답변 근거 표시가 사용하는 외부 검색 스키마입니다.
+# 핵심 흐름: SearchResult의 sourceType/sourceId/title/content/metadata가 프론트 근거 카드와 AnswerEvidence로 이어집니다.
+# 같이 확인: 내부 후보 dataclass는 models/search.py, 실제 검색 조립은 services/search_service.py에 있습니다.
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator

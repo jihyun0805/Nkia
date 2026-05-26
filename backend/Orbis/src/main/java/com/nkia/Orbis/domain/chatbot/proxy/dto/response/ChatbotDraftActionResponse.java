@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI 답변 아래에 표시할 액션 버튼 DTO입니다.
+// 핵심 흐름: type은 create_draft/edit_field/navigate 중 하나이며 payload는 프론트 ChatActions가 sessionStorage prefill 또는 라우팅에 사용합니다.
+// 같이 확인: payload 구조 변경 시 frontend ChatActions와 use-chatbot-prefill.ts를 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

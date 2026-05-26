@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 결재/업무 프로세스 상태를 질문에서 추출하고 조회 계획으로 바꾸는 로직입니다.
+# 핵심 흐름: 견적/계약/프로젝트의 approval/workflow 관련 질문을 정형 경로로 보냅니다.
+# 같이 확인: 백엔드 workflow 테이블 필드 변경 시 structured_answer_service 조회도 확인하세요.
 from dataclasses import dataclass, field
 
 from app.langgraph.state import GraphState

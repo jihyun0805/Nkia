@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 모달의 상태 오케스트레이터입니다. 세션, 메시지, 첨부, 타이핑 효과, AI 호출을 한곳에서 조율합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 챗봇 모달의 최상위 상태 관리자입니다. 로그인 세션, 대화 목록, 메시지, 임시 첨부, 타이핑 효과, AI 호출을 조율합니다.
+// 핵심 흐름: 화면에는 먼저 optimistic message를 붙이고, 답변 저장은 별도 세션 API로 처리해 저장 실패가 답변 표시를 막지 않게 했습니다.
+// 같이 확인: API 계약은 frontend/lib/chatbot-api.ts, 근거 링크는 chatbot-evidence-links.ts, 액션 버튼은 ChatActions.tsx와 연결됩니다.
 "use client"
 
 import { useEffect, useRef, useState } from "react"

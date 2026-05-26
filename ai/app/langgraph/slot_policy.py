@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 초안/수정 액션에서 어떤 slot이 필수인지, 기본값을 허용할지 판단합니다.
+# 핵심 흐름: LLM이 빈 값을 채웠을 때 사용자 확인이 필요한지 결정합니다.
+# 같이 확인: 폼 필수값 변경 시 프론트 form validation과 같이 업데이트하세요.
 from datetime import date, datetime, time, timedelta, timezone
 
 from app.langgraph.state import GraphSlotEntry, GraphState, GraphTimeRange

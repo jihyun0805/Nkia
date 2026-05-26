@@ -1,5 +1,6 @@
-# 인수인계 메모: LLM 클라이언트 계층입니다. GMS Chat Completions 호출과 재시도/JSON 파싱을 담당합니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: GMS Chat Completions 호출 클라이언트와 프롬프트 모음입니다. 질의 계획, 초안 슬롯, grounded answer를 모두 여기서 요청합니다.
+# 핵심 흐름: LLM은 DB를 직접 보지 않고 호출자가 만든 근거/대화/계획 문자열만 받으므로 환각 방지 규칙도 이 파일 프롬프트에 있습니다.
+# 같이 확인: 응답 JSON 파싱 오류나 품질 이슈가 나면 create_* 메서드와 build_*_prompt 함수를 함께 확인하세요.
 import json
 import re
 from dataclasses import dataclass

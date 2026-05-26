@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: PostgreSQL LISTEN/NOTIFY로 백엔드 CUD 이벤트를 받아 실시간 색인을 수행하는 비동기 리스너입니다.
+# 핵심 흐름: pg_notify는 영속 큐가 아니므로 리스너 중단 시간의 누락분은 reindex_orbis_data.py로 보정해야 합니다.
+# 같이 확인: 트리거 payload 변경 시 services/document_builder.py와 db/migrations/002_ai_index_notify_trigger.sql을 같이 확인하세요.
 """
 pg_notify 기반 실시간 AI 색인 리스너.
 

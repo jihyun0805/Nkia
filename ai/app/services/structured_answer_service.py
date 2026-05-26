@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: LLM 없이 DB/색인 근거만으로 바로 답하는 정형 질의 응답 모음입니다.
+# 핵심 흐름: 견적, 계약, 프로젝트, 유지보수, 조직/사람, 순위/집계처럼 자주 묻는 질문의 fast path가 대부분 여기에 있습니다.
+# 같이 확인: 새 업무 질문을 추가할 때는 의도 판별 함수, 조회 함수, evidence builder, empty response를 한 세트로 맞추세요.
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import logging

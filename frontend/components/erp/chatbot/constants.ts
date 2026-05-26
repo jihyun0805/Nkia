@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 UI 하위 컴포넌트입니다. 모달 본문을 입력창, 메시지, 근거, 액션, 사이드바로 나눠 관리합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 프론트 챗봇 UI 상수 모음입니다.
+// 핵심 흐름: 대화 history 길이, 검색 limit, 빠른 질문, sourceType 표시 라벨을 정의합니다.
+// 같이 확인: AI sourceType이나 빠른 질문을 바꾸면 이 파일과 모달 초기 UI를 같이 확인하세요.
 export const MAX_HISTORY_MESSAGES = 8
 export const DEFAULT_LIMIT = 5
 

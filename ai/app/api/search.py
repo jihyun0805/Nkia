@@ -1,5 +1,6 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 검색 API 엔드포인트입니다. 자연어 질의를 pgvector/키워드 하이브리드 검색 결과로 반환합니다.
+# 핵심 흐름: 답변 생성 없이 검색 품질과 근거 payload만 확인할 때 사용하는 경계입니다.
+# 같이 확인: 검색 로직은 services/search_service.py, SQL은 repositories/search_repository.py에 있습니다.
 from fastapi import APIRouter, Depends, Request
 
 from app.core.security import require_internal_token

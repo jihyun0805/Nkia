@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 프론트 /api/v1/chatbot 요청을 받는 백엔드 컨트롤러입니다.
+// 핵심 흐름: 답변 생성, 첨부 업로드/삭제, 검색 기간 조회를 ChatbotProxyService로 넘깁니다.
+// 같이 확인: 프론트 API path 변경 시 frontend/lib/chatbot-api.ts와 맞춰야 합니다.
 package com.nkia.Orbis.domain.chatbot.proxy.controller;
 
 import com.nkia.Orbis.common.exception.ApiException;

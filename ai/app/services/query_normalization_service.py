@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 질문 문자열을 기간, 코드, 회사/사업명 후보, 요청 limit 같은 검색 힌트로 정규화합니다.
+# 핵심 흐름: LangGraph preflight와 search_service가 같은 normalization을 공유해 필터/검색 질의를 안정화합니다.
+# 같이 확인: 한국어 날짜/금액/상태 표현 추가 시 관련 테스트와 query_intent_service.py를 함께 보세요.
 import re
 from calendar import monthrange
 from dataclasses import asdict

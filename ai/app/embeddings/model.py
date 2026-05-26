@@ -1,5 +1,6 @@
-# 인수인계 메모: 임베딩 계층입니다. 원문을 검색 가능한 청크로 나누고, 문서/질문 prefix를 붙여 같은 벡터 공간에 올립니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: SentenceTransformer 임베딩 래퍼입니다. 문서/질문 prefix를 붙이고 출력 차원을 검증합니다.
+# 핵심 흐름: encode_passages는 색인용, encode_query는 검색용이며 normalize_embeddings=True를 전제로 pgvector 거리 계산을 합니다.
+# 같이 확인: 모델명이나 dimension 변경 시 DB vector 차원과 reindex_orbis_data.py 재색인이 반드시 필요합니다.
 from dataclasses import dataclass
 
 from sentence_transformers import SentenceTransformer

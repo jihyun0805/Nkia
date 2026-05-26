@@ -1,5 +1,6 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 명함 OCR 테스트/운영 엔드포인트입니다. 이미지 파일을 읽어 OCR 결과와 필드 분류 결과를 반환합니다.
+# 핵심 흐름: 파일 크기와 이미지 여부를 먼저 검증한 뒤 business_card_ocr 서비스로 넘깁니다.
+# 같이 확인: OCR 모델 교체 시 services/business_card_ocr.py와 business_card_field_classifier.py를 같이 확인하세요.
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from PIL import UnidentifiedImageError

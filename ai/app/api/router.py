@@ -1,5 +1,6 @@
-# 인수인계 메모: FastAPI 엔드포인트 계층입니다. 백엔드에서 들어온 요청을 서비스 계층으로 넘기고 응답 스키마로 감쌉니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: AI 서버의 FastAPI 라우터 조립 파일입니다. answer/search/indexing/ocr/report 계열 라우터 prefix를 여기서 묶습니다.
+# 핵심 흐름: 새 API를 추가해도 main.py는 이 router만 include하므로, 운영 노출 여부는 여기 등록으로 결정됩니다.
+# 같이 확인: 백엔드 프록시가 호출하는 경로와 prefix가 어긋나지 않게 backend chatbot controller/service를 같이 확인하세요.
 from fastapi import APIRouter
 from app.api.answer import router as answer_router
 from app.api.attachments import router as attachments_router

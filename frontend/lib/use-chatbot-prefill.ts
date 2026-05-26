@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 액션 prefill 훅입니다. URL query의 chatbotPrefill_* 값을 폼 초기값으로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: 챗봇 액션이 sessionStorage에 넣은 prefill payload를 폼 페이지에서 읽고 소진하는 hook입니다.
+// 핵심 흐름: navigate/edit/create_draft 액션이 페이지 이동 후 폼 값을 자동 채우도록 하는 프론트-챗봇 접점입니다.
+// 같이 확인: 새 폼 자동채움 키를 추가하면 ChatActions.tsx의 저장 payload와 대상 폼의 sync hook을 같이 맞추세요.
 "use client"
 
 import { useEffect, useMemo } from "react"

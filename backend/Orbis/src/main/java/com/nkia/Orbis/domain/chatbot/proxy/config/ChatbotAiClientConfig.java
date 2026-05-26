@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI 서버 RestClient 설정 파일입니다.
+// 핵심 흐름: chatbot.ai.base-url, timeout, 공통 header 같은 프록시 호출 설정을 Spring bean으로 제공합니다.
+// 같이 확인: AI API 경로나 timeout 변경 시 ChatbotProxyService 호출부와 운영 env를 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.config;
 
 import org.springframework.beans.factory.annotation.Value;

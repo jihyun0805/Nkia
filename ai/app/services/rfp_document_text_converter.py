@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 업로드된 RFP 파일을 요약 가능한 plain text로 변환하는 서비스입니다.
+# 핵심 흐름: 색인용 attachment extractor와 달리 RFP 요약 API의 즉석 변환에 초점을 둡니다.
+# 같이 확인: 지원 문서 형식이나 오류 메시지는 api/rfp_summary.py와 맞춰야 합니다.
 from __future__ import annotations
 
 from dataclasses import dataclass

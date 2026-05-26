@@ -1,5 +1,6 @@
-// 인수인계 메모: 챗봇 프록시 계층입니다. 프론트 요청을 받아 사용자 권한 컨텍스트를 조립하고 AI 서버로 전달합니다.
-// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+// 인수인계: AI 프록시 호출 실패를 공통 ApiException 형태로 감싸기 위한 예외입니다.
+// 핵심 흐름: AI 서버의 4xx/5xx를 백엔드 공통 에러 코드와 메시지로 변환할 때 사용됩니다.
+// 같이 확인: 에러 포맷 변경 시 ChatbotProxyService.mapUpstreamException을 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.proxy.exception;
 
 import com.nkia.Orbis.common.exception.errorcode.ErrorCode;

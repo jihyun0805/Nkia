@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 챗봇 하이브리드 검색의 중심 서비스입니다. 질문 정규화, 첨부 보강, 벡터/키워드 후보 병합, 권한 필터, rerank를 순서대로 적용합니다.
+# 핵심 흐름: 정확 코드나 엔티티 scope가 있으면 유사도보다 우선 반영하고, 문서유형 추정 실패 시 필터를 한 번 완화합니다.
+# 같이 확인: SQL 후보는 repositories/search_repository.py, confidence 계산은 confidence_service.py와 연결됩니다.
 import re
 from typing import Any, Literal
 

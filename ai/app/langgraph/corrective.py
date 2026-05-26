@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 LangGraph 실행 계층입니다. 질문을 분기하고 정형 조회, 검색, 답변 생성, 초안 액션 순서로 흘려보냅니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: 검색 결과가 부족할 때 재검색이 필요한지 판단하는 보정 로직입니다.
+# 핵심 흐름: 기간/문서유형 필터를 한 번 완화할지 결정해 retrieval 노드에 전달합니다.
+# 같이 확인: 무분별한 재검색은 관련 없는 근거를 늘리므로 confidence_service와 같이 조정하세요.
 from dataclasses import dataclass, field
 
 from app.langgraph.retrieval import RetrievalExecutionPlan

@@ -1,5 +1,6 @@
-# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
-# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
+# 인수인계: GMS LLM에게 정형 조회 계획을 요청하고, 실패 시 안전한 fallback을 돌려주는 planner 서비스입니다.
+# 핵심 흐름: LLM이 만든 JSON을 그대로 믿지 않고 허용된 필드/값만 모델로 검증하는 역할입니다.
+# 같이 확인: planner prompt는 llm/gms_client.py, 결과 모델은 models/query_plan.py와 연결됩니다.
 from typing import Any
 
 from app.core.config import settings
