@@ -24,6 +24,7 @@ RFP_DOCUMENT_EXTENSIONS = {
 
 @dataclass(frozen=True)
 class RfpDocumentText:
+    # RFP 요약 서비스가 LLM 호출 전에 필요로 하는 정규화된 문서 정보다.
     file_name: str
     extension: str
     file_type: str
@@ -36,14 +37,17 @@ def convert_rfp_document_to_text(
     content_type: str | None,
     file_bytes: bytes,
 ) -> RfpDocumentText:
+    # 파일명이 비어 있어도 내부 처리와 응답에는 안정적인 이름을 사용한다.
     safe_filename = normalize_rfp_filename(filename)
     extension = Path(safe_filename).suffix.lower().lstrip(".")
+    # RFP 요약 대상 형식만 허용해 범용 첨부 추출기가 예상 밖 입력을 처리하지 않도록 한다.
     if extension not in RFP_DOCUMENT_EXTENSIONS:
         raise RuntimeError(
             "지원하지 않는 RFP 문서 형식입니다. "
             "지원 형식: pdf, doc, docx, ppt, pptx, hwp, hwpx, txt, md"
         )
 
+    # 실제 파일별 텍스트 추출은 공통 첨부 추출 서비스에 위임한다.
     extraction = extract_attachment_text(
         filename=safe_filename,
         content_type=content_type,
@@ -53,12 +57,14 @@ def convert_rfp_document_to_text(
 
 
 def normalize_rfp_filename(filename: str | None) -> str:
+    # 브라우저/클라이언트가 파일명을 보내지 않은 경우에도 확장자 처리 흐름을 유지한다.
     if filename and filename.strip():
         return filename.strip()
     return "rfp-document"
 
 
 def build_rfp_document_text(*, filename: str, extraction: AttachmentExtractionResult) -> RfpDocumentText:
+    # 공통 추출 결과를 RFP 요약 응답에 필요한 필드명으로 변환한다.
     return RfpDocumentText(
         file_name=filename,
         extension=extraction.extension,
