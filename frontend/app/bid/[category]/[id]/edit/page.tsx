@@ -76,7 +76,7 @@ export default async function BidEditPage({
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
-              <BidResultRegistrationForm bidResultId={id} />
+              <BidResultRegistrationForm bidResultId={id} showWorkflowDetail={false} />
             </div>
           </main>
         </div>
@@ -105,7 +105,7 @@ export default async function BidEditPage({
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
-              <PrbResultRegistrationForm prbResultId={id} />
+              <PrbResultRegistrationForm prbResultId={id} showWorkflowDetail={false} />
             </div>
           </main>
         </div>
@@ -134,7 +134,7 @@ export default async function BidEditPage({
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
-              <PrbRegistrationForm prbId={id} />
+              <PrbRegistrationForm prbId={id} showWorkflowDetail={false} />
             </div>
           </main>
         </div>

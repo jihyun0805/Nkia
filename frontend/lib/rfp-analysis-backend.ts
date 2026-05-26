@@ -106,6 +106,7 @@ type BackendRfpUpsertRequest = {
   }>
 }
 
+// RFP 분석은 발굴 데이터를 기반으로 입찰 분석 결과를 만드는 상위 단계다.
 const RFP_LIST_SIZE = 2000
 const RFP_BACKEND_FALLBACK_MESSAGE = "RFP 분석 API 연동에 실패했습니다."
 
@@ -154,6 +155,7 @@ async function parseApiResponse<T>(response: Response, fallbackMessage: string):
   return payload.data
 }
 
+// 현재 사용자 정보는 RFP 분석 담당자 기본값을 잡는 데 사용한다.
 async function fetchMyInfo() {
   const response = await fetch(`${getBackendApiBaseUrl()}/user/me`, {
     headers: buildAuthHeaders(),
@@ -164,6 +166,7 @@ async function fetchMyInfo() {
   return parseApiResponse<BackendMyInfo>(response, "내 사용자 정보를 불러오지 못했습니다.")
 }
 
+// 발굴 단계 사업기회 목록을 RFP 분석 화면에서 재사용한다.
 async function fetchProjectOpportunities() {
   const response = await fetch(`${getBackendApiBaseUrl()}/project-opportunities?size=${RFP_LIST_SIZE}`, {
     headers: buildAuthHeaders(),
@@ -176,6 +179,7 @@ async function fetchProjectOpportunities() {
   return payload.content ?? []
 }
 
+// RFP 분석 목록/현황 탭의 원천 데이터
 async function fetchRfpList() {
   const response = await fetch(`${getBackendApiBaseUrl()}/rfp-analyze-results?size=${RFP_LIST_SIZE}`, {
     headers: buildAuthHeaders(),
@@ -220,6 +224,7 @@ function mapStatusToFrontend(value?: string) {
   return "접수"
 }
 
+// 제안유형 표시값을 백엔드 저장용 코드로 변환한다.
 function mapProposalTypeToBackend(value?: string) {
   return value === "SI 제안" ? "SI" : "SELF"
 }
@@ -341,22 +346,25 @@ function mapBackendRfpRecord(
   }
 }
 
-async function resolveAssigneeId(input?: { assigneeId?: string }) {
-  if (isUuid(input?.assigneeId)) {
-    return input.assigneeId
+async function resolveAssigneeId(input?: { assigneeId?: string }): Promise<string> {
+  const inputAssigneeId = input?.assigneeId
+  if (typeof inputAssigneeId === "string" && isUuid(inputAssigneeId)) {
+    return inputAssigneeId
   }
 
   try {
     const myInfo = await fetchMyInfo()
-    if (isUuid(myInfo.userId)) {
-      return myInfo.userId
+    const userId = myInfo.userId
+    if (typeof userId === "string" && isUuid(userId)) {
+      return userId
     }
   } catch {
     // `/user/me` 실패 시 프론트 세션의 기본 사용자로 우회한다.
   }
 
-  if (isUuid(currentUser.id)) {
-    return currentUser.id
+  const currentUserId = currentUser.id
+  if (typeof currentUserId === "string" && isUuid(currentUserId)) {
+    return currentUserId
   }
 
   throw new Error("담당자를 선택해 주세요.")

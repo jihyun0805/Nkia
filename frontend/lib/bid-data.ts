@@ -1,5 +1,8 @@
+// 입찰 탭에서 사용하는 하위 화면 구분값.
+// rfp=RFP 분석, prb=PRB, prb-result=PRB 결과, proposal=제안서, result=입찰 결과.
 export type BidCategory = "rfp" | "prb" | "prb-result" | "proposal" | "result"
 
+// RFP/제안/PRB/입찰결과 화면 전반에서 공통으로 쓰는 상태/제안서/제품군 코드.
 export type RfpAnalysisStatus = "접수" | "분석중" | "완료"
 export type ProposalType = "자체 제안" | "SI 제안"
 export type ProposalProductGroup = "EMS" | "ITSM" | "Automation" | "WSS"
@@ -47,6 +50,7 @@ export type RfpAnalysisRecord = {
   updatedAt?: string
 }
 
+// 제안서 등록/상세에서 사용하는 기본 문서 모델.
 export type ProposalRecord = {
   id: string
   requestId: string
@@ -66,6 +70,8 @@ export type ProposalRecord = {
   updatedAt: string
 }
 
+// PRB 문서의 백오피스 상태값.
+// 작성 중 -> 검토 중 -> 승인/반려의 흐름으로 문서 진행 단계를 표현한다.
 export type PrbStatus = "작성 중" | "검토 중" | "승인" | "반려"
 
 export type PrbLineItem = {
@@ -82,6 +88,8 @@ export type PrbApprovalLine = {
   name: string
 }
 
+// PRB 결재선의 각 단계 키.
+// 작성자, 1차 승인, 2차 승인, 배포, 공유처럼 화면에 순서대로 노출된다.
 export type PrbApprovalStepKey = "author" | "firstApproval" | "secondApproval" | "deploy" | "share"
 
 export type PrbApprovalStepStatus = "completed" | "pending" | "waiting"
@@ -94,6 +102,8 @@ export type PrbApprovalStep = {
   completedAt?: string
 }
 
+// PRB 원본 문서 데이터.
+// 등록 화면, 상세 조회, 변경 이력, 결재 패널에서 모두 이 모델을 기준으로 동작한다.
 export type PrbRecord = {
   id: string
   workflowId?: number
@@ -133,6 +143,7 @@ export type PrbRecord = {
   updatedAt: string
 }
 
+// PRB 결과 회의록/검토 결과를 담는 모델.
 export type PrbResultRecord = {
   id: string
   workflowId?: number
@@ -212,6 +223,7 @@ export type BidResultAnalysisSheet = {
   checklistSections: BidResultChecklistSection[]
 }
 
+// 입찰 결과 상세와 현황 목록에서 쓰는 최종 결과 모델.
 export type BidResultRecord = {
   id: string
   workflowId?: number
@@ -240,6 +252,8 @@ export type BidResultRecord = {
   updatedAt: string
 }
 
+// 각 문서군을 localStorage에 저장할 때 쓰는 키들.
+// 새로고침 후에도 화면 상태를 유지하기 위해 브라우저 저장소를 사용한다.
 const RFP_ANALYSES_STORAGE_KEY = "orbis.rfpAnalyses"
 const DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY = "orbis.deleted-rfp-analysis-ids"
 const RFP_ANALYSES_EVENT_NAME = "orbis-rfp-analyses-updated"
@@ -261,12 +275,15 @@ export const bidResults: BidResultRecord[] = []
 export const prbResults: PrbResultRecord[] = [
 ]
 
+// 화면에서 보이는 입찰 관련 상태 라벨의 전체 집합.
 export const bidStatuses = ["접수", "분석중", "완료", "승인", "검토중", "작성중", "미정", "수주", "실주"]
 
+// 브라우저에서만 storage/event를 다루도록 분기한다.
 function isBrowser() {
   return typeof window !== "undefined"
 }
 
+// 각 문서 목록이 바뀌었음을 구독자에게 알리는 DOM 이벤트들.
 function emitRfpAnalysesUpdate() {
   if (!isBrowser()) return
   window.dispatchEvent(new Event(RFP_ANALYSES_EVENT_NAME))
@@ -327,11 +344,13 @@ function readStoredRfpAnalyses() {
   }
 }
 
+// RFP 분석 목록을 localStorage에 저장한다.
 function writeStoredRfpAnalyses(items: RfpAnalysisRecord[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(RFP_ANALYSES_STORAGE_KEY, JSON.stringify(items))
 }
 
+// 제안서 목록을 localStorage에서 읽는다.
 function readStoredProposals() {
   if (!isBrowser()) return proposalList
 
@@ -388,11 +407,13 @@ function readStoredProposals() {
   }
 }
 
+// 제안서 목록을 localStorage에 저장한다.
 function writeStoredProposals(items: ProposalRecord[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(items))
 }
 
+// PRB 결과 목록을 localStorage에서 읽는다.
 function readStoredPrbResults() {
   if (!isBrowser()) return prbResults
 
@@ -445,11 +466,13 @@ function readStoredPrbResults() {
   }
 }
 
+// PRB 결과 목록을 localStorage에 저장한다.
 function writeStoredPrbResults(items: PrbResultRecord[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(PRB_RESULTS_STORAGE_KEY, JSON.stringify(items))
 }
 
+// 삭제된 ID 목록을 공통 형식으로 읽는다.
 function readDeletedIds(storageKey: string) {
   if (!isBrowser()) return []
 
@@ -464,11 +487,13 @@ function readDeletedIds(storageKey: string) {
   }
 }
 
+// 삭제된 ID 목록을 공통 형식으로 저장한다.
 function writeDeletedIds(storageKey: string, value: string[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(storageKey, JSON.stringify(value))
 }
 
+// PRB의 기본 결재 단계를 문서 상태에 맞춰 생성한다.
 function buildDefaultPrbApprovalSteps(item: Partial<PrbRecord>): PrbApprovalStep[] {
   const status = item.status ?? "작성 중"
   return [
@@ -480,6 +505,8 @@ function buildDefaultPrbApprovalSteps(item: Partial<PrbRecord>): PrbApprovalStep
   ]
 }
 
+// 저장된 PRB 레코드를 화면에서 쓰기 좋은 형태로 보정한다.
+// 결재 단계, 배포/공유 담당자, revision 정보가 비어 있어도 문서가 깨지지 않도록 채운다.
 function normalizePrbRecord(item: PrbRecord, fallback?: PrbRecord): PrbRecord {
   return {
     ...fallback,
@@ -494,6 +521,7 @@ function normalizePrbRecord(item: PrbRecord, fallback?: PrbRecord): PrbRecord {
   }
 }
 
+// localStorage에서 PRB 목록을 읽고, 레거시 목 데이터까지 정리한다.
 function readStoredPrbs() {
   if (!isBrowser()) return prbList
 
@@ -535,11 +563,13 @@ function readStoredPrbs() {
   }
 }
 
+// PRB 목록을 localStorage에 저장한다.
 function writeStoredPrbs(items: PrbRecord[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(PRBS_STORAGE_KEY, JSON.stringify(items))
 }
 
+// 아래 getter들은 현재 화면이 참조하는 “최종 소스”를 제공한다.
 export function getRfpAnalyses() {
   const items = readStoredRfpAnalyses()
   if (isBrowser() && !window.localStorage.getItem(RFP_ANALYSES_STORAGE_KEY)) {
@@ -548,14 +578,17 @@ export function getRfpAnalyses() {
   return items
 }
 
+// RFP 분석 단건 조회.
 export function getRfpAnalysisById(id: string) {
   return getRfpAnalyses().find((item) => item.id === id) ?? null
 }
 
+// 활동 요청 ID로 연결된 RFP 분석을 찾는다.
 export function getRfpAnalysisByRequestId(requestId: string) {
   return getRfpAnalyses().find((item) => item.requestId === requestId) ?? null
 }
 
+// 제안서 목록 조회.
 export function getProposals() {
   const items = readStoredProposals()
   if (isBrowser() && !window.localStorage.getItem(PROPOSALS_STORAGE_KEY)) {
@@ -564,6 +597,7 @@ export function getProposals() {
   return items
 }
 
+// 제안서 목록을 한 번에 교체한다.
 export function replaceProposals(records: ProposalRecord[]) {
   writeStoredProposals(records)
   writeDeletedIds(DELETED_PROPOSAL_IDS_STORAGE_KEY, [])
@@ -571,15 +605,18 @@ export function replaceProposals(records: ProposalRecord[]) {
   return records
 }
 
+// 입찰 결과는 아직 서버 저장과 분리된 브라우저 상태를 그대로 쓴다.
 export function getBidResults() {
   return bidResults
 }
 
+// 입찰 결과 배열을 통째로 교체한다.
 export function replaceBidResults(records: BidResultRecord[]) {
   bidResults.splice(0, bidResults.length, ...records)
   return records
 }
 
+// PRB 목록 조회.
 export function getPrbs() {
   const items = readStoredPrbs()
   if (isBrowser() && !window.localStorage.getItem(PRBS_STORAGE_KEY)) {
@@ -588,6 +625,7 @@ export function getPrbs() {
   return items
 }
 
+// PRB 결과 목록 조회.
 export function getPrbResults() {
   const items = readStoredPrbResults()
   if (isBrowser() && !window.localStorage.getItem(PRB_RESULTS_STORAGE_KEY)) {
@@ -596,6 +634,7 @@ export function getPrbResults() {
   return items
 }
 
+// PRB 목록 전체 교체.
 export function replacePrbs(records: PrbRecord[]) {
   writeStoredPrbs(records)
   writeDeletedIds(DELETED_PRB_IDS_STORAGE_KEY, [])
@@ -603,6 +642,7 @@ export function replacePrbs(records: PrbRecord[]) {
   return records
 }
 
+// PRB 결과 목록 전체 교체.
 export function replacePrbResults(records: PrbResultRecord[]) {
   writeStoredPrbResults(records)
   writeDeletedIds(DELETED_PRB_RESULT_IDS_STORAGE_KEY, [])
@@ -610,26 +650,32 @@ export function replacePrbResults(records: PrbResultRecord[]) {
   return records
 }
 
+// 제안서 단건 조회.
 export function getProposalById(id: string) {
   return getProposals().find((item) => item.id === id) ?? null
 }
 
+// 활동 요청 ID로 연결된 제안서를 찾는다.
 export function getProposalByRequestId(requestId: string) {
   return getProposals().find((item) => item.requestId === requestId) ?? null
 }
 
+// 입찰 결과 단건 조회.
 export function getBidResultById(id: string) {
   return bidResults.find((item) => item.id === id) ?? null
 }
 
+// PRB 단건 조회.
 export function getPrbById(id: string) {
   return getPrbs().find((item) => item.id === id) ?? null
 }
 
+// PRB 결과 단건 조회.
 export function getPrbResultById(id: string) {
   return getPrbResults().find((item) => item.id === id) ?? null
 }
 
+// PRB revisionGroupId 기준으로 변경 이력 전체를 반환한다.
 export function getPrbRevisionHistory(prbId: string) {
   const current = getPrbById(prbId)
   if (!current) return []
@@ -639,10 +685,12 @@ export function getPrbRevisionHistory(prbId: string) {
     .sort((a, b) => a.revisionNumber - b.revisionNumber)
 }
 
+// 제안서 ID로 연결된 입찰 결과를 찾는다.
 export function getBidResultByProposalId(proposalId: string) {
   return bidResults.find((item) => item.proposalId === proposalId) ?? null
 }
 
+// 각 문서군의 변경 이벤트를 구독한다.
 export function subscribeRfpAnalysesUpdates(callback: () => void) {
   if (!isBrowser()) return () => undefined
 
@@ -691,6 +739,8 @@ export function subscribePrbResultUpdates(callback: () => void) {
   }
 }
 
+// 각 문서군별 다음 ID를 생성한다.
+// 로컬 테스트/목 데이터에서도 형식을 통일하기 위해 YYYY-번호 패턴을 유지한다.
 function nextRfpAnalysisId(items: RfpAnalysisRecord[]) {
   const max = items.reduce((acc, item) => {
     const current = Number.parseInt(item.id.split("-").at(-1) ?? "0", 10)
@@ -736,6 +786,7 @@ function nextPrbResultId(items: PrbResultRecord[]) {
   return `PRBR-2026-${String(max + 1).padStart(3, "0")}`
 }
 
+// RFP 분석 저장.
 export function saveRfpAnalysis(record: Omit<RfpAnalysisRecord, "id"> & { id?: string }) {
   const items = getRfpAnalyses()
   const targetId = record.id ?? nextRfpAnalysisId(items)
@@ -757,6 +808,7 @@ export function saveRfpAnalysis(record: Omit<RfpAnalysisRecord, "id"> & { id?: s
   return nextRecord
 }
 
+// RFP 분석 전체 교체.
 export function replaceRfpAnalyses(records: RfpAnalysisRecord[]) {
   writeStoredRfpAnalyses(records)
   writeDeletedIds(DELETED_RFP_ANALYSIS_IDS_STORAGE_KEY, [])
@@ -764,6 +816,7 @@ export function replaceRfpAnalyses(records: RfpAnalysisRecord[]) {
   return records
 }
 
+// RFP 분석 삭제.
 export function deleteRfpAnalysis(id: string) {
   const items = getRfpAnalyses()
   const existing = items.find((item) => item.id === id)
@@ -780,6 +833,7 @@ export function deleteRfpAnalysis(id: string) {
   return { status: "deleted" as const, analysis: existing }
 }
 
+// 제안서 저장.
 export function saveProposal(record: Omit<ProposalRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const items = getProposals()
   const existingById = record.id ? items.find((item) => item.id === record.id) ?? null : null
@@ -806,6 +860,7 @@ export function saveProposal(record: Omit<ProposalRecord, "id" | "createdAt" | "
   return nextRecord
 }
 
+// 제안서 삭제.
 export function deleteProposal(id: string) {
   const items = getProposals()
   const existing = items.find((item) => item.id === id)
@@ -822,6 +877,7 @@ export function deleteProposal(id: string) {
   return { status: "deleted" as const, proposal: existing }
 }
 
+// 입찰 결과 저장.
 export function saveBidResult(record: Omit<BidResultRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const items = getBidResults()
   const existingById = record.id ? items.find((item) => item.id === record.id) ?? null : null
@@ -846,6 +902,7 @@ export function saveBidResult(record: Omit<BidResultRecord, "id" | "createdAt" |
   return nextRecord
 }
 
+// 입찰 결과 삭제.
 export function deleteBidResult(id: string) {
   const items = getBidResults()
   const existing = items.find((item) => item.id === id)
@@ -857,6 +914,7 @@ export function deleteBidResult(id: string) {
   return { status: "deleted" as const, bidResult: existing }
 }
 
+// PRB 저장.
 export function savePrb(record: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const items = getPrbs()
   const existingById = record.id ? items.find((item) => item.id === record.id) ?? null : null
@@ -897,6 +955,7 @@ export function savePrb(record: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"
   return nextRecord
 }
 
+// PRB 삭제.
 export function deletePrb(id: string) {
   const items = getPrbs()
   const existing = items.find((item) => item.id === id)
@@ -913,6 +972,7 @@ export function deletePrb(id: string) {
   return { status: "deleted" as const, prb: existing }
 }
 
+// PRB 결과 저장.
 export function savePrbResult(record: Omit<PrbResultRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const items = getPrbResults()
   const existingById = record.id ? items.find((item) => item.id === record.id) ?? null : null
@@ -936,6 +996,7 @@ export function savePrbResult(record: Omit<PrbResultRecord, "id" | "createdAt" |
   return nextRecord
 }
 
+// PRB 결과 삭제.
 export function deletePrbResult(id: string) {
   const items = getPrbResults()
   const existing = items.find((item) => item.id === id)
@@ -952,6 +1013,8 @@ export function deletePrbResult(id: string) {
   return { status: "deleted" as const, prbResult: existing }
 }
 
+// PRB 한 단계 결재를 완료 상태로 넘긴다.
+// 화면에서 “승인” 버튼을 눌렀을 때 로컬 상태를 다음 결재 단계로 진척시키는 역할이다.
 export function approvePrbStep(prbId: string, actor: string) {
   const items = getPrbs()
   const target = items.find((item) => item.id === prbId) ?? null
@@ -990,6 +1053,7 @@ export function approvePrbStep(prbId: string, actor: string) {
   return nextRecord
 }
 
+// 입찰 탭에서 상세 화면/문서 뷰가 어떤 모델을 읽을지 통합 조회한다.
 export function getBidItem(category: BidCategory, id: string) {
   if (category === "rfp") return getRfpAnalysisById(id)
   if (category === "prb") return getPrbById(id)
@@ -998,6 +1062,7 @@ export function getBidItem(category: BidCategory, id: string) {
   return getBidResultById(id)
 }
 
+// 입찰 탭 상세 화면에 뿌릴 항목명/값을 카테고리별로 구성한다.
 export function getBidFields(category: BidCategory, item: any) {
   if (category === "rfp") return [
     { label: "RFP 번호", value: item.id },
@@ -1069,6 +1134,7 @@ export function getBidFields(category: BidCategory, item: any) {
   ]
 }
 
+// 입찰 메인 목록/탭에 표시할 한글 제목을 만든다.
 export function getBidCategoryLabel(category: BidCategory) {
   if (category === "rfp") return "RFP 분석"
   if (category === "prb") return "PRB"
@@ -1077,6 +1143,7 @@ export function getBidCategoryLabel(category: BidCategory) {
   return "입찰 결과"
 }
 
+// 입찰 메인에서 “등록” 버튼/CTA 라벨을 문서 종류에 맞게 바꾼다.
 export function getBidCreateActionLabel(category: BidCategory) {
   if (category === "rfp") return "RFP 분석 실행"
   if (category === "prb-result") return "PRB 결과 등록"

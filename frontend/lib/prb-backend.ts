@@ -25,8 +25,10 @@ type BackendMyInfoResponse = {
 
 type BackendProjectOpportunity = {
   id?: number
+  backendId?: number
   opportunityCode?: string
   opportunityName?: string
+  customerCompanyId?: number
   customerCompanyName?: string
   projectType?: string
   productModules?: { productModule?: { productName?: string } }[]
@@ -223,6 +225,7 @@ type BackendPrbCreateRequest = {
   }>
 }
 
+// PRB는 RFP 분석 이후 실제 입찰 전 비용/수익 구조를 정리하는 문서다.
 const PRB_LIST_SIZE = 2000
 
 function normalizeLookupText(value?: string | number | null) {
@@ -250,10 +253,11 @@ function formatDate(value?: string) {
 }
 
 function mapBackendPrbStatus(value?: string): PrbStatus {
-  if (value === "결재 대기" || value === "작성 중") return "작성 중"
-  if (value === "결재중" || value === "검토 중") return "검토 중"
-  if (value === "승인 완료" || value === "승인") return "승인"
-  if (value === "반려") return "반려"
+  const normalized = value?.trim().toUpperCase()
+  if (normalized === "DRAFT" || value === "결재 대기" || value === "작성 중") return "작성 중"
+  if (normalized === "PENDING" || value === "결재중" || value === "검토 중") return "검토 중"
+  if (normalized === "APPROVED" || value === "승인 완료" || value === "승인") return "승인"
+  if (normalized === "REJECTED" || value === "반려") return "반려"
   return "작성 중"
 }
 
@@ -265,6 +269,13 @@ function parseApiResponse<T>(response: Response, fallbackMessage: string): Promi
 
     return payload.data
   })
+}
+
+async function parseApiVoidResponse(response: Response, fallbackMessage: string): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
+  if (!response.ok || payload?.result !== "SUCCESS") {
+    throw new Error(payload?.message || fallbackMessage)
+  }
 }
 
 async function fetchCurrentUserId() {
@@ -293,6 +304,7 @@ async function fetchProjectOpportunities() {
   return payload.content ?? []
 }
 
+// PRB 현황 탭의 원천 데이터
 async function fetchPrbList() {
   const response = await fetch(`${getBackendApiBaseUrl()}/prbs?size=${PRB_LIST_SIZE}`, {
     headers: buildAuthHeaders(),
@@ -304,6 +316,7 @@ async function fetchPrbList() {
   return payload.content ?? []
 }
 
+// PRB 상세의 변경 이력 탭
 async function fetchPrbHistoryList(prbId: string) {
   const response = await fetch(`${getBackendApiBaseUrl()}/prbs/${prbId}/histories`, {
     headers: buildAuthHeaders(),
@@ -314,6 +327,7 @@ async function fetchPrbHistoryList(prbId: string) {
   return parseApiResponse<BackendPrbHistoryListItem[]>(response, "PRB 변경 이력을 불러오지 못했습니다.")
 }
 
+// PRB 변경 이력 탭에서 특정 버전 상세를 다시 불러올 때 쓰는 API
 async function fetchPrbHistoryDetail(historyId: number) {
   const response = await fetch(`${getBackendApiBaseUrl()}/prbs/histories/${historyId}`, {
     headers: buildAuthHeaders(),
@@ -328,6 +342,7 @@ async function resolveAssigneeIdFromInput(input: PrbRecord) {
   return input.salesRepresentativeId?.trim() ?? ""
 }
 
+// 백엔드 bidType 코드를 화면 라벨로 바꾼다.
 function mapBidTypeToDisplay(value?: string) {
   if (value === "SELF_BID_SELF_EVAL") return "자체 입찰 / 자체 평가"
   if (value === "PROCUREMENT_BID_PROCUREMENT_EVAL") return "조달 입찰 / 조달 평가"
@@ -347,6 +362,7 @@ function mapProjectTypeToBusinessType(value?: string) {
   return value ?? "EMS"
 }
 
+// 화면 라벨을 백엔드 저장 코드로 바꾼다.
 function mapBidTypeToBackend(value?: string) {
   if (value === "자체 입찰 / 자체 평가") return "SELF_BID_SELF_EVAL"
   if (value === "조달 입찰 / 조달 평가") return "PROCUREMENT_BID_PROCUREMENT_EVAL"
@@ -662,10 +678,11 @@ function mapBackendPrbRecord(
   rfpLookup: ReturnType<typeof buildRfpLookup>,
 ): PrbRecord {
   const linkedOpportunity = item.projectOpportunityId != null ? opportunityLookup.get(String(item.projectOpportunityId)) : undefined
-  const customerCode = linkedOpportunity?.customerCode ?? ""
-  const customerName = linkedOpportunity?.customer ?? item.customerCompanyName ?? ""
-  const opportunityCode = linkedOpportunity?.id ?? (item.projectOpportunityId != null ? String(item.projectOpportunityId) : "")
-  const opportunityName = linkedOpportunity?.name ?? item.opportunityName ?? ""
+  // project-opportunities 응답은 고객사 코드 대신 고객사 ID/이름, 사업기회 코드/이름을 제공한다.
+  const customerCode = linkedOpportunity?.customerCompanyId != null ? String(linkedOpportunity.customerCompanyId) : ""
+  const customerName = linkedOpportunity?.customerCompanyName ?? item.customerCompanyName ?? ""
+  const opportunityCode = linkedOpportunity?.opportunityCode ?? (item.projectOpportunityId != null ? String(item.projectOpportunityId) : "")
+  const opportunityName = linkedOpportunity?.opportunityName ?? item.opportunityName ?? ""
   const rfpAnalysisId =
     (linkedOpportunity?.id != null ? rfpLookup.byProjectOpportunityId.get(linkedOpportunity.id) : undefined) ??
     (opportunityCode ? rfpLookup.byOpportunityCode.get(normalizeLookupText(opportunityCode)) : undefined) ??
@@ -687,7 +704,7 @@ function mapBackendPrbRecord(
   return {
     id: String(item.prbId ?? `PRB-${Date.now()}`),
     workflowId: item.workflowId,
-    workflowStatus: item.status ?? undefined,
+    workflowStatus: mapBackendPrbStatus(item.status),
     projectOpportunityId: item.projectOpportunityId ?? linkedOpportunity?.id,
     salesRepresentativeId: item.salesRepresentativeId,
     customerCode,
@@ -800,6 +817,7 @@ export async function loadBackendPrbs() {
   return records
 }
 
+// PRB 상세/수정 화면의 단건 조회 API
 export async function loadBackendPrbDetailById(prbId: string) {
   const [opportunityLookup, detail] = await Promise.all([
     loadOpportunityLookup(),
@@ -864,7 +882,26 @@ export async function saveBackendPrb(input: Omit<PrbRecord, "id" | "createdAt" |
     },
   )
 
-  const saved = await parseApiResponse<BackendPrbResponse>(response, "PRB 저장에 실패했습니다.")
+  const parsed = (await response.json().catch(() => null)) as ApiResponse<BackendPrbResponse> | null
+  if (!response.ok || parsed?.result !== "SUCCESS") {
+    throw new Error(parsed?.message || "PRB 저장에 실패했습니다.")
+  }
+
+  if (parsed.data == null) {
+    if (!hasNumericId || !input.id) {
+      throw new Error("PRB 저장 결과를 확인하지 못했습니다.")
+    }
+
+    const refreshed = await loadBackendPrbDetailById(input.id)
+    const current = getPrbs()
+    const nextItems = current.some((item) => item.id === refreshed.id)
+      ? current.map((item) => (item.id === refreshed.id ? refreshed : item))
+      : [refreshed, ...current]
+    replacePrbs(nextItems)
+    return refreshed
+  }
+
+  const saved = parsed.data
   const opportunityLookup = await loadOpportunityLookup()
   const rfpLookup = buildRfpLookup()
   const merged = mapBackendPrbRecord(saved, opportunityLookup, rfpLookup)
@@ -883,6 +920,6 @@ export async function deleteBackendPrb(id: string) {
     credentials: "include",
   })
 
-  await parseApiResponse<Record<string, unknown>>(response, "PRB 삭제에 실패했습니다.")
+  await parseApiVoidResponse(response, "PRB 삭제에 실패했습니다.")
   return true
 }

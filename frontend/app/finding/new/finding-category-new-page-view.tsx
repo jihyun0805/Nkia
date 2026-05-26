@@ -53,6 +53,11 @@ import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
 type CustomerSector = "PUBLIC" | "PRIVATE" | "OVERSEAS"
+// 발굴 단계 코드.
+// - FINDING: 처음 발굴된 상태
+// - PROMISING: 검토 후 유망하다고 판단된 상태
+// - PROGRESSING: 실제 사업기회로 진행되는 상태
+// 이 값은 등록/수정 화면의 상태 선택과 백엔드 저장값을 맞추는 기준이다.
 type OpportunityStage = "FINDING" | "PROMISING" | "PROGRESSING"
 type BackendProductModuleSummary = {
   id?: number
@@ -65,6 +70,7 @@ const customerGroupOptions = [
   { value: "PRIVATE", label: "민간" },
   { value: "OVERSEAS", label: "해외" },
 ]
+// 발굴 상태 선택지. 사용자에게는 한글로 보이지만 저장 시에는 value 코드가 사용된다.
 const opportunityStatusOptions: Array<{ value: OpportunityStage; label: string }> = [
   { value: "FINDING", label: "발굴" },
   { value: "PROMISING", label: "유망" },
@@ -164,6 +170,8 @@ function buildOpportunityDescription(params: {
 function mapOpportunityProductClass(value: string) {
   const normalized = value.trim().toUpperCase()
   if (
+    // 사업구분 코드.
+    // DASHBOARD는 대시보드형 사업구분이고, 나머지는 제품/솔루션 성격의 분류 코드다.
     normalized === "EMS" ||
     normalized === "DASHBOARD" ||
     normalized === "DATACENTER" ||
@@ -192,6 +200,7 @@ function mapCustomerSectorToEnum(value: string): CustomerSector {
 
 function toOpportunityStage(value: string): OpportunityStage {
   const normalized = value.trim().toUpperCase()
+  // 백엔드 응답이나 사용자가 고른 한글 상태값을 모두 내부 코드(FINDING 계열)로 맞춘다.
   if (normalized === "FINDING" || value === "발굴") return "FINDING"
   if (normalized === "PROMISING" || value === "유망") return "PROMISING"
   if (normalized === "PROGRESSING" || value === "진행중") return "PROGRESSING"

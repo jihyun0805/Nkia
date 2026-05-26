@@ -32,6 +32,15 @@ interface WorkflowApprovalPanelProps {
   onRefresh?: () => void;
 }
 
+function normalizeWorkflowStatus(value?: string) {
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === "DRAFT" || value === "작성 중" || value === "결재 대기") return "결재 대기";
+  if (normalized === "PENDING" || value === "검토 중" || value === "결재중") return "결재중";
+  if (normalized === "APPROVED" || value === "승인" || value === "승인 완료") return "승인 완료";
+  if (normalized === "REJECTED" || value === "반려") return "반려";
+  return value ?? "결재 대기";
+}
+
 const positionLevel = (pos: string | undefined): number => {
   const p = pos?.trim() ?? "";
   if (p === "HEAD_DIRECTOR" || p === "본부장") return 3;
@@ -53,10 +62,11 @@ const isQuotationLikeDomain = (domainType: WorkflowApprovalPanelProps["domainTyp
   QUOTATION_LIKE_DOMAINS.has(domainType);
 
 export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType, onRefresh }: WorkflowApprovalPanelProps) {
-  const isDraft = status === "결재 대기" || !status;
-  const isInProgress = status === "결재중";
-  const isApproved = status === "승인 완료";
-  const isRejected = status === "반려";
+  const normalizedStatus = normalizeWorkflowStatus(status);
+  const isDraft = normalizedStatus === "결재 대기";
+  const isInProgress = normalizedStatus === "결재중";
+  const isApproved = normalizedStatus === "승인 완료";
+  const isRejected = normalizedStatus === "반려";
 
   const [users, setUsers] = useState<BackendUserSummary[]>([]);
   const [currentUser, setCurrentUser] = useState<{ userId?: string; name?: string } | null>(null);
@@ -170,8 +180,19 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
 
   // 결재 상신 처리
   const handleStartWorkflow = async () => {
-    if (!firstApprover?.id) {
+    const selectedFirstApproverId = firstApprover?.id?.trim() || null;
+    if (!selectedFirstApproverId) {
       toast.error("1차 결재자를 지정해주세요.");
+      return;
+    }
+
+    if (!users.some((user) => user.id === selectedFirstApproverId)) {
+      toast.error("선택한 1차 결재자를 다시 선택해 주세요.");
+      return;
+    }
+
+    if (isQuotationLikeDomain(domainType) && positionLevel(firstApprover.position) < 2) {
+      toast.error("PRB는 1차 결재자로 팀장 이상을 선택해야 합니다.");
       return;
     }
 
@@ -199,7 +220,8 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
           body: JSON.stringify({ firstApproverId: firstApprover.id }),
         });
         if (!response.ok) {
-          throw new Error("PRB 결재 상신에 실패했습니다.");
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.message || "PRB 결재 상신에 실패했습니다.");
         }
       } else if (domainType === "PRB_RESULT") {
         const response = await fetch(`${getBackendApiBaseUrl()}/prb-results/submit/${targetId}`, {
@@ -212,7 +234,8 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
           body: JSON.stringify({ firstApproverId: firstApprover.id }),
         });
         if (!response.ok) {
-          throw new Error("PRB 결과보고 결재 상신에 실패했습니다.");
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.message || "PRB 결과보고 결재 상신에 실패했습니다.");
         }
       } else if (domainType === "BID_RESULT") {
         const response = await fetch(`${getBackendApiBaseUrl()}/bid-results/submit/${targetId}`, {
@@ -225,7 +248,8 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
           body: JSON.stringify({ firstApproverId: firstApprover.id }),
         });
         if (!response.ok) {
-          throw new Error("입찰 결과 결재 상신에 실패했습니다.");
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.message || "입찰 결과 결재 상신에 실패했습니다.");
         }
       }
 

@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
-import { BidResultDetailPage } from "@/components/erp/bid-result-detail-page"
+import { BidResultRegistrationForm } from "@/components/erp/bid-result-registration-form"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
 import { PrbResultRegistrationForm } from "@/components/erp/prb-result-registration-form"
 import { ProposalDetailPage } from "@/components/erp/proposal-detail-page"
@@ -26,7 +26,32 @@ export default async function BidDetailPage({
   }
 
   if (category === "result") {
-    return <BidResultDetailPage />
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header title="입찰 결과" description="입찰 결과를 등록 화면과 동일한 형식으로 확인합니다" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-6xl space-y-6">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href={backHref}>입찰</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{id}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              <BidResultRegistrationForm bidResultId={id} showWorkflowDetail={false} />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   if (category === "prb-result") {

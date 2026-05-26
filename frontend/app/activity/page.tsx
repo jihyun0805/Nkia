@@ -25,6 +25,11 @@ const REQUEST_CALENDAR_OPEN_KEY = "orbis.activity.requests.calendar.open";
 const ACTIVITY_ACTIVE_TAB_KEY = "orbis.activity.activeTab";
 const REQUESTS_STORAGE_KEY = "orbis.activityRequests";
 const NOTIFICATIONS_STORAGE_KEY = "orbis.workflowNotifications";
+// 활동 메인 탭 구분값.
+// - activities: 실제 영업활동 기록
+// - quotations: 견적서 목록
+// - requests: 활동 요청 목록
+// 화면의 탭 전환, URL query(tab), localStorage 복원에 모두 쓰인다.
 type ActivityTab = "activities" | "quotations" | "requests";
 
 function getQuotationStatusClass(status: string) {
