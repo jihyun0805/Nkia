@@ -1,3 +1,5 @@
+// 인수인계 메모: 챗봇 액션 prefill 훅입니다. URL query의 chatbotPrefill_* 값을 폼 초기값으로 전달합니다.
+// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 "use client"
 
 import { useEffect, useMemo } from "react"

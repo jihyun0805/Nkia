@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 import re
 from typing import Any, Literal
 
@@ -193,6 +195,7 @@ def search_knowledge(
     retrieval_plan: RetrievalExecutionPlan | None = None,
     user_context: UserContext | None = None,
 ) -> SearchResponse:
+    # 챗 플래너가 재작성한 질의가 있으면 검색 질의로 사용하되, 응답의 원문 query는 유지한다.
     effective_query = chat_plan.rewritten_query if chat_plan and chat_plan.rewritten_query else query
     explicit_source_types = normalize_source_types(source_types)
     normalized_source_types = resolve_source_types(
@@ -208,6 +211,7 @@ def search_knowledge(
     with pool.connection() as conn:
         session_attachment_rows: list[dict[str, Any]] = []
         if attachment_session_id:
+            # 사용자가 방금 올린 첨부파일은 현재 대화에만 묶어서 검색 질의 보강 또는 직접 근거로 사용한다.
             session_attachment_rows = fetch_session_attachment_chunks(
                 conn=conn,
                 session_id=attachment_session_id,
@@ -220,6 +224,7 @@ def search_knowledge(
             )
 
         query_embedding = embedder.encode_query(effective_query)
+        # 코드가 명시된 질문은 벡터 유사도보다 정확 코드 스코프를 우선 반영한다.
         exact_code_scope = resolve_exact_code_scope(conn=conn, exact_codes=exact_codes)
         named_entity_scope = (
             None
@@ -247,6 +252,7 @@ def search_knowledge(
             metadata_filters=metadata_filters,
         )
         if not vector_rows and not keyword_rows and not explicit_source_types and normalized_source_types:
+            # 문서유형 추정이 빗나간 경우를 대비해, 사용자가 명시하지 않은 타입 필터는 한 번 완화한다.
             vector_rows, keyword_rows = fetch_candidates(
                 conn=conn,
                 query_embedding=query_embedding,
@@ -272,6 +278,7 @@ def search_knowledge(
         limit=max(candidate_limit, normalization.requested_limit if normalization and normalization.requested_limit else limit),
     )
 
+    # 후보 병합 후에는 첨부 정책, 세그먼트 필터, 사용자 권한 필터를 순서대로 적용한다.
     rows = apply_attachment_evidence_policy(
         rows=rows,
         attachment_session_id=attachment_session_id,
@@ -282,6 +289,7 @@ def search_knowledge(
     rows = apply_user_context_filter(rows=rows, user_context=user_context)
     final_limit = normalization.requested_limit if normalization and normalization.requested_limit else limit
     if retrieval_plan and retrieval_plan.use_reranker:
+        # reranker는 후보를 새로 가져오지 않고 기존 후보의 순서만 재조정한다.
         rows = apply_lightweight_reranker(query=query, rows=rows, limit=final_limit)
     else:
         rows = rows[:final_limit]

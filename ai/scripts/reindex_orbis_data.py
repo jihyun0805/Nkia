@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# 인수인계 메모: 운영 재색인 스크립트입니다. 배포 DB의 업무 데이터를 다시 읽어 AI 색인 테이블과 벡터를 재생성합니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 from __future__ import annotations
 
 import argparse
