@@ -250,10 +250,11 @@ function formatDate(value?: string) {
 }
 
 function mapBackendPrbStatus(value?: string): PrbStatus {
-  if (value === "결재 대기" || value === "작성 중") return "작성 중"
-  if (value === "결재중" || value === "검토 중") return "검토 중"
-  if (value === "승인 완료" || value === "승인") return "승인"
-  if (value === "반려") return "반려"
+  const normalized = value?.trim().toUpperCase()
+  if (normalized === "DRAFT" || value === "결재 대기" || value === "작성 중") return "작성 중"
+  if (normalized === "PENDING" || value === "결재중" || value === "검토 중") return "검토 중"
+  if (normalized === "APPROVED" || value === "승인 완료" || value === "승인") return "승인"
+  if (normalized === "REJECTED" || value === "반려") return "반려"
   return "작성 중"
 }
 
@@ -265,6 +266,13 @@ function parseApiResponse<T>(response: Response, fallbackMessage: string): Promi
 
     return payload.data
   })
+}
+
+async function parseApiVoidResponse(response: Response, fallbackMessage: string): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
+  if (!response.ok || payload?.result !== "SUCCESS") {
+    throw new Error(payload?.message || fallbackMessage)
+  }
 }
 
 async function fetchCurrentUserId() {
@@ -687,7 +695,7 @@ function mapBackendPrbRecord(
   return {
     id: String(item.prbId ?? `PRB-${Date.now()}`),
     workflowId: item.workflowId,
-    workflowStatus: item.status ?? undefined,
+    workflowStatus: mapBackendPrbStatus(item.status),
     projectOpportunityId: item.projectOpportunityId ?? linkedOpportunity?.id,
     salesRepresentativeId: item.salesRepresentativeId,
     customerCode,
@@ -864,7 +872,26 @@ export async function saveBackendPrb(input: Omit<PrbRecord, "id" | "createdAt" |
     },
   )
 
-  const saved = await parseApiResponse<BackendPrbResponse>(response, "PRB 저장에 실패했습니다.")
+  const parsed = (await response.json().catch(() => null)) as ApiResponse<BackendPrbResponse> | null
+  if (!response.ok || parsed?.result !== "SUCCESS") {
+    throw new Error(parsed?.message || "PRB 저장에 실패했습니다.")
+  }
+
+  if (parsed.data == null) {
+    if (!hasNumericId || !input.id) {
+      throw new Error("PRB 저장 결과를 확인하지 못했습니다.")
+    }
+
+    const refreshed = await loadBackendPrbDetailById(input.id)
+    const current = getPrbs()
+    const nextItems = current.some((item) => item.id === refreshed.id)
+      ? current.map((item) => (item.id === refreshed.id ? refreshed : item))
+      : [refreshed, ...current]
+    replacePrbs(nextItems)
+    return refreshed
+  }
+
+  const saved = parsed.data
   const opportunityLookup = await loadOpportunityLookup()
   const rfpLookup = buildRfpLookup()
   const merged = mapBackendPrbRecord(saved, opportunityLookup, rfpLookup)
@@ -883,6 +910,6 @@ export async function deleteBackendPrb(id: string) {
     credentials: "include",
   })
 
-  await parseApiResponse<Record<string, unknown>>(response, "PRB 삭제에 실패했습니다.")
+  await parseApiVoidResponse(response, "PRB 삭제에 실패했습니다.")
   return true
 }

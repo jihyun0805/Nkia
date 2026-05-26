@@ -24,10 +24,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { WorkflowApprovalPanel } from "@/components/erp/workflow-approval-panel"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
-import { getCustomers, getOpportunities, type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
+import { getCustomers, getOpportunities, normalizeCustomerKeyword, type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 import {
   loadBackendBidResultHistoryRecord,
   loadBackendBidResultHistoryRecords,
+  loadBackendBidResultPrefillByProposalId,
   loadBackendBidResults,
   loadBackendBidResultDetailById,
   saveBackendBidResult,
@@ -48,6 +49,7 @@ import {
 type BidResultRegistrationFormProps = {
   proposalId?: string
   bidResultId?: string
+  showWorkflowDetail?: boolean
 }
 
 type FormState = {
@@ -275,7 +277,7 @@ function BidResultHeaderCell({
   return <th className={`border border-slate-400 bg-slate-100 px-2 py-2 text-center font-semibold ${className}`} {...props}>{children}</th>
 }
 
-export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResultRegistrationFormProps) {
+export function BidResultRegistrationForm({ proposalId, bidResultId, showWorkflowDetail = true }: BidResultRegistrationFormProps) {
   const router = useRouter()
   const users = useBackendUsers()
   const [proposals, setProposals] = useState<ProposalRecord[]>([])
@@ -289,6 +291,7 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
   const [historyRecords, setHistoryRecords] = useState<BackendBidResultHistoryListItem[]>([])
   const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null)
   const [selectedHistoryDetail, setSelectedHistoryDetail] = useState<BidResultRecord | null>(null)
+  const proposalHydrationRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (detailTab === "approval") {
@@ -453,10 +456,49 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
     [mergedExistingResult?.proposalId, proposals, registeredProposalIds],
   )
 
+  const selectedCustomerRecord = useMemo(() => {
+    const normalizedCustomerCode = normalizeCustomerKeyword(form.customerCode)
+    const normalizedCustomerName = normalizeCustomerKeyword(form.analysisSheet.bidOverviewCustomerName)
+    return (
+      customers.find((item) => {
+        if (normalizedCustomerCode && normalizeCustomerKeyword(item.id) === normalizedCustomerCode) return true
+        if (normalizedCustomerCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCustomerCode) return true
+        if (normalizedCustomerName && normalizeCustomerKeyword(item.name) === normalizedCustomerName) return true
+        return Boolean(normalizedCustomerName && item.aliases?.some((alias) => normalizeCustomerKeyword(alias) === normalizedCustomerName))
+      }) ?? null
+    )
+  }, [customers, form.analysisSheet.bidOverviewCustomerName, form.customerCode])
+
   const availableCustomers = useMemo(() => {
     const proposalCustomerCodes = new Set(availableProposals.map((item) => item.customerCode))
-    return customers.filter((customer) => proposalCustomerCodes.has(customer.id))
-  }, [availableProposals, customers])
+    const filtered = customers.filter((customer) => proposalCustomerCodes.has(customer.id))
+    if (selectedCustomerRecord && !filtered.some((item) => item.id === selectedCustomerRecord.id)) {
+      return [...filtered, selectedCustomerRecord]
+    }
+    return filtered
+  }, [availableProposals, customers, selectedCustomerRecord])
+
+  const selectedOpportunityRecord = useMemo(() => {
+    const normalizedOpportunityCode = normalizeCustomerKeyword(form.opportunityCode)
+    const normalizedOpportunityName = normalizeCustomerKeyword(form.analysisSheet.bidOverviewProjectName)
+    const normalizedCustomerCode = normalizeCustomerKeyword(form.customerCode)
+    const normalizedCustomerName = normalizeCustomerKeyword(form.analysisSheet.bidOverviewCustomerName)
+
+    return (
+      opportunities.find((item) => {
+        if (normalizedOpportunityCode && normalizeCustomerKeyword(item.id) === normalizedOpportunityCode) return true
+        if (normalizedOpportunityCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedOpportunityCode) return true
+        if (normalizedOpportunityName && normalizeCustomerKeyword(item.name) === normalizedOpportunityName) return true
+        if (normalizedCustomerCode && normalizeCustomerKeyword(item.customerCode) === normalizedCustomerCode) {
+          return Boolean(normalizedOpportunityName && normalizeCustomerKeyword(item.name) === normalizedOpportunityName)
+        }
+        if (normalizedCustomerName && normalizeCustomerKeyword(item.customer) === normalizedCustomerName) {
+          return Boolean(normalizedOpportunityName && normalizeCustomerKeyword(item.name) === normalizedOpportunityName)
+        }
+        return false
+      }) ?? null
+    )
+  }, [form.analysisSheet.bidOverviewCustomerName, form.analysisSheet.bidOverviewProjectName, form.customerCode, form.opportunityCode, opportunities])
 
   const availableOpportunities = useMemo(() => {
     const baseList = form.customerCode
@@ -469,8 +511,12 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
         .map((proposal) => proposal.opportunityCode),
     )
 
-    return baseList.filter((item) => proposalOpportunityCodes.has(item.id))
-  }, [availableProposals, form.customerCode, opportunities])
+    const filtered = baseList.filter((item) => proposalOpportunityCodes.has(item.id))
+    if (selectedOpportunityRecord && !filtered.some((item) => item.id === selectedOpportunityRecord.id)) {
+      return [...filtered, selectedOpportunityRecord]
+    }
+    return filtered
+  }, [availableProposals, form.customerCode, opportunities, selectedOpportunityRecord])
 
   const matchingProposal = useMemo(
     () =>
@@ -485,6 +531,138 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
 
   const salesLeaderUserId = resolveUserId(form.analysisSheet.salesLeaderName || matchingProposal?.salesRep || "", users)
   const pmUserId = resolveUserId(form.analysisSheet.pmName, users)
+  const bidResultHydrationSignature = [
+    mergedExistingResult ? "existing" : "new",
+    form.proposalId,
+    form.customerCode,
+    form.opportunityCode,
+    form.analysisSheet.bidOverviewCustomerName,
+    form.analysisSheet.bidOverviewProjectName,
+    customers.map((item) => item.id).join(","),
+    opportunities.map((item) => item.id).join(","),
+    availableProposals.map((item) => item.id).join(","),
+  ].join("|")
+
+  const applyBidResultPrefill = (prefill: {
+    customerCompanyCode?: string | null
+    customerCompanyName?: string | null
+    projectOpportunityCode?: string | null
+    projectOpportunityName?: string | null
+    productModulesName?: string[] | null
+    proposalDeadLine?: string | null
+    proposalPresentationDate?: string | null
+    proposalCreateUserName?: string | null
+  }) => {
+    setForm((current) => ({
+      ...current,
+      customerCode: prefill.customerCompanyCode ?? current.customerCode,
+      opportunityCode: prefill.projectOpportunityCode ?? current.opportunityCode,
+      bidDate: current.bidDate || (prefill.proposalDeadLine ?? ""),
+      analysisSheet: {
+        ...current.analysisSheet,
+        bidOverviewCustomerName: prefill.customerCompanyName ?? current.analysisSheet.bidOverviewCustomerName,
+        bidOverviewProjectName: prefill.projectOpportunityName ?? current.analysisSheet.bidOverviewProjectName,
+        proposalProductModule: (prefill.productModulesName ?? []).join(", ") || current.analysisSheet.proposalProductModule,
+        proposalSubmissionDeadline: prefill.proposalDeadLine ?? current.analysisSheet.proposalSubmissionDeadline,
+        proposalPresentationDate: prefill.proposalPresentationDate ?? current.analysisSheet.proposalPresentationDate,
+        salesLeaderName: prefill.proposalCreateUserName ?? current.analysisSheet.salesLeaderName,
+      },
+    }))
+  }
+
+  const resolveCustomerCode = (prefillCode?: string | null, prefillName?: string | null, currentCode?: string) => {
+    const normalizedCode = normalizeCustomerKeyword(prefillCode ?? "")
+    const normalizedName = normalizeCustomerKeyword(prefillName ?? "")
+    const normalizedCurrentCode = normalizeCustomerKeyword(currentCode ?? "")
+
+    const matched =
+      availableCustomers.find((item) => {
+        if (normalizedCurrentCode && normalizeCustomerKeyword(item.id) === normalizedCurrentCode) return true
+        if (normalizedCurrentCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCurrentCode) return true
+        return false
+      }) ??
+      availableCustomers.find((item) => {
+        if (normalizedCode && normalizeCustomerKeyword(item.id) === normalizedCode) return true
+        if (normalizedCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCode) return true
+        if (normalizedName && normalizeCustomerKeyword(item.name) === normalizedName) return true
+        return Boolean(normalizedName && item.aliases?.some((alias) => normalizeCustomerKeyword(alias) === normalizedName))
+      }) ??
+      customers.find((item) => {
+        if (normalizedCurrentCode && normalizeCustomerKeyword(item.id) === normalizedCurrentCode) return true
+        if (normalizedCurrentCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCurrentCode) return true
+        if (normalizedCode && normalizeCustomerKeyword(item.id) === normalizedCode) return true
+        if (normalizedCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCode) return true
+        if (normalizedName && normalizeCustomerKeyword(item.name) === normalizedName) return true
+        return Boolean(normalizedName && item.aliases?.some((alias) => normalizeCustomerKeyword(alias) === normalizedName))
+      }) ??
+      null
+
+    return matched?.id ?? ""
+  }
+
+  const resolveOpportunityCode = (
+    prefillCode?: string | null,
+    prefillName?: string | null,
+    customerCode?: string,
+    customerName?: string,
+    currentCode?: string,
+  ) => {
+    const normalizedCode = normalizeCustomerKeyword(prefillCode ?? "")
+    const normalizedName = normalizeCustomerKeyword(prefillName ?? "")
+    const normalizedCustomerCode = normalizeCustomerKeyword(customerCode ?? "")
+    const normalizedCustomerName = normalizeCustomerKeyword(customerName ?? "")
+    const normalizedCurrentCode = normalizeCustomerKeyword(currentCode ?? "")
+
+    const matched =
+      availableOpportunities.find((item) => {
+        if (normalizedCurrentCode && normalizeCustomerKeyword(item.id) === normalizedCurrentCode) return true
+        if (normalizedCurrentCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCurrentCode) return true
+        return false
+      }) ??
+      availableOpportunities.find((item) => {
+        if (normalizedCode && normalizeCustomerKeyword(item.id) === normalizedCode) return true
+        if (normalizedCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCode) return true
+        if (normalizedName && normalizeCustomerKeyword(item.name) === normalizedName) return true
+        if (normalizedCustomerCode && normalizeCustomerKeyword(item.customerCode) === normalizedCustomerCode) {
+          return Boolean(normalizedName && normalizeCustomerKeyword(item.name) === normalizedName)
+        }
+        if (normalizedCustomerName && normalizeCustomerKeyword(item.customer) === normalizedCustomerName) {
+          return Boolean(normalizedName && normalizeCustomerKeyword(item.name) === normalizedName)
+        }
+        return false
+      }) ??
+      opportunities.find((item) => {
+        if (normalizedCurrentCode && normalizeCustomerKeyword(item.id) === normalizedCurrentCode) return true
+        if (normalizedCurrentCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCurrentCode) return true
+        if (normalizedCode && normalizeCustomerKeyword(item.id) === normalizedCode) return true
+        if (normalizedCode && item.backendId != null && normalizeCustomerKeyword(item.backendId) === normalizedCode) return true
+        if (normalizedName && normalizeCustomerKeyword(item.name) === normalizedName) return true
+        if (normalizedCustomerCode && normalizeCustomerKeyword(item.customerCode) === normalizedCustomerCode) {
+          return Boolean(normalizedName && normalizeCustomerKeyword(item.name) === normalizedName)
+        }
+        if (normalizedCustomerName && normalizeCustomerKeyword(item.customer) === normalizedCustomerName) {
+          return Boolean(normalizedName && normalizeCustomerKeyword(item.name) === normalizedName)
+        }
+        return false
+      }) ??
+      null
+
+    return matched?.id ?? ""
+  }
+
+  const hydrateProposalPrefill = async (proposalCode: string) => {
+    try {
+      const prefill = await loadBackendBidResultPrefillByProposalId(proposalCode)
+      applyBidResultPrefill(prefill)
+    } catch {
+      const proposal = availableProposals.find((item) => item.id === proposalCode)
+      if (proposal) {
+        applyProposal(proposal)
+        return
+      }
+      setForm((current) => ({ ...current, proposalId: proposalCode }))
+    }
+  }
 
   useEffect(() => {
     if (mergedExistingResult) {
@@ -503,26 +681,19 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
     }
 
     if (proposalId) {
-      const matchedProposal = availableProposals.find((item) => item.id === proposalId)
-      if (!matchedProposal) return
-
-      setForm((current) => ({
-        ...current,
-        proposalId: matchedProposal.id,
-        customerCode: matchedProposal.customerCode,
-        opportunityCode: matchedProposal.opportunityCode,
-        bidDate: current.bidDate || matchedProposal.proposalDeadline,
-        analysisSheet: {
-          ...current.analysisSheet,
-          bidOverviewCustomerName: matchedProposal.customer,
-          bidOverviewProjectName: matchedProposal.opportunity,
-          proposalProductModule: matchedProposal.productGroup,
-          proposalSubmissionDeadline: matchedProposal.proposalDeadline,
-          salesLeaderName: matchedProposal.salesRep,
-        },
-      }))
+      proposalHydrationRef.current = null
     }
   }, [availableProposals, mergedExistingResult, proposalId])
+
+  useEffect(() => {
+    if (mergedExistingResult) return
+    if (!proposalId) return
+    if (form.customerCode && form.opportunityCode) return
+    if (proposalHydrationRef.current === proposalId) return
+
+    proposalHydrationRef.current = proposalId
+    void hydrateProposalPrefill(proposalId)
+  }, [form.customerCode, form.opportunityCode, mergedExistingResult, proposalId])
 
   const selectedCustomer = availableCustomers.find((item) => item.id === form.customerCode) ?? null
   const selectedOpportunity = availableOpportunities.find((item) => item.id === form.opportunityCode) ?? null
@@ -537,6 +708,36 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
       },
     }))
   }, [selectedCustomer?.name, selectedOpportunity?.name])
+
+  useEffect(() => {
+    if (mergedExistingResult) return
+    if (!form.proposalId) return
+
+    setForm((current) => {
+      const resolvedCustomerCode = resolveCustomerCode(
+        current.customerCode,
+        current.analysisSheet.bidOverviewCustomerName,
+        current.customerCode,
+      )
+      const resolvedOpportunityCode = resolveOpportunityCode(
+        current.opportunityCode,
+        current.analysisSheet.bidOverviewProjectName,
+        resolvedCustomerCode,
+        current.analysisSheet.bidOverviewCustomerName,
+        current.opportunityCode,
+      )
+
+      if (resolvedCustomerCode === current.customerCode && resolvedOpportunityCode === current.opportunityCode) {
+        return current
+      }
+
+      return {
+        ...current,
+        customerCode: resolvedCustomerCode || current.customerCode,
+        opportunityCode: resolvedOpportunityCode || current.opportunityCode,
+      }
+    })
+  }, [bidResultHydrationSignature])
 
   const updateAnalysisField = <K extends keyof BidResultAnalysisSheet>(field: K, value: BidResultAnalysisSheet[K]) => {
     setForm((current) => ({
@@ -599,12 +800,12 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
 
   const handleProposalChange = (nextProposalId: string) => {
     const proposal = availableProposals.find((item) => item.id === nextProposalId)
-    if (!proposal) {
+    if (proposal) {
+      applyProposal(proposal)
+    } else {
       setForm((current) => ({ ...current, proposalId: nextProposalId }))
-      return
     }
-
-    applyProposal(proposal)
+    void hydrateProposalPrefill(nextProposalId)
   }
 
   const handleCustomerChange = (nextCustomerCode: string) => {
@@ -716,14 +917,18 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
           <CardTitle>{bidResultId ? "입찰 결과 수정" : "입찰 결과 등록"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="rounded-md bg-muted px-3 py-2 text-sm font-medium">
-            {currentWorkflowStatus}
-          </div>
+          {showWorkflowDetail && (
+            <div className="rounded-md bg-muted px-3 py-2 text-sm font-medium">
+              {currentWorkflowStatus}
+            </div>
+          )}
           <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="document">입찰결과</TabsTrigger>
-              <TabsTrigger value="history">변경 이력</TabsTrigger>
-            </TabsList>
+            {showWorkflowDetail && (
+              <TabsList>
+                <TabsTrigger value="document">입찰결과</TabsTrigger>
+                <TabsTrigger value="history">변경 이력</TabsTrigger>
+              </TabsList>
+            )}
             <TabsContent value="document" className="mt-0 space-y-6">
               {selectedHistoryDetail && (
                 <div className="flex justify-end">
@@ -811,7 +1016,10 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
                 <tr>
                   <BidResultHeaderCell>고객사명</BidResultHeaderCell>
                   <BidResultCell colSpan={13}>
-                    <BidResultTableInput value={selectedCustomer?.name || matchingProposal?.customer || ""} readOnly />
+                    <BidResultTableInput
+                      value={selectedCustomer?.name || matchingProposal?.customer || form.analysisSheet.bidOverviewCustomerName || ""}
+                      readOnly
+                    />
                   </BidResultCell>
                 </tr>
                 <tr>
@@ -834,7 +1042,10 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
                 <tr>
                   <BidResultHeaderCell>사업명</BidResultHeaderCell>
                   <BidResultCell colSpan={13}>
-                    <BidResultTableInput value={selectedOpportunity?.name || matchingProposal?.opportunity || ""} readOnly />
+                    <BidResultTableInput
+                      value={selectedOpportunity?.name || matchingProposal?.opportunity || form.analysisSheet.bidOverviewProjectName || ""}
+                      readOnly
+                    />
                   </BidResultCell>
                 </tr>
                 <tr>
@@ -1137,7 +1348,7 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
             </table>
           </div>
 
-          {!selectedHistoryDetail && currentWorkflowSource?.id != null && (
+          {showWorkflowDetail && !selectedHistoryDetail && currentWorkflowSource?.id != null && (
             <WorkflowApprovalPanel
               workflowId={currentWorkflowId}
               status={currentWorkflowStatus}
@@ -1152,6 +1363,7 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
           )}
 
             </TabsContent>
+            {showWorkflowDetail && (
             <TabsContent value="history" className="mt-0">
               <div className="rounded-lg border">
                 <table className="w-full table-fixed border-collapse text-sm">
@@ -1197,6 +1409,7 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
                 </table>
               </div>
             </TabsContent>
+            )}
           </Tabs>
 
           {!selectedHistoryDetail && (

@@ -48,6 +48,7 @@ import { useBackendUsers } from "@/lib/use-backend-users"
 type PrbResultRegistrationFormProps = {
   prbResultId?: string
   allowDelete?: boolean
+  showWorkflowDetail?: boolean
 }
 
 type AttendeeOpinionForm = {
@@ -169,7 +170,7 @@ function createFormFromResult(result: PrbResultRecord, prb?: PrbRecord | null): 
   }
 }
 
-export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: PrbResultRegistrationFormProps) {
+export function PrbResultRegistrationForm({ prbResultId, allowDelete = false, showWorkflowDetail = true }: PrbResultRegistrationFormProps) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>(createEmptyForm())
   const [selectedPrb, setSelectedPrb] = useState<PrbRecord | null>(null)
@@ -455,9 +456,10 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
       setIsDeleteOpen(false)
       router.push("/bid")
     } catch (error) {
+      const message = error instanceof Error ? error.message : "PRB 결과보고를 삭제하지 못했습니다."
       toast({
         title: "PRB 결과보고 삭제 실패",
-        description: error instanceof Error ? error.message : "PRB 결과보고를 삭제하지 못했습니다.",
+        description: message,
       })
       setIsDeleteOpen(false)
     }
@@ -470,14 +472,18 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
           <CardTitle>{prbResultId ? "PRB 결과 수정" : "PRB 결과 등록"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-8">
-          <div className="rounded-md bg-muted px-3 py-2 text-sm font-medium">
-            {currentWorkflowStatus}
-          </div>
-          <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
-              <TabsList>
-                <TabsTrigger value="document">PRB 결과</TabsTrigger>
-                <TabsTrigger value="history">변경 이력</TabsTrigger>
-              </TabsList>
+          {showWorkflowDetail && (
+            <div className="rounded-md bg-muted px-3 py-2 text-sm font-medium">
+              {currentWorkflowStatus}
+            </div>
+          )}
+              <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
+                {showWorkflowDetail && (
+                  <TabsList>
+                    <TabsTrigger value="document">PRB 결과</TabsTrigger>
+                    <TabsTrigger value="history">변경 이력</TabsTrigger>
+                  </TabsList>
+                )}
               <TabsContent value="document" className="mt-0 space-y-8">
                 {selectedHistoryDetail && (
                   <div className="flex justify-end">
@@ -607,7 +613,7 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
             </div>
               </section>
 
-              {!selectedHistoryDetail && currentWorkflowSource?.id != null && (
+              {showWorkflowDetail && !selectedHistoryDetail && currentWorkflowSource?.id != null && (
                 <WorkflowApprovalPanel
                   workflowId={currentWorkflowId}
                   status={currentWorkflowStatus}
@@ -622,6 +628,7 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
               )}
 
               </TabsContent>
+              {showWorkflowDetail && (
               <TabsContent value="history" className="mt-0">
                 <div className="rounded-lg border">
                   <table className="w-full table-fixed border-collapse text-sm">
@@ -667,6 +674,7 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
                   </table>
                 </div>
               </TabsContent>
+              )}
             </Tabs>
 
           {!selectedHistoryDetail && (

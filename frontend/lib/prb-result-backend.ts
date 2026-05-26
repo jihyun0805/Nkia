@@ -101,6 +101,13 @@ function parseApiResponse<T>(response: Response, fallbackMessage: string): Promi
   })
 }
 
+async function parseApiVoidResponse(response: Response, fallbackMessage: string): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
+  if (!response.ok || payload?.result !== "SUCCESS") {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+}
+
 function formatDate(value?: string) {
   if (!value) return ""
   return value.slice(0, 10)
@@ -420,6 +427,6 @@ export async function deleteBackendPrbResult(id: string) {
     credentials: "include",
   })
 
-  await parseApiResponse<Record<string, unknown>>(response, "PRB 결과 삭제에 실패했습니다.")
+  await parseApiVoidResponse(response, "PRB 결과 삭제에 실패했습니다.")
   return true
 }

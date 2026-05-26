@@ -91,6 +91,17 @@ type BackendBidResultDetailResponse = {
   analyses?: BackendWinLossAnalysis[]
 }
 
+type BackendBidResultPrefillResponse = {
+  customerCompanyCode?: string | null
+  customerCompanyName?: string | null
+  projectOpportunityCode?: string | null
+  projectOpportunityName?: string | null
+  productModulesName?: string[] | null
+  proposalDeadLine?: string | null
+  proposalPresentationDate?: string | null
+  proposalCreateUserName?: string | null
+}
+
 export type BackendBidResultHistoryListItem = {
   historyId?: number
   bidResultId?: number
@@ -203,6 +214,13 @@ function parseApiResponse<T>(response: Response, fallbackMessage: string): Promi
   })
 }
 
+async function parseApiVoidResponse(response: Response, fallbackMessage: string): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
+  if (!response.ok || payload?.result !== "SUCCESS") {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+}
+
 async function fetchCurrentUserId() {
   try {
     const response = await fetch(`${getBackendApiBaseUrl()}/user/me`, {
@@ -257,6 +275,16 @@ async function fetchBidResultHistoryDetail(historyId: number) {
   })
 
   return parseApiResponse<BackendBidResultHistoryResponse>(response, "입찰결과 변경 이력 상세를 불러오지 못했습니다.")
+}
+
+async function fetchBidResultPrefill(proposalId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/bid-results/pre-fill?proposalId=${proposalId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendBidResultPrefillResponse>(response, "입찰 결과 기본 정보를 불러오지 못했습니다.")
 }
 
 async function fetchUsers() {
@@ -727,6 +755,15 @@ export async function loadBackendBidResultHistoryRecord(historyId: number) {
   )
 }
 
+export async function loadBackendBidResultPrefillByProposalId(proposalId: string) {
+  const numericId = Number.parseInt(proposalId, 10)
+  if (Number.isNaN(numericId)) {
+    throw new Error("제안서 ID가 올바르지 않습니다.")
+  }
+
+  return fetchBidResultPrefill(numericId)
+}
+
 function toBidOutcome(value?: string) {
   if (value === "수주") return "WIN"
   return "LOSS"
@@ -927,7 +964,7 @@ export async function deleteBackendBidResult(id: string) {
       cache: "no-store",
     })
 
-    await parseApiResponse<null>(response, "입찰 결과를 삭제하지 못했습니다.")
+    await parseApiVoidResponse(response, "입찰 결과를 삭제하지 못했습니다.")
   }
 
   return true

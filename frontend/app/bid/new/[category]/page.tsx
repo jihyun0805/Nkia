@@ -52,9 +52,9 @@ export default async function BidCategoryNewPage({
             ) : category === "proposal" ? (
               <ProposalRegistrationForm initialRequestId={requestId} proposalId={proposalId} />
             ) : category === "result" ? (
-              <BidResultRegistrationForm proposalId={proposalId} />
+              <BidResultRegistrationForm proposalId={proposalId} showWorkflowDetail={false} />
             ) : category === "prb-result" ? (
-              <PrbResultRegistrationForm />
+              <PrbResultRegistrationForm showWorkflowDetail={false} />
             ) : category === "prb" ? (
               <PrbRegistrationForm cloneFromId={cloneFrom} />
             ) : null}

@@ -57,6 +57,7 @@ type PrbRegistrationFormProps = {
   documentOnly?: boolean
   readOnly?: boolean
   allowDelete?: boolean
+  showWorkflowDetail?: boolean
 }
 
 type PrbFormState = {
@@ -283,7 +284,7 @@ function resolveUserId(value: string, users: BackendUserSummary[]) {
   )?.id ?? ""
 }
 
-export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, readOnly = false, allowDelete = false }: PrbRegistrationFormProps) {
+export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, readOnly = false, allowDelete = false, showWorkflowDetail = true }: PrbRegistrationFormProps) {
   const router = useRouter()
   const [form, setForm] = useState<PrbFormState>(createEmptyForm())
   const [status, setStatus] = useState<PrbStatus>("작성 중")
@@ -733,35 +734,49 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }
 
   const handleDraft = async () => {
-    if (prbId && sourcePrb?.status === "승인") {
-      router.push(`/bid/new/prb?cloneFrom=${prbId}`)
-      return
-    }
+    try {
+      if (prbId && sourcePrb?.status === "승인") {
+        router.push(`/bid/new/prb?cloneFrom=${prbId}`)
+        return
+      }
 
-    const saved = await persist("작성 중")
-    router.push(`/bid/prb/${saved.id}`)
+      const saved = await persist("작성 중")
+      router.push(`/bid/prb/${saved.id}`)
+    } catch (error) {
+      toast({
+        title: "PRB 저장 실패",
+        description: error instanceof Error ? error.message : "PRB를 저장하지 못했습니다.",
+      })
+    }
   }
 
   const handleComplete = async () => {
-    const requiredSelections: Array<{ key: keyof Pick<PrbFormState, "customerCode" | "opportunityCode">; label: string }> = [
-      { key: "customerCode", label: "고객사명(코드)" },
-      { key: "opportunityCode", label: "사업기회(코드)" },
-    ]
+    try {
+      const requiredSelections: Array<{ key: keyof Pick<PrbFormState, "customerCode" | "opportunityCode">; label: string }> = [
+        { key: "customerCode", label: "고객사명(코드)" },
+        { key: "opportunityCode", label: "사업기회(코드)" },
+      ]
 
-    const missing = requiredSelections.find((item) => !form[item.key])
-    if (missing) {
-      setPopupMessage(`${missing.label}이 선택되지 않았습니다. 선택 후 다시 시도해주십시오.`)
-      return
+      const missing = requiredSelections.find((item) => !form[item.key])
+      if (missing) {
+        setPopupMessage(`${missing.label}이 선택되지 않았습니다. 선택 후 다시 시도해주십시오.`)
+        return
+      }
+
+      const saved = await persist("검토 중")
+      notifyPrbApprovalRequested({
+        requester: currentUser.name,
+        nextApprover: "팀장",
+        prbId: saved.id,
+        opportunity: form.opportunity || form.formData.projectName,
+      })
+      router.push(`/bid/prb/${saved.id}`)
+    } catch (error) {
+      toast({
+        title: "PRB 결재 상신 실패",
+        description: error instanceof Error ? error.message : "PRB를 저장하지 못했습니다.",
+      })
     }
-
-    const saved = await persist("검토 중")
-    notifyPrbApprovalRequested({
-      requester: currentUser.name,
-      nextApprover: "팀장",
-      prbId: saved.id,
-      opportunity: form.opportunity || form.formData.projectName,
-    })
-    router.push(`/bid/prb/${saved.id}`)
   }
 
   const handleDelete = async () => {
@@ -775,10 +790,11 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       })
       setIsDeleteOpen(false)
       router.push("/bid")
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "PRB 보고서를 삭제하지 못했습니다."
       toast({
         title: "PRB 삭제 실패",
-        description: "PRB 보고서를 삭제하지 못했습니다.",
+        description: message,
       })
     }
   }
@@ -1350,7 +1366,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
                     </div>
                   )}
                   {reportTable}
-                  {!selectedHistoryDetail && sourcePrb?.id != null && (
+                  {showWorkflowDetail && !selectedHistoryDetail && sourcePrb?.id != null && (
                     <WorkflowApprovalPanel
                       workflowId={workflowId}
                       status={workflowStatus}
