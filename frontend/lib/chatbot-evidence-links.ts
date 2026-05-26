@@ -1,3 +1,5 @@
+// 인수인계 메모: 근거 문서 이동 링크 매퍼입니다. AI evidence 메타데이터를 실제 ERP 화면 URL로 변환합니다.
+// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 "use client"
 
 import type { ChatbotEvidence } from "@/lib/chatbot-api"
@@ -49,6 +51,7 @@ function buildEvidenceNavigationLinkInternal(
   const sourceType = normalizeSourceType(evidence.sourceType)
 
   if (sourceType === "ATTACHMENT" && depth < 2) {
+    // 첨부파일 근거는 직접 상세 화면이 없으므로 parent/root 문서로 한 번 더 매핑한다.
     const parentSourceType = firstMetadataText(evidence, ["parentSourceType", "rootSourceType"])
     const parentSourceId = firstMetadataText(evidence, ["parentSourceId", "rootSourceId"])
     if (parentSourceType && parentSourceId) {
@@ -65,6 +68,7 @@ function buildEvidenceNavigationLinkInternal(
   }
 
   if (sourceType === "PROJECT_OPPORTUNITY" || sourceType === "OPPORTUNITY") {
+    // 사업기회는 숫자 id보다 opportunityCode 라우팅을 우선 사용한다.
     const id = firstMetadataText(evidence, ["opportunityCode", "rootOpportunityCode"]) ?? evidence.sourceId
     return detailLink(`/finding/opportunities/${encodePath(id)}?tab=opportunities`, "사업기회 화면 열기")
   }
@@ -188,6 +192,7 @@ function tabLink(href: string, label: string): EvidenceNavigationLink {
 }
 
 function numericRouteId(evidence: ChatbotEvidence, options: NumericRouteOptions): string | null {
+  // 대부분의 상세 페이지는 숫자 PK 라우트라서 metadata → dbPk → sourceId 순서로 숫자 후보를 찾는다.
   const metadataKeys = options.metadataKeys ?? []
   const candidates = [
     ...metadataKeys.map((key) => firstMetadataText(evidence, [key])),

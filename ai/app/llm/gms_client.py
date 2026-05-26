@@ -1,7 +1,10 @@
+# 인수인계 메모: LLM 클라이언트 계층입니다. GMS Chat Completions 호출과 재시도/JSON 파싱을 담당합니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 import json
 import re
 from dataclasses import dataclass
 from time import sleep
+from typing import Any
 
 import requests
 from requests.exceptions import (
@@ -23,11 +26,12 @@ class GmsChatConfig:
 class GmsChatClient:
     RETRYABLE_HTTP_CODES = {408, 425, 429, 500, 502, 503, 504}
 
-    def __init__(self, config: GmsChatConfig):
+    def __init__(self, config: GmsChatConfig) -> None:
         self.config = config
+        # 세션을 재사용해 TLS/커넥션 비용을 줄인다. 요청별 timeout은 _request_chat_completion에서 지정한다.
         self._session = requests.Session()
 
-    def create_query_plan(self, *, query: str) -> dict:
+    def create_query_plan(self, *, query: str) -> dict[str, Any]:
         payload = {
             "model": self.config.model,
             "reasoning_effort": "low",
@@ -57,7 +61,7 @@ class GmsChatClient:
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"GMS query planner returned invalid JSON content: {content[:500]}") from exc
 
-    def create_chat_plan(self, *, query: str, normalization_summary: str) -> dict:
+    def create_chat_plan(self, *, query: str, normalization_summary: str) -> dict[str, Any]:
         payload = {
             "model": self.config.model,
             "reasoning_effort": "low",
@@ -96,7 +100,7 @@ class GmsChatClient:
         evidence_context: str,
         conversation_context: str = "",
         reference_context: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         prompt_sections = [
             f"사용자 질문:\n{query}",
             f"문서 종류:\n{document_label}",
@@ -137,7 +141,7 @@ class GmsChatClient:
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"GMS draft composer returned invalid JSON content: {content[:500]}") from exc
 
-    def extract_edit_field_slots(self, *, query: str, catalog_json: str) -> dict:
+    def extract_edit_field_slots(self, *, query: str, catalog_json: str) -> dict[str, Any]:
         """발화에서 edit_field action 용 슬롯(entity_type, entity_hint, field_name, value) 을
         LLM 으로 추출. 룰 기반 detect_edit_field_intent 가 None 인 경우의 fallback.
 
@@ -223,7 +227,7 @@ class GmsChatClient:
         data = self._request_chat_completion(payload=payload)
         return self._extract_message_content(data)
 
-    def _request_chat_completion(self, *, payload: dict) -> dict:
+    def _request_chat_completion(self, *, payload: dict[str, Any]) -> dict[str, Any]:
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.config.api_key}",
@@ -232,6 +236,7 @@ class GmsChatClient:
 
         for attempt in range(1, 4):
             try:
+                # GMS 응답은 간헐적으로 네트워크 오류/빈 본문이 생길 수 있어 재시도 가능한 케이스만 짧게 재시도한다.
                 resp = self._session.post(
                     self.config.url,
                     json=payload,
@@ -282,7 +287,7 @@ class GmsChatClient:
             raise last_error
         raise RuntimeError("GMS chat completion failed: unknown error")
 
-    def _extract_message_content(self, data: dict) -> str:
+    def _extract_message_content(self, data: dict[str, Any]) -> str:
         try:
             return str(data["choices"][0]["message"]["content"]).strip()
         except (KeyError, IndexError, TypeError) as exc:

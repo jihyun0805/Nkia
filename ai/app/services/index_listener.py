@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 """
 pg_notify 기반 실시간 AI 색인 리스너.
 
@@ -42,6 +44,7 @@ async def listen_and_index(*, embedder: EmbeddingModel) -> None:
     """
     FastAPI lifespan 에서 asyncio.create_task 로 실행.
     연결이 끊기면 _RECONNECT_DELAY 초 후 자동 재접속한다.
+    pg_notify 는 커밋 이후 접속 중인 리스너에게만 전달되므로, 장애 중 누락분은 reindex_orbis_data.py 로 보정한다.
     """
     db_url = build_backend_database_url()
     while True:

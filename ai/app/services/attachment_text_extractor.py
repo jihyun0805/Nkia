@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 from __future__ import annotations
 
 import io
@@ -7,6 +9,7 @@ import zipfile
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from xml.etree import ElementTree as ET
 
 ALLOWED_ATTACHMENT_EXTENSIONS = {
@@ -78,6 +81,7 @@ def extract_attachment_text(*, filename: str | None, content_type: str | None, f
             "지원 형식: txt, md, markdown, csv, json, log, xml, yaml, yml, pdf, doc, docx, ppt, pptx, hwp, hwpx, png, jpg, jpeg"
         )
 
+    # 확장자별로 가장 안전한 파서를 우선 사용하고, PDF/이미지는 본문 추출 실패 시 OCR로 보강한다.
     if extension in TEXT_EXTENSIONS:
         text = extract_text_file(file_bytes)
     elif extension == "pdf":
@@ -350,7 +354,7 @@ def extract_image_text_with_ocr(file_bytes: bytes) -> str:
     return "\n".join(extract_paddle_ocr_lines(result))
 
 
-def get_paddle_ocr():
+def get_paddle_ocr() -> object:
     from paddleocr import PaddleOCR
 
     global _PADDLE_OCR_INSTANCE
@@ -358,6 +362,7 @@ def get_paddle_ocr():
         return _PADDLE_OCR_INSTANCE
     except NameError:
         try:
+            # OCR 엔진은 초기화 비용이 커서 모듈 전역 싱글턴으로 재사용한다.
             _PADDLE_OCR_INSTANCE = PaddleOCR(
                 use_angle_cls=False,
                 lang="korean",
@@ -409,7 +414,7 @@ def extract_paddle_ocr_lines(result: object) -> list[str]:
     return lines
 
 
-def extract_hwp_preview_text(ole) -> str:
+def extract_hwp_preview_text(ole: Any) -> str:
     for candidate in ("PrvText", ["PrvText"]):
         try:
             raw = ole.openstream(candidate).read()

@@ -1,5 +1,8 @@
+# 인수인계 메모: AI 챗봇 공통 코드입니다. 다른 계층에서 재사용하는 설정, 보안, 어댑터, 도구 함수를 담습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from contextlib import ExitStack, asynccontextmanager
 from urllib.parse import quote
 
@@ -38,11 +41,14 @@ def _build_langgraph_checkpoint_url() -> str:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     exit_stack = ExitStack()
+    # 앱 기동 시점에 AI 전용 DB 풀과 색인 스키마를 먼저 확인한다.
+    # 여기서 실패하면 검색/챗봇 API가 반쪽 상태로 뜨지 않게 서버 기동을 중단한다.
     open_pool()
     with pool.connection() as conn:
         validate_indexing_schema(conn)
+    # 임베딩 모델은 무거운 리소스라 요청마다 만들지 않고 app.state에 싱글턴으로 보관한다.
     app.state.embedder = EmbeddingModel(EmbeddingConfig.from_settings(settings))
     callbacks = build_answer_graph_callbacks()
     checkpointer = InMemorySaver()
@@ -60,6 +66,8 @@ async def lifespan(app: FastAPI):
         callbacks=callbacks,
         checkpointer=checkpointer,
     )
+    # PostgreSQL pg_notify 기반 실시간 색인 리스너다.
+    # 알림은 영속 큐가 아니므로, 누락 가능성이 생기면 reindex 스크립트로 보정해야 한다.
     listener_task = asyncio.create_task(
         listen_and_index(embedder=app.state.embedder),
         name="ai_index_listener",
