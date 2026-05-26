@@ -24,14 +24,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ChatSessionService {
 
-    private static final int SESSION_PAGE_SIZE = 20;
+    private static final int SESSION_PAGE_SIZE = 200;
 
     private final ChatSessionRepository chatSessionRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatSessionOwnerResolver chatSessionOwnerResolver;
 
     /**
-     * 현재 사용자(로그인/익명)의 챗봇 세션 목록 조회 (최신순 20개)
+     * 현재 사용자(로그인/익명)의 챗봇 세션 목록 조회 (최신순, 최대 200개)
      */
     @Transactional(readOnly = true)
     public List<ChatSessionResponse> getMySessions() {
