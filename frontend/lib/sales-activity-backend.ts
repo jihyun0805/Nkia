@@ -80,6 +80,7 @@ type ActivityExtraFieldRecord = {
   requesterUserId?: string
 }
 
+// 활동 상세에서 백엔드가 바로 주지 않는 등록자/요청자 보조정보를 브라우저에 저장한다.
 const ACTIVITY_EXTRA_FIELDS_STORAGE_KEY = "orbis.activity.extra-fields"
 
 function isBrowser() {
@@ -118,6 +119,7 @@ function getActivityExtraFields(id: string) {
   return readActivityExtraFieldRecords()[id] ?? {}
 }
 
+// 백엔드 enum -> 화면 한글 라벨
 const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   EMAIL: "이메일",
   CALL: "전화",
@@ -147,6 +149,7 @@ const ACTIVITY_STATUS_LABELS: Record<string, string> = {
   CANCELED: "삭제",
 }
 
+// 화면 한글 라벨 -> 백엔드 enum
 const ACTIVITY_TYPE_TO_ENUM: Record<string, SalesActivityCreateRequestActivityType> = {
   이메일: "EMAIL",
   전화: "CALL",
@@ -257,6 +260,7 @@ async function resolveAttendeeUserIds(attendees?: string) {
   return Array.from(new Set(resolved))
 }
 
+// 참석자 ID 배열을 화면 표시용 이름 배열로 바꾸는 헬퍼
 function formatAttendeeNames(attendeeUserIds: string[] | undefined, users: BackendUserSummary[]) {
   const ids = attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
   if (ids.length === 0) return ""

@@ -25,8 +25,10 @@ type BackendMyInfoResponse = {
 
 type BackendProjectOpportunity = {
   id?: number
+  backendId?: number
   opportunityCode?: string
   opportunityName?: string
+  customerCompanyId?: number
   customerCompanyName?: string
   projectType?: string
   productModules?: { productModule?: { productName?: string } }[]
@@ -223,6 +225,7 @@ type BackendPrbCreateRequest = {
   }>
 }
 
+// PRB는 RFP 분석 이후 실제 입찰 전 비용/수익 구조를 정리하는 문서다.
 const PRB_LIST_SIZE = 2000
 
 function normalizeLookupText(value?: string | number | null) {
@@ -301,6 +304,7 @@ async function fetchProjectOpportunities() {
   return payload.content ?? []
 }
 
+// PRB 현황 탭의 원천 데이터
 async function fetchPrbList() {
   const response = await fetch(`${getBackendApiBaseUrl()}/prbs?size=${PRB_LIST_SIZE}`, {
     headers: buildAuthHeaders(),
@@ -312,6 +316,7 @@ async function fetchPrbList() {
   return payload.content ?? []
 }
 
+// PRB 상세의 변경 이력 탭
 async function fetchPrbHistoryList(prbId: string) {
   const response = await fetch(`${getBackendApiBaseUrl()}/prbs/${prbId}/histories`, {
     headers: buildAuthHeaders(),
@@ -322,6 +327,7 @@ async function fetchPrbHistoryList(prbId: string) {
   return parseApiResponse<BackendPrbHistoryListItem[]>(response, "PRB 변경 이력을 불러오지 못했습니다.")
 }
 
+// PRB 변경 이력 탭에서 특정 버전 상세를 다시 불러올 때 쓰는 API
 async function fetchPrbHistoryDetail(historyId: number) {
   const response = await fetch(`${getBackendApiBaseUrl()}/prbs/histories/${historyId}`, {
     headers: buildAuthHeaders(),
@@ -336,6 +342,7 @@ async function resolveAssigneeIdFromInput(input: PrbRecord) {
   return input.salesRepresentativeId?.trim() ?? ""
 }
 
+// 백엔드 bidType 코드를 화면 라벨로 바꾼다.
 function mapBidTypeToDisplay(value?: string) {
   if (value === "SELF_BID_SELF_EVAL") return "자체 입찰 / 자체 평가"
   if (value === "PROCUREMENT_BID_PROCUREMENT_EVAL") return "조달 입찰 / 조달 평가"
@@ -355,6 +362,7 @@ function mapProjectTypeToBusinessType(value?: string) {
   return value ?? "EMS"
 }
 
+// 화면 라벨을 백엔드 저장 코드로 바꾼다.
 function mapBidTypeToBackend(value?: string) {
   if (value === "자체 입찰 / 자체 평가") return "SELF_BID_SELF_EVAL"
   if (value === "조달 입찰 / 조달 평가") return "PROCUREMENT_BID_PROCUREMENT_EVAL"
@@ -670,10 +678,11 @@ function mapBackendPrbRecord(
   rfpLookup: ReturnType<typeof buildRfpLookup>,
 ): PrbRecord {
   const linkedOpportunity = item.projectOpportunityId != null ? opportunityLookup.get(String(item.projectOpportunityId)) : undefined
-  const customerCode = linkedOpportunity?.customerCode ?? ""
-  const customerName = linkedOpportunity?.customer ?? item.customerCompanyName ?? ""
-  const opportunityCode = linkedOpportunity?.id ?? (item.projectOpportunityId != null ? String(item.projectOpportunityId) : "")
-  const opportunityName = linkedOpportunity?.name ?? item.opportunityName ?? ""
+  // project-opportunities 응답은 고객사 코드 대신 고객사 ID/이름, 사업기회 코드/이름을 제공한다.
+  const customerCode = linkedOpportunity?.customerCompanyId != null ? String(linkedOpportunity.customerCompanyId) : ""
+  const customerName = linkedOpportunity?.customerCompanyName ?? item.customerCompanyName ?? ""
+  const opportunityCode = linkedOpportunity?.opportunityCode ?? (item.projectOpportunityId != null ? String(item.projectOpportunityId) : "")
+  const opportunityName = linkedOpportunity?.opportunityName ?? item.opportunityName ?? ""
   const rfpAnalysisId =
     (linkedOpportunity?.id != null ? rfpLookup.byProjectOpportunityId.get(linkedOpportunity.id) : undefined) ??
     (opportunityCode ? rfpLookup.byOpportunityCode.get(normalizeLookupText(opportunityCode)) : undefined) ??
@@ -808,6 +817,7 @@ export async function loadBackendPrbs() {
   return records
 }
 
+// PRB 상세/수정 화면의 단건 조회 API
 export async function loadBackendPrbDetailById(prbId: string) {
   const [opportunityLookup, detail] = await Promise.all([
     loadOpportunityLookup(),

@@ -16,6 +16,12 @@ import { findingStatuses, type CustomerRecord, type OpportunityRecord, type Part
 import { loadBackendFindingData } from "@/lib/finding-backend"
 import { ArrowLeft, Building2, Plus, Search, Target, Users } from "lucide-react"
 
+// 발굴 메인 탭 구분값.
+// - opportunities: 사업기회 목록
+// - customers: 고객사 목록
+// - partners: 협력사 목록
+// 이 값은 URL query(tab)와 sessionStorage에 그대로 저장되어
+// 사용자가 마지막으로 보던 발굴 탭을 다시 열 때 복원하는 데 사용된다.
 type FindingTab = "opportunities" | "customers" | "partners"
 const FINDING_ACTIVE_TAB_STORAGE_KEY = "orbis.finding.active-tab"
 

@@ -150,6 +150,7 @@ function toDateString(value?: string) {
   return value.includes("T") ? value.slice(0, 10) : value.slice(0, 10)
 }
 
+// 백엔드 제안유형 코드(SI/SELF)를 프론트 표시값으로 변환한다.
 function mapProposalTypeToFrontend(value?: string): ProposalType {
   if (value === "SI") return "SI 제안"
   return "자체 제안"
@@ -179,6 +180,7 @@ function normalizeProductGroup(value?: string): ProposalProductGroup | "" {
   return ""
 }
 
+// 제안서 상세 응답의 고객사 정보를 발굴 데이터와 다시 매칭한다.
 function findCustomerByBackendData(
   findingData: FindingBackendData,
   customerCompanyCode?: string,
@@ -195,6 +197,7 @@ function findCustomerByBackendData(
   }) ?? null
 }
 
+// 제안서 상세 응답의 사업기회 정보를 발굴 데이터와 다시 매칭한다.
 function findOpportunityByBackendData(
   findingData: FindingBackendData,
   customerCompanyCode?: string,
@@ -236,6 +239,7 @@ async function fetchProposalList() {
   return parseApiResponse<ApiPage<BackendProposalListItem>>(response, "제안서 목록을 불러오지 못했습니다.")
 }
 
+// 제안서 상세는 입찰 결과 prefill 원천 데이터다.
 async function fetchProposalDetail(proposalId: number) {
   const response = await fetch(`${getBackendApiBaseUrl()}/proposals/${proposalId}`, {
     headers: buildAuthHeaders(),
@@ -256,6 +260,7 @@ async function fetchProjectOpportunities() {
   return parseApiResponse<ApiPage<BackendProjectOpportunity>>(response, "사업기회 목록을 불러오지 못했습니다.")
 }
 
+// 활동요청 -> 제안서 생성 시 기본값을 채우는 prefill API
 async function fetchProposalPrefill(salesActivityRequestId: number) {
   const response = await fetch(
     `${getBackendApiBaseUrl()}/proposals/pre-fill?salesActivityRequestId=${salesActivityRequestId}`,

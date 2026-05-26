@@ -136,6 +136,7 @@ export type BidResultSaveInput = {
   analysisSheet: BidResultAnalysisSheet
 }
 
+// 입찰 결과는 최종 수주/실주 판단과 분석 근거를 저장하는 문서다.
 const BID_RESULT_LIST_SIZE = 2000
 
 const analysisSectionTemplate: BidResultChecklistSection[] = [
@@ -236,6 +237,7 @@ async function fetchCurrentUserId() {
   }
 }
 
+// 입찰 결과 현황 탭의 원천 데이터
 async function fetchBidResultList() {
   const response = await fetch(`${getBackendApiBaseUrl()}/bid-results?size=${BID_RESULT_LIST_SIZE}`, {
     headers: buildAuthHeaders(),
@@ -247,6 +249,7 @@ async function fetchBidResultList() {
   return payload.content ?? []
 }
 
+// 입찰 결과 상세/수정 화면의 단건 조회 API
 async function fetchBidResultDetail(id: number) {
   const response = await fetch(`${getBackendApiBaseUrl()}/bid-results/${id}`, {
     headers: buildAuthHeaders(),
@@ -755,6 +758,7 @@ export async function loadBackendBidResultHistoryRecord(historyId: number) {
   )
 }
 
+// 제안서 코드 하나로 고객사/사업기회/제안형태를 자동으로 채우는 prefill API
 export async function loadBackendBidResultPrefillByProposalId(proposalId: string) {
   const numericId = Number.parseInt(proposalId, 10)
   if (Number.isNaN(numericId)) {

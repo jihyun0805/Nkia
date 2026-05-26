@@ -1,9 +1,13 @@
 import type { StoredFileAttachment } from "@/lib/attachments"
 
+// 활동 탭에서 쓰는 메인 분류값.
+// activities는 영업활동, quotations은 견적, requests는 활동 요청을 뜻한다.
 export type ActivityCategory = "activities" | "quotations" | "requests"
 
 export type ActivityAttachment = StoredFileAttachment
 
+// 영업활동 카드/상세에 쓰는 원본 기록 타입.
+// 고객사/사업기회/참석자/후속조치처럼 활동 화면에서 바로 보이는 값들을 포함한다.
 export type ActivityRecord = {
   id: string
   date: string
@@ -182,6 +186,8 @@ export type ActivityRequestRecord = {
   attachments?: ActivityAttachment[]
 }
 
+// 활동 입력 폼의 모드 선택값.
+// 이메일/전화/미팅 같은 접점 채널을 화면에서 빠르게 선택하도록 만든다.
 export const activityModeOptions = [
   "이메일",
   "전화",
@@ -190,6 +196,8 @@ export const activityModeOptions = [
   "기타",
 ]
 
+// 실제 활동 내용의 분류값.
+// 상담, 제품소개, 데모, PoC 등 활동의 목적을 구분한다.
 export const activityContentOptions = [
   "상담",
   "제품소개",
@@ -203,6 +211,8 @@ export const activityContentOptions = [
   "기타",
 ]
 
+// 활동 요청 등록 시 선택하는 요청 유형.
+// 활동 내용 옵션과 거의 비슷하지만 요청용으로 따로 관리한다.
 export const activityRequestTypeOptions = [
   "제품소개",
   "데모",
@@ -217,6 +227,8 @@ export const activityRequestTypeOptions = [
 
 export const requestOptionalActivityContents = ["상담", "기타"]
 
+// 활동 요청의 진행 상태.
+// 요청 -> 접수완료처럼 워크플로우성 상태를 표현한다.
 export const activityRequestStatusOptions = [
   "요청",
   "접수완료",
@@ -236,6 +248,8 @@ export const standardPriceNotes = [
 
 export const activityRequests: ActivityRequestRecord[] = []
 
+// 화면 목록에서 자주 쓰는 활동 상태 라벨.
+// 완료/진행중/예정/전달완료처럼 상세 화면의 상태 칩으로 사용된다.
 export const activityStatuses = [
   "완료",
   "진행중",
@@ -251,10 +265,12 @@ const ACTIVITIES_STORAGE_KEY = "orbis.activities"
 const DELETED_ACTIVITY_IDS_STORAGE_KEY = "orbis.deleted-activity-ids"
 const ACTIVITY_EVENT_NAME = "orbis-activities-updated"
 
+// 브라우저에서만 동작하는 localStorage/이벤트 브릿지.
 function isBrowser() {
   return typeof window !== "undefined"
 }
 
+// 기록 배열을 깊은 복사해 원본 mock 배열을 직접 훼손하지 않도록 한다.
 function cloneActivities() {
   return activities.map((item) => ({
     ...item,
@@ -262,6 +278,7 @@ function cloneActivities() {
   }))
 }
 
+// localStorage에서 데이터를 읽되, 없거나 깨졌으면 fallback을 그대로 반환한다.
 function readStorage<T>(key: string, fallback: T): T {
   if (!isBrowser()) return fallback
 
@@ -275,16 +292,19 @@ function readStorage<T>(key: string, fallback: T): T {
   }
 }
 
+// localStorage에 JSON 직렬화해서 저장한다.
 function writeStorage<T>(key: string, value: T) {
   if (!isBrowser()) return
   window.localStorage.setItem(key, JSON.stringify(value))
 }
 
+// 다른 탭/컴포넌트가 목록 갱신을 다시 계산하도록 커스텀 이벤트를 뿌린다.
 function emitActivityUpdate() {
   if (!isBrowser()) return
   window.dispatchEvent(new Event(ACTIVITY_EVENT_NAME))
 }
 
+// 활동 번호를 ACT-2026-001 형식으로 순차 발급한다.
 function nextActivityId(records: ActivityRecord[]) {
   const max = records.reduce((acc, item) => {
     const current = Number.parseInt(item.id.split("-").at(-1) ?? "0", 10)
@@ -294,6 +314,7 @@ function nextActivityId(records: ActivityRecord[]) {
   return `ACT-2026-${String(max + 1).padStart(3, "0")}`
 }
 
+// 첨부파일 목록이 깨져 들어와도 상세 화면이 죽지 않도록 정규화한다.
 function normalizeActivityRecord(record: ActivityRecord): ActivityRecord {
   return {
     ...record,
@@ -303,10 +324,12 @@ function normalizeActivityRecord(record: ActivityRecord): ActivityRecord {
   }
 }
 
+// 활동 목록을 localStorage에 저장하는 단일 진입점.
 function saveActivities(records: ActivityRecord[]) {
   writeStorage(ACTIVITIES_STORAGE_KEY, records)
 }
 
+// 삭제된 활동 ID를 별도 보관해 목록 재조회 시 다시 안 보이게 한다.
 function getDeletedActivityIds() {
   if (!isBrowser()) return []
 
@@ -321,15 +344,20 @@ function getDeletedActivityIds() {
   }
 }
 
+// 레거시 목 데이터인지 판별한다.
+// 이전 버전의 샘플 데이터가 남아 있으면 새 구조로 덮어쓰기 위해 사용한다.
 function isLegacyActivityMock(record: ActivityRecord) {
   return record.id.startsWith("ACT-2026-")
 }
 
+// 삭제된 활동 ID 목록을 저장한다.
 function setDeletedActivityIds(value: string[]) {
   if (!isBrowser()) return
   window.localStorage.setItem(DELETED_ACTIVITY_IDS_STORAGE_KEY, JSON.stringify(value))
 }
 
+// 활동 목록을 읽는다.
+// 레거시 데이터가 있으면 정리하고, 삭제 이력도 반영해서 실제 화면용 배열을 만든다.
 export function getActivities() {
   const deletedIds = new Set(getDeletedActivityIds())
   const storedRecords = readStorage<ActivityRecord[]>(ACTIVITIES_STORAGE_KEY, cloneActivities())
@@ -351,6 +379,7 @@ export function getActivities() {
   return records
 }
 
+// 새 활동을 생성한다.
 export function createActivity(input: Omit<ActivityRecord, "id">) {
   const records = getActivities()
   const created = normalizeActivityRecord({
@@ -364,6 +393,7 @@ export function createActivity(input: Omit<ActivityRecord, "id">) {
   return created
 }
 
+// 기존 활동을 수정한다.
 export function updateActivity(id: string, input: Omit<ActivityRecord, "id">) {
   const records = getActivities()
   let updatedRecord: ActivityRecord | null = null
@@ -388,6 +418,7 @@ export function updateActivity(id: string, input: Omit<ActivityRecord, "id">) {
   return updatedRecord
 }
 
+// 활동을 삭제하고, 삭제 이력에 ID를 남긴다.
 export function deleteActivity(id: string) {
   const records = getActivities()
   const existing = records.find((item) => item.id === id)
@@ -404,6 +435,7 @@ export function deleteActivity(id: string) {
   return { status: "deleted" as const, activity: existing }
 }
 
+// 활동 목록이 바뀌면 현재 화면도 다시 그리도록 구독자를 등록한다.
 export function subscribeActivityUpdates(listener: () => void) {
   if (!isBrowser()) return () => {}
 
@@ -415,6 +447,7 @@ export function subscribeActivityUpdates(listener: () => void) {
   }
 }
 
+// 활동 메인 화면의 카드/탭 제목을 한글로 바꾼다.
 export function getCategoryLabel(category: ActivityCategory) {
   switch (category) {
     case "activities":
@@ -426,6 +459,7 @@ export function getCategoryLabel(category: ActivityCategory) {
   }
 }
 
+// 카테고리별 상세 원본 레코드를 꺼낸다.
 export function getActivityItem(category: ActivityCategory, id: string) {
   switch (category) {
     case "activities":
@@ -437,6 +471,7 @@ export function getActivityItem(category: ActivityCategory, id: string) {
   }
 }
 
+// 상세 화면에서 보여줄 항목명/값 목록을 카테고리별로 만든다.
 export function getActivityItemFields(category: ActivityCategory, item: any) {
   switch (category) {
     case "activities":
@@ -495,6 +530,8 @@ export function getActivityItemFields(category: ActivityCategory, item: any) {
   }
 }
 
+// 활동 목록에서 보이는 요약 타입 문자열을 만든다.
+// 예: "전화 / 상담", "영상회의 / 데모".
 export function getActivityDisplayType(item: Pick<ActivityRecord, "activityMode" | "activityContent" | "type">) {
   const mode = item.activityMode?.trim()
   const content = item.activityContent?.trim()

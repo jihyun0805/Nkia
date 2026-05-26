@@ -56,12 +56,18 @@ import { useChatbotPrefill } from "@/lib/use-chatbot-prefill"
 import { toast } from "@/hooks/use-toast"
 import { FileText, Loader2, Plus, ScanLine, Sparkles, Trash2, X } from "lucide-react"
 
+// 발굴 단계 코드.
+// - FINDING: 아직 발굴 중인 사업기회
+// - PROMISING: 진행 가능성이 높은 유망 단계
+// - PROGRESSING: 실제 진행 단계
+// 백엔드/화면 입력값이 한글로 와도 내부 처리에서는 이 영문 코드로 통일한다.
 type OpportunityStage = "FINDING" | "PROMISING" | "PROGRESSING"
 type BackendProductModuleSummary = {
   id?: number
   productName?: string
   productClass?: string
 }
+// 발굴 상태 선택지. 사용자가 보는 한글 라벨과 내부 코드 값을 1:1로 연결한다.
 const opportunityStatusOptions: Array<{ value: OpportunityStage; label: string }> = [
   { value: "FINDING", label: "발굴" },
   { value: "PROMISING", label: "유망" },
@@ -148,6 +154,9 @@ function normalizeCompanyName(value: string) {
 function mapOpportunityProductClass(value: string) {
   const normalized = value.trim().toUpperCase()
   if (
+    // 사업구분 코드.
+    // 대시보드형 사업(DASHBOARD)도 별도 코드로 관리되며,
+    // EMS/ITSM/ITAM 같은 제품형 코드와 같이 사업기회 분류값으로 저장된다.
     normalized === "EMS" ||
     normalized === "DASHBOARD" ||
     normalized === "DATACENTER" ||
@@ -168,6 +177,7 @@ function mapOpportunityProductClass(value: string) {
 
 function toOpportunityStage(value: string): OpportunityStage {
   const normalized = value.trim().toUpperCase()
+  // 입력값이 한글이든 영문이든, 저장/비교용 내부 상태는 FINDING 계열 코드로 정규화한다.
   if (normalized === "FINDING" || value === "발굴") return "FINDING"
   if (normalized === "PROMISING" || value === "유망") return "PROMISING"
   if (normalized === "PROGRESSING" || value === "진행중") return "PROGRESSING"

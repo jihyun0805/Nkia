@@ -82,6 +82,7 @@ type BackendPrbResultCreateRequest = {
 
 type BackendPrbResultUpdateRequest = Omit<BackendPrbResultCreateRequest, "prbId">
 
+// PRB 결과는 회의 결과와 판단 의견을 정리하는 입찰 후속 문서다.
 const PRB_RESULT_LIST_SIZE = 2000
 
 function normalizeLookupText(value?: string | number | null) {
@@ -135,6 +136,7 @@ async function fetchCurrentUserId() {
   }
 }
 
+// PRB 결과 현황 탭의 원천 데이터
 async function fetchPrbResultList() {
   const response = await fetch(`${getBackendApiBaseUrl()}/prb-results?size=${PRB_RESULT_LIST_SIZE}`, {
     headers: buildAuthHeaders(),
@@ -149,6 +151,7 @@ async function fetchPrbResultList() {
   return payload.content ?? []
 }
 
+// PRB 결과 상세/수정 화면의 단건 조회 API
 async function fetchPrbResultDetail(id: string) {
   const response = await fetch(`${getBackendApiBaseUrl()}/prb-results/${id}`, {
     headers: buildAuthHeaders(),
@@ -159,6 +162,7 @@ async function fetchPrbResultDetail(id: string) {
   return parseApiResponse<BackendPrbResultResponse>(response, "PRB 결과 상세를 불러오지 못했습니다.")
 }
 
+// PRB 결과 상세의 변경 이력 탭
 async function fetchPrbResultHistoryList(id: string) {
   const response = await fetch(`${getBackendApiBaseUrl()}/prb-results/${id}/histories`, {
     headers: buildAuthHeaders(),
@@ -179,6 +183,7 @@ async function fetchPrbResultHistoryDetail(historyId: number) {
   return parseApiResponse<BackendPrbResultHistoryResponse>(response, "PRB 결과 변경 이력 상세를 불러오지 못했습니다.")
 }
 
+// 화면의 찬성/반대/조건부를 백엔드 결재 상태 코드로 변환
 function mapApprovalStatusToBackend(value?: string) {
   if (value === "찬성") return "APPROVED" as const
   if (value === "반대") return "REJECTED" as const
@@ -186,6 +191,7 @@ function mapApprovalStatusToBackend(value?: string) {
   return "PENDING" as const
 }
 
+// 백엔드 결재 상태 코드를 화면 표시값으로 변환
 function mapApprovalStatusToDisplay(value?: string) {
   if (value === "APPROVED") return "찬성"
   if (value === "REJECTED") return "반대"

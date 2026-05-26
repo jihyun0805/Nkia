@@ -62,9 +62,11 @@ type BackendSalesActivityRequestCreatePayload = SalesActivityRequestCreateReques
   activityType: typeof SalesActivityCreateRequestActivityType.EMAIL
 }
 
+// 활동요청 탭의 로컬 캐시 키. 요청/활동/견적 사이의 연결 상태를 저장한다.
 const REQUESTS_STORAGE_KEY = "orbis.activityRequests"
 const REQUEST_WORKFLOW_EVENT_NAME = "orbis-workflow-updated"
 
+// 백엔드 activityPurpose enum -> 화면 라벨
 const ACTIVITY_PURPOSE_TO_LABEL: Record<string, string> = {
   CONSULTING: "상담",
   PRODUCT_INTRODUCTION: "제품소개",
@@ -78,6 +80,7 @@ const ACTIVITY_PURPOSE_TO_LABEL: Record<string, string> = {
   ETC: "기타",
 }
 
+// 화면 라벨 -> 백엔드 activityPurpose enum
 const ACTIVITY_PURPOSE_TO_ENUM: Record<string, SalesActivityRequestCreateRequest["activityPurpose"]> = {
   상담: "CONSULTING",
   제품소개: "PRODUCT_INTRODUCTION",
@@ -159,6 +162,7 @@ function getTargetUserNameById(id?: string) {
   return getPresalesUsers().find((user) => user.id === id)?.name
 }
 
+// 활동이 연결되면 접수완료, 아직 요청만 있으면 요청 상태로 보여준다.
 function mapRequestStatus(salesActivityId?: number) {
   return salesActivityId != null ? "접수완료" : "요청"
 }
