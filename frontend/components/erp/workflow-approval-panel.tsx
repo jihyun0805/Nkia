@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, AlertCircle, CheckCircle2, Send, HelpCircle, FileCheck, Ban } from "lucide-react";
 import { UserPicker } from "@/components/erp/user-picker";
-import { loadBackendCurrentUserInfo, loadBackendUsers, approveBackendWorkflow, rejectBackendWorkflow, type BackendUserSummary } from "@/lib/workflow-backend";
+import { loadBackendCurrentUserInfo, loadBackendUsers, approveBackendWorkflow, rejectBackendWorkflow, loadQuotationWorkflowDetail, type BackendUserSummary } from "@/lib/workflow-backend";
 import { getBackendApiBaseUrl } from "@/lib/api-base-url";
 import { buildAuthHeaders } from "@/lib/auth-session";
 import { contractApi, licenseApi } from "@/lib/api/contract-api";
 import { submitMaintenance, submitCustomerSupportRequest } from "@/lib/api/maintenance";
+import { submitBackendQuotationRecord } from "@/lib/sales-quotation-backend";
 
 type WorkflowLineData = {
   stepOrder: number;
@@ -27,7 +28,7 @@ interface WorkflowApprovalPanelProps {
   workflowId?: number | null;
   status?: string;
   targetId: number;
-  domainType: "CONTRACT" | "LICENSE" | "MAINTENANCE" | "CUSTOMER_SUPPORT";
+  domainType: "CONTRACT" | "LICENSE" | "MAINTENANCE" | "CUSTOMER_SUPPORT" | "QUOTATION";
   onRefresh?: () => void;
 }
 
@@ -85,16 +86,39 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
 
   // 결재 정보 실시간 확인 (결재중 상태)
   useEffect(() => {
-    if (!isInProgress || !workflowId || !currentUser?.userId) return;
+    if (!isInProgress || !workflowId) return;
+    if (domainType !== "QUOTATION" && !currentUser?.userId) return;
 
     setNeedNextApprover(null);
     setCurrentStepOrder(null);
     setIsCurrentApprover(null);
     setWorkflowLines(null);
 
+    const applyWorkflowDetail = (matched: {
+      id?: number;
+      targetId: number;
+      needNextApprover: boolean;
+      currentStepOrder: number;
+      lines: WorkflowLineData[];
+    }) => {
+      const lines = matched.lines ?? [];
+      setWorkflowLines(lines);
+      setNeedNextApprover(matched.needNextApprover ?? false);
+      setCurrentStepOrder(matched.currentStepOrder ?? null);
+
+      const activeLine = lines.find((l) => l.stepOrder === matched.currentStepOrder && l.status === "진행중");
+      setIsCurrentApprover(!!currentUser?.name && currentUser.name === activeLine?.approverName);
+    };
+
     const fetchWorkflowStatus = async () => {
       try {
-        const res = await fetch(`${getBackendApiBaseUrl()}/admin/workflows/my/${currentUser.userId}`, {
+        if (domainType === "QUOTATION") {
+          const detail = await loadQuotationWorkflowDetail(workflowId);
+          applyWorkflowDetail(detail);
+          return;
+        }
+
+        const res = await fetch(`${getBackendApiBaseUrl()}/admin/workflows/my/${currentUser!.userId}`, {
           headers: buildAuthHeaders(),
           credentials: "include",
         });
@@ -121,13 +145,7 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
           return;
         }
 
-        const lines = matched.lines ?? [];
-        setWorkflowLines(lines);
-        setNeedNextApprover(matched.needNextApprover ?? false);
-        setCurrentStepOrder(matched.currentStepOrder ?? null);
-
-        const activeLine = lines.find((l) => l.stepOrder === matched.currentStepOrder && l.status === "진행중");
-        setIsCurrentApprover(!!currentUser.name && currentUser.name === activeLine?.approverName);
+        applyWorkflowDetail(matched);
       } catch (e) {
         console.error("워크플로우 정보 조회 실패", e);
         setNeedNextApprover(true);
@@ -136,7 +154,7 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
     };
 
     fetchWorkflowStatus();
-  }, [workflowId, isInProgress, currentUser]);
+  }, [workflowId, isInProgress, currentUser, domainType]);
 
   // 결재 상신 처리
   const handleStartWorkflow = async () => {
@@ -156,6 +174,8 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
         res = await submitMaintenance(targetId, firstApprover.id);
       } else if (domainType === "CUSTOMER_SUPPORT") {
         res = await submitCustomerSupportRequest(targetId, firstApprover.id);
+      } else if (domainType === "QUOTATION") {
+        res = await submitBackendQuotationRecord(targetId, { firstApproverId: firstApprover.id });
       }
 
       toast.success("결재 상신이 완료되었습니다.");
@@ -232,7 +252,7 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
 
   // 첫 결재자 조건 계산
   const getFirstApproverFilter = () => {
-    if (domainType === "CONTRACT" || domainType === "MAINTENANCE") {
+    if (domainType === "CONTRACT" || domainType === "MAINTENANCE" || domainType === "QUOTATION") {
       return (u: BackendUserSummary) => positionLevel(u.position) >= 2; // 팀장 이상
     }
     // LICENSE, CUSTOMER_SUPPORT
@@ -240,20 +260,20 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
   };
 
   const getFirstApproverLabel = () => {
-    if (domainType === "CONTRACT" || domainType === "MAINTENANCE") return "1차 결재자 (팀장)";
+    if (domainType === "CONTRACT" || domainType === "MAINTENANCE" || domainType === "QUOTATION") return "1차 결재자 (팀장)";
     if (domainType === "LICENSE") return "1차 결재자 (라이선스 관리 담당자)";
     return "1차 결재자 (고객지원 담당자)";
   };
 
   const getFirstApproverPlaceholder = () => {
-    if (domainType === "CONTRACT" || domainType === "MAINTENANCE") return "팀장을 선택하세요";
+    if (domainType === "CONTRACT" || domainType === "MAINTENANCE" || domainType === "QUOTATION") return "팀장을 선택하세요";
     if (domainType === "LICENSE") return "라이선스 관리 담당자를 선택하세요";
     return "고객지원 담당자를 선택하세요";
   };
 
   // 다음 결재자 조건 계산
   const getNextApproverFilter = (domain: string, step: number) => {
-    if (domain === "CONTRACT" || domain === "MAINTENANCE") {
+    if (domain === "CONTRACT" || domain === "MAINTENANCE" || domain === "QUOTATION") {
       if (step === 1) return (u: BackendUserSummary) => positionLevel(u.position) >= 3; // 본부장
       return (u: BackendUserSummary) => true; // 배포 및 공유 (제한 없음)
     } else {
@@ -264,7 +284,7 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
   };
 
   const getNextApproverText = (domain: string, step: number) => {
-    if (domain === "CONTRACT" || domain === "MAINTENANCE") {
+    if (domain === "CONTRACT" || domain === "MAINTENANCE" || domain === "QUOTATION") {
       if (step === 1) return { label: "2차 결재자 (본부장)", placeholder: "본부장을 선택하세요", helper: "2차 결재자(본부장)를 지정해 주세요." };
       return { label: "배포 및 공유 담당자", placeholder: "담당자를 선택하세요", helper: "최종 완료 후 문서를 공유받을 담당자를 지정해 주세요." };
     } else {

@@ -25,6 +25,19 @@ public interface WorkflowRepository extends JpaRepository<Workflow, Long> {
     @Query("""
             SELECT DISTINCT w
             FROM Workflow w
+            LEFT JOIN FETCH w.workflowTemplate wt
+            LEFT JOIN FETCH w.workflowLines wl
+            LEFT JOIN FETCH wl.workflowStep
+            LEFT JOIN FETCH wl.approver
+            WHERE w.id = :workflowId
+            """)
+    Optional<Workflow> findDetailById(
+            @Param("workflowId") Long workflowId
+    );
+
+    @Query("""
+            SELECT DISTINCT w
+            FROM Workflow w
             LEFT JOIN FETCH w.workflowLines wl
             LEFT JOIN FETCH wl.workflowStep
             LEFT JOIN FETCH wl.approver
