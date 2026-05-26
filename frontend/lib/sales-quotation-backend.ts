@@ -966,3 +966,24 @@ export async function rejectBackendWorkflow(
     "결재 반려에 실패했습니다.",
   )
 }
+
+export async function loadBackendQuotationRecordDetail(
+  quotationId: number,
+): Promise<QuotationRecord> {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/activity/quotations/${quotationId}`,
+    {
+      method: "GET",
+      headers: buildAuthHeaders(),
+      credentials: "include",
+      cache: "no-store",
+    },
+  )
+
+  const data = await parseApiResponse<BackendQuotationResponse>(
+    response,
+    "견적서 상세 조회에 실패했습니다.",
+  )
+
+  return mapBackendQuotationRecord(data, loadLocalQuotationIndex().get(String(data.id ?? "")))
+}
