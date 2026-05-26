@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 from __future__ import annotations
 
 import io
@@ -7,6 +9,7 @@ import zipfile
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from xml.etree import ElementTree as ET
 
 ALLOWED_ATTACHMENT_EXTENSIONS = {
@@ -31,6 +34,7 @@ ALLOWED_ATTACHMENT_EXTENSIONS = {
     "jpeg",
 }
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+# 텍스트/이미지 확장자는 처리 방식이 다르므로 상수로 분리해 분기 조건을 단순화한다.
 TEXT_EXTENSIONS = {"txt", "md", "markdown", "csv", "json", "log", "xml", "yaml", "yml"}
 IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
 CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
@@ -57,12 +61,14 @@ EXTENSION_MIME_MAP = {
 
 @dataclass(frozen=True)
 class AttachmentExtractionResult:
+    # 추출된 텍스트와 파일 형식 정보를 함께 반환하는 공통 결과 모델이다.
     extension: str
     file_type: str
     text: str
 
 
 def extract_attachment_text(*, filename: str | None, content_type: str | None, file_bytes: bytes) -> AttachmentExtractionResult:
+    # 파일명, 크기, 확장자를 API 경계와 서비스 경계 모두에서 방어적으로 검증한다.
     extension = normalize_extension(filename)
     file_type = infer_file_type(extension=extension, content_type=content_type)
 
@@ -78,6 +84,7 @@ def extract_attachment_text(*, filename: str | None, content_type: str | None, f
             "지원 형식: txt, md, markdown, csv, json, log, xml, yaml, yml, pdf, doc, docx, ppt, pptx, hwp, hwpx, png, jpg, jpeg"
         )
 
+    # 확장자별로 가장 안전한 파서를 우선 사용하고, PDF/이미지는 본문 추출 실패 시 OCR로 보강한다.
     if extension in TEXT_EXTENSIONS:
         text = extract_text_file(file_bytes)
     elif extension == "pdf":
@@ -103,6 +110,7 @@ def extract_attachment_text(*, filename: str | None, content_type: str | None, f
     if not normalized:
         raise RuntimeError("본문을 추출할 수 없는 파일입니다.")
 
+    # LLM 입력 폭주를 막기 위해 긴 문서는 앞부분만 사용한다.
     return AttachmentExtractionResult(
         extension=extension,
         file_type=file_type,
@@ -111,6 +119,7 @@ def extract_attachment_text(*, filename: str | None, content_type: str | None, f
 
 
 def infer_file_type(*, extension: str, content_type: str | None) -> str:
+    # 클라이언트가 신뢰 가능한 content-type을 보냈으면 우선 사용하고, 아니면 확장자 기반 MIME을 사용한다.
     normalized = (content_type or "").strip().lower()
     if normalized and normalized != "application/octet-stream":
         return normalized
@@ -124,6 +133,7 @@ def normalize_extension(filename: str | None) -> str:
 
 
 def extract_text_file(file_bytes: bytes) -> str:
+    # 국내 문서에서 흔한 UTF-8/CP949/EUC-KR 순서로 디코딩을 시도한다.
     for encoding in ("utf-8-sig", "utf-8", "cp949", "euc-kr"):
         try:
             return file_bytes.decode(encoding)
@@ -135,6 +145,7 @@ def extract_text_file(file_bytes: bytes) -> str:
 def extract_pdf_text(file_bytes: bytes) -> str:
     from pypdf import PdfReader
 
+    # PDF에 텍스트 레이어가 있으면 빠르게 추출하고, 비어 있으면 OCR fallback을 사용한다.
     reader = PdfReader(io.BytesIO(file_bytes))
     text = "\n".join((page.extract_text() or "") for page in reader.pages)
     normalized = normalize_extracted_text(text)
@@ -144,6 +155,7 @@ def extract_pdf_text(file_bytes: bytes) -> str:
 
 
 def extract_docx_text(file_bytes: bytes) -> str:
+    # DOCX는 zip 내부의 본문/머리글/바닥글 XML에서 텍스트를 추출한다.
     with zipfile.ZipFile(io.BytesIO(file_bytes)) as archive:
         part_names = ["word/document.xml"]
         part_names.extend(sorted(name for name in archive.namelist() if name.startswith("word/header")))
@@ -153,6 +165,7 @@ def extract_docx_text(file_bytes: bytes) -> str:
 
 
 def extract_pptx_text(file_bytes: bytes) -> str:
+    # PPTX는 슬라이드와 노트 XML을 모두 읽어 발표 자료의 본문을 최대한 회수한다.
     with zipfile.ZipFile(io.BytesIO(file_bytes)) as archive:
         part_names = sorted(name for name in archive.namelist() if name.startswith("ppt/slides/slide"))
         note_names = sorted(name for name in archive.namelist() if name.startswith("ppt/notesSlides/notesSlide"))
@@ -163,6 +176,7 @@ def extract_pptx_text(file_bytes: bytes) -> str:
 def extract_legacy_office_text(file_bytes: bytes) -> str:
     import olefile
 
+    # 구형 DOC/PPT는 OLE 스트림에서 읽을 수 있는 문자열 조각을 수집한다.
     buffer = io.BytesIO(file_bytes)
     if not olefile.isOleFile(buffer):
         raise RuntimeError("구형 Office 문서 형식을 인식할 수 없습니다.")
@@ -181,6 +195,7 @@ def extract_legacy_office_text(file_bytes: bytes) -> str:
 
 
 def extract_printable_binary_strings(raw: bytes) -> list[str]:
+    # OLE 바이너리 스트림에서 사람이 읽을 수 있는 문자열 run만 골라낸다.
     candidates: list[str] = []
     for encoding in ("utf-16le", "cp949"):
         try:
@@ -209,6 +224,7 @@ def is_meaningful_text_run(text: str) -> bool:
 
 
 def extract_docx_xml_text(xml_bytes: bytes) -> str:
+    # Word XML에서는 문단, 탭, 줄바꿈 정보를 보존해 텍스트를 재구성한다.
     root = ET.fromstring(xml_bytes)
     paragraphs: list[str] = []
 
@@ -237,6 +253,7 @@ def extract_docx_xml_text(xml_bytes: bytes) -> str:
 
 
 def extract_openxml_text(xml_bytes: bytes) -> str:
+    # PowerPoint 계열 XML은 문단 구조가 없을 수 있어 전체 text 노드 fallback을 둔다.
     root = ET.fromstring(xml_bytes)
     paragraphs: list[str] = []
 
@@ -268,6 +285,7 @@ def extract_openxml_text(xml_bytes: bytes) -> str:
 def extract_hwp_text(file_bytes: bytes) -> str:
     import olefile
 
+    # HWP는 preview 텍스트가 있으면 우선 사용하고, 없으면 BodyText 섹션 레코드를 직접 파싱한다.
     buffer = io.BytesIO(file_bytes)
     if not olefile.isOleFile(buffer):
         raise RuntimeError("HWP 파일 형식을 인식할 수 없습니다.")
@@ -302,6 +320,7 @@ def extract_hwp_text(file_bytes: bytes) -> str:
 
 
 def extract_hwpx_text(file_bytes: bytes) -> str:
+    # HWPX는 zip 패키지의 preview 또는 section XML에서 본문을 추출한다.
     with zipfile.ZipFile(io.BytesIO(file_bytes)) as archive:
         if "Preview/PrvText.txt" in archive.namelist():
             preview_text = extract_text_file(archive.read("Preview/PrvText.txt"))
@@ -324,6 +343,7 @@ def extract_pdf_text_with_ocr(file_bytes: bytes) -> str:
     import fitz
     import numpy as np
 
+    # 스캔 PDF는 앞쪽 일부 페이지만 이미지로 렌더링해 OCR 비용을 제한한다.
     ocr_engine = get_paddle_ocr()
     parts: list[str] = []
 
@@ -344,13 +364,14 @@ def extract_image_text_with_ocr(file_bytes: bytes) -> str:
     import numpy as np
     from PIL import Image
 
+    # 이미지 첨부는 RGB 배열로 변환한 뒤 PaddleOCR에 직접 전달한다.
     ocr_engine = get_paddle_ocr()
     image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
     result = run_paddle_ocr(ocr_engine, np.array(image))
     return "\n".join(extract_paddle_ocr_lines(result))
 
 
-def get_paddle_ocr():
+def get_paddle_ocr() -> object:
     from paddleocr import PaddleOCR
 
     global _PADDLE_OCR_INSTANCE
@@ -358,6 +379,7 @@ def get_paddle_ocr():
         return _PADDLE_OCR_INSTANCE
     except NameError:
         try:
+            # OCR 엔진은 초기화 비용이 커서 모듈 전역 싱글턴으로 재사용한다.
             _PADDLE_OCR_INSTANCE = PaddleOCR(
                 use_angle_cls=False,
                 lang="korean",
@@ -371,6 +393,7 @@ def get_paddle_ocr():
 
 
 def run_paddle_ocr(ocr_engine: object, image: object) -> object:
+    # PaddleOCR 버전에 따라 cls 인자를 받지 않을 수 있어 호환 호출을 제공한다.
     try:
         return ocr_engine.ocr(image, cls=False)
     except TypeError as exc:
@@ -380,6 +403,7 @@ def run_paddle_ocr(ocr_engine: object, image: object) -> object:
 
 
 def extract_paddle_ocr_lines(result: object) -> list[str]:
+    # PaddleOCR 버전별 결과 구조가 달라 dict/list를 재귀 순회하며 텍스트를 수집한다.
     lines: list[str] = []
 
     def visit(node: object) -> None:
@@ -409,7 +433,8 @@ def extract_paddle_ocr_lines(result: object) -> list[str]:
     return lines
 
 
-def extract_hwp_preview_text(ole) -> str:
+def extract_hwp_preview_text(ole: Any) -> str:
+    # HWP 미리보기 스트림이 있으면 복잡한 레코드 파싱 없이 빠르게 본문을 얻을 수 있다.
     for candidate in ("PrvText", ["PrvText"]):
         try:
             raw = ole.openstream(candidate).read()
@@ -435,6 +460,7 @@ def extract_hwpx_xml_text(xml_bytes: bytes) -> str:
 
 
 def parse_hwp_paragraph_text(section_bytes: bytes) -> list[str]:
+    # HWP BodyText 섹션의 레코드 header를 읽어 문단 텍스트 레코드만 디코딩한다.
     offset = 0
     texts: list[str] = []
 
@@ -467,6 +493,7 @@ def parse_hwp_paragraph_text(section_bytes: bytes) -> list[str]:
 
 
 def normalize_extracted_text(text: str) -> str:
+    # 제어문자, 과도한 공백, 빈 줄을 정리해 LLM 입력에 적합한 텍스트로 만든다.
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     normalized = CONTROL_CHAR_PATTERN.sub("", normalized)
     normalized_lines = []
@@ -480,6 +507,7 @@ def normalize_extracted_text(text: str) -> str:
 
 
 def collapse_spaced_single_char_runs(line: str) -> str:
+    # OCR/바이너리 추출 과정에서 '한 글 자 씩' 벌어진 토큰을 다시 붙인다.
     if not line or " " not in line:
         return line
 

@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 from __future__ import annotations
 
 from app.core.config import settings
@@ -7,14 +9,17 @@ from app.services.rfp_summary_llm import generate_rfp_summary_with_gms
 
 
 def generate_rfp_summary(*, filename: str | None, content_type: str | None, file_bytes: bytes) -> RfpSummaryResponse:
+    # RFP 요약은 GMS LLM 호출이 필수이므로 API 키가 없으면 초기에 실패시킨다.
     if not settings.gms_key:
         raise RuntimeError("GMS API key is not configured.")
 
+    # 업로드 문서를 먼저 텍스트로 변환한 뒤, 변환 결과를 LLM 요약 입력으로 사용한다.
     document_text = convert_rfp_document_to_text(
         filename=filename,
         content_type=content_type,
         file_bytes=file_bytes,
     )
+    # LLM 호출 세부 설정은 환경 설정에서 가져와 서비스 로직과 배포 설정을 분리한다.
     summary = generate_rfp_summary_with_gms(
         api_key=settings.gms_key,
         url=settings.gms_chat_completions_url,

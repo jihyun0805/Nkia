@@ -1,3 +1,5 @@
+// 인수인계 메모: 챗봇 모달의 상태 오케스트레이터입니다. 세션, 메시지, 첨부, 타이핑 효과, AI 호출을 한곳에서 조율합니다.
+// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 "use client"
 
 import { useEffect, useRef, useState } from "react"
@@ -259,6 +261,7 @@ export function ChatbotModal() {
     }
 
     const loadServerSessions = async () => {
+      // 로그인 직후 서버 세션과 메시지를 복원해 사용자별 챗봇 기록을 이어준다.
       setIsSessionsLoading(true)
       setErrorMessage("")
 
@@ -343,6 +346,7 @@ export function ChatbotModal() {
     let visibleLength = 0
     setTypedAssistantContent("")
 
+    // AI 응답은 이미 전체 텍스트로 도착하지만, 읽기 경험을 위해 화면에만 타이핑 효과를 적용한다.
     const timer = window.setInterval(() => {
       visibleLength = Math.min(
         targetMessage.content.length,
@@ -659,6 +663,7 @@ export function ChatbotModal() {
       if (requestAttachmentSessionId) {
         setIsUploading(true)
 
+        // 첨부파일은 질문 1회용 임시 세션으로 색인하고, finally에서 삭제 이벤트를 보낸다.
         for (const attachment of pendingAttachments) {
           indexedAttachments.push(
             await uploadChatbotAttachment(requestAttachmentSessionId, attachment.file),
@@ -677,6 +682,7 @@ export function ChatbotModal() {
       })
 
       try {
+        // 세션 저장 실패가 답변 표시 실패로 이어지지 않도록 화면 반영과 영속화를 분리한다.
         await addChatbotSessionMessages(activeSession.id, {
           userContent: query,
           assistantContent: data.answer,
@@ -734,6 +740,7 @@ export function ChatbotModal() {
       setTypingMessageId(assistantMessage.id)
     } finally {
       if (requestAttachmentSessionId && indexedAttachments.length > 0) {
+        // 임시 첨부 근거가 다음 질문에 섞이지 않도록 AI 색인에서 정리한다.
         const cleanupResults = await Promise.allSettled(
           indexedAttachments.map((attachment) =>
             deleteChatbotAttachment(requestAttachmentSessionId, attachment.fileId),

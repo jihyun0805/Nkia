@@ -1,3 +1,5 @@
+// 인수인계 메모: 채팅 세션/메시지 저장 계층입니다. 사용자별 대화 목록과 메시지 이력을 DB에 보존합니다.
+// 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 package com.nkia.Orbis.domain.chatbot.session.service;
 
 import com.nkia.Orbis.common.exception.ApiException;
@@ -34,6 +36,7 @@ public class ChatSessionService {
     @Transactional(readOnly = true)
     public List<ChatSessionResponse> getMySessions() {
         String userId = chatSessionOwnerResolver.resolveCurrentOwnerId();
+        // 세션은 로그인 사용자/익명 사용자 기준 ownerId로 격리한다.
         return chatSessionRepository
                 .findByUserIdAndNotDeleted(userId, PageRequest.of(0, SESSION_PAGE_SIZE))
                 .stream()
@@ -97,6 +100,7 @@ public class ChatSessionService {
         String userId = chatSessionOwnerResolver.resolveCurrentOwnerId();
         ChatSession session = getOwnedSession(sessionId, userId);
 
+        // 한 번의 질문/답변을 user 메시지와 assistant 메시지 두 줄로 저장한다.
         ChatMessage userMessage = ChatMessage.builder()
                 .session(session)
                 .role("user")
@@ -116,6 +120,7 @@ public class ChatSessionService {
                 .threadId(request.getThreadId())
                 .route(request.getRoute())
                 .answerStatus(request.getAnswerStatus())
+                // evidences/typedEvidences/actions는 프론트 타입을 보존하기 위해 JSON 문자열로 저장한다.
                 .evidences(request.getEvidences())
                 .typedEvidences(request.getTypedEvidences())
                 .actions(request.getActions())
@@ -132,6 +137,7 @@ public class ChatSessionService {
     }
 
     private ChatSession getOwnedSession(UUID sessionId, String userId) {
+        // 모든 세션 상세/수정/삭제/메시지 API는 여기서 소유권을 한 번 더 검증한다.
         return chatSessionRepository.findByIdAndUserIdAndNotDeleted(sessionId, userId)
                 .orElseThrow(() -> new ApiException(ChatSessionErrorCode.SESSION_NOT_FOUND));
     }

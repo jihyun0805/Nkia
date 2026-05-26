@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 from __future__ import annotations
 
 import http.client
@@ -20,6 +22,7 @@ def generate_rfp_summary_with_gms(
     filename: str,
     text: str,
 ) -> str:
+    # 긴 RFP 원문은 모델 입력 한도를 고려해 앞부분만 전달한다.
     payload = {
         "model": model,
         "max_completion_tokens": 1800,
@@ -34,6 +37,7 @@ def generate_rfp_summary_with_gms(
             },
         ],
     }
+    # GPT-5 계열과 이전 계열은 지원하는 옵션이 달라 모델명 기준으로 payload를 조정한다.
     if supports_temperature(model):
         payload["temperature"] = 0.2
     if supports_reasoning_effort(model):
@@ -47,16 +51,19 @@ def generate_rfp_summary_with_gms(
 
 
 def supports_temperature(model: str) -> bool:
+    # GPT-5 계열은 temperature 대신 reasoning 옵션 중심으로 제어한다.
     normalized = model.strip().lower()
     return not normalized.startswith("gpt-5")
 
 
 def supports_reasoning_effort(model: str) -> bool:
+    # GPT-5 계열 모델에만 reasoning_effort 옵션을 붙인다.
     normalized = model.strip().lower()
     return normalized.startswith("gpt-5")
 
 
 def build_rfp_summary_system_prompt() -> str:
+    # RFP 문서에 없는 내용을 추론하지 않도록 요약 원칙을 시스템 프롬프트로 고정한다.
     return """
 당신은 IT 구축사업 RFP 문서를 요약하는 전문 어시스턴트입니다.
 
@@ -79,6 +86,7 @@ def build_rfp_summary_system_prompt() -> str:
 
 
 def build_rfp_summary_prompt(*, filename: str, text: str) -> str:
+    # 사용자가 기대하는 섹션과 bullet 규칙을 명시해 요약 형식을 안정화한다.
     return f"""
 RFP 파일명
 {filename}
@@ -137,6 +145,7 @@ RFP 문서를 요약하세요.
 """.strip()
 
 def call_gms_chat_completion(*, api_key: str, url: str, timeout_seconds: int, payload: dict) -> str:
+    # 표준 라이브러리 HTTP 클라이언트로 GMS Chat Completion을 호출하고 일시 오류를 재시도한다.
     request = urllib.request.Request(
         url,
         data=json.dumps(payload, ensure_ascii=True).encode("utf-8"),
@@ -174,6 +183,7 @@ def call_gms_chat_completion(*, api_key: str, url: str, timeout_seconds: int, pa
             response_payload = json.loads(response_text)
             return str(response_payload["choices"][0]["message"]["content"]).strip()
         except json.JSONDecodeError as exc:
+            # 응답 JSON이 중간에 끊긴 경우 content 필드만 복구할 수 있는지 시도한다.
             recovered_content = recover_content_from_partial_response(response_text)
             if recovered_content is not None:
                 return recovered_content.strip()
@@ -206,6 +216,7 @@ SUMMARY_SECTION_TITLES = {
 
 
 def normalize_rfp_summary_markdown(summary: str) -> str:
+    # LLM이 섞어 넣은 heading 기호와 bullet 변형을 서비스 표준 markdown 형태로 정리한다.
     normalized_lines: list[str] = []
     current_section: str | None = None
 
@@ -235,11 +246,13 @@ def normalize_rfp_summary_markdown(summary: str) -> str:
 
 
 def split_compound_summary_item(content: str) -> list[str]:
+    # 한 bullet에 여러 핵심 항목이 쉼표로 붙어 오면 별도 bullet로 나눌 수 있게 분리한다.
     parts = re.split(r",\s+(?=(?:발주처|사업기간|사업예산|계약방식):)", content)
     return [part.strip() for part in parts if part.strip()]
 
 
 def recover_content_from_partial_response(response_text: str) -> str | None:
+    # JSON 응답이 잘려도 "content" 문자열 값만 정상 JSON 문자열이면 복구한다.
     marker = '"content"'
     marker_index = response_text.find(marker)
     if marker_index < 0:

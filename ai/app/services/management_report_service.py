@@ -1,3 +1,5 @@
+# 인수인계 메모: 챗봇 서비스 계층입니다. 색인, 검색, 근거 선별, 답변 생성, 추천/비교 등 실제 업무 로직이 모여 있습니다.
+# 수정 시 이 파일이 담당하는 경계만 바꾸고, API/스키마 계약 변경은 호출부까지 같이 확인하세요.
 from __future__ import annotations
 
 import json
@@ -45,6 +47,7 @@ DEFAULT_MANAGEMENT_REPORT_SOURCE_TYPES = [
     "ATTACHMENT",
 ]
 
+# 리포트 유형별 기본 섹션을 정의해 요청에서 sections가 비어 있어도 일관된 문서 구조를 만든다.
 DEFAULT_SECTIONS_BY_TYPE: dict[ReportType, list[str]] = {
     "management": ["요약", "핵심 현황", "주요 이슈", "리스크", "대응 방안", "근거"],
     "sales": ["요약", "영업 파이프라인", "수주/실주 요인", "주요 고객", "대응 방안", "근거"],
@@ -74,13 +77,16 @@ def create_management_report(
     embedder: EmbeddingModel,
     user_context: UserContext | None = None,
 ) -> ManagementReportResponse:
+    # 순환 import를 피하기 위해 실제 리포트 생성 시점에 검색/계획 서비스를 가져온다.
     from app.services.chat_planner_service import plan_chat_query
     from app.services.query_normalization_service import normalize_query_context
     from app.services.search_service import search_knowledge
 
+    # 요청값이 비어 있는 항목은 리포트 유형별 기본값으로 보정한다.
     effective_title = title or infer_report_title(query=query, report_type=report_type)
     effective_sections = sections or DEFAULT_SECTIONS_BY_TYPE[report_type]
     effective_source_types = source_types or DEFAULT_MANAGEMENT_REPORT_SOURCE_TYPES
+    # 검색에는 사용자의 원 질의뿐 아니라 리포트 유형, 섹션, 필터 힌트를 함께 넣는다.
     report_query = build_report_search_query(
         query=query,
         report_type=report_type,
@@ -110,6 +116,7 @@ def create_management_report(
     evidences = build_answer_evidences(search_response.results)
 
     if not search_response.results:
+        # 근거가 없으면 LLM을 호출하지 않고 부족한 증거 상태를 명확히 반환한다.
         return ManagementReportResponse(
             query=query,
             title=effective_title,
@@ -127,6 +134,7 @@ def create_management_report(
 
     if settings.gms_key:
         try:
+            # 검색 근거와 화면 집계 컨텍스트를 합쳐 경영진용 리포트 생성을 요청한다.
             report = create_management_report_answer(
                 query=build_report_generation_query(
                     query=query,
@@ -161,6 +169,7 @@ def create_management_report(
             )
         except RuntimeError as exc:
             logger.error("Management report LLM generation failed: %s", exc, exc_info=True)
+            # LLM 장애가 있어도 검색 근거 기반의 추출형 리포트로 응답 품질을 낮춰 반환한다.
             return build_fallback_report_response(
                 query=query,
                 title=effective_title,
@@ -191,6 +200,7 @@ def build_report_search_query(
     business_types: list[str] | None = None,
     statuses: list[str] | None = None,
 ) -> str:
+    # 검색 서비스가 문서 검색 의도를 더 잘 잡도록 리포트 메타정보를 질의에 덧붙인다.
     filter_lines = []
     if customer_group:
         filter_lines.append(f"고객 구분: {customer_group}")
@@ -216,6 +226,7 @@ def build_report_metadata_filters(
     business_types: list[str],
     statuses: list[str],
 ) -> dict[str, object]:
+    # ALL 값은 필터링하지 않는 의미이므로 실제 metadata 필터에서 제외한다.
     filters: dict[str, object] = {}
     if customer_group and customer_group.upper() != "ALL":
         filters["customerGroup"] = customer_group
@@ -229,6 +240,7 @@ def build_report_metadata_filters(
 
 
 def build_management_report_system_prompt() -> str:
+    # 리포트 톤, 근거 사용 원칙, 금지 표현을 LLM 시스템 프롬프트로 고정한다.
     return """
 당신은 영업/사업기회 포트폴리오를 경영진에게 보고하는 한국어 보고서 작성 AI입니다.
 
@@ -257,6 +269,7 @@ def build_management_report_system_prompt() -> str:
 
 
 def create_management_report_answer(*, query: str, context: str) -> str:
+    # GMS Chat Completion 요청 payload를 구성하고 응답 본문에서 리포트 문자열만 추출한다.
     payload = {
         "model": settings.gms_chat_model,
         "reasoning_effort": "low",
@@ -282,6 +295,7 @@ def create_management_report_answer(*, query: str, context: str) -> str:
 
 
 def request_management_report_completion(*, payload: dict[str, Any]) -> dict[str, Any]:
+    # GMS 호출은 일시적인 HTTP/네트워크 오류가 잦을 수 있어 재시도와 부분 응답 복구를 포함한다.
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {settings.gms_key}",
@@ -304,6 +318,7 @@ def request_management_report_completion(*, payload: dict[str, Any]) -> dict[str
                 try:
                     response_body = response.read().decode("utf-8", errors="replace")
                 except IncompleteRead as exc:
+                    # 응답이 중간에 끊겨도 받은 바이트에서 content 복구를 시도한다.
                     response_body = exc.partial.decode("utf-8", errors="replace")
         except TimeoutError as exc:
             if attempt < 3:
@@ -357,6 +372,7 @@ def request_management_report_completion(*, payload: dict[str, Any]) -> dict[str
 
 
 def extract_management_report_content(data: dict[str, Any]) -> str:
+    # OpenAI/GMS 호환 응답 구조에서 assistant message content를 꺼낸다.
     try:
         return str(data["choices"][0]["message"]["content"]).strip()
     except (KeyError, IndexError, TypeError) as exc:
@@ -364,6 +380,7 @@ def extract_management_report_content(data: dict[str, Any]) -> str:
 
 
 def recover_management_report_content(response_body: str) -> str | None:
+    # JSON 전체 파싱이 실패해도 content 문자열 조각이 있으면 가장 긴 값을 복구한다.
     matches = re.findall(r'"content"\s*:\s*("(?:(?:\\.)|[^"\\])*")', response_body, flags=re.DOTALL)
     recovered_values: list[str] = []
     for quoted_value in matches:
@@ -378,6 +395,7 @@ def recover_management_report_content(response_body: str) -> str | None:
 
 
 def recover_raw_management_report(response_body: str) -> str | None:
+    # 프록시가 JSON 대신 markdown 원문만 반환한 경우 리포트 marker로 원문 사용 가능 여부를 판단한다.
     stripped = response_body.strip()
     if not stripped:
         return None
@@ -404,6 +422,7 @@ def build_report_generation_query(
     filters: dict[str, object],
     analytics_context: dict[str, Any],
 ) -> str:
+    # LLM에 전달할 사용자 질의, 필터, 집계 데이터, 출력 형식 지시를 하나의 요청문으로 만든다.
     filter_lines = [f"- {key}: {value}" for key, value in filters.items() if value not in (None, "", [], {})]
     section_lines = [f"- {section}" for section in sections]
     analytics_lines = build_analytics_context_lines(analytics_context)
@@ -521,6 +540,7 @@ def build_report_generation_query(
 
 
 def build_analytics_context_lines(analytics_context: dict[str, Any]) -> list[str]:
+    # 프론트/백엔드에서 계산한 metric, chart, table 데이터를 LLM이 읽기 쉬운 텍스트로 펼친다.
     lines: list[str] = []
     metrics = analytics_context.get("metrics") or []
     if metrics:
@@ -570,6 +590,7 @@ def build_analytics_context_lines(analytics_context: dict[str, Any]) -> list[str
 
 
 def display_report_value(value: Any) -> str:
+    # 내부 단계 코드는 보고서에 노출될 한국어 라벨로 바꾼다.
     if isinstance(value, str):
         return STAGE_LABELS.get(value, value)
     return str(value)
@@ -587,6 +608,7 @@ STAGE_LABELS = {
 
 
 def infer_report_title(*, query: str, report_type: ReportType) -> str:
+    # 제목이 없으면 질의 앞부분과 리포트 유형으로 기본 제목을 만든다.
     labels = {
         "management": "경영 리포트",
         "sales": "영업 리포트",
@@ -611,6 +633,7 @@ def build_fallback_report_response(
     evidences: list[AnswerEvidence],
     degraded_reason: str,
 ) -> ManagementReportResponse:
+    # LLM을 사용할 수 없을 때도 검색 근거 요약 형태의 응답 계약을 유지한다.
     return ManagementReportResponse(
         query=query,
         title=title,
@@ -629,6 +652,7 @@ def build_fallback_report_response(
 
 
 def build_extractive_report(*, title: str, evidences: list[AnswerEvidence]) -> str:
+    # 검색된 근거 일부를 짧게 이어 붙여 최소 리포트 본문을 생성한다.
     lines = [
         f"# {title}",
         "",
@@ -648,6 +672,7 @@ def build_extractive_report(*, title: str, evidences: list[AnswerEvidence]) -> s
 
 
 def build_answer_evidences(results: list[object]) -> list[AnswerEvidence]:
+    # 검색 결과 객체를 API 응답용 근거 모델로 변환한다.
     return [
         AnswerEvidence(
             evidenceType=getattr(result, "evidenceType", "retrieved_evidence"),
@@ -668,6 +693,7 @@ def build_answer_evidences(results: list[object]) -> list[AnswerEvidence]:
 
 
 def build_evidence_context(results: list[object]) -> str:
+    # LLM이 근거 출처와 본문을 구분해 읽을 수 있도록 문서별 블록으로 만든다.
     sections = []
     for index, result in enumerate(results, start=1):
         header = f"[근거 {index}] {result.sourceType} - {result.sourceId}"
@@ -679,6 +705,7 @@ def build_evidence_context(results: list[object]) -> str:
 
 
 def build_metadata_context_lines(metadata: dict | None) -> list[str]:
+    # 리포트 생성에 의미 있는 metadata만 선별해 근거 블록 앞에 붙인다.
     if not metadata:
         return []
     keys = [
