@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { WorkflowApprovalPanel } from "@/components/erp/workflow-approval-panel"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { toast } from "@/hooks/use-toast"
 import { adminApi } from "@/lib/api/admin-api"
@@ -39,6 +40,7 @@ import { loadBackendFindingData } from "@/lib/finding-backend"
 import { type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 import {
   deleteBackendPrb,
+  loadBackendPrbDetailById,
   loadBackendPrbHistoryRecord,
   loadBackendPrbHistoryRecords,
   loadBackendPrbs,
@@ -403,30 +405,63 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+
+    const applyRecord = (record: PrbRecord | null, draftStatus: PrbStatus | null = null) => {
+      if (!record || cancelled) return
+      setForm(cloneForm(record))
+      setStatus(draftStatus ?? record.status)
+      setSourcePrb(record)
+      setRevisionHistory(getPrbRevisionHistory(record.id))
+    }
+
     const sync = () => {
       if (prbId) {
         const record = getPrbById(prbId)
-        if (!record) return
-        setForm(cloneForm(record))
-        setStatus(record.status)
-        setSourcePrb(record)
-        setRevisionHistory(getPrbRevisionHistory(record.id))
+        applyRecord(record, null)
         return
       }
 
       if (cloneFromId) {
         const record = getPrbById(cloneFromId)
-        if (!record) return
-        setForm(cloneForm(record))
-        setStatus("작성 중")
-        setSourcePrb(record)
-        setRevisionHistory(getPrbRevisionHistory(record.id))
+        applyRecord(record, "작성 중")
       }
     }
 
+    void loadBackendPrbs()
+      .then((records) => {
+        if (cancelled) return
+        if (prbId) {
+          void loadBackendPrbDetailById(prbId)
+            .then((record) => {
+              applyRecord(record, null)
+            })
+            .catch(() => {
+              const record = records.find((item) => item.id === prbId) ?? null
+              applyRecord(record, null)
+            })
+          return
+        }
+
+        if (cloneFromId) {
+          void loadBackendPrbDetailById(cloneFromId)
+            .then((record) => {
+              applyRecord(record, "작성 중")
+            })
+            .catch(() => {
+              const record = records.find((item) => item.id === cloneFromId) ?? null
+              applyRecord(record, "작성 중")
+            })
+        }
+      })
+      .catch(() => undefined)
+
     sync()
-    void loadBackendPrbs().catch(() => undefined)
-    return subscribePrbUpdates(sync)
+    const unsubscribe = subscribePrbUpdates(sync)
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [cloneFromId, prbId])
 
   useEffect(() => {
@@ -623,6 +658,10 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
     const businessPeriod = [form.formData.businessPeriodStart || businessPeriodStart, form.formData.businessPeriodEnd || businessPeriodEnd]
       .filter(Boolean)
       .join(" ~ ")
+    if (!selectedReviewerId) {
+      setPopupMessage("검토자를 선택하지 않았습니다. 검토자를 다시 선택해 주십시오.")
+      return
+    }
     const approvalSteps: PrbApprovalStep[] = [
       { key: "author", label: "작성자", assignee: "영업대표", status: "completed", completedAt: today() },
       { key: "firstApproval", label: "1차 승인", assignee: "팀장", status: firstApprovalPending ? "pending" : "waiting" },
@@ -638,6 +677,7 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       opportunity: form.opportunity || form.formData.projectName,
       rfpAnalysisId: form.rfpAnalysisId,
       salesRepresentativeId: form.salesRepresentativeId,
+      reviewerId: selectedReviewerId,
       author: currentUser.name,
       reviewer: form.reviewer,
       nextApprover: nextStatus === "검토 중" ? "팀장" : form.nextApprover,
@@ -672,7 +712,23 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       attendeeOpinions: [form.formData.salesOpinion],
       version: "v1.0",
     })
+    setSourcePrb(saved)
+    setForm(cloneForm(saved))
     setStatus(saved.status)
+    setSelectedHistoryId(null)
+    setSelectedHistoryDetail(null)
+    setRevisionHistory(getPrbRevisionHistory(saved.id))
+    void loadBackendPrbHistoryRecords(saved.id)
+      .then((records) => {
+        setBackendHistoryRecords(
+          records
+            .filter((record): record is BackendPrbHistoryListItem & { historyId: number; version: number } =>
+              typeof record.historyId === "number" && typeof record.version === "number",
+            )
+            .sort((a, b) => (b.version ?? 0) - (a.version ?? 0)),
+        )
+      })
+      .catch(() => undefined)
     return saved
   }
 
@@ -739,6 +795,15 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
       : pendingApprovalStep
         ? "진행중"
         : sourcePrb?.status ?? "작성 중"
+  const workflowStatus = sourcePrb?.workflowStatus ?? (status === "작성 중" ? "결재 대기" : status === "검토 중" ? "결재중" : status === "승인" ? "승인 완료" : status === "반려" ? "반려" : "결재 대기")
+  const workflowId = sourcePrb?.workflowId ?? null
+
+  useEffect(() => {
+    if (workflowId && detailTab === "approval") {
+      setDetailTab("document")
+    }
+  }, [detailTab, workflowId])
+
   const canActOnApprovalStep = Boolean(pendingApprovalStep && prbId)
   const prbHistoryRows = backendHistoryRecords.map((item) => ({
     key: `backend:${item.historyId}`,
@@ -1250,168 +1315,116 @@ export function PrbRegistrationForm({ prbId, cloneFromId, documentOnly = false, 
           <CardHeader className="border-b">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <CardTitle>PRB 보고서</CardTitle>
-              <div className="rounded-md bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">PRB 현황: {status}</div>
             </div>
           </CardHeader>
         )}
         <CardContent className="space-y-6 p-4 md:p-6">
           {prbId && !documentOnly ? (
-            <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
-              <TabsList>
-                <TabsTrigger value="document">PRB 보고서</TabsTrigger>
-                <TabsTrigger value="approval">결재 프로세스</TabsTrigger>
-                <TabsTrigger value="history">변경 이력</TabsTrigger>
-              </TabsList>
+            <>
+              <div className="rounded-md bg-muted px-3 py-2 text-sm font-medium">
+                {workflowStatus}
+              </div>
+              <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
+                <TabsList>
+                  <TabsTrigger value="document">PRB 보고서</TabsTrigger>
+                  <TabsTrigger value="history">변경 이력</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="document" className="mt-0 space-y-6">
-                {selectedHistoryDetail && (
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedHistoryId(null)
-                        setSelectedHistoryDetail(null)
-                        if (sourcePrb) {
-                          setForm(cloneForm(sourcePrb))
-                          setStatus(sourcePrb.status)
-                        }
-                      }}
-                    >
-                      현재 버전 보기
-                    </Button>
-                  </div>
-                )}
-                {reportTable}
-              </TabsContent>
-
-              <TabsContent value="approval" className="mt-0">
-                <div className="space-y-6 rounded-lg border p-6">
-                  <div className="flex flex-wrap items-center gap-3">
-                    {(sourcePrb?.approvalSteps ?? []).map((step, index) => {
-                      const isCurrent = index === currentApprovalStepIndex
-                      const isDone = currentApprovalStepIndex >= 0 ? index < currentApprovalStepIndex : step.status === "completed"
-
-                      return (
-                        <div key={`${step.label}-${index}`} className="flex items-center gap-3">
-                          <div
-                            className={[
-                              "rounded-full px-4 py-2 text-sm font-semibold transition-colors",
-                              isDone
-                                ? "bg-green-100 text-green-700"
-                                : isCurrent
-                                  ? "bg-amber-100 text-amber-800 ring-2 ring-amber-400"
-                                  : "bg-slate-100 text-slate-500",
-                            ].join(" ")}
-                          >
-                            {step.label}
-                          </div>
-                          {index < (sourcePrb?.approvalSteps.length ?? 0) - 1 && (
-                            <span className="text-2xl text-muted-foreground">→</span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>현재 단계</Label>
-                      <Input readOnly value={activeApprovalStep?.label ?? "-"} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>담당자</Label>
-                      <Input readOnly value={activeApprovalStep?.assignee ?? "-"} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>결재 상태</Label>
-                      <Input readOnly value={prbApprovalOverallStatus} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>내부 처리</Label>
-                      <Input
-                        readOnly
-                        value={
-                          canActOnApprovalStep
-                            ? `${currentUser.name} 님이 현재 단계 승인/확인을 처리할 수 있습니다.`
-                            : "현재 처리할 단계가 없거나 담당자만 처리할 수 있습니다."
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      className="bg-primary hover:bg-primary/90"
-                      disabled={!canActOnApprovalStep}
-                      onClick={handleApproveStep}
-                    >
-                      {pendingApprovalStep?.key === "deploy"
-                        ? "배포 확인"
-                        : pendingApprovalStep?.key === "share"
-                          ? "공유 확인"
-                          : pendingApprovalStep
-                            ? `${pendingApprovalStep.label} 승인`
-                            : "승인 완료"}
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="history" className="mt-0">
-                <div className="space-y-4">
-                  {prbId && sourcePrb?.status === "승인" && (
+                <TabsContent value="document" className="mt-0 space-y-6">
+                  {selectedHistoryDetail && (
                     <div className="flex justify-end">
-                      <Button size="sm" variant="outline" onClick={() => router.push(`/bid/new/prb?cloneFrom=${prbId}`)}>
-                        수정본 등록
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedHistoryId(null)
+                          setSelectedHistoryDetail(null)
+                          if (sourcePrb) {
+                            setForm(cloneForm(sourcePrb))
+                            setStatus(sourcePrb.status)
+                          }
+                        }}
+                      >
+                        현재 버전 보기
                       </Button>
                     </div>
                   )}
-                  <div className="rounded-lg border">
-                    <table className="w-full table-fixed border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-slate-100 text-center font-semibold">
-                          <th className="border-b border-r px-3 py-3">버전</th>
-                          <th className="border-b border-r px-3 py-3">PRB 일자</th>
-                          <th className="border-b border-r px-3 py-3">PRB 코드</th>
-                          <th className="border-b px-3 py-3">보기</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {prbHistoryRows.length > 0 ? (
-                          prbHistoryRows.map((entry) => (
-                            <tr key={entry.key}>
-                              <td className="border-r border-t px-3 py-3 text-center">{entry.versionLabel}</td>
-                              <td className="border-r border-t px-3 py-3 text-center">{entry.documentDate}</td>
-                              <td className="border-r border-t px-3 py-3 text-center">{entry.documentCode}</td>
-                              <td className="border-t px-3 py-3 text-center">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (typeof entry.historyId !== "number") return
-                                    setSelectedHistoryId(entry.historyId)
-                                    setDetailTab("document")
-                                  }}
-                                >
-                                  보기
-                                </Button>
+                  {reportTable}
+                  {!selectedHistoryDetail && sourcePrb?.id != null && (
+                    <WorkflowApprovalPanel
+                      workflowId={workflowId}
+                      status={workflowStatus}
+                      targetId={Number(sourcePrb.id)}
+                      domainType="PRB"
+                      onRefresh={() => {
+                        void loadBackendPrbs().then((records) => {
+                          const latest = records.find((record) => record.id === prbId) ?? null
+                          setSourcePrb(latest)
+                          if (latest) {
+                            setStatus(latest.status)
+                          }
+                        })
+                      }}
+                    />
+                  )}
+                </TabsContent>
+
+                <TabsContent value="history" className="mt-0">
+                  <div className="space-y-4">
+                    {prbId && sourcePrb?.status === "승인" && (
+                      <div className="flex justify-end">
+                        <Button size="sm" variant="outline" onClick={() => router.push(`/bid/new/prb?cloneFrom=${prbId}`)}>
+                          수정본 등록
+                        </Button>
+                      </div>
+                    )}
+                    <div className="rounded-lg border">
+                      <table className="w-full table-fixed border-collapse text-sm">
+                        <thead>
+                          <tr className="bg-slate-100 text-center font-semibold">
+                            <th className="border-b border-r px-3 py-3">버전</th>
+                            <th className="border-b border-r px-3 py-3">PRB 일자</th>
+                            <th className="border-b border-r px-3 py-3">PRB 코드</th>
+                            <th className="border-b px-3 py-3">보기</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {prbHistoryRows.length > 0 ? (
+                            prbHistoryRows.map((entry) => (
+                              <tr key={entry.key}>
+                                <td className="border-r border-t px-3 py-3 text-center">{entry.versionLabel}</td>
+                                <td className="border-r border-t px-3 py-3 text-center">{entry.documentDate}</td>
+                                <td className="border-r border-t px-3 py-3 text-center">{entry.documentCode}</td>
+                                <td className="border-t px-3 py-3 text-center">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (typeof entry.historyId !== "number") return
+                                      setSelectedHistoryId(entry.historyId)
+                                      setDetailTab("document")
+                                    }}
+                                  >
+                                    보기
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                                아직 변경 이력이 없습니다.
                               </td>
                             </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
-                              아직 변경 이력이 없습니다.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              </TabsContent>
-            </Tabs>
+                </TabsContent>
+              </Tabs>
+            </>
           ) : (
             reportTable
           )}

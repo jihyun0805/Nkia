@@ -96,6 +96,8 @@ export type PrbApprovalStep = {
 
 export type PrbRecord = {
   id: string
+  workflowId?: number
+  workflowStatus?: string
   customerCode: string
   customer: string
   opportunityCode: string
@@ -133,6 +135,8 @@ export type PrbRecord = {
 
 export type PrbResultRecord = {
   id: string
+  workflowId?: number
+  workflowStatus?: string
   prbId: string
   customerCode: string
   customer: string
@@ -210,6 +214,8 @@ export type BidResultAnalysisSheet = {
 
 export type BidResultRecord = {
   id: string
+  workflowId?: number
+  workflowStatus?: string
   proposalId: string
   requestId: string
   customerCode: string

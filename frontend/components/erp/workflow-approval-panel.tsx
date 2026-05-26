@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, AlertCircle, CheckCircle2, Send, HelpCircle, FileCheck, Ban } from "lucide-react";
 import { UserPicker } from "@/components/erp/user-picker";
-import { loadBackendCurrentUserInfo, loadBackendUsers, approveBackendWorkflow, rejectBackendWorkflow, loadQuotationWorkflowDetail, type BackendUserSummary } from "@/lib/workflow-backend";
+import { loadBackendCurrentUserInfo, loadBackendUsers, approveBackendWorkflow, rejectBackendWorkflow, loadWorkflowDetail, type BackendUserSummary } from "@/lib/workflow-backend";
 import { getBackendApiBaseUrl } from "@/lib/api-base-url";
 import { buildAuthHeaders } from "@/lib/auth-session";
 import { contractApi, licenseApi } from "@/lib/api/contract-api";
@@ -28,7 +28,7 @@ interface WorkflowApprovalPanelProps {
   workflowId?: number | null;
   status?: string;
   targetId: number;
-  domainType: "CONTRACT" | "LICENSE" | "MAINTENANCE" | "CUSTOMER_SUPPORT" | "QUOTATION";
+  domainType: "CONTRACT" | "LICENSE" | "MAINTENANCE" | "CUSTOMER_SUPPORT" | "QUOTATION" | "PRB" | "PRB_RESULT" | "BID_RESULT";
   onRefresh?: () => void;
 }
 
@@ -39,6 +39,18 @@ const positionLevel = (pos: string | undefined): number => {
   if (p === "TEAM_MEMBER" || p === "팀원" || p === "담당자") return 1;
   return 0;
 };
+
+const QUOTATION_LIKE_DOMAINS = new Set<WorkflowApprovalPanelProps["domainType"]>([
+  "CONTRACT",
+  "MAINTENANCE",
+  "QUOTATION",
+  "PRB",
+  "PRB_RESULT",
+  "BID_RESULT",
+]);
+
+const isQuotationLikeDomain = (domainType: WorkflowApprovalPanelProps["domainType"]) =>
+  QUOTATION_LIKE_DOMAINS.has(domainType);
 
 export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType, onRefresh }: WorkflowApprovalPanelProps) {
   const isDraft = status === "결재 대기" || !status;
@@ -87,7 +99,7 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
   // 결재 정보 실시간 확인 (결재중 상태)
   useEffect(() => {
     if (!isInProgress || !workflowId) return;
-    if (domainType !== "QUOTATION" && !currentUser?.userId) return;
+    if (domainType !== "QUOTATION" && domainType !== "PRB" && domainType !== "PRB_RESULT" && domainType !== "BID_RESULT" && !currentUser?.userId) return;
 
     setNeedNextApprover(null);
     setCurrentStepOrder(null);
@@ -112,8 +124,8 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
 
     const fetchWorkflowStatus = async () => {
       try {
-        if (domainType === "QUOTATION") {
-          const detail = await loadQuotationWorkflowDetail(workflowId);
+        if (domainType === "QUOTATION" || domainType === "PRB" || domainType === "PRB_RESULT" || domainType === "BID_RESULT") {
+          const detail = await loadWorkflowDetail(workflowId, domainType);
           applyWorkflowDetail(detail);
           return;
         }
@@ -176,6 +188,45 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
         res = await submitCustomerSupportRequest(targetId, firstApprover.id);
       } else if (domainType === "QUOTATION") {
         res = await submitBackendQuotationRecord(targetId, { firstApproverId: firstApprover.id });
+      } else if (domainType === "PRB") {
+        const response = await fetch(`${getBackendApiBaseUrl()}/prbs/submit/${targetId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...buildAuthHeaders(),
+          },
+          credentials: "include",
+          body: JSON.stringify({ firstApproverId: firstApprover.id }),
+        });
+        if (!response.ok) {
+          throw new Error("PRB 결재 상신에 실패했습니다.");
+        }
+      } else if (domainType === "PRB_RESULT") {
+        const response = await fetch(`${getBackendApiBaseUrl()}/prb-results/submit/${targetId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...buildAuthHeaders(),
+          },
+          credentials: "include",
+          body: JSON.stringify({ firstApproverId: firstApprover.id }),
+        });
+        if (!response.ok) {
+          throw new Error("PRB 결과보고 결재 상신에 실패했습니다.");
+        }
+      } else if (domainType === "BID_RESULT") {
+        const response = await fetch(`${getBackendApiBaseUrl()}/bid-results/submit/${targetId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...buildAuthHeaders(),
+          },
+          credentials: "include",
+          body: JSON.stringify({ firstApproverId: firstApprover.id }),
+        });
+        if (!response.ok) {
+          throw new Error("입찰 결과 결재 상신에 실패했습니다.");
+        }
       }
 
       toast.success("결재 상신이 완료되었습니다.");
@@ -252,7 +303,7 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
 
   // 첫 결재자 조건 계산
   const getFirstApproverFilter = () => {
-    if (domainType === "CONTRACT" || domainType === "MAINTENANCE" || domainType === "QUOTATION") {
+    if (isQuotationLikeDomain(domainType)) {
       return (u: BackendUserSummary) => positionLevel(u.position) >= 2; // 팀장 이상
     }
     // LICENSE, CUSTOMER_SUPPORT
@@ -260,20 +311,20 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
   };
 
   const getFirstApproverLabel = () => {
-    if (domainType === "CONTRACT" || domainType === "MAINTENANCE" || domainType === "QUOTATION") return "1차 결재자 (팀장)";
+    if (isQuotationLikeDomain(domainType)) return "1차 결재자 (팀장)";
     if (domainType === "LICENSE") return "1차 결재자 (라이선스 관리 담당자)";
     return "1차 결재자 (고객지원 담당자)";
   };
 
   const getFirstApproverPlaceholder = () => {
-    if (domainType === "CONTRACT" || domainType === "MAINTENANCE" || domainType === "QUOTATION") return "팀장을 선택하세요";
+    if (isQuotationLikeDomain(domainType)) return "팀장을 선택하세요";
     if (domainType === "LICENSE") return "라이선스 관리 담당자를 선택하세요";
     return "고객지원 담당자를 선택하세요";
   };
 
   // 다음 결재자 조건 계산
   const getNextApproverFilter = (domain: string, step: number) => {
-    if (domain === "CONTRACT" || domain === "MAINTENANCE" || domain === "QUOTATION") {
+    if (isQuotationLikeDomain(domain as WorkflowApprovalPanelProps["domainType"])) {
       if (step === 1) return (u: BackendUserSummary) => positionLevel(u.position) >= 3; // 본부장
       return (u: BackendUserSummary) => true; // 배포 및 공유 (제한 없음)
     } else {
@@ -284,7 +335,7 @@ export function WorkflowApprovalPanel({ workflowId, status, targetId, domainType
   };
 
   const getNextApproverText = (domain: string, step: number) => {
-    if (domain === "CONTRACT" || domain === "MAINTENANCE" || domain === "QUOTATION") {
+    if (isQuotationLikeDomain(domain as WorkflowApprovalPanelProps["domainType"])) {
       if (step === 1) return { label: "2차 결재자 (본부장)", placeholder: "본부장을 선택하세요", helper: "2차 결재자(본부장)를 지정해 주세요." };
       return { label: "배포 및 공유 담당자", placeholder: "담당자를 선택하세요", helper: "최종 완료 후 문서를 공유받을 담당자를 지정해 주세요." };
     } else {

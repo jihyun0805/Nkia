@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { WorkflowApprovalPanel } from "@/components/erp/workflow-approval-panel"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { PrbRegistrationForm } from "@/components/erp/prb-registration-form"
 import { toast } from "@/hooks/use-toast"
@@ -183,6 +184,12 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
   const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null)
   const [selectedHistoryDetail, setSelectedHistoryDetail] = useState<PrbResultRecord | null>(null)
   const backendUsers = useBackendUsers()
+
+  useEffect(() => {
+    if (detailTab === "approval") {
+      setDetailTab("document")
+    }
+  }, [detailTab])
 
   // 챗봇 create_draft (prb_result) prefill
   const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -370,6 +377,9 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
     documentDate: (item.createdAt ?? "").slice(0, 10),
     documentCode: item.prbResultId != null ? String(item.prbResultId) : String(item.historyId ?? ""),
   }))
+  const currentWorkflowSource = selectedHistoryDetail ?? existingResult
+  const currentWorkflowStatus = currentWorkflowSource?.workflowStatus ?? "결재 대기"
+  const currentWorkflowId = currentWorkflowSource?.workflowId ?? null
   const attendeeUsers = useMemo(
     () => (Array.isArray(backendUsers) ? backendUsers : []),
     [backendUsers],
@@ -460,6 +470,9 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
           <CardTitle>{prbResultId ? "PRB 결과 수정" : "PRB 결과 등록"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-8">
+          <div className="rounded-md bg-muted px-3 py-2 text-sm font-medium">
+            {currentWorkflowStatus}
+          </div>
           <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
               <TabsList>
                 <TabsTrigger value="document">PRB 결과</TabsTrigger>
@@ -592,7 +605,21 @@ export function PrbResultRegistrationForm({ prbResultId, allowDelete = false }: 
                 </tbody>
               </table>
             </div>
-          </section>
+              </section>
+
+              {!selectedHistoryDetail && currentWorkflowSource?.id != null && (
+                <WorkflowApprovalPanel
+                  workflowId={currentWorkflowId}
+                  status={currentWorkflowStatus}
+                  targetId={Number(currentWorkflowSource?.id ?? 0)}
+                  domainType="PRB_RESULT"
+                  onRefresh={() => {
+                    void loadBackendPrbResults().then((records) => {
+                      setExistingResult(records.find((item) => item.id === prbResultId) ?? null)
+                    })
+                  }}
+                />
+              )}
 
               </TabsContent>
               <TabsContent value="history" className="mt-0">

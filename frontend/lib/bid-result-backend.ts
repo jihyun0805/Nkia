@@ -64,6 +64,8 @@ type BackendWinLossAnalysis = {
 
 type BackendBidResultDetailResponse = {
   id?: number
+  workflowId?: number
+  status?: string
   budget?: number | string | null
   isExternalPdInvolved?: boolean
   keySuccessFactors?: string
@@ -657,6 +659,8 @@ function mapBidResultDetail(
 
   return {
     id: String(detail.id ?? proposalId ?? `BID-${Date.now()}`),
+    workflowId: detail.workflowId,
+    workflowStatus: detail.status ?? undefined,
     proposalId,
     requestId,
     customerCode: detail.customerCompanyCode ?? customer?.id ?? linkedProposal?.customerCode ?? "",

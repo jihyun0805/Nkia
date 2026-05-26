@@ -2,6 +2,8 @@ package com.nkia.Orbis.domain.bid.bidresult.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
+import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowResponse;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultCreateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.request.BidResultUpdateRequest;
 import com.nkia.Orbis.domain.bid.bidresult.dto.response.BidResultDetailResponse;
@@ -39,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class BidResultController {
 
     private final BidResultService bidResultService;
+    private final WorkflowService workflowService;
 
     /**
      * 1. 입찰 결과 등록 (POST)
@@ -127,6 +130,16 @@ public class BidResultController {
         );
 
         return ResponseEntity.ok(ApiResponse.success("입찰 결과 결재 상신 완료"));
+    }
+
+    @Operation(summary = "입찰 결과 결재 상세 조회")
+    @GetMapping("/workflow/{workflowId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'BID_RESULT', 'READ')")
+    public ResponseEntity<ApiResponse<WorkflowResponse>> getWorkflow(
+            @PathVariable("workflowId") Long workflowId
+    ) {
+        WorkflowResponse response = workflowService.getWorkflowDetail(workflowId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     /**

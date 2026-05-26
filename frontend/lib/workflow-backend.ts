@@ -44,14 +44,28 @@ type WorkflowRejectInput = {
   comment?: string
 }
 
-export async function loadQuotationWorkflowDetail(workflowId: number) {
-  const response = await fetch(`${getBackendApiBaseUrl()}/activity/quotations/workflow/${workflowId}`, {
+export async function loadWorkflowDetail(
+  workflowId: number,
+  domainType?: "CONTRACT" | "LICENSE" | "MAINTENANCE" | "CUSTOMER_SUPPORT" | "QUOTATION" | "PRB" | "PRB_RESULT" | "BID_RESULT",
+) {
+  const path =
+    domainType === "QUOTATION"
+      ? `/activity/quotations/workflow/${workflowId}`
+      : domainType === "PRB"
+        ? `/prbs/workflow/${workflowId}`
+        : domainType === "PRB_RESULT"
+          ? `/prb-results/workflow/${workflowId}`
+          : domainType === "BID_RESULT"
+            ? `/bid-results/workflow/${workflowId}`
+            : `/admin/workflows/${workflowId}`
+
+  const response = await fetch(`${getBackendApiBaseUrl()}${path}`, {
     headers: buildAuthHeaders(),
     credentials: "include",
     cache: "no-store",
   })
 
-  return parseApiResponse<BackendWorkflowDetail>(response, "견적서 결재 상세 정보를 불러오지 못했습니다.")
+  return parseApiResponse<BackendWorkflowDetail>(response, "결재 상세 정보를 불러오지 못했습니다.")
 }
 
 export type BackendWorkflowLine = {

@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { WorkflowApprovalPanel } from "@/components/erp/workflow-approval-panel"
 import { UserIdPicker } from "@/components/erp/user-id-picker"
 import { getCustomers, getOpportunities, type CustomerRecord, type OpportunityRecord } from "@/lib/finding-data"
 import {
@@ -288,6 +289,12 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
   const [historyRecords, setHistoryRecords] = useState<BackendBidResultHistoryListItem[]>([])
   const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null)
   const [selectedHistoryDetail, setSelectedHistoryDetail] = useState<BidResultRecord | null>(null)
+
+  useEffect(() => {
+    if (detailTab === "approval") {
+      setDetailTab("document")
+    }
+  }, [detailTab])
 
   // 챗봇 create_draft (bid_result) prefill
   const { values: chatbotPrefill, hasPrefill: hasChatbotPrefill, clear: clearChatbotPrefill } = useChatbotPrefill()
@@ -697,6 +704,9 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
     documentDate: (item.createdAt ?? "").slice(0, 10),
     documentCode: item.bidResultId != null ? String(item.bidResultId) : String(item.historyId ?? ""),
   }))
+  const currentWorkflowSource = selectedHistoryDetail ?? existingResult
+  const currentWorkflowStatus = currentWorkflowSource?.workflowStatus ?? "결재 대기"
+  const currentWorkflowId = currentWorkflowSource?.workflowId ?? null
   const totalScore = getOverallTotal(form.analysisSheet.checklistSections)
 
   return (
@@ -706,6 +716,9 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
           <CardTitle>{bidResultId ? "입찰 결과 수정" : "입찰 결과 등록"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="rounded-md bg-muted px-3 py-2 text-sm font-medium">
+            {currentWorkflowStatus}
+          </div>
           <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
             <TabsList>
               <TabsTrigger value="document">입찰결과</TabsTrigger>
@@ -1123,6 +1136,20 @@ export function BidResultRegistrationForm({ proposalId, bidResultId }: BidResult
               </tbody>
             </table>
           </div>
+
+          {!selectedHistoryDetail && currentWorkflowSource?.id != null && (
+            <WorkflowApprovalPanel
+              workflowId={currentWorkflowId}
+              status={currentWorkflowStatus}
+              targetId={Number(currentWorkflowSource?.id ?? 0)}
+              domainType="BID_RESULT"
+              onRefresh={() => {
+                void loadBackendBidResults().then((records) => {
+                  setExistingResult(records.find((item) => item.id === bidResultId) ?? null)
+                })
+              }}
+            />
+          )}
 
             </TabsContent>
             <TabsContent value="history" className="mt-0">

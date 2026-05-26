@@ -98,6 +98,7 @@ type BackendGeneralOverheadExpenseItem = {
 
 type BackendPrbResponse = {
   prbId?: number
+  workflowId?: number
   prbCode?: string
   createdAt?: string
   prbDate?: string
@@ -246,6 +247,14 @@ function formatNumber(value?: string | number | null) {
 function formatDate(value?: string) {
   if (!value) return ""
   return value.slice(0, 10)
+}
+
+function mapBackendPrbStatus(value?: string): PrbStatus {
+  if (value === "결재 대기" || value === "작성 중") return "작성 중"
+  if (value === "결재중" || value === "검토 중") return "검토 중"
+  if (value === "승인 완료" || value === "승인") return "승인"
+  if (value === "반려") return "반려"
+  return "작성 중"
 }
 
 function parseApiResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -653,14 +662,10 @@ function mapBackendPrbRecord(
   rfpLookup: ReturnType<typeof buildRfpLookup>,
 ): PrbRecord {
   const linkedOpportunity = item.projectOpportunityId != null ? opportunityLookup.get(String(item.projectOpportunityId)) : undefined
-  const customerName = linkedOpportunity?.customerCompanyName ?? item.customerCompanyName ?? ""
-  const opportunityName = linkedOpportunity?.opportunityName ?? item.opportunityName ?? ""
-  const opportunityCode =
-    linkedOpportunity?.opportunityCode ??
-    (customerName && opportunityName
-      ? linkedOpportunity?.opportunityCode ?? ""
-      : "")
-  const customerCode = linkedOpportunity?.id != null ? String(linkedOpportunity.id) : ""
+  const customerCode = linkedOpportunity?.customerCode ?? ""
+  const customerName = linkedOpportunity?.customer ?? item.customerCompanyName ?? ""
+  const opportunityCode = linkedOpportunity?.id ?? (item.projectOpportunityId != null ? String(item.projectOpportunityId) : "")
+  const opportunityName = linkedOpportunity?.name ?? item.opportunityName ?? ""
   const rfpAnalysisId =
     (linkedOpportunity?.id != null ? rfpLookup.byProjectOpportunityId.get(linkedOpportunity.id) : undefined) ??
     (opportunityCode ? rfpLookup.byOpportunityCode.get(normalizeLookupText(opportunityCode)) : undefined) ??
@@ -681,6 +686,8 @@ function mapBackendPrbRecord(
 
   return {
     id: String(item.prbId ?? `PRB-${Date.now()}`),
+    workflowId: item.workflowId,
+    workflowStatus: item.status ?? undefined,
     projectOpportunityId: item.projectOpportunityId ?? linkedOpportunity?.id,
     salesRepresentativeId: item.salesRepresentativeId,
     customerCode,
@@ -695,7 +702,7 @@ function mapBackendPrbRecord(
     shareOwner: "공유 권한 보유자",
     proposalDeadline: formatDate(projectInfo?.proposalDeadlineDatetime) || "",
     createdDate: formatDate(item.createdAt) || formatDate(item.prbDate) || "",
-    status: (item.status ?? "작성 중") as PrbStatus,
+    status: mapBackendPrbStatus(item.status),
     notificationsSent: false,
     approvalSteps: [],
     revisionGroupId: `PRB-GROUP-${String(item.prbId ?? Date.now())}`,
@@ -766,11 +773,15 @@ function mapBackendPrbRecord(
 
 async function loadOpportunityLookup() {
   const opportunities = await fetchProjectOpportunities()
-  return new Map(
-    opportunities
-      .filter((item) => item.id != null)
-      .map((item) => [String(item.id), item] as const),
-  )
+  const entries = opportunities
+    .filter((item) => item.id != null)
+    .flatMap((item) => {
+      const idKey = String(item.id)
+      const backendKey = item.backendId != null ? String(item.backendId) : null
+      return backendKey && backendKey !== idKey ? ([[idKey, item], [backendKey, item]] as const) : ([[idKey, item]] as const)
+    })
+
+  return new Map(entries)
 }
 
 export async function loadBackendPrbs() {
@@ -789,6 +800,23 @@ export async function loadBackendPrbs() {
   return records
 }
 
+export async function loadBackendPrbDetailById(prbId: string) {
+  const [opportunityLookup, detail] = await Promise.all([
+    loadOpportunityLookup(),
+    (async () => {
+      const response = await fetch(`${getBackendApiBaseUrl()}/prbs/${prbId}`, {
+        headers: buildAuthHeaders(),
+        credentials: "include",
+        cache: "no-store",
+      })
+
+      return parseApiResponse<BackendPrbResponse>(response, "PRB 상세를 불러오지 못했습니다.")
+    })(),
+  ])
+
+  return mapBackendPrbRecord(detail, opportunityLookup, buildRfpLookup())
+}
+
 export async function loadBackendPrbHistoryRecords(prbId: string) {
   return fetchPrbHistoryList(prbId)
 }
@@ -802,7 +830,7 @@ export async function loadBackendPrbHistoryRecord(historyId: number) {
   return mapBackendPrbRecord(detail, opportunityLookup, rfpLookup)
 }
 
-async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
+async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string; reviewerId?: string }) {
   const opportunityLookup = await loadOpportunityLookup()
   const projectOpportunityId = await resolveProjectOpportunityId(input as PrbRecord, opportunityLookup)
   if (projectOpportunityId == null) {
@@ -810,7 +838,7 @@ async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "upd
   }
 
   const salesRepresentativeId = await resolveAssigneeIdFromInput(input as PrbRecord)
-  const reviewerId = (input as PrbRecord).reviewer?.trim() ?? ""
+  const reviewerId = input.reviewerId?.trim() || (input as PrbRecord).reviewer?.trim() || ""
 
   return {
     projectOpportunityId,
@@ -820,7 +848,7 @@ async function buildSaveRequest(input: Omit<PrbRecord, "id" | "createdAt" | "upd
   }
 }
 
-export async function saveBackendPrb(input: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
+export async function saveBackendPrb(input: Omit<PrbRecord, "id" | "createdAt" | "updatedAt"> & { id?: string; reviewerId?: string }) {
   const payload = await buildSaveRequest(input)
   const hasNumericId = Boolean(input.id && Number.isFinite(Number(input.id)))
   const response = await fetch(
@@ -840,6 +868,11 @@ export async function saveBackendPrb(input: Omit<PrbRecord, "id" | "createdAt" |
   const opportunityLookup = await loadOpportunityLookup()
   const rfpLookup = buildRfpLookup()
   const merged = mapBackendPrbRecord(saved, opportunityLookup, rfpLookup)
+  const current = getPrbs()
+  const nextItems = current.some((item) => item.id === merged.id)
+    ? current.map((item) => (item.id === merged.id ? merged : item))
+    : [merged, ...current]
+  replacePrbs(nextItems)
   return merged
 }
 

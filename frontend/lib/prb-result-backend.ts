@@ -40,6 +40,8 @@ type BackendPrbResultSummary = {
 }
 
 type BackendPrbResultResponse = BackendPrbResultSummary & {
+  workflowId?: number
+  status?: string
   prbId?: number
   riskFactors?: string
   comprehensiveOpinion?: string
@@ -250,6 +252,8 @@ function mapBackendPrbResult(
 
   return {
     id: String(item.id ?? `PRBR-${Date.now()}`),
+    workflowId: item.workflowId,
+    workflowStatus: item.status ?? undefined,
     prbId: String(item.prbId ?? ""),
     customerCode: prb?.customerCode ?? "",
     customer: fallbackCustomer,

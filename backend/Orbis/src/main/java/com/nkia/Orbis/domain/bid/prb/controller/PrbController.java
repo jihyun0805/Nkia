@@ -2,6 +2,8 @@ package com.nkia.Orbis.domain.bid.prb.controller;
 
 import com.nkia.Orbis.common.response.ApiResponse;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
+import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowResponse;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import com.nkia.Orbis.domain.bid.prb.dto.request.PrbCreateRequestDto;
 import com.nkia.Orbis.domain.bid.prb.dto.request.PrbUpdateRequestDto;
 import com.nkia.Orbis.domain.bid.prb.dto.response.PrbHistoryListResponseDto;
@@ -36,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PrbController {
 
     private final PrbService prbService;
+    private final WorkflowService workflowService;
 
     /**
      * 1. PRB 정보 등록 (POST)
@@ -142,5 +145,15 @@ public class PrbController {
         );
 
         return ResponseEntity.ok(ApiResponse.success("PRB 보고서 결재 상신 완료"));
+    }
+
+    @Operation(summary = "PRB 결재 상세 조회")
+    @GetMapping("/workflow/{workflowId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'PRB', 'READ')")
+    public ResponseEntity<ApiResponse<WorkflowResponse>> getWorkflow(
+            @PathVariable("workflowId") Long workflowId
+    ) {
+        WorkflowResponse response = workflowService.getWorkflowDetail(workflowId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
