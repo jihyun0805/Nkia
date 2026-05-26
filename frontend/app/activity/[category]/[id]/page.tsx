@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/erp/sidebar"
 import { Header } from "@/components/erp/header"
-import { UserIdPicker } from "@/components/erp/user-id-picker"
+import { WorkflowApprovalPanel } from "@/components/erp/workflow-approval-panel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -34,16 +34,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { toast } from "@/hooks/use-toast"
-import { approveBackendWorkflow, loadBackendUsers, rejectBackendWorkflow, type BackendUserSummary } from "@/lib/workflow-backend"
 import {
   type ActivityAttachment,
   type ActivityCategory,
@@ -60,14 +51,9 @@ import {
   loadBackendQuotationHistoryRecord,
   loadBackendQuotationHistoryRecords,
   loadBackendQuotationRecords,
-  submitBackendQuotationRecord,
 } from "@/lib/sales-quotation-backend"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
-import {
-  approveQuotationStep,
-  deleteQuotationVersion,
-  rejectQuotationStep,
-} from "@/lib/quotation-workflow"
+import { deleteQuotationVersion } from "@/lib/quotation-workflow"
 
 function buildQuotationDetailForm(record: QuotationRecord) {
   return {
@@ -131,8 +117,7 @@ export default function ActivityDetailPage() {
   const [isVersionDeleteDialogOpen, setIsVersionDeleteDialogOpen] = useState(false)
   const [versionDeleteTarget, setVersionDeleteTarget] = useState<string>("")
   const [quotationDetailTab, setQuotationDetailTab] = useState("document")
-  const [workflowUsers, setWorkflowUsers] = useState<BackendUserSummary[]>([])
-  const [nextApproverId, setNextApproverId] = useState("")
+  const [quotationRefreshKey, setQuotationRefreshKey] = useState(0)
   const [quotationHistoryRecords, setQuotationHistoryRecords] = useState<
     { id: number; version: number; quotationCode: string; quotationDate: string }[]
   >([])
@@ -145,10 +130,6 @@ export default function ActivityDetailPage() {
       scrollContainer.scrollTo(0, 0)
     }
   }
-
-  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false)
-const [approveComment, setApproveComment] = useState("승인합니다.")
-const [approveNextApproverId, setApproveNextApproverId] = useState("")
 
 useEffect(() => {    if (category !== "activities") return
 
@@ -189,26 +170,6 @@ useEffect(() => {    if (category !== "activities") return
           setIsRequestsLoaded(true)
         }
       })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-
-    void loadBackendUsers()
-      .then((users) => {
-        if (!cancelled) {
-          setWorkflowUsers(Array.isArray(users) ? users : [])
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setWorkflowUsers([])
-        }
-      })
-
     return () => {
       cancelled = true
     }
@@ -261,7 +222,7 @@ useEffect(() => {    if (category !== "activities") return
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [quotationRefreshKey])
 
   const item = useMemo(() => {
     if (category === "activities") return activityRecord ?? null
@@ -269,9 +230,6 @@ useEffect(() => {    if (category !== "activities") return
     return requestDetail ?? requests.find((entry) => entry.id === id) ?? null
   }, [activityRecord, category, id, quotations, requests, requestDetail])
   const categoryLabel = getCategoryLabel(category)
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
-  const [selectedApproverId, setSelectedApproverId] = useState("")
-  const [isSubmittingQuotation, setIsSubmittingQuotation] = useState(false)
   const isRequest = category === "requests"
   const isQuotation = category === "quotations"
   const requestItem = isRequest && item ? (item as ActivityRequestRecord) : null
@@ -284,62 +242,6 @@ useEffect(() => {    if (category !== "activities") return
 
   const isDeletedQuotation = Boolean(quotationItem?.deletedAt)
 
-  const [isApprovingQuotation, setIsApprovingQuotation] = useState(false)
-  const [isRejectingQuotation, setIsRejectingQuotation] = useState(false)
-
-const handleSubmitQuotation = async () => {
-  if (!quotationItem?.backendId) return
-
-  if (!selectedApproverId) {
-    toast({
-      title: "결재자 선택 필요",
-      description: "첫 번째 결재자를 선택해주세요.",
-      variant: "destructive",
-    })
-    return
-  }
-
-  try {
-    setIsSubmittingQuotation(true)
-
-    await submitBackendQuotationRecord(quotationItem.backendId, {
-      firstApproverId: selectedApproverId,
-    })
-
-    toast({
-      title: "상신 완료",
-      description: "견적서가 결재 상신되었습니다.",
-    })
-
-    setIsSubmitModalOpen(false)
-    setSelectedApproverId("")
-  } catch (error) {
-    toast({
-      title: "상신 실패",
-      description:
-        error instanceof Error ? error.message : "견적서 상신 중 오류가 발생했습니다.",
-      variant: "destructive",
-    })
-  } finally {
-    setIsSubmittingQuotation(false)
-  }
-}
-  const quotationApprovalProcess =
-    quotationItem?.approvalProcess ?? {
-      overallStatus: "진행중" as const,
-      currentStepIndex: 0,
-      steps: [
-        { label: "상신자", assignee: quotationItem?.salesRep ?? currentUser.name, status: "pending" as const },
-        { label: "팀장", assignee: "팀장", status: "pending" as const },
-        { label: "본부장", assignee: "본부장", status: "pending" as const },
-        { label: "사업본부장", assignee: "사업본부장", status: "pending" as const },
-        { label: "경영지원팀장", assignee: "경영지원팀장", status: "pending" as const },
-        { label: "대표이사", assignee: "대표이사", status: "pending" as const },
-      ],
-    }
-  useEffect(() => {
-    setNextApproverId("")
-  }, [quotationItem?.backendId, historyRefreshToken])
   useEffect(() => {
     let cancelled = false
 
@@ -427,16 +329,6 @@ const handleSubmitQuotation = async () => {
       cancelled = true
     }
   }, [quotationItem?.backendId, selectedQuotationHistoryKey, quotationItem])
-  const activeApprovalStep = quotationApprovalProcess.steps[quotationApprovalProcess.currentStepIndex] ?? null
-  const approvalSteps = quotationApprovalProcess.steps.slice(0, quotationApprovalProcess.currentStepIndex + 1)
-  type WorkflowUserOption = BackendUserSummary & { id: string; name: string }
-
-  const nextApproverOptions = workflowUsers.filter((user): user is WorkflowUserOption => {
-    const id = user.id?.trim()
-    const name = user.name?.trim()
-    return Boolean(id && name && id !== currentUser.id)
-  })
-  const selectedNextApprover = nextApproverOptions.find((user) => user.id === nextApproverId) ?? null
   const quotationHistoryRows =
     quotationHistoryRecords.map((record) => ({
       key: `backend:${record.id}`,
@@ -445,11 +337,6 @@ const handleSubmitQuotation = async () => {
       quotationCode: record.quotationCode,
       historyId: record.id,
     }))
-  const canActOnApprovalStep =
-    Boolean(quotationItem) &&
-    quotationApprovalProcess.overallStatus === "진행중" &&
-    Boolean(activeApprovalStep) &&
-    (activeApprovalStep.assignee === currentUser.name || activeApprovalStep.assignee === currentUser.role)
   const detailFieldClassName = "text-foreground disabled:opacity-100 disabled:text-foreground"
   const listHref =
     item && category === "activities"
@@ -510,83 +397,6 @@ const handleSubmitQuotation = async () => {
     })
     setIsVersionDeleteDialogOpen(false)
     setVersionDeleteTarget("")
-  }
-
-  const handleApproveQuotation = () => {
-    if (!quotationItem?.workflowId) {
-      toast({
-        title: "결재 정보 없음",
-        description: "워크플로우 ID가 없습니다.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    scrollToTop()
-
-    void (async () => {
-      try {
-        setIsApprovingQuotation(true)
-
-        await approveBackendWorkflow(quotationItem.workflowId!, {
-          nextApproverId: approveNextApproverId  || null,
-          comment: approveComment,
-        })
-
-        toast({
-          title: "견적 승인 완료",
-          description: "결재 승인이 처리되었습니다.",
-        })
-
-        router.refresh()
-      } catch (error) {
-        toast({
-          title: "견적 승인 실패",
-          description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsApprovingQuotation(false)
-      }
-    })()
-  }
-
-  const handleRejectQuotation = () => {
-    if (!quotationItem?.workflowId) {
-      toast({
-        title: "결재 정보 없음",
-        description: "워크플로우 ID가 없습니다.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    scrollToTop()
-
-    void (async () => {
-      try {
-        setIsRejectingQuotation(true)
-
-        await rejectBackendWorkflow(quotationItem.workflowId!, {
-          comment: "반려합니다.",
-        })
-
-        toast({
-          title: "견적 반려 완료",
-          description: "결재 반려가 처리되었습니다.",
-        })
-
-        router.refresh()
-      } catch (error) {
-        toast({
-          title: "견적 반려 실패",
-          description: error instanceof Error ? error.message : "백엔드 결재를 처리하지 못했습니다.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsRejectingQuotation(false)
-      }
-    })()
   }
 
   const handleOpenQuotationDelete = () => {
@@ -683,9 +493,6 @@ const handleSubmitQuotation = async () => {
                     <div className="px-3 py-1 rounded-md bg-muted text-sm font-medium">
                       {quotationItem?.status ?? "결재 대기"}
                     </div>   
-                    <div className="text-xs text-red-500">
-                      workflowId: {quotationItem?.workflowId}
-                    </div>
                     <TabsList>
                       <TabsTrigger value="document">견적서</TabsTrigger>
                       <TabsTrigger value="history">변경 이력</TabsTrigger>
@@ -715,6 +522,15 @@ const handleSubmitQuotation = async () => {
                           }
                           referenceId={quotationItem.id}
                         />
+                        {!isViewingQuotationHistoryDetail && !isDeletedQuotation && quotationItem.backendId != null && (
+                          <WorkflowApprovalPanel
+                            workflowId={quotationItem.workflowId}
+                            status={quotationItem.status}
+                            targetId={quotationItem.backendId}
+                            domainType="QUOTATION"
+                            onRefresh={() => setQuotationRefreshKey((key) => key + 1)}
+                          />
+                        )}
                       </div>
                     </TabsContent>
                     <TabsContent value="history" className="mt-0">
@@ -865,35 +681,6 @@ const handleSubmitQuotation = async () => {
                           </Link>
                         </Button>
 
-                        {isQuotation && quotationItem?.status === "결재 대기" && (
-                          <Button
-                            onClick={() => setIsSubmitModalOpen(true)}
-                            disabled={isSubmittingQuotation}
-                            className="bg-blue-600 hover:bg-blue-700"
-                          >
-                            {isSubmittingQuotation ? "상신 중..." : "상신"}
-                          </Button>
-                        )}
-
-                        {isQuotation && quotationItem?.status === "결재중" && (
-                          <>
-                            <Button
-                              onClick={() => setIsApproveModalOpen(true)}
-                              disabled={isApprovingQuotation}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              {isApprovingQuotation ? "승인 중..." : "승인"}
-                            </Button>
-
-                            <Button
-                              onClick={handleRejectQuotation}
-                              disabled={isRejectingQuotation}
-                              variant="destructive"
-                            >
-                              {isRejectingQuotation ? "반려 중..." : "반려"}
-                            </Button>
-                          </>
-                        )}
                       </>
                     )}
                   {category === "activities" && (
@@ -907,73 +694,6 @@ const handleSubmitQuotation = async () => {
           </div>
         </main>
       </div>
-      <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>견적서 상신</DialogTitle>
-            <DialogDescription>
-              다음 결재자를 선택해주세요.
-            </DialogDescription>
-          </DialogHeader>
-
-          <UserIdPicker
-            users={workflowUsers}
-            value={selectedApproverId}
-            onValueChange={setSelectedApproverId}
-            placeholder="결재자 검색"
-          />
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsSubmitModalOpen(false)}
-            >
-              취소
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={isApproveModalOpen} onOpenChange={setIsApproveModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>견적서 승인</DialogTitle>
-            <DialogDescription>
-              다음 결재자와 승인 의견을 입력해주세요.
-            </DialogDescription>
-          </DialogHeader>
-
-          <UserIdPicker
-            users={workflowUsers}
-            value={approveNextApproverId}
-            onValueChange={setApproveNextApproverId}
-            placeholder="다음 결재자 검색"
-          />
-
-          <Textarea
-            value={approveComment}
-            onChange={(event) => setApproveComment(event.target.value)}
-            rows={4}
-            placeholder="승인 의견"
-          />
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsApproveModalOpen(false)}
-            >
-              취소
-            </Button>
-
-            <Button
-              onClick={handleApproveQuotation}
-              disabled={isApprovingQuotation}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {isApprovingQuotation ? "승인 중..." : "승인"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

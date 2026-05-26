@@ -225,6 +225,14 @@ public class WorkflowService {
     }
 
     // 특정 도메인의 워크플로우 조회
+    @Transactional(readOnly = true)
+    public WorkflowResponse getWorkflowDetail(Long workflowId) {
+        Workflow workflow = workflowRepository.findDetailById(workflowId)
+                .orElseThrow(() -> new ApiException(WorkflowErrorCode.WORKFLOW_NOT_FOUND));
+
+        return toWorkflowResponse(workflow);
+    }
+
     public Workflow getWorkflowByTarget(
             WorkflowDomain workflowDomain,
             Long targetId
