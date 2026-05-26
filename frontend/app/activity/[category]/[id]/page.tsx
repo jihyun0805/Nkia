@@ -51,6 +51,7 @@ import {
   loadBackendQuotationHistoryRecord,
   loadBackendQuotationHistoryRecords,
   loadBackendQuotationRecords,
+  loadBackendQuotationRecordDetail,
 } from "@/lib/sales-quotation-backend"
 import { type CustomerRecord, getCustomerByCode, getCustomerByName, getOpportunitiesByCustomerName } from "@/lib/finding-data"
 import { deleteQuotationVersion } from "@/lib/quotation-workflow"
@@ -131,6 +132,14 @@ export default function ActivityDetailPage() {
     }
   }
 
+  const normalizeApprovalStatus = (status?: string) => {
+    if (status === "결재중") return "PENDING"
+    if (status === "승인완료") return "APPROVED"
+    if (status === "반려") return "REJECTED"
+    if (status === "임시저장") return "DRAFT"
+    return status ?? ""
+  }
+
 useEffect(() => {    if (category !== "activities") return
 
     let cancelled = false
@@ -205,12 +214,20 @@ useEffect(() => {    if (category !== "activities") return
   }, [category, id])
 
   useEffect(() => {
+    if (category !== "quotations") return
+
     let cancelled = false
 
-    loadBackendQuotationRecords()
-      .then((records) => {
+    const quotationId = Number(id)
+    if (Number.isNaN(quotationId)) {
+      setQuotations([])
+      return
+    }
+
+    loadBackendQuotationRecordDetail(quotationId)
+      .then((record) => {
         if (!cancelled) {
-          setQuotations(records)
+          setQuotations([record])
         }
       })
       .catch(() => {
@@ -222,7 +239,7 @@ useEffect(() => {    if (category !== "activities") return
     return () => {
       cancelled = true
     }
-  }, [quotationRefreshKey])
+  }, [category, id, quotationRefreshKey])
 
   const item = useMemo(() => {
     if (category === "activities") return activityRecord ?? null
@@ -234,6 +251,18 @@ useEffect(() => {    if (category !== "activities") return
   const isQuotation = category === "quotations"
   const requestItem = isRequest && item ? (item as ActivityRequestRecord) : null
   const quotationItem = isQuotation && item ? (item as QuotationRecord) : null
+
+  useEffect(() => {
+    if (!quotationItem) return
+// 여기 삭제하기
+    console.log("quotationItem.status =", quotationItem.status)
+    console.log(
+      "normalized status =",
+      normalizeApprovalStatus(quotationItem.status),
+    )
+    console.log("quotationItem.backendId =", quotationItem.backendId)
+    console.log("quotationItem.workflowId =", quotationItem.workflowId)
+  }, [quotationItem])
   const isViewingQuotationHistoryDetail = Boolean(selectedQuotationHistoryDetail)
   const requestMatchedCustomer =
     requestItem
@@ -522,14 +551,20 @@ useEffect(() => {    if (category !== "activities") return
                           }
                           referenceId={quotationItem.id}
                         />
-                        {!isViewingQuotationHistoryDetail && !isDeletedQuotation && quotationItem.backendId != null && (
-                          <WorkflowApprovalPanel
-                            workflowId={quotationItem.workflowId}
-                            status={quotationItem.status}
-                            targetId={quotationItem.backendId}
-                            domainType="QUOTATION"
-                            onRefresh={() => setQuotationRefreshKey((key) => key + 1)}
-                          />
+
+                        {!isViewingQuotationHistoryDetail &&
+                          !isDeletedQuotation &&
+                          quotationItem.backendId != null && (
+                            <WorkflowApprovalPanel
+                              workflowId={quotationItem.workflowId}
+                              status={quotationItem.status}
+                              targetId={quotationItem.backendId}
+                              domainType="QUOTATION"
+                              onRefresh={() => {
+                                setQuotationRefreshKey((key) => key + 1)
+                                window.location.reload()
+                              }}
+                            />
                         )}
                       </div>
                     </TabsContent>
