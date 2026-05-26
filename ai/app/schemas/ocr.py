@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class BusinessCardOcrLine(BaseModel):
+    # PaddleOCR가 인식한 한 줄의 텍스트와 이미지 내 위치 정보를 담는다.
     text: str
     line_index: int
     top: float | None = None
@@ -13,11 +14,13 @@ class BusinessCardOcrLine(BaseModel):
 
 
 class BusinessCardPaddleOutput(BaseModel):
+    # 후처리 전 OCR 원문을 확인할 때 사용하는 응답 모델이다.
     raw_text: str | None = None
     lines: list[BusinessCardOcrLine] = Field(default_factory=list)
 
 
 class BusinessCardOcrResponse(BaseModel):
+    # 명함에서 최종 추출한 업무 연락처 필드를 클라이언트 계약 형태로 고정한다.
     company_name: str | None = None
     contact_name: str | None = None
     department: str | None = None

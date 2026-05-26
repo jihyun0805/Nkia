@@ -123,6 +123,7 @@ ROLE_MARKETING_KEYWORDS = (
 
 @dataclass(frozen=True)
 class OCRLine:
+    # 내부 후처리에서 쓰는 OCR 라인 모델로, 텍스트와 정렬용 좌표를 함께 보관한다.
     text: str
     order: int
     top: float | None = None
@@ -132,6 +133,7 @@ class OCRLine:
 
 
 def extract_business_card_paddle_output(_: str | None, __: str | None, image_bytes: bytes) -> BusinessCardPaddleOutput:
+    # 이미지 전처리, OCR 실행, 중복 라인 병합까지만 수행해 PaddleOCR 관찰용 응답을 만든다.
     started_at = time.perf_counter()
     step_started_at = time.perf_counter()
     images = _load_image_variants(image_bytes)
@@ -170,6 +172,7 @@ def extract_business_card_paddle_output(_: str | None, __: str | None, image_byt
 
 
 def analyze_business_card(_: str | None, __: str | None, image_bytes: bytes) -> BusinessCardOcrResponse:
+    # OCR 결과를 BERT 필드 분류와 규칙 기반 보정 로직으로 명함 필드 응답에 매핑한다.
     started_at = time.perf_counter()
     step_started_at = time.perf_counter()
     paddle_output = extract_business_card_paddle_output(_, __, image_bytes)
@@ -177,6 +180,7 @@ def analyze_business_card(_: str | None, __: str | None, image_bytes: bytes) -> 
     ocr_lines = [line.text for line in paddle_output.lines]
 
     if not ocr_lines:
+        # OCR 텍스트가 없으면 후처리 없이 원문만 담아 반환한다.
         logger.info("business_card_ocr.timing analyze_total lines=0 elapsed=%.3fs", time.perf_counter() - started_at)
         return BusinessCardOcrResponse(raw_text=paddle_output.raw_text)
 
@@ -192,6 +196,7 @@ def analyze_business_card(_: str | None, __: str | None, image_bytes: bytes) -> 
     step_started_at = time.perf_counter()
     contact_name = _normalize_contact_name(model_fields.get("contact_name")) or _infer_contact_name(ocr_lines, model_fields)
     split_position, split_department = _infer_split_position_department(ocr_lines)
+    # 모델 결과가 비어 있거나 애매한 필드는 명함 레이아웃/문자 패턴 기반 추론으로 보완한다.
     department = _normalize_department(model_fields.get("department")) or split_department or _infer_department(ocr_lines, model_fields)
     mobile, phone = _normalize_contact_phones(
         mobile_value=model_fields.get("mobile"),
@@ -245,6 +250,7 @@ def _normalize_company_name(value: str | None) -> str | None:
 
 
 def _infer_company_name(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    # 모델이 놓친 회사명은 법인 표기나 이미 선택된 필드와의 중복 여부를 기준으로 추론한다.
     corporate_pattern = re.compile(r"(?i)(주식회사|\(주\)|㈜|inc\.?|corp\.?|co\.?|ltd\.?|company)")
     for line in lines:
         candidate = _normalize_company_name(line)
@@ -278,6 +284,7 @@ def _strip_position_from_name(value: str) -> str:
 
 
 def _infer_contact_name(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    # 이름 후보는 직책/연락처/이메일로 이미 선택된 라인을 제외하고 짧은 한글 이름 패턴에서 찾는다.
     for line in lines:
         candidate = _clean_text(line)
         if _is_selected_model_value(candidate, model_fields, exclude_fields={"contact_name", "position"}):
@@ -292,6 +299,7 @@ def _infer_contact_name(lines: list[str], model_fields: dict[str, str]) -> str |
 
 
 def _infer_position(lines: list[str], model_fields: dict[str, str], contact_name: str | None = None) -> str | None:
+    # 직책은 한글 직급명, 영문 title, 이름+직책 결합 라인을 순서대로 검사한다.
     contact_name = contact_name or _normalize_contact_name(model_fields.get("contact_name"))
     for line in lines:
         candidate = _clean_text(line)
@@ -381,6 +389,7 @@ def _strip_contact_name_from_segment(value: str) -> str:
 
 
 def _infer_department(lines: list[str], model_fields: dict[str, str]) -> str | None:
+    # 부서 후보는 주소/직책/연락처처럼 다른 필드로 보이는 라인을 제외하고 고른다.
     for line in lines:
         candidate = _clean_text(line)
         if not _looks_like_department(candidate):
@@ -489,6 +498,7 @@ def _normalize_model_phone(value: str | None) -> str | None:
 
 
 def _normalize_contact_phones(*, mobile_value: str | None, phone_value: str | None) -> tuple[str | None, str | None]:
+    # 모델이 mobile/phone을 서로 바꿔 예측한 경우 국내 휴대폰 prefix 기준으로 재배치한다.
     mobile = _normalize_model_phone(mobile_value)
     phone = _normalize_model_phone(phone_value)
 
@@ -506,6 +516,7 @@ def _normalize_contact_phones(*, mobile_value: str | None, phone_value: str | No
 
 
 def _extract_contact_phones(lines: list[str]) -> tuple[str | None, str | None]:
+    # 라벨이 붙은 번호를 우선 사용하고, 없으면 전체 번호 후보에서 mobile/phone을 분리한다.
     mobile = _extract_labeled_phone(lines, labels=("mobile", "cell", "cellphone", "m", "휴대폰", "휴대전화", "휴대", "핸드폰"))
     phone = _extract_labeled_phone(lines, labels=("phone", "tel", "telephone", "office", "direct", "t", "전화", "대표전화"))
 
@@ -557,6 +568,7 @@ def _extract_labeled_phone(lines: list[str], *, labels: tuple[str, ...]) -> str 
 
 
 def _load_image_variants(image_bytes: bytes) -> list[np.ndarray]:
+    # 원본, 확대, 대비 강화, 샤프닝 버전을 만들어 작은 명함 글자 인식률을 높인다.
     with Image.open(io.BytesIO(image_bytes)) as image:
         normalized = ImageOps.exif_transpose(image).convert("RGB")
         width, height = normalized.size
@@ -583,6 +595,7 @@ def _load_image_variants(image_bytes: bytes) -> list[np.ndarray]:
 
 @lru_cache(maxsize=1)
 def _get_ocr_engine() -> Any:
+    # PaddleOCR 초기화 비용이 크므로 한 번 생성한 엔진을 캐시한다.
     try:
         # On some Windows environments PaddleOCR reaches torch through
         # albumentations and fails to load DLLs unless torch is imported first.
@@ -605,6 +618,7 @@ def _get_ocr_engine() -> Any:
 
 
 def _extract_line_candidates(images: list[np.ndarray]) -> list[OCRLine]:
+    # 전처리 이미지들을 차례로 OCR에 넣고, 하나라도 충분한 라인을 얻으면 그 결과를 사용한다.
     started_at = time.perf_counter()
     ocr_engine = _get_ocr_engine()
     logger.info("business_card_ocr.timing get_ocr_engine elapsed=%.3fs", time.perf_counter() - started_at)
@@ -663,6 +677,7 @@ def _extract_line_candidates(images: list[np.ndarray]) -> list[OCRLine]:
 
 
 def _parse_predict_results(results: Any) -> list[OCRLine]:
+    # PaddleOCR 3.x predict 결과처럼 중첩 dict/list로 반환되는 텍스트를 평탄화한다.
     texts: list[str] = []
     _collect_texts(results, texts)
     return _normalize_candidates([OCRLine(text=text, order=index) for index, text in enumerate(texts)])
@@ -695,6 +710,7 @@ def _collect_texts(node: Any, texts: list[str]) -> None:
 
 
 def _parse_legacy_results(results: Any) -> list[OCRLine]:
+    # PaddleOCR 2.x ocr 결과 형식의 좌표와 텍스트를 내부 OCRLine으로 변환한다.
     texts: list[OCRLine] = []
     if not isinstance(results, list):
         return texts
@@ -725,6 +741,7 @@ def _parse_legacy_results(results: Any) -> list[OCRLine]:
 
 
 def _normalize_candidates(lines: list[OCRLine]) -> list[OCRLine]:
+    # 공백/기호를 정리하고 빈 문자열과 완전 중복 라인을 제거한다.
     normalized: list[OCRLine] = []
     seen: set[str] = set()
 
@@ -749,6 +766,7 @@ def _normalize_candidates(lines: list[OCRLine]) -> list[OCRLine]:
 
 
 def _consolidate_similar_candidates(candidates: list[OCRLine]) -> list[OCRLine]:
+    # 여러 전처리 이미지에서 반복 인식된 유사 라인을 하나로 합친다.
     consolidated: list[OCRLine] = []
 
     for candidate in candidates:
@@ -885,6 +903,7 @@ def _extract_box_metrics(geometry: Any) -> tuple[float | None, float | None, flo
 
 
 def _extract_email(lines: list[str]) -> str | None:
+    # 일반 이메일 패턴을 먼저 찾고, OCR이 @나 점을 누락한 흔한 케이스를 보정한다.
     best_match: str | None = None
     best_score: tuple[int, int] | None = None
 
@@ -904,6 +923,7 @@ def _extract_email(lines: list[str]) -> str | None:
 
 
 def _normalize_phone(value: str) -> str | None:
+    # 국내 전화번호 형태로 정규화하고, 너무 짧거나 긴 숫자열은 연락처 후보에서 제외한다.
     digits = re.sub(r"\D", "", value)
 
     if digits.startswith("820") and len(digits) in {12, 13}:
@@ -963,4 +983,3 @@ def _normalize_phone_candidate(value: str) -> str:
     candidate = candidate.replace("[", "").replace("]", "").replace("(", "").replace(")", "")
     candidate = candidate.replace("|", "1")
     return candidate
-

@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Management Report", description = "RAG 기반 경영 리포트 API")
 public class ManagementReportController {
 
+    // 실제 AI 서버 호출과 응답 변환은 서비스 계층에 위임한다.
     private final ManagementReportService managementReportService;
 
     @Operation(summary = "RAG 기반 경영 리포트 생성")
@@ -27,6 +28,7 @@ public class ManagementReportController {
     public ResponseEntity<ApiResponse<ManagementReportResponse>> createReport(
             @Valid @RequestBody ManagementReportRequest request
     ) {
+        // 표준 ApiResponse 포맷으로 감싸 프론트엔드가 일관된 응답 구조를 받도록 한다.
         return ResponseEntity.ok(ApiResponse.success(managementReportService.createReport(request)));
     }
 }
