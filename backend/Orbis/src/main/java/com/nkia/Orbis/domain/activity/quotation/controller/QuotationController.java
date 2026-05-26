@@ -8,6 +8,8 @@ import com.nkia.Orbis.domain.activity.quotation.service.QuotationService;
 import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryListResponse;
 import com.nkia.Orbis.domain.activity.quotationhistory.dto.response.QuotationHistoryResponse;
 import com.nkia.Orbis.domain.admin.workflow.dto.request.SubmitRequest;
+import com.nkia.Orbis.domain.admin.workflow.dto.response.WorkflowResponse;
+import com.nkia.Orbis.domain.admin.workflow.service.WorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class QuotationController {
 
     private final QuotationService quotationService;
+    private final WorkflowService workflowService;
 
     @Operation(summary = "견적서 생성")
     @PostMapping
@@ -123,5 +126,16 @@ public class QuotationController {
         );
 
         return ResponseEntity.ok(ApiResponse.success("견적서 결재 상신 완료"));
+    }
+
+    @Operation(summary = "견적서 결재 상세 조회")
+    @GetMapping("/workflow/{workflowId}")
+    @PreAuthorize("@permissionChecker.hasPermission(authentication, 'QUOTATION', 'READ')")
+    public ResponseEntity<ApiResponse<WorkflowResponse>> getWorkflow(
+            @PathVariable("workflowId") Long workflowId
+    ) {
+        WorkflowResponse response = workflowService.getWorkflowDetail(workflowId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

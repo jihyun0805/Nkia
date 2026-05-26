@@ -44,6 +44,36 @@ type WorkflowRejectInput = {
   comment?: string
 }
 
+export async function loadQuotationWorkflowDetail(workflowId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/quotations/workflow/${workflowId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<BackendWorkflowDetail>(response, "견적서 결재 상세 정보를 불러오지 못했습니다.")
+}
+
+export type BackendWorkflowLine = {
+  stepOrder: number
+  stepName: string
+  approverName: string
+  approverPosition: string
+  status: string
+  comment?: string | null
+  actedAt?: string | null
+}
+
+export type BackendWorkflowDetail = {
+  id: number
+  workflowDomain: string
+  needNextApprover: boolean
+  targetId: number
+  status: string
+  currentStepOrder: number
+  lines: BackendWorkflowLine[]
+}
+
 async function parseApiResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null
 
