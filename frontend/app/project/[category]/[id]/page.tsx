@@ -34,7 +34,7 @@ type WorkflowLineData = {
 };
 
 // 사업 상세 뷰
-function ProjectDetail({ id }: { id: number }) {
+function ProjectDetail({ id, onLoad }: { id: number; onLoad?: (name: string) => void }) {
   const router = useRouter();
   const [data, setData] = useState<ProjectDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +51,12 @@ function ProjectDetail({ id }: { id: number }) {
     setLoading(true);
     projectApi
       .getProject(id)
-      .then((res) => setData(res.data))
+      .then((res) => {
+        setData(res.data);
+        if (res.data?.pjtName) {
+          onLoad?.(res.data.pjtName);
+        }
+      })
       .catch(() => setError("사업 정보를 불러오는 데 실패했습니다."))
       .finally(() => setLoading(false));
   }, [id]);
@@ -336,7 +341,7 @@ function ProjectDetail({ id }: { id: number }) {
 }
 
 // 청구 상세 뷰
-function BillingDetail({ id }: { id: number }) {
+function BillingDetail({ id, onLoad }: { id: number; onLoad?: (name: string) => void }) {
   const router = useRouter();
   const users = useBackendUsers();
   const [data, setData] = useState<BillingDetailResponse | null>(null);
@@ -393,7 +398,12 @@ function BillingDetail({ id }: { id: number }) {
     setLoading(true);
     projectApi
       .getBilling(id)
-      .then((res) => setData(res.data))
+      .then((res) => {
+        setData(res.data);
+        if (res.data?.projectName) {
+          onLoad?.(res.data.projectName);
+        }
+      })
       .catch(() => setError("청구 정보를 불러오는 데 실패했습니다."))
       .finally(() => setLoading(false));
     fetchHistories();
@@ -1165,6 +1175,7 @@ export default function ProjectDetailPage() {
   const category = params.category as Category;
   const rawId = params.id as string;
   const numericId = parseInt(rawId);
+  const [projectName, setProjectName] = useState<string>("");
 
   const label = category === "results" ? "결과보고" : "청구 및 수금";
 
@@ -1172,7 +1183,7 @@ export default function ProjectDetailPage() {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header title={`${label} 상세`} description={`${label} 정보를 확인합니다`} />
+        <Header title={projectName || `${label} 상세`} description={`${label} 정보를 확인합니다`} />
         <main className="flex-1 overflow-auto p-6">
           <div className="mx-auto max-w-5xl space-y-6">
             <Breadcrumb>
@@ -1184,12 +1195,18 @@ export default function ProjectDetailPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{rawId}</BreadcrumbPage>
+                  <BreadcrumbPage>{projectName || rawId}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
 
-            {isNaN(numericId) ? <ErrorState message="유효하지 않은 ID입니다." /> : category === "results" ? <ProjectDetail id={numericId} /> : <BillingDetail id={numericId} />}
+            {isNaN(numericId) ? (
+              <ErrorState message="유효하지 않은 ID입니다." />
+            ) : category === "results" ? (
+              <ProjectDetail id={numericId} onLoad={(name) => setProjectName(name)} />
+            ) : (
+              <BillingDetail id={numericId} onLoad={(name) => setProjectName(name)} />
+            )}
           </div>
         </main>
       </div>
