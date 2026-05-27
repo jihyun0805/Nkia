@@ -20,6 +20,14 @@ const proposalTypeLabel: Record<ProposalType, string> = {
 export function ContractList({ contracts, isLoading }: ContractListProps) {
   const router = useRouter();
 
+  // 최신 계약일 기준 내림차순 정렬
+  const sortedContracts = [...contracts].sort((a, b) => {
+    if (!a.contractDate && !b.contractDate) return 0;
+    if (!a.contractDate) return 1;
+    if (!b.contractDate) return -1;
+    return new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime();
+  });
+
   return (
     <Card>
       <CardHeader className="pb-4">
@@ -35,7 +43,7 @@ export function ContractList({ contracts, isLoading }: ContractListProps) {
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
-        ) : contracts.length === 0 ? (
+        ) : sortedContracts.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 계약이 없습니다.</div>
         ) : (
           <Table>
@@ -48,7 +56,7 @@ export function ContractList({ contracts, isLoading }: ContractListProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {contracts.map((contract) => (
+              {sortedContracts.map((contract) => (
                 <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/contracts/${contract.id}`)}>
                   <TableCell>
                     <Badge variant="outline">{proposalTypeLabel[contract.proposalType] ?? contract.proposalType}</Badge>

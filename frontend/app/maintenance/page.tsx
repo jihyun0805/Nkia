@@ -16,6 +16,8 @@ import { defaultFilterValues, filterRecords, type FilterValues, uniqueOptions } 
 import { getFreeMaintenanceList, getPaidMaintenanceList, getSupportHistoryList, MaintenanceListResponse, IntegratedSupportListResponse } from "@/lib/api/maintenance";
 import { SupportRequestForm } from "@/components/erp/maintenance/support-request-form";
 import { SupportResultForm } from "@/components/erp/maintenance/support-result-form";
+import { FreeMaintenanceForm } from "@/components/erp/contract/free-maintenance-form";
+import { PaidMaintenanceForm } from "@/components/erp/contract/paid-maintenance-form";
 
 type MaintenanceTab = "free" | "paid" | "support";
 
@@ -29,10 +31,16 @@ export default function MaintenancePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<MaintenanceTab>("free");
-  const [creationMode, setCreationMode] = useState<"none" | "request" | "result">("none");
+  const [creationMode, setCreationMode] = useState<"none" | "request" | "result" | "free" | "paid">("none");
+  const [reloadTrigger, setReloadTrigger] = useState(0);
   const [freeMaintenances, setFreeMaintenances] = useState<any[]>([]);
   const [paidMaintenances, setPaidMaintenances] = useState<any[]>([]);
   const [supportHistories, setSupportHistories] = useState<any[]>([]);
+
+  const handleSuccess = () => {
+    setCreationMode("none");
+    setReloadTrigger((prev) => prev + 1);
+  };
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -123,7 +131,7 @@ export default function MaintenancePage() {
       }
     };
     fetchData();
-  }, []);
+  }, [reloadTrigger]);
 
   const maintenanceFieldOptions =
     activeTab === "free"
@@ -216,6 +224,16 @@ export default function MaintenancePage() {
                   <>
                     <PageSearchForm value={searchTerm} onChange={setSearchTerm} onSearch={() => setAppliedSearchTerm(searchTerm)} />
                     <FilterPopover title="유지보수" statusOptions={maintenanceStatuses} value={filters} onApply={setFilters} fieldOptions={maintenanceFieldOptions} />
+                    {activeTab === "free" && (
+                      <Button onClick={() => setCreationMode("free")}>
+                        <Plus className="mr-2 w-4 h-4" /> 무상유지보수 등록
+                      </Button>
+                    )}
+                    {activeTab === "paid" && (
+                      <Button onClick={() => setCreationMode("paid")}>
+                        <Plus className="mr-2 w-4 h-4" /> 유상유지보수 등록
+                      </Button>
+                    )}
                     {activeTab === "support" && (
                       <div className="flex gap-2">
                         <Button onClick={() => setCreationMode("request")}>
@@ -236,99 +254,105 @@ export default function MaintenancePage() {
             </div>
 
             <TabsContent value="free">
-              <Card>
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">무상유지보수 현황</CardTitle>
-                    <Badge variant="secondary">{filteredFreeMaintenances.length}건</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {filteredFreeMaintenances.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 무상유지보수 내역이 없습니다.</div>
-                  ) : (
-                    <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>고객사</TableHead>
-                        <TableHead>사업기회</TableHead>
-                        <TableHead>납품 제품</TableHead>
-                        <TableHead className="text-right">계약 금액</TableHead>
-                        <TableHead>계약개시일</TableHead>
-                        <TableHead>계약종료일</TableHead>
-                        <TableHead>영업대표</TableHead>
-                        <TableHead>유지보수 담당자</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredFreeMaintenances.map((item) => (
-                        <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/maintenance/free/${item.id}`)}>
-                          <TableCell className="font-medium">{item.customer}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{item.opportunity}</TableCell>
-                          <TableCell>{item.product}</TableCell>
-                          <TableCell className="text-right font-medium">₩{parseInt(item.amount.replace(/,/g, "")).toLocaleString()}</TableCell>
-                          <TableCell className="text-sm">{item.startDate}</TableCell>
-                          <TableCell className="text-sm">{item.endDate}</TableCell>
-                          <TableCell>{item.salesRep}</TableCell>
-                          <TableCell>{item.manager}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  )}
-                </CardContent>
-              </Card>
+              {creationMode === "none" && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">무상유지보수 현황</CardTitle>
+                      <Badge variant="secondary">{filteredFreeMaintenances.length}건</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {filteredFreeMaintenances.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 무상유지보수 내역이 없습니다.</div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>고객사</TableHead>
+                            <TableHead>사업기회</TableHead>
+                            <TableHead>납품 제품</TableHead>
+                            <TableHead className="text-right">계약 금액</TableHead>
+                            <TableHead>계약개시일</TableHead>
+                            <TableHead>계약종료일</TableHead>
+                            <TableHead>영업대표</TableHead>
+                            <TableHead>유지보수 담당자</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredFreeMaintenances.map((item) => (
+                            <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/maintenance/free/${item.id}`)}>
+                              <TableCell className="font-medium">{item.customer}</TableCell>
+                              <TableCell className="max-w-[150px] truncate">{item.opportunity}</TableCell>
+                              <TableCell>{item.product}</TableCell>
+                              <TableCell className="text-right font-medium">₩{parseInt(item.amount.replace(/,/g, "")).toLocaleString()}</TableCell>
+                              <TableCell className="text-sm">{item.startDate}</TableCell>
+                              <TableCell className="text-sm">{item.endDate}</TableCell>
+                              <TableCell>{item.salesRep}</TableCell>
+                              <TableCell>{item.manager}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+              {creationMode === "free" && <FreeMaintenanceForm onSuccess={handleSuccess} onCancel={() => setCreationMode("none")} inheritedData={null} />}
             </TabsContent>
 
             <TabsContent value="paid">
-              <Card>
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">유상유지보수 현황</CardTitle>
-                    <Badge variant="secondary">{filteredPaidMaintenances.length}건</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {filteredPaidMaintenances.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 유상유지보수 내역이 없습니다.</div>
-                  ) : (
-                    <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>고객사</TableHead>
-                        <TableHead>사업기회</TableHead>
-                        <TableHead>납품 제품</TableHead>
-                        <TableHead className="text-right">계약 금액</TableHead>
-                        <TableHead>계약개시일</TableHead>
-                        <TableHead>계약종료일</TableHead>
-                        <TableHead>점검 방법</TableHead>
-                        <TableHead>영업대표</TableHead>
-                        <TableHead>유지보수 담당자</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredPaidMaintenances.map((item) => (
-                        <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/maintenance/paid/${item.id}`)}>
-                          <TableCell className="font-medium">{item.customer}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{item.opportunity}</TableCell>
-                          <TableCell>{item.product}</TableCell>
-                          <TableCell className="text-right font-medium">₩{parseInt(item.amount.replace(/,/g, "")).toLocaleString()}</TableCell>
-                          <TableCell className="text-sm">{item.startDate}</TableCell>
-                          <TableCell className="text-sm">{item.endDate}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="font-normal">
-                              {item.inspectionMethod}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{item.salesRep}</TableCell>
-                          <TableCell>{item.manager}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  )}
-                </CardContent>
-              </Card>
+              {creationMode === "none" && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">유상유지보수 현황</CardTitle>
+                      <Badge variant="secondary">{filteredPaidMaintenances.length}건</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {filteredPaidMaintenances.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 유상유지보수 내역이 없습니다.</div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>고객사</TableHead>
+                            <TableHead>사업기회</TableHead>
+                            <TableHead>납품 제품</TableHead>
+                            <TableHead className="text-right">계약 금액</TableHead>
+                            <TableHead>계약개시일</TableHead>
+                            <TableHead>계약종료일</TableHead>
+                            <TableHead>점검 방법</TableHead>
+                            <TableHead>영업대표</TableHead>
+                            <TableHead>유지보수 담당자</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredPaidMaintenances.map((item) => (
+                            <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/maintenance/paid/${item.id}`)}>
+                              <TableCell className="font-medium">{item.customer}</TableCell>
+                              <TableCell className="max-w-[150px] truncate">{item.opportunity}</TableCell>
+                              <TableCell>{item.product}</TableCell>
+                              <TableCell className="text-right font-medium">₩{parseInt(item.amount.replace(/,/g, "")).toLocaleString()}</TableCell>
+                              <TableCell className="text-sm">{item.startDate}</TableCell>
+                              <TableCell className="text-sm">{item.endDate}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="font-normal">
+                                  {item.inspectionMethod}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{item.salesRep}</TableCell>
+                              <TableCell>{item.manager}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+              {creationMode === "paid" && <PaidMaintenanceForm onSuccess={handleSuccess} onCancel={() => setCreationMode("none")} inheritedData={null} />}
             </TabsContent>
 
             <TabsContent value="support">
@@ -345,50 +369,50 @@ export default function MaintenancePage() {
                       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 고객지원 현황이 없습니다.</div>
                     ) : (
                       <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[100px]">구분</TableHead>
-                          <TableHead>고객사</TableHead>
-                          <TableHead>요청/활동구분</TableHead>
-                          <TableHead>요청/등록자</TableHead>
-                          <TableHead>영업대표</TableHead>
-                          <TableHead>고객지원 담당자</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredSupportHistories.map((item) => (
-                          <TableRow key={`${item.recordType}-${item.id}`} className="hover:bg-muted/50 cursor-pointer" onClick={() => router.push(`/maintenance/${item.recordType === "request" ? "support-requests" : "support-activities"}/${item.id}`)}>
-                            <TableCell>
-                              <Badge
-                                variant={item.recordType === "request" ? "default" : "outline"}
-                                className={item.recordType === "request" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" : "bg-purple-100 text-purple-700 hover:bg-purple-100"}
-                              >
-                                {item.recordType === "request" ? "지원 요청" : "활동 결과"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-medium">{item.customer}</TableCell>
-                            <TableCell>
-                              {item.recordType === "request" ? (
-                                "-"
-                              ) : (
-                                <Badge variant="secondary" className="font-normal text-xs">
-                                  {item.requestType}
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>{item.recordType === "request" ? item.requester : item.registrant}</TableCell>
-                            <TableCell>{item.salesRep}</TableCell>
-                            <TableCell>{item.supportRep}</TableCell>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[100px]">구분</TableHead>
+                            <TableHead>고객사</TableHead>
+                            <TableHead>요청/활동구분</TableHead>
+                            <TableHead>요청/등록자</TableHead>
+                            <TableHead>영업대표</TableHead>
+                            <TableHead>고객지원 담당자</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredSupportHistories.map((item) => (
+                            <TableRow key={`${item.recordType}-${item.id}`} className="hover:bg-muted/50 cursor-pointer" onClick={() => router.push(`/maintenance/${item.recordType === "request" ? "support-requests" : "support-activities"}/${item.id}`)}>
+                              <TableCell>
+                                <Badge
+                                  variant={item.recordType === "request" ? "default" : "outline"}
+                                  className={item.recordType === "request" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" : "bg-purple-100 text-purple-700 hover:bg-purple-100"}
+                                >
+                                  {item.recordType === "request" ? "지원 요청" : "활동 결과"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-medium">{item.customer}</TableCell>
+                              <TableCell>
+                                {item.recordType === "request" ? (
+                                  "-"
+                                ) : (
+                                  <Badge variant="secondary" className="font-normal text-xs">
+                                    {item.requestType}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>{item.recordType === "request" ? item.requester : item.registrant}</TableCell>
+                              <TableCell>{item.salesRep}</TableCell>
+                              <TableCell>{item.supportRep}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     )}
                   </CardContent>
                 </Card>
               )}
-              {creationMode === "request" && <SupportRequestForm onSuccess={() => setCreationMode("none")} onCancel={() => setCreationMode("none")} />}
-              {creationMode === "result" && <SupportResultForm onSuccess={() => setCreationMode("none")} onCancel={() => setCreationMode("none")} />}
+              {creationMode === "request" && <SupportRequestForm onSuccess={handleSuccess} onCancel={() => setCreationMode("none")} />}
+              {creationMode === "result" && <SupportResultForm onSuccess={handleSuccess} onCancel={() => setCreationMode("none")} />}
             </TabsContent>
           </Tabs>
         </main>

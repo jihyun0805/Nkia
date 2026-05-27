@@ -32,6 +32,14 @@ const statusStyle: Record<string, string> = {
 export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
   const router = useRouter();
 
+  // 최신 계약일 기준 내림차순 정렬
+  const sortedReports = [...reports].sort((a, b) => {
+    if (!a.contractDate && !b.contractDate) return 0;
+    if (!a.contractDate) return 1;
+    if (!b.contractDate) return -1;
+    return new Date(b.contractDate).getTime() - new Date(a.contractDate).getTime();
+  });
+
   return (
     <Card>
       <CardHeader className="pb-4">
@@ -47,7 +55,7 @@ export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
-        ) : reports.length === 0 ? (
+        ) : sortedReports.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">등록된 수주보고서가 없습니다.</div>
         ) : (
           <Table>
@@ -62,7 +70,7 @@ export function OrderReportList({ reports, isLoading }: OrderReportListProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reports.map((order) => (
+              {sortedReports.map((order) => (
                 <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/contract/orders/${order.id}`)}>
                   <TableCell className="font-mono text-xs">{order.orderReportCode}</TableCell>
                   <TableCell className="max-w-[250px] truncate font-medium">{order.projectName}</TableCell>

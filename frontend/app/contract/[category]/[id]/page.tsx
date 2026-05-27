@@ -46,6 +46,19 @@ export default function ContractDetailPage() {
           res = await orderReportApi.getOrderReport(numericId);
         } else if (category === "contracts" || category === "contract") {
           res = await contractApi.getContract(numericId);
+          if (res && (res.success || res.result === "SUCCESS")) {
+            const contractData = res.data;
+            if (contractData && contractData.orderReportId) {
+              try {
+                const reportRes = await orderReportApi.getOrderReport(contractData.orderReportId);
+                if (reportRes && (reportRes.success || reportRes.result === "SUCCESS")) {
+                  contractData.projectName = reportRes.data?.projectName;
+                }
+              } catch (e) {
+                console.error("Failed to fetch order report for contract project name", e);
+              }
+            }
+          }
         } else if (category === "licenses" || category === "license") {
           res = await licenseApi.getLicense(numericId);
         } else if (category === "purchases" || category === "purchase") {
@@ -135,13 +148,29 @@ export default function ContractDetailPage() {
 
   const label = getLabel();
 
+  const getPageTitle = () => {
+    if (!data) return id;
+    if (category === "orders" || category === "order") {
+      return (data as OrderReportResponse).projectName || `수주보고 #${id}`;
+    }
+    if (category === "contracts" || category === "contract") {
+      return (data as any).projectName || `계약 #${id}`;
+    }
+    if (category === "licenses" || category === "license") {
+      const d = data as LicenseResponse;
+      return `${d.customerCompanyName} - ${d.productName}` || `라이선스 #${id}`;
+    }
+    if (category === "purchases" || category === "purchase") {
+      return (data as PurchaseResponse).projectOpportunityName || `매입계약 #${id}`;
+    }
+    return id;
+  };
+
   // DetailFormCard용 필드 생성
   const getFields = () => {
     if (category === "contracts" || category === "contract") {
       const d = data as ContractResponse;
       return [
-        { label: "계약번호", value: d?.id },
-        { label: "수주보고번호", value: d?.orderReportId },
         { label: "계약일", value: d?.contractDate },
         { label: "계약금액", value: d?.contractAmount ? `₩${d.contractAmount.toLocaleString()}` : "₩0" },
         { label: "제안유형", value: d?.proposalType === "SELF" ? "직접제안" : "SI제안" },
@@ -152,8 +181,6 @@ export default function ContractDetailPage() {
     if (category === "licenses" || category === "license") {
       const d = data as LicenseResponse;
       return [
-        { label: "라이선스번호", value: d?.id },
-        { label: "수주보고번호", value: d?.orderReportId },
         { label: "고객사", value: d?.customerCompanyName },
         { label: "제품명", value: d?.productName },
         { label: "수량", value: d?.quantity },
@@ -180,7 +207,7 @@ export default function ContractDetailPage() {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header title={`${label} 상세`} description={`${label} 정보를 페이지에서 조회합니다`} />
+        <Header title={getPageTitle()} description={`${label} 정보를 페이지에서 조회합니다`} />
         <main className="flex-1 overflow-auto p-6">
           <div className={`space-y-6 ${category === "orders" ? "" : "mx-auto max-w-5xl"}`}>
             <Breadcrumb>
@@ -192,7 +219,7 @@ export default function ContractDetailPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{id}</BreadcrumbPage>
+                  <BreadcrumbPage>{getPageTitle()}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
