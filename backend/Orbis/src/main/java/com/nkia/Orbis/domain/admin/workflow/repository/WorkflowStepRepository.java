@@ -1,0 +1,22 @@
+package com.nkia.Orbis.domain.admin.workflow.repository;
+
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowStep;
+import com.nkia.Orbis.domain.admin.workflow.entity.WorkflowTemplate;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface WorkflowStepRepository extends JpaRepository<WorkflowStep, Long> {
+    List<WorkflowStep> findByWorkflowTemplateAndActiveTrueOrderByStepOrderAsc(
+            WorkflowTemplate workflowTemplate
+    );
+
+    Optional<WorkflowStep> findByWorkflowTemplateAndStepOrderAndActiveTrue(
+            WorkflowTemplate workflowTemplate,
+            Integer stepOrder
+    );
+
+    long countByWorkflowTemplateAndActiveTrue(
+            WorkflowTemplate workflowTemplate
+    );
+}

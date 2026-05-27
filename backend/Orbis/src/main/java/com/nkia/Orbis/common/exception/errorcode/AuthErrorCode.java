@@ -1,0 +1,21 @@
+package com.nkia.Orbis.common.exception.errorcode;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+
+@Getter
+@RequiredArgsConstructor
+public enum AuthErrorCode implements ErrorCode {
+    INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0001", "유효하지 않은 access 토큰입니다."),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0002", "유효하지 않은 refresh 토큰입니다."),
+    TIMEOUT_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0003", "만료된 access 토큰입니다."),
+    TIMEOUT_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_0004", "만료된 refresh 토큰입니다."),
+    ACCESS_DENIED(HttpStatus.UNAUTHORIZED, "AUTH_0005", "접근 권한이 없습니다."),
+    ROLE_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "AUTH_0006", "이미 존재하는 role 입니다."),
+    PERMISSION_NOT_FOUND(HttpStatus.BAD_REQUEST, "NOT_FOUND", "이미 존재하는 role 입니다.");
+
+    private final HttpStatus httpStatus;
+    private final String code;
+    private final String message;
+}

@@ -1,0 +1,399 @@
+import { customInstance } from "./customAxios";
+
+// 공통 API 응답 래퍼
+export interface ApiResponse<T> {
+  code: number;
+  message: string;
+  data: T;
+}
+
+// 사업(Project) 타입 정의
+
+/** 사업 목록 응답 */
+export interface ProjectListResponse {
+  id: number;
+  pjtNumber: string | null;
+  customerName: string | null;
+  projectName: string | null;
+  totalAmount: number | null;
+  startDate: string | null; // LocalDate → ISO string (YYYY-MM-DD)
+  endDate: string | null;
+  pmName: string | null;
+  salesRepresentativeName: string | null;
+  hasResultReport: boolean;
+}
+
+/** 사업 상세 응답 */
+export interface ProjectDetailResponse {
+  id: number;
+  pjtNumber: string | null;
+  pjtName: string | null;
+  customerName: string | null;
+  totalAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  pmName: string | null;
+  salesRepName: string | null;
+  resultReport: ResultReportInfo | null;
+  orderReportId: number | null;
+  contractId: number | null;
+}
+
+export interface ResultReportInfo {
+  id: number;
+  fileName: string;
+  fileSize: number;
+  fileUrl: string;
+}
+
+/** 사업 등록 응답 */
+export interface ProjectCreateResponse {
+  id: number;
+  pjtNumber: string;
+  pjtName: string;
+  type: string;
+  totalAmount: number;
+  customerName: string;
+  salesRepresentativeName: string;
+  createdAt: string;
+}
+
+/** 사업 등록 요청 (수주보고서 ID로 생성) */
+export interface ProjectCreateRequest {
+  orderReportId: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+/** 사업 결합 수정 요청 (PM, 영업대표, 기간, 결과보고 파일) */
+export interface ProjectCombinedUpdateRequest {
+  startDate?: string;
+  endDate?: string;
+  managerId: string;
+  salesRepresentativeId: string;
+  fileId?: number | null;
+}
+
+// 청구(Billing) 타입 정의
+
+/** 청구 목록 응답 */
+export interface BillingListResponse {
+  id?: number; // 목록 API에서 제공 시 사용 (optional)
+  customerName: string;
+  projectName: string;
+  billingAmount: number;
+  issuedAt: string | null;
+  collectedAt: string | null;
+  salesRepName: string;
+  requesterName: string;
+  status?: "REQUESTED" | "APPROVED" | "ISSUED" | "COLLECTED"; // 있을 경우 배지 표시
+  createdAt?: string;
+}
+
+/** 청구 상세 응답 */
+export interface BillingDetailResponse {
+  id: number;
+  workflowId: number | null;
+  approvalStatus: string | null;
+  orderReportId: number;
+  customerName: string;
+  projectName: string;
+  billingAmount: number;
+  requestedIssueDate: string;
+  issuedAt: string | null;
+  collectedAt: string | null;
+  remarks: string | null;
+  invoiceImageId: number | null;
+  status: "REQUESTED" | "APPROVED" | "ISSUED" | "COLLECTED";
+  createdBy: string;
+  createdAt: string;
+}
+
+/** 청구 폼 초기화 데이터 */
+export interface BillingFormInitResponse {
+  customerName: string;
+  projectName: string;
+  requesterName: string;
+  requestDate: string;
+  contractId: number;
+}
+
+/** 청구 등록 요청 */
+export interface BillingCreateRequest {
+  orderReportId: number;
+  billingAmount: number;
+  requestedIssueDate: string;
+  remarks?: string;
+  invoiceManager: string;
+}
+
+/** 청구 발행 확인 요청 */
+export interface BillingIssueRequest {
+  issuedAt: string;
+  invoiceImageId?: number | null;
+}
+
+/** 수금 확인 요청 */
+export interface BillingCollectRequest {
+  collectedAt: string;
+}
+
+/** 청구 수정 요청 */
+export interface BillingUpdateRequest {
+  billingAmount?: number;
+  requestedIssueDate?: string;
+  remarks?: string;
+  issuedAt?: string;
+  invoiceImageId?: number | null;
+  collectedAt?: string;
+}
+
+/** 예상 매출액 응답 */
+export interface EstimatedRevenueResponse {
+  productCategory: string;
+  categoryName: string;
+  monthlyRevenue: Record<string, number>;
+  totalAmount: number;
+}
+
+/** 사업 변경이력 목록 응답 */
+export interface ProjectHistoryListResponse {
+  historyId: number;
+  originalProjectId: number;
+  customerName: string | null;
+  projectName: string | null;
+  totalAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  pmName: string | null;
+  salesRepresentativeName: string | null;
+  hasResultReport: boolean;
+  savedAt: string; // ISO string YYYY-MM-DDTHH:mm:ss
+}
+
+/** 사업 변경이력 상세 응답 */
+export interface ProjectHistoryDetailResponse {
+  historyId: number;
+  originalProjectId: number;
+  pjtNumber: string | null;
+  pjtName: string | null;
+  customerName: string | null;
+  totalAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  pmName: string | null;
+  salesRepName: string | null;
+  resultReport: {
+    id: number;
+    fileName: string;
+    fileSize: number;
+    fileUrl: string;
+  } | null;
+  orderReportId: number | null;
+  contractId: number | null;
+  savedAt: string;
+}
+
+/** 청구 변경이력 목록 응답 */
+export interface BillingHistoryListResponse {
+  id: number;
+  originalBillingId: number;
+  customerName: string | null;
+  projectName: string | null;
+  billingAmount: number;
+  issuedAt: string | null;
+  collectedAt: string | null;
+  salesRepName: string | null;
+  requesterName: string;
+  createdAt: string;
+  status: "REQUESTED" | "APPROVED" | "ISSUED" | "COLLECTED";
+}
+
+/** 청구 변경이력 상세 응답 */
+export interface BillingHistoryDetailResponse {
+  id: number;
+  originalBillingId: number;
+  approvalStatus: string | null;
+  customerName: string | null;
+  projectName: string | null;
+  billingAmount: number;
+  requestedIssueDate: string;
+  issuedAt: string | null;
+  collectedAt: string | null;
+  remarks: string | null;
+  invoiceImageId: number | null;
+  status: "REQUESTED" | "APPROVED" | "ISSUED" | "COLLECTED";
+  createdBy: string;
+  createdAt: string;
+}
+
+// API 함수 모음
+
+
+export const projectApi = {
+  // 사업
+
+  /** 사업 변경이력 목록 조회 */
+  getProjectHistories: (projectId: number) =>
+    customInstance<ApiResponse<ProjectHistoryListResponse[]>>({
+      url: `/projects/${projectId}/histories`,
+      method: "GET",
+    }),
+
+  /** 사업 변경이력 상세 조회 */
+  getProjectHistory: (historyId: number) =>
+    customInstance<ApiResponse<ProjectHistoryDetailResponse>>({
+      url: `/projects/histories/${historyId}`,
+      method: "GET",
+    }),
+
+  /** 예상 매출액 조회 */
+  getAnnualRevenue: (year?: number) =>
+    customInstance<ApiResponse<EstimatedRevenueResponse[]>>({
+      url: "/projects/revenues/annual",
+      method: "GET",
+      params: year ? { year } : undefined,
+    }),
+
+  /** 사업 전체 목록 조회 */
+  getProjects: () =>
+    customInstance<ApiResponse<ProjectListResponse[]>>({
+      url: "/projects",
+      method: "GET",
+    }),
+
+  /** 사업 상세 조회 */
+  getProject: (projectId: number) =>
+    customInstance<ApiResponse<ProjectDetailResponse>>({
+      url: `/projects/${projectId}`,
+      method: "GET",
+    }),
+
+  /** 사업 등록 (수주보고서 ID 기반) */
+  createProject: (data: ProjectCreateRequest) =>
+    customInstance<ApiResponse<ProjectCreateResponse>>({
+      url: "/projects/register",
+      method: "POST",
+      data,
+    }),
+
+  /** 사업 + 결과보고 통합 수정 */
+  updateProjectWithReport: (projectId: number, data: ProjectCombinedUpdateRequest) =>
+    customInstance<ApiResponse<ProjectDetailResponse>>({
+      url: `/projects/${projectId}/with-report`,
+      method: "PUT",
+      data,
+    }),
+
+  /** 사업 삭제 */
+  deleteProject: (projectId: number) =>
+    customInstance<ApiResponse<null>>({
+      url: `/projects/${projectId}`,
+      method: "DELETE",
+    }),
+
+  // 청구
+
+  /** 청구 목록 조회 */
+  getBillings: () =>
+    customInstance<ApiResponse<BillingListResponse[]>>({
+      url: "/projects/billings",
+      method: "GET",
+    }),
+
+  /** 청구 상세 조회 */
+  getBilling: (billingId: number) =>
+    customInstance<ApiResponse<BillingDetailResponse>>({
+      url: `/projects/billings/${billingId}`,
+      method: "GET",
+    }),
+
+  /** 청구 폼 초기 데이터 (수주보고서 ID 기반 자동 채움) */
+  getBillingFormInit: (orderReportId: number) =>
+    customInstance<ApiResponse<BillingFormInitResponse>>({
+      url: `/projects/billings/form-init/${orderReportId}`,
+      method: "GET",
+    }),
+
+  /** 세금계산서 발행 요청 등록 */
+  createBilling: (data: BillingCreateRequest) =>
+    customInstance<ApiResponse<number>>({
+      url: "/projects/billings",
+      method: "POST",
+      data,
+    }),
+
+  /** 세금계산서 발행 확인 처리 */
+  issueBilling: (billingId: number, data: BillingIssueRequest) =>
+    customInstance<ApiResponse<null>>({
+      url: `/projects/billings/${billingId}/issue`,
+      method: "POST",
+      data,
+    }),
+
+  /** 수금 확인 처리 */
+  collectBilling: (billingId: number, data: BillingCollectRequest) =>
+    customInstance<ApiResponse<null>>({
+      url: `/projects/billings/${billingId}/collect`,
+      method: "POST",
+      data,
+    }),
+
+  /** 청구 정보 수정 */
+  updateBilling: (billingId: number, data: BillingUpdateRequest) =>
+    customInstance<ApiResponse<BillingDetailResponse>>({
+      url: `/projects/billings/${billingId}`,
+      method: "PUT",
+      data,
+    }),
+
+  /** 청구 삭제 */
+  deleteBilling: (billingId: number) =>
+    customInstance<ApiResponse<null>>({
+      url: `/projects/billings/${billingId}`,
+      method: "DELETE",
+    }),
+
+  /** 특정 청구 건의 이력 목록 조회 */
+  getBillingHistories: (billingId: number) =>
+    customInstance<ApiResponse<BillingHistoryListResponse[]>>({
+      url: `/projects/billings/${billingId}/histories`,
+      method: "GET",
+    }),
+
+  /** 특정 청구 이력 상세 조회 */
+  getBillingHistory: (historyId: number) =>
+    customInstance<ApiResponse<BillingHistoryDetailResponse>>({
+      url: `/projects/billings/histories/${historyId}`,
+      method: "GET",
+    }),
+};
+
+/** 세금계산서 이미지 업로드 (multipart/form-data) */
+export async function uploadBillingInvoiceFile(file: File): Promise<number> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  // category=BILLING은 쿼리 파라미터로 전달
+  const { getBackendApiBaseUrl } = await import("@/lib/api-base-url");
+  const { getAccessToken } = await import("@/lib/auth-session");
+  const baseUrl = getBackendApiBaseUrl();
+  const token = getAccessToken();
+
+  const response = await fetch(`${baseUrl}/files/upload?category=BILLING`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error("파일 업로드에 실패했습니다.");
+  }
+
+  const result = await response.json();
+  const fileId = result?.data;
+  if (!fileId || typeof fileId !== "number") {
+    throw new Error("업로드된 파일 ID를 받지 못했습니다.");
+  }
+  return fileId;
+}

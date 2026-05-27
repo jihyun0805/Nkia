@@ -1,0 +1,666 @@
+"use client"
+
+import { getBackendApiBaseUrl } from "@/lib/api-base-url"
+import { buildAuthHeaders } from "@/lib/auth-session"
+import { getPresalesUsers } from "@/lib/admin-data"
+import type { ActivityRecord } from "@/lib/activity-data"
+import { currentUser } from "@/lib/current-user"
+import { findUserByToken, formatUserDisplayName, splitDelimitedValues } from "@/lib/user-utils"
+import type {
+  ApiResponseVoid,
+  SalesActivityCreateRequest,
+  SalesActivityCreateRequestActivityPurpose,
+  SalesActivityCreateRequestActivityType,
+  SalesActivityCreateRequestStatus,
+  SalesActivityResponse,
+  SalesActivityUpdateRequest,
+  SalesActivityUpdateRequestActivityPurpose,
+  SalesActivityUpdateRequestActivityType,
+  SalesActivityUpdateRequestStatus,
+} from "@/lib/api/generated/model"
+import { loadBackendUsers } from "@/lib/workflow-backend"
+
+type ApiResponse<T> = {
+  result?: string
+  data?: T | null
+  errorCode?: string | null
+  message?: string | null
+}
+
+type CompanySummaryResponse = {
+  id?: number
+  code?: string
+  name?: string
+}
+
+type ProjectOpportunitySummaryResponse = {
+  id?: number
+  opportunityCode?: string
+  opportunityName?: string
+  customerCompanyId?: number
+  customerCompanyName?: string
+}
+
+type BackendUserSummary = {
+  id?: string
+  employeeNumber?: string
+  name?: string
+  email?: string
+}
+
+type SalesActivityBackendItem = {
+  id?: number
+  projectOpportunityId?: number
+  projectOpportunityName?: string
+  companyId?: number
+  companyName?: string
+  createdByName?: string
+  createUserName?: string
+  activityType?: string
+  activityPurpose?: string
+  activityContent?: string
+  location?: string
+  activityDateTime?: string
+  issue?: string
+  nextActivity?: string
+  customerInterest?: string
+  attendeeUserIds?: string[]
+  attendees?: {
+    userId?: string
+    userName?: string
+  }[]
+  status?: string
+  salesActivityRequestId?: number
+  salesActivityRequestTitle?: string
+}
+
+type ActivityExtraFieldRecord = {
+  registrant?: string
+  requester?: string
+  requesterUserId?: string
+}
+
+// 활동 상세에서 백엔드가 바로 주지 않는 등록자/요청자 보조정보를 브라우저에 저장한다.
+const ACTIVITY_EXTRA_FIELDS_STORAGE_KEY = "orbis.activity.extra-fields"
+
+function isBrowser() {
+  return typeof window !== "undefined"
+}
+
+function readActivityExtraFieldRecords() {
+  if (!isBrowser()) return {} as Record<string, ActivityExtraFieldRecord>
+
+  try {
+    const stored = window.localStorage.getItem(ACTIVITY_EXTRA_FIELDS_STORAGE_KEY)
+    if (!stored) return {}
+    const parsed = JSON.parse(stored) as Record<string, ActivityExtraFieldRecord>
+    return parsed && typeof parsed === "object" ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeActivityExtraFieldRecords(records: Record<string, ActivityExtraFieldRecord>) {
+  if (!isBrowser()) return
+  window.localStorage.setItem(ACTIVITY_EXTRA_FIELDS_STORAGE_KEY, JSON.stringify(records))
+}
+
+function saveActivityExtraFields(id: string, fields: ActivityExtraFieldRecord) {
+  const current = readActivityExtraFieldRecords()
+  current[id] = {
+    registrant: fields.registrant ?? "",
+    requester: fields.requester ?? "",
+    requesterUserId: fields.requesterUserId ?? "",
+  }
+  writeActivityExtraFieldRecords(current)
+}
+
+function getActivityExtraFields(id: string) {
+  return readActivityExtraFieldRecords()[id] ?? {}
+}
+
+// 백엔드 enum -> 화면 한글 라벨
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  EMAIL: "이메일",
+  CALL: "전화",
+  VIDEO_MEETING: "영상회의",
+  OFFLINE_MEETING: "대면미팅",
+  ETC: "기타",
+}
+
+const ACTIVITY_PURPOSE_LABELS: Record<string, string> = {
+  CONSULTING: "상담",
+  PRODUCT_INTRODUCTION: "제품소개",
+  DEMO: "데모",
+  POC: "PoC",
+  BMT: "BMT",
+  DOCUMENT_DELIVERY: "자료 전달",
+  RFP_ANALYSIS: "RFP 분석",
+  PROPOSAL_WRITING: "제안서 작성",
+  SI_PROPOSAL_WRITING: "SI 제안서 작성",
+  ETC: "기타",
+}
+
+const ACTIVITY_STATUS_LABELS: Record<string, string> = {
+  REQUESTED: "접수대기",
+  PLANNED: "예정",
+  IN_PROGRESS: "진행중",
+  COMPLETED: "완료",
+  CANCELED: "삭제",
+}
+
+// 화면 한글 라벨 -> 백엔드 enum
+const ACTIVITY_TYPE_TO_ENUM: Record<string, SalesActivityCreateRequestActivityType> = {
+  이메일: "EMAIL",
+  전화: "CALL",
+  영상회의: "VIDEO_MEETING",
+  대면미팅: "OFFLINE_MEETING",
+  기타: "ETC",
+}
+
+const ACTIVITY_PURPOSE_TO_ENUM: Record<string, SalesActivityCreateRequestActivityPurpose> = {
+  상담: "CONSULTING",
+  제품소개: "PRODUCT_INTRODUCTION",
+  데모: "DEMO",
+  PoC: "POC",
+  BMT: "BMT",
+  "자료 전달": "DOCUMENT_DELIVERY",
+  "RFP 분석": "RFP_ANALYSIS",
+  "제안서 작성": "PROPOSAL_WRITING",
+  "SI 제안서 작성": "SI_PROPOSAL_WRITING",
+  기타: "ETC",
+}
+
+const ACTIVITY_STATUS_TO_ENUM: Record<string, SalesActivityCreateRequestStatus> = {
+  접수대기: "REQUESTED",
+  예정: "PLANNED",
+  진행중: "IN_PROGRESS",
+  완료: "COMPLETED",
+  삭제: "CANCELED",
+}
+
+async function parseApiResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null
+
+  if (!response.ok) {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+
+  if (payload?.result !== "SUCCESS" || payload.data == null) {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+
+  return payload.data
+}
+
+async function parseVoidApiResponse(response: Response, fallbackMessage: string): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as ApiResponse<null> | null
+
+  if (!response.ok) {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+
+  if (payload?.result !== "SUCCESS") {
+    throw new Error(payload?.message || fallbackMessage)
+  }
+}
+
+function mapActivityType(activityType?: string) {
+  if (!activityType) return "-"
+  return ACTIVITY_TYPE_LABELS[activityType] ?? activityType
+}
+
+function mapActivityPurpose(activityPurpose?: string) {
+  if (!activityPurpose) return "-"
+  return ACTIVITY_PURPOSE_LABELS[activityPurpose] ?? activityPurpose
+}
+
+function mapActivityStatus(status?: string) {
+  if (!status) return "접수대기"
+  return ACTIVITY_STATUS_LABELS[status] ?? status
+}
+
+function mapActivityTypeToEnum(activityMode: string) {
+  return ACTIVITY_TYPE_TO_ENUM[activityMode] ?? "ETC"
+}
+
+function mapActivityPurposeToEnum(activityPurpose: string) {
+  return ACTIVITY_PURPOSE_TO_ENUM[activityPurpose] ?? "ETC"
+}
+
+function mapActivityStatusToEnum(status: string) {
+  return ACTIVITY_STATUS_TO_ENUM[status] ?? "COMPLETED"
+}
+
+async function resolveAttendeeUserIds(attendees?: string) {
+  const tokens = splitDelimitedValues(attendees)
+
+  if (tokens.length === 0) {
+    return []
+  }
+
+  let backendUsers: BackendUserSummary[] = []
+  try {
+    backendUsers = await loadBackendUsers()
+  } catch {
+    backendUsers = []
+  }
+
+  const localUsers: BackendUserSummary[] = getPresalesUsers().map((user) => ({
+    id: user.id,
+    employeeNumber: user.employeeNumber,
+    name: user.name,
+    email: user.email,
+  }))
+
+  const allUsers: BackendUserSummary[] = [...backendUsers, ...localUsers]
+
+  const resolved = tokens.map((token) => findUserByToken(allUsers, token)?.id?.trim() ?? "").filter((value): value is string => Boolean(value))
+
+  return Array.from(new Set(resolved))
+}
+
+// 참석자 ID 배열을 화면 표시용 이름 배열로 바꾸는 헬퍼
+function formatAttendeeNames(attendeeUserIds: string[] | undefined, users: BackendUserSummary[]) {
+  const ids = attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
+  if (ids.length === 0) return ""
+
+  return ids
+    .map((id) => formatUserDisplayName(users.find((user) => user.id?.trim() === id) ?? { id }))
+    .join(", ")
+}
+
+function extractAttendeeUserIds(activity: Pick<SalesActivityBackendItem, "attendeeUserIds" | "attendees">) {
+  const fromIds = activity.attendeeUserIds?.map((item) => item.trim()).filter(Boolean) ?? []
+  if (fromIds.length > 0) {
+    return Array.from(new Set(fromIds))
+  }
+
+  const fromAttendees =
+    activity.attendees
+      ?.map((attendee) => attendee.userId?.trim())
+      .filter((value): value is string => Boolean(value)) ?? []
+  return Array.from(new Set(fromAttendees))
+}
+
+function formatActivityAttendeeNames(activity: Pick<SalesActivityBackendItem, "attendeeUserIds" | "attendees">, users: BackendUserSummary[]) {
+  if (activity.attendees?.length) {
+    return activity.attendees
+      .map((attendee) => {
+        const userId = attendee.userId?.trim() ?? ""
+        const userName = attendee.userName?.trim() ?? ""
+        const matched = userId ? users.find((user) => user.id?.trim() === userId) : null
+        return userName || formatUserDisplayName(matched ?? (userId ? { id: userId } : null))
+      })
+      .filter(Boolean)
+      .join(", ")
+  }
+
+  return formatAttendeeNames(activity.attendeeUserIds, users)
+}
+
+async function fetchSalesActivities() {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/sales-activities`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<SalesActivityBackendItem[]>(response, "영업 활동 목록을 불러오지 못했습니다.")
+}
+
+async function fetchProjectOpportunities() {
+  const response = await fetch(`${getBackendApiBaseUrl()}/project-opportunities?size=2000`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  type PageResponse = {
+    content?: ProjectOpportunitySummaryResponse[]
+  }
+
+  return parseApiResponse<PageResponse>(response, "사업기회 목록을 불러오지 못했습니다.")
+}
+
+async function fetchCompanySummary(companyId: number) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/companies/${companyId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  return parseApiResponse<CompanySummaryResponse>(response, "회사 정보를 불러오지 못했습니다.")
+}
+
+async function resolveProjectOpportunityId(params: {
+  projectOpportunityId?: number
+  customerName?: string
+  opportunityName?: string
+  opportunityCode?: string
+}) {
+  if (params.projectOpportunityId != null) {
+    return params.projectOpportunityId
+  }
+
+  const opportunities = (await fetchProjectOpportunities()).content ?? []
+  const normalizedCustomer = params.customerName?.trim()
+  const normalizedOpportunity = params.opportunityName?.trim()
+  const normalizedOpportunityCode = params.opportunityCode?.trim()
+  const customerMatches = normalizedCustomer
+    ? opportunities.filter((item) => item.customerCompanyName?.trim() === normalizedCustomer)
+    : []
+
+  const matched = opportunities.find((item) => {
+    if (normalizedOpportunityCode && item.opportunityCode === normalizedOpportunityCode) {
+      return true
+    }
+
+    return (
+      normalizedCustomer != null &&
+      normalizedOpportunity != null &&
+      item.customerCompanyName?.trim() === normalizedCustomer &&
+      item.opportunityName?.trim() === normalizedOpportunity
+    )
+  })
+
+  if (matched?.id != null) {
+    return matched.id
+  }
+
+  if (normalizedCustomer && customerMatches.length === 1) {
+    return customerMatches[0]?.id ?? null
+  }
+
+  return matched?.id ?? null
+}
+
+function mapBackendActivityRecord(
+  activity: SalesActivityBackendItem,
+  company: CompanySummaryResponse | null,
+  opportunity: ProjectOpportunitySummaryResponse | null,
+  index: number,
+  users: BackendUserSummary[] = [],
+): ActivityRecord {
+  const extras = activity.id != null ? getActivityExtraFields(String(activity.id)) : {}
+  const date = activity.activityDateTime?.slice(0, 10) || ""
+  const activityMode = mapActivityType(activity.activityType)
+  const activityPurpose = mapActivityPurpose(activity.activityPurpose)
+  const customerId = activity.companyId ?? opportunity?.customerCompanyId
+  const opportunityId = activity.projectOpportunityId ?? opportunity?.id
+  const attendeeUserIds = extractAttendeeUserIds(activity)
+  const registrantName = activity.createdByName?.trim() || activity.createUserName?.trim() || extras.registrant?.trim() || ""
+  const registrantUser = findUserByToken(users, extras.registrant ?? "")
+  const requesterUser = findUserByToken(users, extras.requesterUserId ?? extras.requester ?? "")
+  const requesterUserId = requesterUser?.id?.trim() ?? extras.requesterUserId ?? ""
+
+  return {
+    id: String(activity.id ?? index + 1),
+    date,
+    requestId: activity.salesActivityRequestId != null ? String(activity.salesActivityRequestId) : undefined,
+    salesActivityRequestId: activity.salesActivityRequestId,
+    salesActivityRequestTitle: activity.salesActivityRequestTitle ?? "",
+    projectOpportunityId: opportunityId,
+    registrant:
+      registrantName ||
+      formatUserDisplayName(registrantUser ?? (extras.registrant ? { id: extras.registrant } : null)),
+    requester: formatUserDisplayName(requesterUser ? requesterUser : requesterUserId ? { id: requesterUserId } : { id: extras.requester }),
+    requesterUserId,
+    customerCode: company?.code ?? (customerId != null ? String(customerId) : String(activity.id ?? "")),
+    businessCode: opportunityId != null ? String(opportunityId) : "",
+    activityMode,
+    activityContent: activityPurpose,
+    type: activityPurpose,
+    customer: activity.companyName ?? company?.name ?? opportunity?.customerCompanyName ?? "",
+    opportunity: activity.projectOpportunityName ?? opportunity?.opportunityName ?? "",
+    location: activity.location ?? "",
+    attendees: formatActivityAttendeeNames(activity, users),
+    attendeeUserIds,
+    content: activity.activityContent ?? "",
+    issues: activity.customerInterest ?? activity.issue ?? "",
+    nextAction: activity.nextActivity ?? "",
+    status: mapActivityStatus(activity.status),
+    attachments: [],
+  }
+}
+
+export async function loadBackendActivityRecords() {
+  const activities = await fetchSalesActivities()
+  const backendUsers = await loadBackendUsers().catch(() => [])
+  let opportunities: ProjectOpportunitySummaryResponse[] = []
+  try {
+    opportunities = (await fetchProjectOpportunities()).content ?? []
+  } catch {
+    opportunities = []
+  }
+  const opportunityLookup = new Map(
+    opportunities
+      .filter((opportunity) => typeof opportunity.id === "number")
+      .map((opportunity) => [opportunity.id as number, opportunity] as const),
+  )
+  const uniqueCompanyIds = Array.from(
+    new Set(
+      activities
+        .map((activity) => activity.companyId ?? (activity.projectOpportunityId != null ? opportunityLookup.get(activity.projectOpportunityId)?.customerCompanyId : undefined))
+        .filter((companyId): companyId is number => typeof companyId === "number"),
+    ),
+  )
+
+  const companyEntries = await Promise.all(
+    uniqueCompanyIds.map(async (companyId) => {
+      try {
+        const company = await fetchCompanySummary(companyId)
+        return [companyId, company] as const
+      } catch {
+        return [companyId, null] as const
+      }
+    }),
+  )
+
+  const companyLookup = new Map<number, CompanySummaryResponse | null>(companyEntries)
+  const userLookup = new Map(
+    backendUsers
+      .filter((user) => Boolean(user.id))
+      .map((user) => [user.id?.trim() ?? "", user] as const)
+      .filter(([key]) => Boolean(key)),
+  )
+
+  return activities.map((activity, index) => {
+    const opportunity = activity.projectOpportunityId != null ? opportunityLookup.get(activity.projectOpportunityId) ?? null : null
+    const companyId = activity.companyId ?? opportunity?.customerCompanyId
+    const company = companyId != null ? companyLookup.get(companyId) ?? null : null
+    return mapBackendActivityRecord(activity, company, opportunity, index, Array.from(userLookup.values()))
+  })
+}
+
+async function postSalesActivity(
+  method: "POST" | "PATCH",
+  payload: SalesActivityCreateRequest | SalesActivityUpdateRequest,
+  salesActivityId?: string,
+) {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/activity/sales-activities${salesActivityId ? `/${salesActivityId}` : ""}`,
+    {
+      method,
+      headers: {
+        ...buildAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    },
+  )
+
+  return parseApiResponse<SalesActivityResponse>(response, "영업 활동을 저장하지 못했습니다.")
+}
+
+async function mapSavedSalesActivityResponse(saved: SalesActivityResponse & SalesActivityBackendItem) {
+  const backendUsers = await loadBackendUsers().catch(() => [])
+  const company = saved.companyId != null ? await fetchCompanySummary(saved.companyId) : null
+  return mapBackendActivityRecord(saved, company, null, 0, backendUsers)
+}
+
+export async function loadBackendActivityRecord(salesActivityId: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/sales-activities/${salesActivityId}`, {
+    headers: buildAuthHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  })
+
+  const saved = await parseApiResponse<SalesActivityResponse & SalesActivityBackendItem>(
+    response,
+    "영업 활동 상세를 불러오지 못했습니다.",
+  )
+  return mapSavedSalesActivityResponse(saved)
+}
+
+async function buildSalesActivityPayload(params: {
+  customerName?: string
+  opportunityName?: string
+  opportunityCode?: string
+  projectOpportunityId?: number
+  activityMode: string
+  activityContent: string
+  content: string
+  location: string
+  activityDate: string
+  issues?: string
+  nextAction?: string
+  status?: string
+  attendees?: string
+  requestId?: string
+  salesActivityRequestId?: number
+}) {
+  const attendeeUserIds = await resolveAttendeeUserIds(params.attendees)
+
+  return {
+    projectOpportunityId: params.projectOpportunityId,
+    activityType: mapActivityTypeToEnum(params.activityMode),
+    activityPurpose: mapActivityPurposeToEnum(params.activityContent),
+    activityContent: params.content,
+    location: params.location,
+    activityDateTime: `${params.activityDate}T00:00:00`,
+    issue: params.issues ?? "",
+    nextActivity: params.nextAction ?? "",
+    attendeeUserIds,
+    customerInterest: params.issues ?? "",
+    status: mapActivityStatusToEnum(params.status ?? "완료"),
+    salesActivityRequestId: params.salesActivityRequestId,
+  } satisfies SalesActivityCreateRequest
+}
+
+export async function createBackendActivityRecord(params: {
+  customerName?: string
+  opportunityName?: string
+  opportunityCode?: string
+  projectOpportunityId?: number
+  registrant?: string
+  requester?: string
+  activityMode: string
+  activityContent: string
+  content: string
+  location: string
+  activityDate: string
+  issues?: string
+  nextAction?: string
+  status?: string
+  attendees?: string
+  requestId?: string
+  salesActivityRequestId?: number
+}) {
+  const projectOpportunityId = await resolveProjectOpportunityId({
+    projectOpportunityId: params.projectOpportunityId,
+    customerName: params.customerName,
+    opportunityName: params.opportunityName,
+    opportunityCode: params.opportunityCode,
+  })
+
+  if (projectOpportunityId == null) {
+    throw new Error("선택한 고객사에 연결된 사업기회를 찾을 수 없습니다. 먼저 사업기회를 등록한 뒤 활동을 등록해주세요.")
+  }
+
+  const payload = await buildSalesActivityPayload({
+    ...params,
+    projectOpportunityId,
+  })
+
+  const saved = await postSalesActivity("POST", payload)
+  const mapped = await mapSavedSalesActivityResponse(saved)
+  saveActivityExtraFields(mapped.id, {
+    registrant: params.registrant,
+    requester: params.requester,
+    requesterUserId: params.requester,
+  })
+  return {
+    ...mapped,
+    registrant: params.registrant ?? mapped.registrant,
+    requester: mapped.requester,
+    requesterUserId: params.requester ?? mapped.requesterUserId,
+  }
+}
+
+export async function updateBackendActivityRecord(
+  salesActivityId: string,
+  params: {
+    customerName?: string
+    opportunityName?: string
+    opportunityCode?: string
+    projectOpportunityId?: number
+    registrant?: string
+    requester?: string
+    activityMode: string
+    activityContent: string
+    content: string
+    location: string
+    activityDate: string
+    issues?: string
+    nextAction?: string
+    status?: string
+    attendees?: string
+    salesActivityRequestId?: number
+  },
+) {
+  const projectOpportunityId = await resolveProjectOpportunityId({
+    projectOpportunityId: params.projectOpportunityId,
+    customerName: params.customerName,
+    opportunityName: params.opportunityName,
+    opportunityCode: params.opportunityCode,
+  })
+
+  if (projectOpportunityId == null) {
+    throw new Error("선택한 고객사에 연결된 사업기회를 찾을 수 없습니다. 먼저 사업기회를 등록한 뒤 활동을 수정해주세요.")
+  }
+
+  const payload = {
+    ...(await buildSalesActivityPayload({
+      ...params,
+      projectOpportunityId,
+    })),
+    projectOpportunityId,
+  } satisfies SalesActivityUpdateRequest & { projectOpportunityId: number }
+
+  const saved = await postSalesActivity("PATCH", payload, salesActivityId)
+  const mapped = await mapSavedSalesActivityResponse(saved)
+  saveActivityExtraFields(mapped.id, {
+    registrant: params.registrant,
+    requester: params.requester,
+    requesterUserId: params.requester,
+  })
+  return {
+    ...mapped,
+    registrant: params.registrant ?? mapped.registrant,
+    requester: mapped.requester,
+    requesterUserId: params.requester ?? mapped.requesterUserId,
+  }
+}
+
+export async function deleteBackendActivityRecord(salesActivityId: string) {
+  const response = await fetch(`${getBackendApiBaseUrl()}/activity/sales-activities/${salesActivityId}`, {
+    method: "DELETE",
+    headers: buildAuthHeaders(),
+    credentials: "include",
+  })
+
+  await parseVoidApiResponse(response, "영업 활동을 삭제하지 못했습니다.")
+  return true
+}
