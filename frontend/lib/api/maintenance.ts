@@ -310,7 +310,43 @@ export const submitCustomerSupportRequest = async (id: number, firstApproverId: 
   });
 };
 
-// ---------------------------------------------------------------------------
+export interface CustomerSupportRequestHistoryListResponse {
+  historyId: number;
+  originalRequestId: number;
+  customerName: string;
+  requestStartDate: string;
+  requestEndDate: string;
+  requesterName: string;
+  salesRepName: string;
+  supportManagerName: string;
+  savedAt: string;
+}
+
+export interface CustomerSupportRequestHistoryDetailResponse {
+  historyId: number;
+  originalRequestId: number;
+  status: string;
+  customerName: string;
+  requestStartDate: string;
+  requestEndDate: string;
+  requestContent: string;
+  requesterName: string;
+  supportManagerName: string;
+  registrantName: string;
+  salesRepName: string;
+  remarks: string;
+  savedAt: string;
+}
+
+export const getCustomerSupportRequestHistories = async (id: number): Promise<ApiResponse<CustomerSupportRequestHistoryListResponse[]>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/requests/${id}/histories`, method: "get" });
+};
+
+export const getCustomerSupportRequestHistoryDetail = async (historyId: number): Promise<ApiResponse<CustomerSupportRequestHistoryDetailResponse>> => {
+  return await customInstance({ url: `/maintenances/customer-supports/requests/histories/${historyId}`, method: "get" });
+};
+
+// -----------------------------------------------------------------------------------------------------------
 // Customer Support Activity (고객지원 활동 결과) – /maintenances/customer-supports/activities
 // ---------------------------------------------------------------------------
 

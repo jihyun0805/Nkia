@@ -167,7 +167,7 @@ export default function CustomerSupportActivityDetailPage() {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header title="고객지원 활동 결과 상세" />
+        <Header title={item?.customerName ? `${item.customerName} - 고객지원 활동 결과 상세` : "고객지원 활동 결과 상세"} />
         <main className="flex-1 overflow-auto p-6">
           <div className="mx-auto max-w-5xl space-y-6">
             <Breadcrumb>
@@ -305,7 +305,7 @@ export default function CustomerSupportActivityDetailPage() {
             ) : (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">고객지원 활동 결과 #{item.id}</h1>
+                <h1 className="text-2xl font-bold">{item.customerName} - 고객지원 활동 결과</h1>
                 <Badge variant="outline">{item.activityType}</Badge>
               </div>
 
