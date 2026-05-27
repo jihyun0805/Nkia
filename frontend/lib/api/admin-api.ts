@@ -104,6 +104,12 @@ export interface WorkflowTemplateUpdateRequest {
   workflowDomain: string;
   name: string;
   active: boolean;
+    steps: {
+    stepOrder: number
+    stepName: string
+    approverPosition: string
+    required: boolean
+  }[]
 }
 
 export interface ProductModuleResponse {

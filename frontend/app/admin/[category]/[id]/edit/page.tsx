@@ -95,9 +95,19 @@ export default function AdminEditPage() {
           } else if (category === "workflow") {
             setFormData({
               name: d.name || "",
-              workflowDomain: d.workflowDomain || "",
+              workflowDomain:
+                Object.entries(WORKFLOW_DOMAIN_LABELS).find(
+                  ([_, label]) => label === d.workflowDomain
+                )?.[0] || d.workflowDomain || "",
               active: d.active !== undefined ? d.active.toString() : "true",
-              steps: d.steps || [],
+              steps:
+              d.steps?.map((step: any) => ({
+                ...step,
+                approverPosition:
+                  Object.entries(POSITION_LABELS).find(
+                    ([_, label]) => label === step.approverPosition
+                  )?.[0] || step.approverPosition,
+              })) || [],
             })
           } else if (category === "products") {
             setFormData({
@@ -154,6 +164,12 @@ export default function AdminEditPage() {
           name: formData.name,
           workflowDomain: formData.workflowDomain,
           active: formData.active === "true",
+          steps: (formData.steps || []).map((step: any, index: number) => ({
+            stepOrder: step.stepOrder ?? index + 1,
+            stepName: step.stepName,
+            approverPosition: step.approverPosition,
+            required: step.required ?? true,
+          })),
         })
       } else if (category === "products") {
         await adminApi.updateProduct(id, {
