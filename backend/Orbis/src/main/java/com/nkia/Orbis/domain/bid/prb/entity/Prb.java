@@ -43,6 +43,7 @@ public class Prb extends BaseEntity {
     private Long id;
 
     // PRB 상태
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     private ApprovalStatus status = ApprovalStatus.DRAFT;
 
